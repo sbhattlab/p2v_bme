@@ -116,19 +116,21 @@ TEST(Errors, SampleStartNeedsSixteenSequences) {
     EXPECT_THROW(build_sample_init_tree(10, 8, 1, devices, c1, c2, stats, SearchSettings()), std::invalid_argument);
 }
 
-// infer() checks its input before it looks for a GPU.
+// infer() checks its input before it uses the devices.
 TEST(Errors, InferRejectsBadInput) {
     const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
+    Devices devices = failing_devices(1, "none");
     Settings opt;
-    EXPECT_NE(thrown_message([&] { infer(aln, opt); }).find("at least 16 sequences"), std::string::npos);
+    EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("at least 16 sequences"), std::string::npos);
     opt.start = Start::Random;
     opt.profile_cap = 0;
-    EXPECT_NE(thrown_message([&] { infer(aln, opt); }).find("profile cap"), std::string::npos);
+    EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("profile cap"), std::string::npos);
     opt.profile_cap = DEFAULT_PROFILE_CAP;
     opt.start = Start::Given;
-    EXPECT_NE(thrown_message([&] { infer(aln, opt); }).find("start tree"), std::string::npos);
+    EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("start tree"), std::string::npos);
     const Alignment three = simulate_alignment(random_tree(3, 0.1, 0.1, 1), 50, SimulationModel(), 2);
-    EXPECT_NE(thrown_message([&] { infer(three, Settings()); }).find("at least 4 sequences"), std::string::npos);
+    EXPECT_NE(thrown_message([&] { infer(three, Settings(), devices); }).find("at least 4 sequences"),
+              std::string::npos);
 }
 
 size_t gpu_free_bytes() {

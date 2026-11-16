@@ -15,7 +15,6 @@
 #include <stdexcept>
 #include <string>
 
-#include "device.hpp"
 #include "json_writer.hpp"
 #include "substitution_models.hpp"
 #include "version.hpp"
@@ -75,22 +74,22 @@ void detail_settings(JsonWriter &w, const RunInfo &run, const Settings &opt, con
     w.field("bl_profile_cap", opt.bl_profile_cap);
     w.field("neg_as_zero", run.neg_as_zero);
     w.field("dedup", run.dedup);
-    w.field("accelerator", res.on_gpu ? "gpu" : "cpu");
+    w.field("accelerator", run.on_gpu ? "gpu" : "cpu");
     // CPU: the workers; GPU: the host's threads
-    w.field("threads", res.on_gpu ? (int32_t)omp_get_max_threads() : (int32_t)res.devices.size());
+    w.field("threads", run.on_gpu ? (int32_t)omp_get_max_threads() : (int32_t)run.devices.size());
     w.field("precision", opt.precision == Precision::Double ? "double" : "single");
     w.field("prefix", run.prefix);
     w.end_object();
 }
 
 // The GPUs used, each with the CUDA versions, or one line for the CPU workers.
-void detail_devices(JsonWriter &w, const Result &res) {
+void detail_devices(JsonWriter &w, const RunInfo &run) {
     std::vector<std::string> devices;
-    if (res.on_gpu) {
-        for (const std::string &name : res.devices)
-            devices.push_back(name + " (" + gpu_build_info() + ")");
+    if (run.on_gpu) {
+        for (const std::string &name : run.devices)
+            devices.push_back(name + " (" + run.gpu_build_info + ")");
     } else {
-        devices.push_back("CPU: " + std::to_string(res.devices.size()) + " threads");
+        devices.push_back("CPU: " + std::to_string(run.devices.size()) + " threads");
     }
     w.array_field("devices", devices);
 }
@@ -106,12 +105,12 @@ void detail_time(JsonWriter &w, const RunInfo &run, const Result &res) {
     w.end_object();
 }
 
-void detail_memory(JsonWriter &w, const Result &res) {
+void detail_memory(JsonWriter &w, const RunInfo &run) {
     w.key("memory");
     w.begin_object();
     w.field("host_ram_mb", peak_host_ram_mb()); // peak
     // GPU-wide (other processes included) and not a peak
-    w.field("gpu_memory_in_use_at_end_mb", res.gpu_memory_in_use_at_end_mb);
+    w.field("gpu_memory_in_use_at_end_mb", run.gpu_memory_in_use_at_end_mb);
     w.end_object();
 }
 
@@ -152,9 +151,9 @@ std::string report_json(const RunInfo &run, const Settings &opt, const Result &r
         w.field("host", host_name());
         detail_input(w, run);
         detail_settings(w, run, opt, res);
-        detail_devices(w, res);
+        detail_devices(w, run);
         detail_time(w, run, res);
-        detail_memory(w, res);
+        detail_memory(w, run);
         detail_model(w, res);
         w.array_field("round_gains", res.round_gains);
         w.end_object();

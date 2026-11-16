@@ -1,8 +1,8 @@
 /*
  * inference.cpp
  *
- * p2vbme::infer: one run of the method on an in-memory alignment: devices, start tree, search, branch lengths,
- * with the settings taken from Settings.
+ * p2vbme::infer: one run of the method on an in-memory alignment, on the given devices: start tree, search,
+ * branch lengths, with the settings taken from Settings.
  */
 #include <omp.h>
 
@@ -47,9 +47,6 @@ void check_settings(const Settings &opt) {
             throw std::runtime_error("base frequencies must be finite and >= 0");
     if (opt.threads < 0)
         throw std::runtime_error("CPU threads must be >= 0 (0 = all)");
-    if (opt.precision == Precision::Double && opt.accelerator == Accelerator::Gpu)
-        throw std::runtime_error("the GPU computes in single precision; double precision runs on the CPU "
-                                 "(--accelerator cpu)");
     if ((int32_t)opt.substitution.model < (int32_t)Model::JC69 ||
         (int32_t)opt.substitution.model > (int32_t)Model::GTR_GC)
         throw std::runtime_error("unknown distance model");
@@ -68,11 +65,10 @@ void check_settings(const Settings &opt) {
     if (opt.threads > omp_get_num_procs())
         throw std::runtime_error("CPU threads must be at most the " + std::to_string(omp_get_num_procs()) +
                                  " processors available");
-    if (opt.accelerator == Accelerator::Gpu && visible_gpus() < 1)
-        throw std::runtime_error("no GPU found (" + gpu_build_info() + "); run on the CPU (--accelerator cpu)");
 }
 
-Result infer(const Alignment &aln, const Settings &opt, const Tree *start_tree, const LogCallback &log) {
+Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const Tree *start_tree,
+             const LogCallback &log) {
     check_settings(opt);
     const int32_t N = aln.n_taxa;
     const int32_t W = aln.n_words;
@@ -89,16 +85,9 @@ Result infer(const Alignment &aln, const Settings &opt, const Tree *start_tree, 
             throw std::runtime_error("start tree missing or not on the alignment's taxa");
     }
 
-    /* the devices: auto = the GPU if one is visible (and single precision), else the CPU */
+    if (devices.empty())
+        throw std::runtime_error("no devices given (select_devices)");
     const bool double_precision = opt.precision == Precision::Double;
-    bool on_gpu = opt.accelerator == Accelerator::Gpu;
-    if (opt.accelerator == Accelerator::Auto)
-        on_gpu = !double_precision && visible_gpus() > 0;
-    if (on_gpu && double_precision)
-        throw std::runtime_error("the GPU computes in single precision; double precision runs on the CPU "
-                                 "(--accelerator cpu)");
-    if (on_gpu && visible_gpus() < 1)
-        throw std::runtime_error("no GPU found; run on the CPU (--accelerator cpu)");
     /* F81, F84, TN93: the alignment's base frequencies, unless given (the command line counts them before setting
      * identical sequences aside) */
     SubstitutionModel substitution = opt.substitution;
@@ -108,9 +97,6 @@ Result infer(const Alignment &aln, const Settings &opt, const Tree *start_tree, 
         !(freq_sum > 0.0))
         base_frequencies(aln.packed.data(), N, W, substitution.base_freqs);
 
-    Devices devices = on_gpu
-                          ? make_devices(opt.devices)
-                          : make_cpu_devices(opt.threads > 0 ? opt.threads : omp_get_max_threads(), double_precision);
     for (auto &dev : devices) {
         dev->load(aln.packed.data(), N, W);
         dev->set_distance(substitution, opt.eigen);
@@ -127,10 +113,7 @@ Result infer(const Alignment &aln, const Settings &opt, const Tree *start_tree, 
     settings.exact_check_eta = opt.exact_check_eta;
 
     Result res;
-    res.on_gpu = on_gpu;
     res.substitution = substitution;
-    for (auto &dev : devices)
-        res.devices.push_back(dev->name());
     /* Progress lines for the caller's log (the library prints nothing): one per search start, stage and early
      * stop, and per sample-and-place level (rf: -1 = no reference tree, -2 = not computed at this stage). */
     double t_start = 0.0, t_last = 0.0, dL_last = 0.0, round_end_dL = 0.0;
@@ -219,8 +202,6 @@ Result infer(const Alignment &aln, const Settings &opt, const Tree *start_tree, 
     }
     res.tree.c1 = c1;
     res.tree.c2 = c2;
-    for (auto &dev : devices)
-        res.gpu_memory_in_use_at_end_mb = std::max(res.gpu_memory_in_use_at_end_mb, dev->memory_in_use_mb());
     return res;
 }
 

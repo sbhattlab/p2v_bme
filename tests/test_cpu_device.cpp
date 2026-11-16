@@ -23,6 +23,7 @@
 #include "bme_reference.h"
 #include "device.hpp"
 #include "eigen_dist.hpp"
+#include "infer_test_helpers.hpp"
 #include "inference.hpp"
 #include "newick.hpp"
 #include "search.hpp"
@@ -162,7 +163,7 @@ TEST(CpuDevice, BruteForceAtSmallN) {
                 const Alignment aln = simulate_alignment(tree, 400, truth(), 7 * seed);
                 Settings opt = cpu_settings(model);
                 opt.seed = seed;
-                const Result res = infer(aln, opt);
+                const Result res = run_infer(aln, opt);
                 const std::vector<double> D = distance_matrix(aln, res.substitution); /* the model as used */
                 const double found = pauplin(unrooted(res.tree, N), N, D), best = brute_force_min(N, D);
                 EXPECT_LE(found, best + 1e-6 * best) << "N=" << N << " seed=" << seed << " " << model_name(model);
@@ -177,7 +178,7 @@ TEST(CpuDevice, SprOptimalByTheReferenceLibrary) {
         for (Precision precision : {Precision::Single, Precision::Double}) {
             const Tree tree = random_tree(N, 0.01, 0.3, 41);
             const Alignment aln = simulate_alignment(tree, 1000, truth(), 42);
-            const Result res = infer(aln, cpu_settings(model, precision));
+            const Result res = run_infer(aln, cpu_settings(model, precision));
             const std::vector<double> D = distance_matrix(aln, res.substitution); /* the model as used */
             double min_delta = 0.0;
             for (int32_t flip : {0, 1}) {
@@ -213,7 +214,7 @@ TEST(CpuDevice, BmeLengthOfAGivenTree) {
             opt.start = Start::Given;
             opt.max_rounds = 0;
             opt.bl_profile_cap = PROFILE_CAP_MAX;
-            const Result res = infer(aln, opt, &tree);
+            const Result res = run_infer(aln, opt, &tree);
             const double exact = pauplin(unrooted(tree, N), N, distance_matrix(aln, res.substitution));
             const double tol = precision == Precision::Double ? 1e-9 : 1e-4;
             EXPECT_NEAR(res.bme_length, exact, tol * exact) << model_name(model);
@@ -227,7 +228,7 @@ TEST(CpuDevice, DoublePrecisionNewick) {
     const Tree tree = random_tree(N, 0.02, 0.2, 51);
     const Alignment aln = simulate_alignment(tree, 2000, truth(), 52);
     Settings opt = cpu_settings(Model::JC69, Precision::Double);
-    const Result res = infer(aln, opt);
+    const Result res = run_infer(aln, opt);
     const std::string path = ::testing::TempDir() + "cpu_double.nwk";
     write_newick_unrooted(path, aln.names, res.tree);
     std::ifstream in(path);
@@ -251,7 +252,7 @@ TEST(CpuDevice, SameTreeForAnyWorkerCount) {
     for (int32_t workers : {1, 2, 3}) {
         Settings opt = cpu_settings(Model::JC69, Precision::Single, workers);
         opt.start = Start::Sample;
-        const Result res = infer(aln, opt);
+        const Result res = run_infer(aln, opt);
         if (workers == 1) {
             one = res;
             continue;
@@ -337,10 +338,10 @@ TEST(CpuDevice, Errors) {
     const Alignment aln = simulate_alignment(tree, 300, truth(), 82);
     Settings opt = cpu_settings(Model::JC69);
     opt.threads = -1;
-    EXPECT_THROW(infer(aln, opt), std::runtime_error);
+    EXPECT_THROW(run_infer(aln, opt), std::runtime_error);
     opt = cpu_settings(Model::JC69, Precision::Double);
     opt.accelerator = Accelerator::Gpu;
-    EXPECT_THROW(infer(aln, opt), std::runtime_error);
+    EXPECT_THROW(run_infer(aln, opt), std::runtime_error);
 }
 
 // The move scores: for each pruned subtree (row) of a skeleton, the best regraft and its score equal the smallest

@@ -19,6 +19,7 @@
 
 #include "device.hpp"
 #include "eigen_dist.hpp"
+#include "infer_test_helpers.hpp"
 #include "inference.hpp"
 #include "random.hpp"
 #include "search.hpp"
@@ -251,7 +252,7 @@ TEST(DeviceDistances, BmeLengthOfAGivenTree) {
         opt.bl_profile_cap = PROFILE_CAP_MAX;
         opt.devices = {0};
         opt.substitution = distance_model(model);
-        const Result res = infer(aln, opt, &tree);
+        const Result res = run_infer(aln, opt, &tree);
         const double exact = pauplin_length(aln, res.substitution, tree); /* the model as used (base frequencies) */
         EXPECT_NEAR(res.bme_length, exact, 1e-4 * exact) << model_name(model);
     }
@@ -273,13 +274,13 @@ TEST(DeviceDistances, SearchUnderEachModel) {
             if (eta > 0.0)
                 opt.profile_cap = 8; /* capped profiles, so the check runs (on complete profiles) */
             opt.substitution = distance_model(model);
-            const Result res = infer(aln, opt);
+            const Result res = run_infer(aln, opt);
             EXPECT_LT(res.delta_bme, 0.0) << model_name(model); /* the tree got shorter */
             // the true tree, scored by the same pass
             Settings score = opt;
             score.start = Start::Given;
             score.max_rounds = 0;
-            const Result true_score = infer(aln, score, &tree);
+            const Result true_score = run_infer(aln, score, &tree);
             EXPECT_LE(res.bme_length, true_score.bme_length * (1.0 + 1e-4))
                 << model_name(model) << " eta=" << eta << ": found " << res.bme_length << ", true tree "
                 << true_score.bme_length;
@@ -384,15 +385,17 @@ TEST(DeviceDistances, CpuAgreesWithGpu) {
         opt.devices = {0};
         opt.substitution = distance_model(model);
         opt.accelerator = Accelerator::Gpu;
-        const Result gpu = infer(aln, opt);
+        Devices gpu_devices = devices_for(opt);
+        const Result gpu = infer(aln, opt, gpu_devices);
         opt.accelerator = Accelerator::Cpu;
-        const Result cpu = infer(aln, opt);
+        Devices cpu_devices = devices_for(opt);
+        const Result cpu = infer(aln, opt, cpu_devices);
         /* measured: <= 8.4e-7 relative and RF 0 under every model */
         EXPECT_NEAR(cpu.bme_length, gpu.bme_length, 1e-5 * gpu.bme_length) << model_name(model);
         const int32_t rf = rf_distance(cpu.tree, gpu.tree, N);
         EXPECT_LE(rf, 10) << model_name(model);
-        EXPECT_TRUE(gpu.on_gpu);
-        EXPECT_FALSE(cpu.on_gpu);
+        EXPECT_EQ(gpu_devices[0]->name().rfind("GPU ", 0), 0u) << gpu_devices[0]->name(); // the run used the GPU
+        EXPECT_EQ(cpu_devices[0]->name().rfind("CPU ", 0), 0u) << cpu_devices[0]->name(); // and the CPU
         printf("%-7s GPU %.6f CPU %.6f (rel %.1e), RF %d\n", model_name(model), gpu.bme_length, cpu.bme_length,
                fabs(cpu.bme_length - gpu.bme_length) / gpu.bme_length, rf);
     }

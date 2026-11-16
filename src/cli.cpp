@@ -9,6 +9,7 @@
 #include <omp.h>
 #include <stdio.h>
 
+#include <algorithm>
 #include <exception>
 #include <sstream>
 #include <stdexcept>
@@ -18,6 +19,7 @@
 #include <cxxopts.hpp>
 
 #include "dedup.hpp"
+#include "device.hpp"
 #include "inference.hpp"
 #include "io.hpp"
 #include "newick.hpp"
@@ -213,22 +215,17 @@ int main(int argc, char **argv) {
         opt.accelerator = parse_accelerator(args["accelerator"].as<std::string>());
         opt.precision = parse_precision(args["precision"].as<std::string>());
         /* auto: the GPU if one is found (and single precision), else the CPU, with a message */
-        bool on_gpu = opt.accelerator == p2vbme::Accelerator::Gpu; /* infer() resolves auto the same way */
-        if (opt.accelerator == p2vbme::Accelerator::Auto) {
-            const bool gpu = opt.precision == p2vbme::Precision::Single && p2vbme::gpu_available();
-            if (!gpu) {
-                const std::string why =
-                    opt.precision == p2vbme::Precision::Double ? "double precision" : "no GPU found";
-                run.warnings.push_back(why + ": running on the CPU");
-                fprintf(stderr, "p2v-bme: %s\n", run.warnings.back().c_str());
-            }
-            on_gpu = gpu;
+        const p2vbme::DeviceChoice choice = p2vbme::choose_devices(opt.accelerator, opt.precision);
+        if (!choice.note.empty()) {
+            run.warnings.push_back(choice.note);
+            fprintf(stderr, "p2v-bme: %s\n", run.warnings.back().c_str());
         }
-        if (on_gpu)
+        if (choice.on_gpu)
             opt.devices = parse_devices(args["devices"].as<std::string>());
         else
             opt.threads = parse_threads(args["devices"].as<std::string>());
         p2vbme::check_settings(opt);
+        p2vbme::check_devices(choice, opt.precision);
         /* fail now, not after the search, if the outputs cannot be written */
         for (const char *ext : {".nwk", ".json"}) {
             FILE *f = fopen((run.prefix + ext).c_str(), "a");
@@ -237,8 +234,9 @@ int main(int argc, char **argv) {
             fclose(f);
         }
 
+        const double t_read = omp_get_wtime();
         p2vbme::Alignment aln = p2vbme::read_alignment(run.input_path);
-        run.time_read = omp_get_wtime() - t0;
+        run.time_read = omp_get_wtime() - t_read;
         run.n_taxa = aln.n_taxa;
         run.n_sites = aln.n_sites;
         if (verbose)
@@ -290,7 +288,15 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "%s\n", line.c_str());
                 fflush(stderr);
             };
-        p2vbme::Result res = p2vbme::infer(aln, opt, &start_tree, log);
+        p2vbme::Devices devices = p2vbme::select_devices(choice, opt.precision, opt.devices, opt.threads);
+        run.on_gpu = choice.on_gpu;
+        for (const auto &dev : devices)
+            run.devices.push_back(dev->name());
+        if (run.on_gpu)
+            run.gpu_build_info = p2vbme::gpu_build_info();
+        p2vbme::Result res = p2vbme::infer(aln, opt, devices, &start_tree, log);
+        for (const auto &dev : devices)
+            run.gpu_memory_in_use_at_end_mb = std::max(run.gpu_memory_in_use_at_end_mb, dev->memory_in_use_mb());
         if (run.dedup && dd.n_removed() > 0)
             res.tree = p2vbme::reattach(res.tree, dd);
 

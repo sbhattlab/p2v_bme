@@ -118,6 +118,27 @@ std::unique_ptr<Device> make_gpu_device(int gpu, int32_t max_k = WORKSPACE_MAX_K
 Devices make_cpu_devices(int32_t n_workers, bool double_precision);
 std::unique_ptr<Device> make_cpu_device(int32_t worker, int32_t threads, bool double_precision);
 
+// ---- The run's devices, chosen once (the command line, then infer() runs on them) ----
+
+enum class Accelerator { Auto, Gpu, Cpu };
+enum class Precision { Single, Double };
+
+// The processor of a run: the GPU or the CPU as asked; auto: the GPU if one is visible and the precision is
+// single, else the CPU, with the reason in `note` ("<why>: running on the CPU"). The only place auto is resolved.
+struct DeviceChoice {
+    bool on_gpu = false;
+    std::string note; // auto on the CPU: why (else empty)
+};
+DeviceChoice choose_devices(Accelerator accelerator, Precision precision);
+
+// Throws std::runtime_error if the choice cannot run: the GPU in double precision, or no GPU visible.
+void check_devices(const DeviceChoice &choice, Precision precision);
+
+// The devices of the choice (after check_devices): one per GPU number in gpu_ids (empty: all visible, at most
+// MAX_GPUS), or `threads` CPU workers (0: all, omp_get_max_threads) in the precision.
+Devices select_devices(const DeviceChoice &choice, Precision precision, const std::vector<int> &gpu_ids,
+                       int32_t threads);
+
 } // namespace p2vbme
 
 #endif // P2VBME_DEVICE_HPP

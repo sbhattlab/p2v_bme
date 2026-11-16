@@ -16,13 +16,12 @@
 
 #include "config.hpp"
 #include "core.hpp"
+#include "device.hpp"
 #include "eigen_dist.hpp"
 
 namespace p2vbme {
 
 enum class Start { Sample, Random, Given };
-enum class Accelerator { Auto, Gpu, Cpu };
-enum class Precision { Single, Double };
 
 /* The settings of a run; defaults in config.hpp. */
 struct Settings {
@@ -57,11 +56,7 @@ struct Result {
     double time_start_assembly = 0.0; /*   assembling the full tree */
     double time_search = 0.0;         /* seconds: minibatch search */
     double time_branch_lengths = 0.0;
-    std::vector<std::string> devices;         /* the devices used, e.g. "GPU 0: NVIDIA RTX A6000" */
-    bool on_gpu = false;                      /* the run used the GPU (else the CPU) */
-    SubstitutionModel substitution;           /* the model as used: with the base frequencies counted */
-    double gpu_memory_in_use_at_end_mb = 0.0; /* MiB in use when the run ends, largest over the GPUs; GPU-wide (other
-                                                 processes included), not a peak */
+    SubstitutionModel substitution; /* the model as used: with the base frequencies counted */
     int32_t sample_size_used = 0;
     int32_t rounds_planned = 0;
     int32_t rounds_run = 0;
@@ -80,9 +75,9 @@ void check_settings(const Settings &settings);
 /* Receives the run's progress lines (the library itself prints nothing). */
 using LogCallback = std::function<void(const std::string &line)>;
 
-/* Infers a BME tree. `start_tree` is used when settings.start == Start::Given. Errors (input, CUDA,
- * GPU memory) are thrown as std::exception. */
-Result infer(const Alignment &aln, const Settings &settings, const Tree *start_tree = nullptr,
+// Infers a BME tree on the devices (select_devices; the alignment is loaded onto them). `start_tree` is used when
+// settings.start == Start::Given. Errors (input, CUDA, GPU memory) are thrown as std::exception.
+Result infer(const Alignment &aln, const Settings &settings, Devices &devices, const Tree *start_tree = nullptr,
              const LogCallback &log = nullptr);
 
 } // namespace p2vbme
