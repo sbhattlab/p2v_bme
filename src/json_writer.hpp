@@ -19,6 +19,7 @@ namespace p2vbme {
 
 class JsonWriter {
   public:
+    // Writes into out, which must start empty
     explicit JsonWriter(std::string &out) : out_(out) {}
 
     // Open or close an object or array
@@ -47,6 +48,7 @@ class JsonWriter {
         key(k);
         value(v);
     }
+    // key + the elements of v as an array
     template <class T> void array_field(std::string_view k, const std::vector<T> &v) {
         key(k);
         begin_array();
@@ -60,22 +62,34 @@ class JsonWriter {
 
   private:
     struct Level {
+        // { or [
         char kind;
+        // true if the object or array is empty so far
         bool empty;
     };
 
+    // Line break, then two spaces per open level
     void indent();
     // comma and line break before an element of the current object or array
     void separator();
+    // Checks a value may go here (after a key in an object, once at top level); in an array, writes the separator
     void before_value();
+    // Writes { or [ as the next value and opens a level
     void open(char kind);
+    // Writes } or ]; throws unless it matches the innermost open level
     void close(char kind);
+    // An integer value, exactly
     void integer(int64_t x);
+    // A float or double as the shortest decimal that reads back the same; NaN and infinities as null
     template <class F> void real(F x);
+    // s as a quoted JSON string: escapes ", \ and control characters; invalid UTF-8 becomes U+FFFD
     void write_string(std::string_view s);
 
+    // The output, appended to
     std::string &out_;
+    // List of objects/arrays that are currently open, innermost last
     std::vector<Level> stack_;
+    // true between key() and its value
     bool pending_key_ = false;
 };
 
