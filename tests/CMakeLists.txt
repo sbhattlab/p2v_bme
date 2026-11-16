@@ -114,28 +114,28 @@ p2vbme_cli_test(unwritable_prefix "cannot write /nonexistent_dir/x.nwk" -s ${CLI
 p2vbme_cli_test(cpu "BME length" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/cpu --accelerator cpu
                 --devices 2 -v)
 p2vbme_cli_test(cpu_double "double precision: running on the CPU.*BME length" -s ${CLI_DIR}/input.fa -m TN93
-                --prefix ${CLI_DIR}/cpu_double --precision double -v)
+                --prefix ${CLI_DIR}/cpu_double --precision double -v --report-full)
 set_tests_properties(cli_cpu_double PROPERTIES FIXTURES_SETUP cli_cpu_double_run)
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_FOUND)
   add_test(NAME cli_cpu_double_report
-           COMMAND ${Python3_EXECUTABLE} -c "import json,sys; r=json.load(open(sys.argv[1])); \
-s=r['provenance']['settings']; assert s['precision'] == 'double' and s['model'] == 'TN93', s; \
-assert r['provenance']['accelerator'] == 'cpu' and r['results']['bme_length'] > 0, r['results']; \
-assert all(d.startswith('CPU worker') for d in r['provenance']['devices']); print('cpu report ok')"
+           COMMAND ${Python3_EXECUTABLE} -c "import json,sys; r=json.load(open(sys.argv[1])); d=r['details']; \
+s=d['settings']; assert s['precision'] == 'double' and s['model'] == 'TN93' and s['accelerator'] == 'cpu', s; \
+assert r['bme_length'] > 0 and r['warnings'] == ['double precision: running on the CPU'], r; \
+assert d['devices'] == ['CPU: %d threads' % s['threads']], d['devices']; print('cpu report ok')"
            ${CLI_DIR}/cpu_double.json)
   set_tests_properties(cli_cpu_double_report PROPERTIES FIXTURES_REQUIRED cli_cpu_double_run)
 endif()
 # F81, F84, TN93: the base frequencies are those of the whole input, counted before dedup (as FastME counts them)
 p2vbme_cli_test(cpu_f81_dups "BME length" -s ${CLI_DIR}/input_dups.fa -m F81 --prefix ${CLI_DIR}/f81_dups
-                --accelerator cpu -v)
+                --accelerator cpu -v --report-full)
 p2vbme_cli_test(cpu_f81_nodedup "BME length" -s ${CLI_DIR}/input_dups.fa -m F81 --prefix ${CLI_DIR}/f81_nodedup
-                --accelerator cpu -v --no-dedup)
+                --accelerator cpu -v --no-dedup --report-full)
 set_tests_properties(cli_cpu_f81_dups cli_cpu_f81_nodedup PROPERTIES FIXTURES_SETUP cli_f81_runs)
 if(Python3_FOUND)
   add_test(NAME cli_f81_frequencies_of_the_input
            COMMAND ${Python3_EXECUTABLE} -c "import json, sys; \
-f = [json.load(open(p))['model']['base_frequencies'] for p in sys.argv[2:4]]; \
+f = [json.load(open(p))['details']['model']['base_frequencies'] for p in sys.argv[2:4]]; \
 seq = ''.join(l.strip().upper() for l in open(sys.argv[1]) if not l.startswith('>')); \
 n = [seq.count(b) for b in 'ACGT']; expect = [x / sum(n) for x in n]; \
 assert f[0] == f[1], f; assert all(abs(a - b) < 1e-12 for a, b in zip(f[0], expect)), (f[0], expect); \
@@ -166,18 +166,18 @@ if(P2VBME_CUDA)
   p2vbme_cli_gpu_test(no_branch_lengths "BME length 0.000000" -s ${CLI_DIR}/input.fa -m JC69 --prefix
                       ${CLI_DIR}/nobl -v --no-branch-lengths)
   p2vbme_cli_gpu_test(score_given_tree "0 rounds" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/score -v -t
-                      ${CLI_DIR}/input_true.nwk --max-rounds 0)
+                      ${CLI_DIR}/input_true.nwk --max-rounds 0 --report-full)
   # input: .maple gives the same tree as FASTA; identical sequences are put back
   p2vbme_cli_gpu_test(maple "BME length" -s ${CLI_DIR}/input.maple -m JC69 --prefix ${CLI_DIR}/maple -v)
   p2vbme_cli_gpu_test(dups "3 identical sequences set aside" -s ${CLI_DIR}/input_dups.fa -m JC69 --prefix
-                      ${CLI_DIR}/dups -v)
+                      ${CLI_DIR}/dups -v --report-full)
   p2vbme_cli_gpu_test(no_dedup "BME length" -s ${CLI_DIR}/input_dups.fa -m JC69 --prefix ${CLI_DIR}/nodedup -v
-                      --no-dedup)
+                      --no-dedup --report-full)
   set_tests_properties(cli_maple cli_dups cli_no_dedup PROPERTIES FIXTURES_SETUP cli_input_runs)
   # every distance model of this version runs; its report names it (k2p = K80)
   foreach(model k2p F81 F84 TN93 LogDet)
     p2vbme_cli_gpu_test(model_${model} "BME length" -s ${CLI_DIR}/input.fa -m ${model} --prefix
-                        ${CLI_DIR}/model_${model} -v)
+                        ${CLI_DIR}/model_${model} -v --report-full)
     set_tests_properties(cli_model_${model} PROPERTIES FIXTURES_SETUP cli_model_${model}_run)
   endforeach()
   set_tests_properties(${CLI_GPU_TESTS} PROPERTIES LABELS gpu)
@@ -186,13 +186,14 @@ if(P2VBME_CUDA)
   if(Python3_FOUND)
     add_test(NAME cli_report_is_json
              COMMAND ${Python3_EXECUTABLE} -c "import json,sys; r=json.load(open(sys.argv[1])); \
-assert r['results']['bme_length'] > 0 and r['results']['rounds_run'] >= 1, r['results']; \
-assert all(g >= 0 for g in r['diagnostics']['round_gains']) and r['diagnostics']['round_gains'][0] > 0; \
-assert r['provenance']['settings']['model'] == 'JC69'; print('report ok')" ${CLI_DIR}/default.json)
+assert list(r) == ['version', 'command_line', 'date', 'bme_length', \
+'rounds_run', 'stop_reason', 'time', 'warnings'], list(r); \
+assert r['bme_length'] > 0 and r['rounds_run'] >= 1 and r['warnings'] == [], r; print('report ok')"
+             ${CLI_DIR}/default.json)
     add_test(NAME cli_score_report
-             COMMAND ${Python3_EXECUTABLE} -c "import json,sys; r=json.load(open(sys.argv[1]))['results']; \
-assert r['rounds_run'] == 0 and r['stop_reason'] == 'none' and r['delta_bme'] == 0 and r['bme_length'] > 0, r; \
-print('score ok')" ${CLI_DIR}/score.json)
+             COMMAND ${Python3_EXECUTABLE} -c "import json,sys; r=json.load(open(sys.argv[1])); \
+assert r['rounds_run'] == 0 and r['stop_reason'] == 'none' and r['bme_length'] > 0, r; \
+assert r['details']['round_gains'] == [], r['details']; print('score ok')" ${CLI_DIR}/score.json)
     set_tests_properties(cli_report_is_json PROPERTIES FIXTURES_REQUIRED cli_report LABELS gpu)
     add_test(NAME cli_maple_equals_fasta
              COMMAND ${Python3_EXECUTABLE} -c "import sys; a, b = (open(f).read() for f in sys.argv[1:]); \
@@ -202,8 +203,8 @@ assert a == b, 'trees differ'; print('same tree')" ${CLI_DIR}/default.nwk ${CLI_
 names = sorted(re.findall(r'[(,]([A-Za-z0-9_]+):', t)); \
 expect = sorted(['t%d' % i for i in range(300)] + ['t1_copy1', 't1_copy2', 't1_copy3', 't2_copy1', 't2_copy2']); \
 assert names == expect, (len(names), len(expect)); \
-assert json.load(open(sys.argv[2]))['provenance']['input']['identical_set_aside'] == 3; \
-assert json.load(open(sys.argv[3]))['provenance']['input']['identical_set_aside'] == 0; print('all names')"
+assert json.load(open(sys.argv[2]))['details']['input']['identical_set_aside'] == 3; \
+assert json.load(open(sys.argv[3]))['details']['input']['identical_set_aside'] == 0; print('all names')"
              ${CLI_DIR}/dups.nwk ${CLI_DIR}/dups.json ${CLI_DIR}/nodedup.json)
     set_tests_properties(cli_maple_equals_fasta cli_dups_every_name PROPERTIES
                          FIXTURES_REQUIRED "cli_report;cli_input_runs" LABELS gpu)
@@ -213,10 +214,13 @@ assert json.load(open(sys.argv[3]))['provenance']['input']['identical_set_aside'
       list(GET kv 0 model)
       list(GET kv 1 name)
       add_test(NAME cli_model_${model}_report
-               COMMAND ${Python3_EXECUTABLE} -c "import json,sys; r=json.load(open(sys.argv[1])); \
-assert r['provenance']['settings']['model'] == sys.argv[2] and r['model']['name'] == sys.argv[2], r['model']; \
-assert r['results']['bme_length'] > 0; f = r['model'].get('base_frequencies'); \
-assert (f is not None and abs(sum(f) - 1) < 1e-9) == (sys.argv[2] in ('F81', 'F84', 'TN93')), r['model']; \
+               COMMAND ${Python3_EXECUTABLE} -c "import json,sys; r=json.load(open(sys.argv[1])); d=r['details']; \
+assert list(r) == ['version', 'command_line', 'date', 'bme_length', \
+'rounds_run', 'stop_reason', 'time', 'warnings'] + ['details'], list(r); \
+assert d['settings']['model'] == sys.argv[2], d['settings']; \
+assert r['bme_length'] > 0; f = d['model'].get('base_frequencies'); \
+assert (f is not None and abs(sum(f) - 1) < 1e-9) == (sys.argv[2] in ('F81', 'F84', 'TN93')), d['model']; \
+assert all(g >= 0 for g in d['round_gains']) and d['round_gains'][0] > 0, d['round_gains']; \
 print('model ok')" ${CLI_DIR}/model_${model}.json ${name})
       set_tests_properties(cli_model_${model}_report PROPERTIES FIXTURES_REQUIRED cli_model_${model}_run LABELS gpu)
     endforeach()

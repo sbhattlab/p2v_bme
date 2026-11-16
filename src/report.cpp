@@ -1,7 +1,8 @@
 /*
  * report.cpp
  *
- * The run report as JSON (json_writer.hpp).
+ * The run report as JSON (json_writer.hpp): the summary, then the details with --report-full, one detail_ function
+ * per section.
  */
 #include "report.hpp"
 
@@ -14,9 +15,9 @@
 #include <stdexcept>
 #include <string>
 
-#include "config.hpp"
 #include "device.hpp"
 #include "json_writer.hpp"
+#include "substitution_models.hpp"
 #include "version.hpp"
 
 namespace p2vbme {
@@ -39,53 +40,31 @@ std::string host_name() {
     return buf;
 }
 
-/* Peak resident memory of the process, MiB. */
+// Peak resident memory of the process, MiB (ru_maxrss is in KiB on Linux).
 double peak_host_ram_mb() {
     struct rusage ru;
     getrusage(RUSAGE_SELF, &ru);
     return (double)ru.ru_maxrss / 1024.0;
 }
 
-const char *start_name(Start s) { return s == Start::Sample ? "sample" : (s == Start::Random ? "random" : "given"); }
-
-const char *accelerator_name(Accelerator a) {
-    return a == Accelerator::Auto ? "auto" : (a == Accelerator::Gpu ? "gpu" : "cpu");
-}
-
-} // namespace
-
-std::string report_json(const RunInfo &run, const Options &opt, const Result &res) {
-    std::string out;
-    JsonWriter w(out);
-    w.begin_object();
-
-    w.key("provenance");
-    w.begin_object();
-    w.field("program", "p2v-bme");
-    w.field("version", package_version());
-    w.field("git", package_git_revision());
-    w.key("build");
-    w.begin_object();
-    w.field("compiler", __VERSION__);
-    w.field("gpu", gpu_build_info());
-    w.end_object();
-    w.array_field("command_line", run.command_line);
-    w.field("date", utc_now());
-    w.field("host", host_name());
+// The input as read, before identical sequences are set aside.
+void detail_input(JsonWriter &w, const RunInfo &run) {
     w.key("input");
     w.begin_object();
     w.field("path", run.input_path);
-    w.field("bytes", run.input_bytes);
     w.field("sequences", run.n_taxa);
     w.field("sites", run.n_sites);
     w.field("identical_set_aside", run.n_identical_removed);
     w.end_object();
+}
+
+// Every setting, defaults included, with the auto values resolved: accelerator, threads, sample size.
+void detail_settings(JsonWriter &w, const RunInfo &run, const Options &opt, const Result &res) {
     w.key("settings");
     w.begin_object();
-    w.field("model", run.model);
+    w.field("model", model_name(opt.distance.model));
     w.field("start_tree", run.start_tree);
-    w.field("start", start_name(opt.start));
-    w.field("sample_size", opt.sample_size);
+    w.field("sample_size", res.sample_size_used); // 0 without sample-and-place
     w.field("seed", opt.seed);
     w.field("max_rounds", opt.max_rounds);
     w.field("early_stopping", opt.early_stopping);
@@ -96,91 +75,98 @@ std::string report_json(const RunInfo &run, const Options &opt, const Result &re
     w.field("bl_profile_cap", opt.bl_profile_cap);
     w.field("neg_as_zero", run.neg_as_zero);
     w.field("dedup", run.dedup);
-    w.field("accelerator", accelerator_name(opt.accelerator));
-    w.array_field("devices", opt.devices);
-    w.field("threads", opt.threads);
+    w.field("accelerator", res.on_gpu ? "gpu" : "cpu");
+    // CPU: the workers; GPU: the host's threads
+    w.field("threads", res.on_gpu ? (int32_t)omp_get_max_threads() : (int32_t)res.devices.size());
     w.field("precision", opt.precision == Precision::Double ? "double" : "single");
     w.field("prefix", run.prefix);
     w.end_object();
-    w.key("constants");
-    w.begin_object();
-    w.field("max_gpus", MAX_GPUS);
-    w.field("profile_cap_max", PROFILE_CAP_MAX);
-    w.field("workspace_max_k", WORKSPACE_MAX_K);
-    w.field("window_max_sweeps", WINDOW_MAX_SWEEPS);
-    w.field("window_max_internals", WINDOW_MAX_INTERNALS);
-    w.field("wave_window_max_internals", WAVE_WINDOW_MAX_INTERNALS);
-    w.field("wave_component_cap", WAVE_COMPONENT_CAP);
-    w.field("move_batch_cap", MOVE_BATCH_CAP);
-    w.field("exact_profile_cap_min_n", EXACT_PROFILE_CAP_MIN_N);
-    w.field("exact_profile_cap", EXACT_PROFILE_CAP);
-    w.field("backbone_min_n", BACKBONE_MIN_N);
-    w.field("vcycle_min_n", VCYCLE_MIN_N);
-    w.field("vcycle_base_scale", VCYCLE_BASE_SCALE);
-    w.field("vcycle_scale_factor", VCYCLE_SCALE_FACTOR);
-    w.field("vcycle_finest_scale", VCYCLE_FINEST_SCALE);
-    w.field("start_sample_min_n", START_SAMPLE_MIN_N);
-    w.field("start_sample_max", START_SAMPLE_MAX);
-    w.field("start_sample_divisor", START_SAMPLE_DIVISOR);
-    w.field("start_sample_min", START_SAMPLE_MIN);
-    w.field("start_random_tree_max", START_RANDOM_TREE_MAX);
-    w.field("nn_p_no_overlap", NN_P_NO_OVERLAP);
-    w.end_object();
-    w.field("accelerator", res.on_gpu ? "gpu" : "cpu");
-    w.array_field("devices", res.devices);
-    w.field("threads", (int32_t)omp_get_max_threads());
-    w.end_object();
+}
 
-    w.key("results");
-    w.begin_object();
-    w.key("bme_length"); /* null without branch lengths */
-    if (opt.branch_lengths)
-        w.value(res.bme_length);
-    else
-        w.null();
-    w.field("delta_bme", res.delta_bme);
-    w.field("rounds_planned", res.rounds_planned);
-    w.field("rounds_run", res.rounds_run);
-    w.field("stop_reason", res.stop_reason);
-    w.field("sample_size_used", res.sample_size_used);
+// The GPUs used, each with the CUDA versions, or one line for the CPU workers.
+void detail_devices(JsonWriter &w, const Result &res) {
+    std::vector<std::string> devices;
+    if (res.on_gpu) {
+        for (const std::string &name : res.devices)
+            devices.push_back(name + " (" + gpu_build_info() + ")");
+    } else {
+        devices.push_back("CPU: " + std::to_string(res.devices.size()) + " threads");
+    }
+    w.array_field("devices", devices);
+}
+
+// Seconds per stage; the total is in the summary.
+void detail_time(JsonWriter &w, const RunInfo &run, const Result &res) {
     w.key("time");
     w.begin_object();
     w.field("read", run.time_read);
     w.field("start_tree", res.time_start);
-    w.field("start_tree_sample", res.time_start_sample);
-    w.field("start_tree_nearest", res.time_start_nearest);
-    w.field("start_tree_assembly", res.time_start_assembly);
     w.field("search", res.time_search);
     w.field("branch_lengths", res.time_branch_lengths);
-    w.field("write", run.time_write);
-    w.field("total", run.time_total);
     w.end_object();
-    w.field("host_ram_mb", peak_host_ram_mb());
+}
+
+void detail_memory(JsonWriter &w, const Result &res) {
+    w.key("memory");
+    w.begin_object();
+    w.field("host_ram_mb", peak_host_ram_mb()); // peak
+    // GPU-wide (other processes included) and not a peak
     w.field("gpu_memory_in_use_at_end_mb", res.gpu_memory_in_use_at_end_mb);
     w.end_object();
+}
 
+// The model's parameters: for F81, F84 and TN93, the input alignment's base frequencies (A, C, G, T); none for
+// the other models.
+void detail_model(JsonWriter &w, const Result &res) {
     w.key("model");
     w.begin_object();
-    w.field("name", run.model);
     const Model m = res.distance.model;
     if (m == Model::F81 || m == Model::F84 || m == Model::TN93) {
         std::vector<double> freqs(res.distance.base_freqs, res.distance.base_freqs + 4);
-        w.array_field("base_frequencies", freqs); /* A, C, G, T: the input alignment's */
+        w.array_field("base_frequencies", freqs);
     }
     w.end_object();
+}
 
-    w.key("diagnostics");
+} // namespace
+
+std::string report_json(const RunInfo &run, const Options &opt, const Result &res, bool full) {
+    std::string out;
+    JsonWriter w(out);
     w.begin_object();
-    w.array_field("round_gains", res.round_gains);
-    w.end_object();
-
+    w.field("version", version_string());
+    w.array_field("command_line", run.command_line);
+    w.field("date", utc_now());
+    w.key("bme_length"); // null without branch lengths
+    if (opt.branch_lengths)
+        w.value(res.bme_length);
+    else
+        w.null();
+    w.field("rounds_run", res.rounds_run);
+    w.field("stop_reason", res.stop_reason);
+    w.field("time", run.time_total);
+    w.array_field("warnings", run.warnings);
+    if (full) {
+        w.key("details");
+        w.begin_object();
+        w.field("host", host_name());
+        detail_input(w, run);
+        detail_settings(w, run, opt, res);
+        detail_devices(w, res);
+        detail_time(w, run, res);
+        detail_memory(w, res);
+        detail_model(w, res);
+        w.array_field("round_gains", res.round_gains);
+        w.end_object();
+    }
     w.end_object();
     w.finish();
     return out;
 }
 
-void write_report(const std::string &path, const RunInfo &run, const Options &options, const Result &result) {
-    const std::string text = report_json(run, options, result);
+void write_report(const std::string &path, const RunInfo &run, const Options &options, const Result &result,
+                  bool full) {
+    const std::string text = report_json(run, options, result, full);
     FILE *f = fopen(path.c_str(), "w");
     if (!f)
         throw std::runtime_error("cannot write " + path);

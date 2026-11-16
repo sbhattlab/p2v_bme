@@ -8,7 +8,6 @@
  */
 #include <omp.h>
 #include <stdio.h>
-#include <sys/stat.h>
 
 #include <exception>
 #include <sstream>
@@ -113,11 +112,6 @@ p2vbme::Precision parse_precision(const std::string &p) {
     throw std::runtime_error("--precision must be single or double, not '" + p + "'");
 }
 
-uint64_t file_bytes(const std::string &path) {
-    struct stat st;
-    return stat(path.c_str(), &st) == 0 ? (uint64_t)st.st_size : 0;
-}
-
 } // namespace
 
 int main(int argc, char **argv) {
@@ -164,7 +158,9 @@ int main(int argc, char **argv) {
         ("no-branch-lengths", "do not estimate BME branch lengths")
         ("bl-profile-cap", "leaves kept per subtree profile for branch lengths (1-256)",
          cxxopts::value<int>()->default_value(text(p2vbme::DEFAULT_BL_PROFILE_CAP)), "N")
-        ("no-neg-as-zero", "write negative branch lengths as they are (default: as 0)");
+        ("no-neg-as-zero", "write negative branch lengths as they are (default: as 0)")
+        ("report-full", "add the details to <prefix>.json: host, input, settings as used, devices, time per stage, "
+         "memory, model parameters, gain of each round");
     cli.add_options("Input")
         ("no-dedup", "keep all identical sequences (default: two of each group are kept for the search and the "
          "others put back next to them, with zero-length branches)");
@@ -198,7 +194,6 @@ int main(int argc, char **argv) {
             run.command_line.push_back(argv[a]);
         run.input_path = args["alignment"].as<std::string>();
         const p2vbme::Model model = parse_model(args["model"].as<std::string>());
-        run.model = p2vbme::model_name(model);
         run.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : run.input_path;
         run.neg_as_zero = !args.count("no-neg-as-zero");
 
@@ -219,9 +214,12 @@ int main(int argc, char **argv) {
         bool on_gpu = opt.accelerator == p2vbme::Accelerator::Gpu; /* infer() resolves auto the same way */
         if (opt.accelerator == p2vbme::Accelerator::Auto) {
             const bool gpu = opt.precision == p2vbme::Precision::Single && p2vbme::gpu_available();
-            if (!gpu)
-                fprintf(stderr, "p2v-bme: %s: running on the CPU\n",
-                        opt.precision == p2vbme::Precision::Double ? "double precision" : "no GPU found");
+            if (!gpu) {
+                const std::string why =
+                    opt.precision == p2vbme::Precision::Double ? "double precision" : "no GPU found";
+                run.warnings.push_back(why + ": running on the CPU");
+                fprintf(stderr, "p2v-bme: %s\n", run.warnings.back().c_str());
+            }
             on_gpu = gpu;
         }
         if (on_gpu)
@@ -239,7 +237,6 @@ int main(int argc, char **argv) {
 
         p2vbme::Alignment aln = p2vbme::read_alignment(run.input_path);
         run.time_read = omp_get_wtime() - t0;
-        run.input_bytes = file_bytes(run.input_path);
         run.n_taxa = aln.n_taxa;
         run.n_sites = aln.n_sites;
         if (verbose)
@@ -270,10 +267,9 @@ int main(int argc, char **argv) {
         if (run.start_tree == "sample") {
             opt.start = p2vbme::Start::Sample;
             if (aln.n_taxa < p2vbme::START_SAMPLE_MIN_N) {
-                fprintf(stderr,
-                        "p2v-bme: warning: fewer than %d sequences, using the random start instead of "
-                        "sample-and-place\n",
-                        p2vbme::START_SAMPLE_MIN_N);
+                run.warnings.push_back("fewer than " + std::to_string(p2vbme::START_SAMPLE_MIN_N) +
+                                       " sequences, using the random start instead of sample-and-place");
+                fprintf(stderr, "p2v-bme: warning: %s\n", run.warnings.back().c_str());
                 opt.start = p2vbme::Start::Random;
                 run.start_tree = "random";
             }
@@ -296,11 +292,9 @@ int main(int argc, char **argv) {
         if (run.dedup && dd.n_removed() > 0)
             res.tree = p2vbme::reattach(res.tree, dd);
 
-        const double t_write = omp_get_wtime();
         p2vbme::write_newick_unrooted(run.prefix + ".nwk", all_names, res.tree, run.neg_as_zero);
-        run.time_write = omp_get_wtime() - t_write;
         run.time_total = omp_get_wtime() - t0;
-        p2vbme::write_report(run.prefix + ".json", run, opt, res);
+        p2vbme::write_report(run.prefix + ".json", run, opt, res, args.count("report-full") > 0);
         if (verbose)
             fprintf(stderr, "p2v-bme: %s start, %d rounds, BME length %.6f; %.2f s in total; wrote %s.nwk, %s.json\n",
                     run.start_tree.c_str(), res.rounds_run, res.bme_length, run.time_total, run.prefix.c_str(),
