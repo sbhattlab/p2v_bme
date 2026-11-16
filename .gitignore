@@ -37,3 +37,6 @@ data_*/
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+
+# VS Code stuff
+.vscode/
