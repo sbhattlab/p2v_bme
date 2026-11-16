@@ -7,6 +7,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "json_writer.hpp"
@@ -14,6 +15,35 @@
 namespace {
 
 using p2vbme::JsonWriter;
+
+// s written as a JSON string value
+std::string written(const std::string &s) {
+    std::string out;
+    JsonWriter w(out);
+    w.value(s);
+    return out;
+}
+
+// UTF-8 encoding of the code point u, by the standard bit layout (independent of the writer's byte-range checks)
+std::string utf8(uint32_t u) {
+    std::string s;
+    if (u < 0x80) {
+        s += (char)u;
+    } else if (u < 0x800) {
+        s += (char)(0xC0 | u >> 6);
+        s += (char)(0x80 | (u & 0x3F));
+    } else if (u < 0x10000) {
+        s += (char)(0xE0 | u >> 12);
+        s += (char)(0x80 | (u >> 6 & 0x3F));
+        s += (char)(0x80 | (u & 0x3F));
+    } else {
+        s += (char)(0xF0 | u >> 18);
+        s += (char)(0x80 | (u >> 12 & 0x3F));
+        s += (char)(0x80 | (u >> 6 & 0x3F));
+        s += (char)(0x80 | (u & 0x3F));
+    }
+    return s;
+}
 
 TEST(JsonWriter, NestedObjectsAndArraysInWrittenOrder) {
     std::string s;
@@ -54,6 +84,46 @@ TEST(JsonWriter, InvalidUtf8BecomesReplacementCharacter) {
     // 0xff: invalid; c3 a9 (e acute): kept; e2 82: truncated; ed a0 80: a surrogate; f0 9f 98 80: kept
     EXPECT_EQ(s, "\"a\\ufffdb\xc3\xa9"
                  "c\\ufffd\\ufffdd\\ufffd\\ufffd\\ufffde\xf0\x9f\x98\x80\"");
+}
+
+TEST(JsonWriter, EveryValidUtf8CharacterIsKept) {
+    // every code point from U+0080 to U+10FFFF except the surrogates (U+D800 to U+DFFF)
+    for (uint32_t u = 0x80; u <= 0x10FFFF; ++u) {
+        if (u >= 0xD800 && u <= 0xDFFF)
+            continue;
+        const std::string s = utf8(u);
+        ASSERT_EQ(written(s), "\"" + s + "\"") << "U+" << std::hex << u;
+    }
+}
+
+TEST(JsonWriter, BytesThatNeverStartACharacterAreReplaced) {
+    // continuation bytes (80-BF), C0, C1 and F5-FF, each followed by three continuation bytes: every byte becomes
+    // U+FFFD
+    for (int b = 0x80; b <= 0xFF; ++b) {
+        if (b >= 0xC2 && b <= 0xF4)
+            continue;
+        for (const std::string tail : {"\x80\x80\x80", "\xbf\xbf\xbf"})
+            ASSERT_EQ(written((char)b + tail), "\"\\ufffd\\ufffd\\ufffd\\ufffd\"") << "first byte " << std::hex << b;
+    }
+}
+
+TEST(JsonWriter, InvalidUtf8SequencesAreReplaced) {
+    // each byte of an invalid sequence becomes U+FFFD
+    const std::pair<std::string, std::string> cases[] = {
+        {"\xc0\x80", "\\ufffd\\ufffd"},                       // overlong (U+0000 in 2 bytes)
+        {"\xc1\xbf", "\\ufffd\\ufffd"},                       // overlong (U+007F in 2 bytes)
+        {"\xe0\x9f\xbf", "\\ufffd\\ufffd\\ufffd"},            // overlong (U+07FF in 3 bytes)
+        {"\xf0\x8f\xbf\xbf", "\\ufffd\\ufffd\\ufffd\\ufffd"}, // overlong (U+FFFF in 4 bytes)
+        {"\xed\xa0\x80", "\\ufffd\\ufffd\\ufffd"},            // surrogate U+D800
+        {"\xed\xbf\xbf", "\\ufffd\\ufffd\\ufffd"},            // surrogate U+DFFF
+        {"\xf4\x90\x80\x80", "\\ufffd\\ufffd\\ufffd\\ufffd"}, // U+110000, beyond U+10FFFF
+        {"\xe2\x82", "\\ufffd\\ufffd"},                       // cut off by the end of the string
+        {"\xf0\x9f\x98", "\\ufffd\\ufffd\\ufffd"},            // cut off by the end of the string
+        {"\xc3\x41", "\\ufffdA"},                             // a first byte followed by ASCII (A)
+        {"\xe2\x28\xa1", "\\ufffd(\\ufffd"},                  // second byte not a continuation byte
+    };
+    for (const auto &[in, out] : cases)
+        EXPECT_EQ(written(in), "\"" + out + "\"") << "input " << ::testing::PrintToString(in);
 }
 
 TEST(JsonWriter, NumbersRoundTripShortest) {

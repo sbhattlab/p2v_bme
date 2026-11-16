@@ -19,7 +19,7 @@ namespace {
 // Length of the valid UTF-8 sequence starting at s[i] (2-4), or 0 if it is not valid UTF-8.
 size_t utf8_length(std::string_view s, size_t i) {
     const unsigned char c = (unsigned char)s[i];
-    size_t n = c >= 0xF0 && c <= 0xF4 ? 4 : c >= 0xE0 ? 3 : c >= 0xC2 && c <= 0xDF ? 2 : 0;
+    size_t n = c >= 0xF0 && c <= 0xF4 ? 4 : c >= 0xE0 && c <= 0xEF ? 3 : c >= 0xC2 && c <= 0xDF ? 2 : 0;
     if (n == 0 || i + n > s.size())
         return 0;
     for (size_t k = 1; k < n; ++k)
