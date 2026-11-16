@@ -1,15 +1,12 @@
 /*
  * cli.cpp
  *
- * p2v-bme: a balanced minimum evolution tree from an aligned DNA alignment (Phylo2Vec minibatch search). Writes
- * the unrooted tree to <prefix>.nwk and the run report to <prefix>.json. Options follow IQ-TREE where the tools
- * overlap (-s, -m, --prefix, --seed, -v, -t); --accelerator and --devices follow PyTorch Lightning.
- * Quiet by default: progress with -v; warnings and errors always on stderr.
+ * The command line of p2v-bme (cxxopts): the options and their help, and the arguments as Settings and run
+ * options. Options follow IQ-TREE where the tools overlap (-s, -m, --prefix, --seed, -v, -t); --accelerator and
+ * --devices follow PyTorch Lightning.
  */
-#include <omp.h>
 #include <stdio.h>
 
-#include <algorithm>
 #include <exception>
 #include <sstream>
 #include <stdexcept>
@@ -18,12 +15,7 @@
 
 #include <cxxopts.hpp>
 
-#include "device.hpp"
-#include "inference.hpp"
-#include "io.hpp"
-#include "newick.hpp"
-#include "processing.hpp"
-#include "report.hpp"
+#include "cli.hpp"
 #include "version.hpp"
 
 namespace {
@@ -118,7 +110,7 @@ p2vbme::Precision parse_precision(const std::string &p) {
 
 } // namespace
 
-int main(int argc, char **argv) {
+CommandLine parse_command_line(int argc, char **argv) {
     cxxopts::Options cli("p2v-bme", "Balanced minimum evolution tree from an aligned DNA alignment (FASTA), by the "
                                     "Phylo2Vec minibatch search.\nWrites <prefix>.nwk (unrooted tree) and "
                                     "<prefix>.json (run report).\n");
@@ -170,140 +162,61 @@ int main(int argc, char **argv) {
          "others put back next to them, with zero-length branches)");
     // clang-format on
 
-    try {
-        const double t0 = omp_get_wtime();
-        const auto args = cli.parse(argc, argv);
-        if (args.count("help")) {
-            printf("%s\nAll options: --help-all\n", cli.help({""}).c_str());
-            return 0;
-        }
-        if (args.count("help-all")) {
-            printf("%s\n", cli.help({"", "Search", "Start tree", "Branch lengths and output", "Input"}).c_str());
-            return 0;
-        }
-        if (args.count("version")) {
-            printf("p2v-bme %s\n", p2vbme::version_string().c_str());
-            return 0;
-        }
-        if (!args.unmatched().empty())
-            throw std::runtime_error("unexpected argument '" + args.unmatched()[0] + "' (see --help)");
-        if (!args.count("alignment") || !args.count("model")) {
-            fprintf(stderr, "p2v-bme: -s ALIGNMENT and -m MODEL are required (see --help)\n");
-            return 2;
-        }
-        const bool verbose = args.count("verbose") > 0;
-
-        p2vbme::RunInfo run;
-        for (int a = 0; a < argc; ++a)
-            run.command_line.push_back(argv[a]);
-        run.input_path = args["alignment"].as<std::string>();
-        const p2vbme::Model model = parse_model(args["model"].as<std::string>());
-        run.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : run.input_path;
-        run.neg_as_zero = !args.count("no-neg-as-zero");
-
-        p2vbme::Settings opt;
-        opt.substitution.model = model;
-        opt.sample_size = args["sample-size"].as<int>();
-        opt.seed = args["seed"].as<uint64_t>();
-        opt.max_rounds = args["max-rounds"].as<int>();
-        opt.early_stopping = args["early-stopping"].as<double>();
-        opt.time_limit = args["time-limit"].as<double>();
-        opt.profile_cap = args["profile-cap"].as<int>();
-        opt.exact_check_eta = args["exact-check-eta"].as<double>();
-        opt.branch_lengths = !args.count("no-branch-lengths");
-        opt.bl_profile_cap = args["bl-profile-cap"].as<int>();
-        opt.accelerator = parse_accelerator(args["accelerator"].as<std::string>());
-        opt.precision = parse_precision(args["precision"].as<std::string>());
-        /* auto: the GPU if one is found (and single precision), else the CPU, with a message */
-        const p2vbme::DeviceChoice choice = p2vbme::choose_devices(opt.accelerator, opt.precision);
-        if (!choice.note.empty()) {
-            run.warnings.push_back(choice.note);
-            fprintf(stderr, "p2v-bme: %s\n", run.warnings.back().c_str());
-        }
-        if (choice.on_gpu)
-            opt.devices = parse_devices(args["devices"].as<std::string>());
-        else
-            opt.threads = parse_threads(args["devices"].as<std::string>());
-        p2vbme::check_settings(opt);
-        p2vbme::check_devices(choice, opt.precision);
-        /* fail now, not after the search, if the outputs cannot be written */
-        for (const char *ext : {".nwk", ".json"}) {
-            FILE *f = fopen((run.prefix + ext).c_str(), "a");
-            if (!f)
-                throw std::runtime_error("cannot write " + run.prefix + ext);
-            fclose(f);
-        }
-
-        const double t_read = omp_get_wtime();
-        p2vbme::Alignment aln = p2vbme::read_alignment(run.input_path);
-        run.time_read = omp_get_wtime() - t_read;
-        run.n_taxa = aln.n_taxa;
-        run.n_sites = aln.n_sites;
-        if (verbose)
-            fprintf(stderr, "p2v-bme: read %d sequences x %d sites in %.2f s\n", aln.n_taxa, aln.n_sites,
-                    run.time_read);
-
-        /* identical sequences: two of each group stay in the search, the rest are put back; F81, F84, TN93: the
-         * base frequencies of the whole input, as FastME and ape count them */
-        const std::vector<std::string> all_names = aln.names;
-        p2vbme::Deduplication dd;
-        run.dedup = !args.count("no-dedup");
-        p2vbme::prepare_alignment(aln, opt.substitution, run.dedup, dd);
-        run.n_identical_removed = dd.n_removed();
-        if (verbose && dd.n_removed() > 0)
-            fprintf(stderr, "p2v-bme: %d identical sequences set aside (two of each group kept): %d left\n",
-                    dd.n_removed(), aln.n_taxa);
-        if (aln.n_taxa < 4)
-            throw std::runtime_error("need at least 4 sequences" +
-                                     std::string(run.dedup ? " after setting identical copies aside" : "") + ", have " +
-                                     std::to_string(aln.n_taxa) + (run.dedup ? " (--no-dedup keeps them)" : ""));
-
-        run.start_tree = args["tree"].as<std::string>();
-        p2vbme::Tree start_tree;
-        if (run.start_tree == "sample") {
-            opt.start = p2vbme::Start::Sample;
-            if (aln.n_taxa < p2vbme::START_SAMPLE_MIN_N) {
-                run.warnings.push_back("fewer than " + std::to_string(p2vbme::START_SAMPLE_MIN_N) +
-                                       " sequences, using the random start instead of sample-and-place");
-                fprintf(stderr, "p2v-bme: warning: %s\n", run.warnings.back().c_str());
-                opt.start = p2vbme::Start::Random;
-                run.start_tree = "random";
-            }
-        } else if (run.start_tree == "random") {
-            opt.start = p2vbme::Start::Random;
-        } else {
-            start_tree = p2vbme::read_newick(run.start_tree, all_names);
-            p2vbme::prepare_start_tree(start_tree, dd);
-            opt.start = p2vbme::Start::Given;
-        }
-
-        p2vbme::LogCallback log;
-        if (verbose)
-            log = [](const std::string &line) {
-                fprintf(stderr, "%s\n", line.c_str());
-                fflush(stderr);
-            };
-        p2vbme::Devices devices = p2vbme::select_devices(choice, opt.precision, opt.devices, opt.threads);
-        run.on_gpu = choice.on_gpu;
-        for (const auto &dev : devices)
-            run.devices.push_back(dev->name());
-        if (run.on_gpu)
-            run.gpu_build_info = p2vbme::gpu_build_info();
-        p2vbme::Result res = p2vbme::infer(aln, opt, devices, &start_tree, log);
-        for (const auto &dev : devices)
-            run.gpu_memory_in_use_at_end_mb = std::max(run.gpu_memory_in_use_at_end_mb, dev->memory_in_use_mb());
-        p2vbme::restore_copies(res.tree, dd);
-
-        p2vbme::write_newick_unrooted(run.prefix + ".nwk", all_names, res.tree, run.neg_as_zero);
-        run.time_total = omp_get_wtime() - t0;
-        p2vbme::write_report(run.prefix + ".json", run, opt, res, args.count("report-full") > 0);
-        if (verbose)
-            fprintf(stderr, "p2v-bme: %s start, %d rounds, BME length %.6f; %.2f s in total; wrote %s.nwk, %s.json\n",
-                    run.start_tree.c_str(), res.rounds_run, res.bme_length, run.time_total, run.prefix.c_str(),
-                    run.prefix.c_str());
-    } catch (const std::exception &e) {
-        fprintf(stderr, "p2v-bme: error: %s\n", e.what());
-        return 1;
+    CommandLine result;
+    auto done = [&](int exit_code) {
+        result.done = true;
+        result.exit_code = exit_code;
+        return result;
+    };
+    const auto args = cli.parse(argc, argv);
+    if (args.count("help")) {
+        printf("%s\nAll options: --help-all\n", cli.help({""}).c_str());
+        return done(0);
     }
-    return 0;
+    if (args.count("help-all")) {
+        printf("%s\n", cli.help({"", "Search", "Start tree", "Branch lengths and output", "Input"}).c_str());
+        return done(0);
+    }
+    if (args.count("version")) {
+        printf("p2v-bme %s\n", p2vbme::version_string().c_str());
+        return done(0);
+    }
+    if (!args.unmatched().empty())
+        throw std::runtime_error("unexpected argument '" + args.unmatched()[0] + "' (see --help)");
+    if (!args.count("alignment") || !args.count("model")) {
+        fprintf(stderr, "p2v-bme: -s ALIGNMENT and -m MODEL are required (see --help)\n");
+        return done(2);
+    }
+    RunOptions &options = result.options;
+    options.verbose = args.count("verbose") > 0;
+    options.input_path = args["alignment"].as<std::string>();
+    const p2vbme::Model model = parse_model(args["model"].as<std::string>());
+    options.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : options.input_path;
+    options.neg_as_zero = !args.count("no-neg-as-zero");
+
+    p2vbme::Settings &opt = result.settings;
+    opt.substitution.model = model;
+    opt.sample_size = args["sample-size"].as<int>();
+    opt.seed = args["seed"].as<uint64_t>();
+    opt.max_rounds = args["max-rounds"].as<int>();
+    opt.early_stopping = args["early-stopping"].as<double>();
+    opt.time_limit = args["time-limit"].as<double>();
+    opt.profile_cap = args["profile-cap"].as<int>();
+    opt.exact_check_eta = args["exact-check-eta"].as<double>();
+    opt.branch_lengths = !args.count("no-branch-lengths");
+    opt.bl_profile_cap = args["bl-profile-cap"].as<int>();
+    opt.accelerator = parse_accelerator(args["accelerator"].as<std::string>());
+    opt.precision = parse_precision(args["precision"].as<std::string>());
+    options.devices = args["devices"].as<std::string>();
+    options.start_tree = args["tree"].as<std::string>();
+    options.dedup = !args.count("no-dedup");
+    options.report_full = args.count("report-full") > 0;
+    return result;
+}
+
+void parse_devices_option(const std::string &devices, bool on_gpu, p2vbme::Settings &opt) {
+    if (on_gpu)
+        opt.devices = parse_devices(devices);
+    else
+        opt.threads = parse_threads(devices);
 }

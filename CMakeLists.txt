@@ -93,7 +93,7 @@ if(P2VBME_CUDA)
 endif()
 
 # Command-line tool (GPU and CPU, or CPU only without CUDA)
-add_executable(p2v-bme src/cli.cpp)
+add_executable(p2v-bme src/main.cpp src/cli.cpp)
 target_compile_options(p2v-bme PRIVATE -O3)
 target_link_libraries(p2v-bme PRIVATE p2vbme p2vbme_io p2vbme_processing cxxopts::cxxopts OpenMP::OpenMP_CXX)
 install(TARGETS p2v-bme)
