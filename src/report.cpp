@@ -62,7 +62,7 @@ void detail_input(JsonWriter &w, const RunInfo &run) {
 void detail_settings(JsonWriter &w, const RunInfo &run, const Settings &opt, const Result &res) {
     w.key("settings");
     w.begin_object();
-    w.field("model", model_name(opt.distance.model));
+    w.field("model", model_name(opt.substitution.model));
     w.field("start_tree", run.start_tree);
     w.field("sample_size", res.sample_size_used); // 0 without sample-and-place
     w.field("seed", opt.seed);
@@ -120,9 +120,9 @@ void detail_memory(JsonWriter &w, const Result &res) {
 void detail_model(JsonWriter &w, const Result &res) {
     w.key("model");
     w.begin_object();
-    const Model m = res.distance.model;
+    const Model m = res.substitution.model;
     if (m == Model::F81 || m == Model::F84 || m == Model::TN93) {
-        std::vector<double> freqs(res.distance.base_freqs, res.distance.base_freqs + 4);
+        std::vector<double> freqs(res.substitution.base_freqs, res.substitution.base_freqs + 4);
         w.array_field("base_frequencies", freqs);
     }
     w.end_object();

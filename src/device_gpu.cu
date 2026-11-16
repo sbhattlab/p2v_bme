@@ -2137,7 +2137,9 @@ class GpuDevice final : public Device {
         rows_.push_back(r);
     }
 
-    void set_distance(const DistanceModel &model) override { dm_ = distance_params<float>(model); }
+    void set_distance(const SubstitutionModel &model, const EigenSettings &eigen) override {
+        dm_ = distance_params<float>(model, eigen);
+    }
 
     void push_subset(const std::vector<int32_t> &rows) override {
         const int32_t n0 = (int32_t)rows.size();
@@ -2289,7 +2291,7 @@ class GpuDevice final : public Device {
     }
 
     int id_;
-    DeviceDistance dm_ = distance_params<float>(DistanceModel()); /* JC69 until set_distance */
+    DeviceDistance dm_ = distance_params<float>(SubstitutionModel(), EigenSettings()); /* JC69 until set_distance */
     int32_t n_words_ = 0;
     std::vector<Rows> rows_; /* the alignment, then one entry per pushed subsample */
     RnaSimGpuWorkspace ws_;

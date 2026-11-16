@@ -42,14 +42,13 @@ SimulationModel truth() {
     return m;
 }
 
-DistanceModel distance_model(Model model, EigenSettings eigen = EigenSettings()) {
-    DistanceModel dm;
+SubstitutionModel distance_model(Model model) {
+    SubstitutionModel dm;
     dm.model = model;
     const SimulationModel t = truth();
     for (int k = 0; k < 6; ++k)
         dm.gtr_rates[k] = t.rates[k];
     dm.gtr_alpha = t.alpha;
-    dm.eigen = eigen;
     return dm;
 }
 
@@ -73,17 +72,17 @@ void punch_holes(Alignment &aln, double rate, uint64_t seed) {
     }
 }
 
-double cpu_distance(const Alignment &aln, const DistanceModel &dm, int32_t a, int32_t b) {
+double cpu_distance(const Alignment &aln, const SubstitutionModel &dm, int32_t a, int32_t b) {
     if (a == b)
         return 0.0;
     const int32_t W = aln.n_words;
     const PairCounts c = count_pair(&aln.packed[(size_t)a * 5 * W], &aln.packed[(size_t)b * 5 * W], W);
-    return pair_distance<double>(distance_params<double>(dm), c.n);
+    return pair_distance<double>(distance_params<double>(dm, EigenSettings()), c.n);
 }
 
 // Exact BME length of a rooted binary tree (Tree layout) by Pauplin's formula: sum_{i<j} 2^(1 - edges(i, j)) d_ij,
 // the root's two child edges counted as one.
-double pauplin_length(const Alignment &aln, const DistanceModel &dm, const Tree &t) {
+double pauplin_length(const Alignment &aln, const SubstitutionModel &dm, const Tree &t) {
     const int32_t N = aln.n_taxa, n_nodes = 2 * N - 1;
     std::vector<std::vector<int32_t>> adj(n_nodes);
     for (int32_t u = N; u < n_nodes; ++u) {
@@ -203,8 +202,8 @@ TEST(DeviceDistances, EdgeLengthPassMatchesCpu) {
     }
 
     for (Model model : MODELS) {
-        const DistanceModel dm = distance_model(model);
-        dev->set_distance(dm);
+        const SubstitutionModel dm = distance_model(model);
+        dev->set_distance(dm, EigenSettings());
         std::vector<double> dAB(N), dAO(N), dBO(N);
         const double tol = model == Model::GTR_GC ? 2e-4 : 2e-5; /* float on the GPU, double here */
         // single pairs: cap 1 for the outside profiles (in_* unused)
@@ -251,9 +250,9 @@ TEST(DeviceDistances, BmeLengthOfAGivenTree) {
         opt.max_rounds = 0;
         opt.bl_profile_cap = PROFILE_CAP_MAX;
         opt.devices = {0};
-        opt.distance = distance_model(model);
+        opt.substitution = distance_model(model);
         const Result res = infer(aln, opt, &tree);
-        const double exact = pauplin_length(aln, res.distance, tree); /* the model as used (base frequencies) */
+        const double exact = pauplin_length(aln, res.substitution, tree); /* the model as used (base frequencies) */
         EXPECT_NEAR(res.bme_length, exact, 1e-4 * exact) << model_name(model);
     }
 }
@@ -273,7 +272,7 @@ TEST(DeviceDistances, SearchUnderEachModel) {
             opt.exact_check_eta = eta;
             if (eta > 0.0)
                 opt.profile_cap = 8; /* capped profiles, so the check runs (on complete profiles) */
-            opt.distance = distance_model(model);
+            opt.substitution = distance_model(model);
             const Result res = infer(aln, opt);
             EXPECT_LT(res.delta_bme, 0.0) << model_name(model); /* the tree got shorter */
             // the true tree, scored by the same pass
@@ -333,8 +332,8 @@ TEST(DeviceDistances, ExactCheckRefinement) {
         int accepted = 0;
         bool jc69_seen = false;
         for (Model model : MODELS) {
-            const DistanceModel dm = distance_model(model);
-            dev->set_distance(dm);
+            const SubstitutionModel dm = distance_model(model);
+            dev->set_distance(dm, EigenSettings());
             std::vector<int64_t> v(K - 1, 0), v0 = v;
             std::vector<int32_t> perm(K), perm0;
             for (int32_t a = 0; a < K; ++a)
@@ -383,7 +382,7 @@ TEST(DeviceDistances, CpuAgreesWithGpu) {
     for (Model model : MODELS) {
         Settings opt;
         opt.devices = {0};
-        opt.distance = distance_model(model);
+        opt.substitution = distance_model(model);
         opt.accelerator = Accelerator::Gpu;
         const Result gpu = infer(aln, opt);
         opt.accelerator = Accelerator::Cpu;

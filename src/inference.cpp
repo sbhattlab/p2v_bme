@@ -42,7 +42,7 @@ void check_settings(const Settings &opt) {
         for (size_t j = 0; j < i; ++j)
             if (opt.devices[i] == opt.devices[j])
                 throw std::runtime_error("GPU " + std::to_string(opt.devices[i]) + " is listed twice");
-    for (double f : opt.distance.base_freqs)
+    for (double f : opt.substitution.base_freqs)
         if (!(f >= 0.0 && f <= 1e30))
             throw std::runtime_error("base frequencies must be finite and >= 0");
     if (opt.threads < 0)
@@ -50,17 +50,18 @@ void check_settings(const Settings &opt) {
     if (opt.precision == Precision::Double && opt.accelerator == Accelerator::Gpu)
         throw std::runtime_error("the GPU computes in single precision; double precision runs on the CPU "
                                  "(--accelerator cpu)");
-    if ((int32_t)opt.distance.model < (int32_t)Model::JC69 || (int32_t)opt.distance.model > (int32_t)Model::GTR_GC)
+    if ((int32_t)opt.substitution.model < (int32_t)Model::JC69 ||
+        (int32_t)opt.substitution.model > (int32_t)Model::GTR_GC)
         throw std::runtime_error("unknown distance model");
-    if (opt.distance.model == Model::GTR_GC) {
+    if (opt.substitution.model == Model::GTR_GC) {
         /* ranges the single-precision GPU evaluates accurately (the fit's own range is [0.05, 148]) */
-        const DistanceModel &m = opt.distance;
+        const SubstitutionModel &m = opt.substitution;
         if (!(m.gtr_alpha >= 1e-3 && m.gtr_alpha <= 1e4))
             throw std::runtime_error("GTR+GC: alpha must be in [0.001, 10000]");
         for (double r : m.gtr_rates)
             if (!(r > 0.0 && r <= 1e6))
                 throw std::runtime_error("GTR+GC: exchangeabilities must be in (0, 1e6]");
-        if (m.eigen.reweight < 0 || m.eigen.reweight > 100)
+        if (opt.eigen.reweight < 0 || opt.eigen.reweight > 100)
             throw std::runtime_error("GTR+GC: reweighting passes must be in 0..100");
     }
     /* last, so that the other errors come first in a build without a GPU */
@@ -100,19 +101,19 @@ Result infer(const Alignment &aln, const Settings &opt, const Tree *start_tree, 
         throw std::runtime_error("no GPU found; run on the CPU (--accelerator cpu)");
     /* F81, F84, TN93: the alignment's base frequencies, unless given (the command line counts them before setting
      * identical sequences aside) */
-    DistanceModel distance = opt.distance;
-    const double freq_sum =
-        distance.base_freqs[0] + distance.base_freqs[1] + distance.base_freqs[2] + distance.base_freqs[3];
-    if ((distance.model == Model::F81 || distance.model == Model::F84 || distance.model == Model::TN93) &&
+    SubstitutionModel substitution = opt.substitution;
+    const double freq_sum = substitution.base_freqs[0] + substitution.base_freqs[1] + substitution.base_freqs[2] +
+                            substitution.base_freqs[3];
+    if ((substitution.model == Model::F81 || substitution.model == Model::F84 || substitution.model == Model::TN93) &&
         !(freq_sum > 0.0))
-        base_frequencies(aln.packed.data(), N, W, distance.base_freqs);
+        base_frequencies(aln.packed.data(), N, W, substitution.base_freqs);
 
     Devices devices = on_gpu
                           ? make_devices(opt.devices)
                           : make_cpu_devices(opt.threads > 0 ? opt.threads : omp_get_max_threads(), double_precision);
     for (auto &dev : devices) {
         dev->load(aln.packed.data(), N, W);
-        dev->set_distance(distance);
+        dev->set_distance(substitution, opt.eigen);
     }
     for (auto &dev : devices)
         dev->synchronize();
@@ -127,7 +128,7 @@ Result infer(const Alignment &aln, const Settings &opt, const Tree *start_tree, 
 
     Result res;
     res.on_gpu = on_gpu;
-    res.distance = distance;
+    res.substitution = substitution;
     for (auto &dev : devices)
         res.devices.push_back(dev->name());
     /* Progress lines for the caller's log (the library prints nothing): one per search start, stage and early

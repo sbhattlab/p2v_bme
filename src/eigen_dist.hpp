@@ -387,16 +387,6 @@ P2V_HD inline T eigen_distance(const uint32_t c[16], const T s_rates[6], T alpha
 
 /* ---- One pair's distance under the run's model ----------------------------------------------------------- */
 
-/* The distance model of a run: the model and, for GTR+GC, its parameters and the estimator's settings. */
-struct DistanceModel {
-    Model model = Model::JC69;
-    double gtr_rates[6] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; /* GTR+GC exchangeabilities AC, AG, AT, CG, CT, GT */
-    double gtr_alpha = 1.0;                               /* GTR+GC gamma shape */
-    EigenSettings eigen;
-    double base_freqs[4] = {0.0, 0.0, 0.0, 0.0}; /* F81, F84, TN93: the alignment's base frequencies (A, C,
-                                                     G, T; base_frequencies); all 0: infer() counts them */
-};
-
 /* The model in the precision of a device (the GPU: float). */
 template <class T> struct DistanceParams {
     Model model;
@@ -406,14 +396,14 @@ template <class T> struct DistanceParams {
     T pi[4]; /* base frequencies, normalised (uniform if not given) */
 };
 
-template <class T> inline DistanceParams<T> distance_params(const DistanceModel &m) {
+template <class T> inline DistanceParams<T> distance_params(const SubstitutionModel &m, const EigenSettings &eigen) {
     DistanceParams<T> p;
     p.model = m.model;
     for (int k = 0; k < 6; ++k)
         p.rates[k] = (T)m.gtr_rates[k];
     p.alpha = (T)m.gtr_alpha;
     p.inv_alpha = T(1) / p.alpha; /* as the paper's GPU implementation: 1 / alpha in the device's precision */
-    p.eigen = m.eigen;
+    p.eigen = eigen;
     const double sum = m.base_freqs[0] + m.base_freqs[1] + m.base_freqs[2] + m.base_freqs[3];
     for (int i = 0; i < 4; ++i)
         p.pi[i] = sum > 0.0 ? (T)(m.base_freqs[i] / sum) : T(0.25);

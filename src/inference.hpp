@@ -37,8 +37,9 @@ struct Settings {
     double exact_check_eta = DEFAULT_EXACT_CHECK_ETA; /* exact re-check of windows whose capped gain is > -eta */
     bool branch_lengths = DEFAULT_BRANCH_LENGTHS;     /* estimate BME branch lengths */
     int32_t bl_profile_cap = DEFAULT_BL_PROFILE_CAP;  /* leaves kept per subtree profile for branch lengths */
-    DistanceModel distance;                           /* the model of the distances (JC69 by default); GTR+GC
+    SubstitutionModel substitution;                   /* the model of the distances (JC69 by default); GTR+GC
                                                          with given parameters (the fit comes later) */
+    EigenSettings eigen;                              // how GTR+GC distances are estimated (not on the command line)
     Accelerator accelerator = Accelerator::Auto;      /* auto: the GPU if one is visible, else the CPU */
     std::vector<int> devices;                         /* GPU numbers; empty = all visible (at most MAX_GPUS) */
     int32_t threads = 0;                              /* CPU: workers (threads); 0 = all (omp_get_max_threads) */
@@ -58,7 +59,7 @@ struct Result {
     double time_branch_lengths = 0.0;
     std::vector<std::string> devices;         /* the devices used, e.g. "GPU 0: NVIDIA RTX A6000" */
     bool on_gpu = false;                      /* the run used the GPU (else the CPU) */
-    DistanceModel distance;                   /* the model as used: with the base frequencies counted */
+    SubstitutionModel substitution;           /* the model as used: with the base frequencies counted */
     double gpu_memory_in_use_at_end_mb = 0.0; /* MiB in use when the run ends, largest over the GPUs; GPU-wide (other
                                                  processes included), not a peak */
     int32_t sample_size_used = 0;

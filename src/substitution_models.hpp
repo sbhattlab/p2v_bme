@@ -48,6 +48,15 @@ const char *model_name(Model model);
  * +GC. */
 Model parse_model(const std::string &name);
 
+// The substitution model of a run: the model and its parameters.
+struct SubstitutionModel {
+    Model model = Model::JC69;
+    double gtr_rates[6] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; /* GTR+GC exchangeabilities AC, AG, AT, CG, CT, GT */
+    double gtr_alpha = 1.0;                               /* GTR+GC gamma shape */
+    double base_freqs[4] = {0.0, 0.0, 0.0, 0.0};          /* F81, F84, TN93: the alignment's base frequencies (A, C,
+                                                              G, T; base_frequencies); all 0: infer() counts them */
+};
+
 /* ---- Constants ------------------------------------------------------------------------------------------- */
 
 /* JC69 (the search's values): p is capped at JC69_P_MAX, so the largest distance is about 3.24; a pair with no

@@ -36,7 +36,7 @@ class Device {
      * replacing the one held: the GPU copies it; the CPU device reads it in place, so the caller keeps it alive. */
     virtual void load(const uint64_t *packed, int32_t n_taxa, int32_t n_words) = 0;
     /* The distance model of the window solve and the edge-length pass (JC69 until set). */
-    virtual void set_distance(const DistanceModel &model) = 0;
+    virtual void set_distance(const SubstitutionModel &model, const EigenSettings &eigen) = 0;
     /* The current alignment becomes rows[] of the current one (a start-tree subsample), until pop_subset. */
     virtual void push_subset(const std::vector<int32_t> &rows) = 0;
     virtual void pop_subset() = 0;

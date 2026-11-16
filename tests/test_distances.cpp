@@ -132,12 +132,12 @@ PairCounts expected_counts_gamma(const SimulationModel &m, double t, double alph
 
 /* freqs: the alignment's base frequencies (F81, F84, TN93); uniform if not given */
 template <class T> T distance(Model model, const PairCounts &c, const double *freqs = nullptr) {
-    DistanceModel m;
+    SubstitutionModel m;
     m.model = model;
     if (freqs)
         for (int i = 0; i < 4; ++i)
             m.base_freqs[i] = freqs[i];
-    return pair_distance<T>(distance_params<T>(m), c.n);
+    return pair_distance<T>(distance_params<T>(m, EigenSettings()), c.n);
 }
 
 SimulationModel model_jc() { return SimulationModel(); }
@@ -306,13 +306,12 @@ namespace {
 
 template <class T>
 T gtr_distance(const PairCounts &c, const SimulationModel &m, double alpha, EigenSettings settings = EigenSettings()) {
-    DistanceModel dm;
+    SubstitutionModel dm;
     dm.model = Model::GTR_GC;
     for (int k = 0; k < 6; ++k)
         dm.gtr_rates[k] = m.rates[k];
     dm.gtr_alpha = alpha;
-    dm.eigen = settings;
-    return pair_distance<T>(distance_params<T>(dm), c.n);
+    return pair_distance<T>(distance_params<T>(dm, settings), c.n);
 }
 
 } // namespace

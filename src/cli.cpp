@@ -200,7 +200,7 @@ int main(int argc, char **argv) {
         run.neg_as_zero = !args.count("no-neg-as-zero");
 
         p2vbme::Settings opt;
-        opt.distance.model = model;
+        opt.substitution.model = model;
         opt.sample_size = args["sample-size"].as<int>();
         opt.seed = args["seed"].as<uint64_t>();
         opt.max_rounds = args["max-rounds"].as<int>();
@@ -251,7 +251,7 @@ int main(int argc, char **argv) {
         run.dedup = !args.count("no-dedup");
         /* F81, F84, TN93: the base frequencies of the whole input, as FastME and ape count them */
         if (model == p2vbme::Model::F81 || model == p2vbme::Model::F84 || model == p2vbme::Model::TN93)
-            p2vbme::base_frequencies(aln.packed.data(), aln.n_taxa, aln.n_words, opt.distance.base_freqs);
+            p2vbme::base_frequencies(aln.packed.data(), aln.n_taxa, aln.n_words, opt.substitution.base_freqs);
         if (run.dedup) {
             p2vbme::deduplicate(aln, dd);
             run.n_identical_removed = dd.n_removed();

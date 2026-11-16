@@ -27,7 +27,7 @@ class FailingDevice : public Device {
   public:
     explicit FailingDevice(const char *step) : step_(step) {}
     void load(const uint64_t *, int32_t, int32_t) override {}
-    void set_distance(const DistanceModel &) override {}
+    void set_distance(const SubstitutionModel &, const EigenSettings &) override {}
     void push_subset(const std::vector<int32_t> &) override {}
     void pop_subset() override {}
     int32_t max_window() const override { return WORKSPACE_MAX_K; }

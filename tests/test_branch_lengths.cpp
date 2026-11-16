@@ -41,14 +41,15 @@ Case make_case(int32_t N, Model model, uint64_t seed) {
         sim.freqs[i] = f[i];
     sim.alpha = 0.5;
     c.aln = simulate_alignment(c.tree, 1600, sim, seed + 1);
-    DistanceModel dm;
+    SubstitutionModel dm;
     dm.model = model;
     const int32_t W = c.aln.n_words;
     c.D.assign((size_t)N * N, 0.0);
     for (int32_t i = 0; i < N; ++i)
         for (int32_t j = i + 1; j < N; ++j) {
             const PairCounts pc = count_pair(&c.aln.packed[(size_t)i * 5 * W], &c.aln.packed[(size_t)j * 5 * W], W);
-            c.D[(size_t)i * N + j] = c.D[(size_t)j * N + i] = pair_distance<double>(distance_params<double>(dm), pc.n);
+            c.D[(size_t)i * N + j] = c.D[(size_t)j * N + i] =
+                pair_distance<double>(distance_params<double>(dm, EigenSettings()), pc.n);
         }
     return c;
 }
@@ -125,14 +126,14 @@ void run_all(Devices &devices, bool double_precision, const char *what) {
     for (Model model : {Model::JC69, Model::TN93, Model::GTR_GC})
         for (int32_t N : {20, 64, 200}) {
             Case c = make_case(N, model, 12345 + N);
-            DistanceModel dm;
+            SubstitutionModel dm;
             dm.model = model;
             for (auto &dev : devices)
                 dev->load(c.aln.packed.data(), N, c.aln.n_words);
             /* complete profiles: exact up to the precision */
             {
                 for (auto &dev : devices)
-                    dev->set_distance(dm);
+                    dev->set_distance(dm, EigenSettings());
                 double direct = 0.0;
                 const std::vector<double> exact = exact_lengths(c.tree, N, c.D, &direct);
                 std::vector<double> bl;
@@ -159,7 +160,7 @@ void run_all(Devices &devices, bool double_precision, const char *what) {
             /* capped profiles (cap 32): the measured approximation, with a margin */
             if (N > 32) {
                 for (auto &dev : devices)
-                    dev->set_distance(dm);
+                    dev->set_distance(dm, EigenSettings());
                 std::vector<double> bl, exact;
                 double direct = 0.0;
                 exact = exact_lengths(c.tree, N, c.D, &direct);

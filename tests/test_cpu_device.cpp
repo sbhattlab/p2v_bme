@@ -44,8 +44,8 @@ SimulationModel truth() {
     return m;
 }
 
-DistanceModel distance_model(Model model) {
-    DistanceModel dm;
+SubstitutionModel distance_model(Model model) {
+    SubstitutionModel dm;
     dm.model = model;
     const SimulationModel t = truth();
     for (int k = 0; k < 6; ++k)
@@ -54,13 +54,14 @@ DistanceModel distance_model(Model model) {
     return dm;
 }
 
-std::vector<double> distance_matrix(const Alignment &aln, const DistanceModel &dm) {
+std::vector<double> distance_matrix(const Alignment &aln, const SubstitutionModel &dm) {
     const int32_t N = aln.n_taxa, W = aln.n_words;
     std::vector<double> D((size_t)N * N, 0.0);
     for (int32_t i = 0; i < N; ++i)
         for (int32_t j = i + 1; j < N; ++j) {
             const PairCounts c = count_pair(&aln.packed[(size_t)i * 5 * W], &aln.packed[(size_t)j * 5 * W], W);
-            D[(size_t)i * N + j] = D[(size_t)j * N + i] = pair_distance<double>(distance_params<double>(dm), c.n);
+            D[(size_t)i * N + j] = D[(size_t)j * N + i] =
+                pair_distance<double>(distance_params<double>(dm, EigenSettings()), c.n);
         }
     return D;
 }
@@ -147,7 +148,7 @@ Settings cpu_settings(Model model, Precision precision = Precision::Single, int3
     opt.accelerator = Accelerator::Cpu;
     opt.threads = threads;
     opt.precision = precision;
-    opt.distance = distance_model(model);
+    opt.substitution = distance_model(model);
     return opt;
 }
 
@@ -162,7 +163,7 @@ TEST(CpuDevice, BruteForceAtSmallN) {
                 Settings opt = cpu_settings(model);
                 opt.seed = seed;
                 const Result res = infer(aln, opt);
-                const std::vector<double> D = distance_matrix(aln, res.distance); /* the model as used */
+                const std::vector<double> D = distance_matrix(aln, res.substitution); /* the model as used */
                 const double found = pauplin(unrooted(res.tree, N), N, D), best = brute_force_min(N, D);
                 EXPECT_LE(found, best + 1e-6 * best) << "N=" << N << " seed=" << seed << " " << model_name(model);
             }
@@ -177,7 +178,7 @@ TEST(CpuDevice, SprOptimalByTheReferenceLibrary) {
             const Tree tree = random_tree(N, 0.01, 0.3, 41);
             const Alignment aln = simulate_alignment(tree, 1000, truth(), 42);
             const Result res = infer(aln, cpu_settings(model, precision));
-            const std::vector<double> D = distance_matrix(aln, res.distance); /* the model as used */
+            const std::vector<double> D = distance_matrix(aln, res.substitution); /* the model as used */
             double min_delta = 0.0;
             for (int32_t flip : {0, 1}) {
                 std::vector<int64_t> v(N - 1);
@@ -213,7 +214,7 @@ TEST(CpuDevice, BmeLengthOfAGivenTree) {
             opt.max_rounds = 0;
             opt.bl_profile_cap = PROFILE_CAP_MAX;
             const Result res = infer(aln, opt, &tree);
-            const double exact = pauplin(unrooted(tree, N), N, distance_matrix(aln, res.distance));
+            const double exact = pauplin(unrooted(tree, N), N, distance_matrix(aln, res.substitution));
             const double tol = precision == Precision::Double ? 1e-9 : 1e-4;
             EXPECT_NEAR(res.bme_length, exact, tol * exact) << model_name(model);
             EXPECT_EQ(res.tree.double_precision_lengths, precision == Precision::Double);
@@ -294,8 +295,8 @@ TEST(CpuDevice, ExactCheck) {
         for (Model model : {Model::JC69, Model::TN93, Model::GTR_GC}) {
             auto dev = make_cpu_device(0, 2, precision == Precision::Double);
             dev->load(aln.packed.data(), N, aln.n_words);
-            const DistanceModel dm = distance_model(model);
-            dev->set_distance(dm);
+            const SubstitutionModel dm = distance_model(model);
+            dev->set_distance(dm, EigenSettings());
             std::vector<int64_t> v(K - 1, 0), v0 = v;
             std::vector<int32_t> perm(K), perm0;
             for (int32_t a = 0; a < K; ++a)
@@ -357,7 +358,8 @@ TEST(CpuDevice, MoveScoresAreExactBmeChanges) {
     int compared = 0;
     for (Model model : {Model::JC69, Model::TN93, Model::GTR_GC})
         for (uint64_t seed : {1, 2, 3}) {
-            auto kern = make_cpu_window_kernels(aln.packed.data(), aln.n_words, distance_model(model), true);
+            auto kern =
+                make_cpu_window_kernels(aln.packed.data(), aln.n_words, distance_model(model), EigenSettings(), true);
             kern->distances(K, off.data(), leaves.data(), weights.data());
             const Tree start = random_tree(K, 0.1, 0.1, 1000 + seed);
             std::vector<int64_t> v(K - 1);
@@ -437,8 +439,8 @@ TEST(CpuDevice, MoveTiesGoToTheSmallestEdge) {
     for (int32_t a = 0; a < K; ++a)
         leaves[a] = a;
     for (bool double_precision : {false, true}) {
-        auto kern =
-            make_cpu_window_kernels(aln.packed.data(), aln.n_words, distance_model(Model::JC69), double_precision);
+        auto kern = make_cpu_window_kernels(aln.packed.data(), aln.n_words, distance_model(Model::JC69),
+                                            EigenSettings(), double_precision);
         kern->distances(K, off.data(), leaves.data(), weights.data());
         const Tree start = random_tree(K, 0.1, 0.1, 113);
         std::vector<int64_t> v(K - 1);
