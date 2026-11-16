@@ -53,8 +53,8 @@ struct SubstitutionModel {
     Model model = Model::JC69;
     double gtr_rates[6] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; /* GTR+GC exchangeabilities AC, AG, AT, CG, CT, GT */
     double gtr_alpha = 1.0;                               /* GTR+GC gamma shape */
-    double base_freqs[4] = {0.0, 0.0, 0.0, 0.0};          /* F81, F84, TN93: the alignment's base frequencies (A, C,
-                                                              G, T; base_frequencies); all 0: infer() counts them */
+    double base_freqs[4] = {0.0, 0.0, 0.0, 0.0};          // F81, F84, TN93: the alignment's base frequencies (A, C,
+                                                          // G, T); all 0: not given (count_base_frequencies)
 };
 
 /* ---- Constants ------------------------------------------------------------------------------------------- */

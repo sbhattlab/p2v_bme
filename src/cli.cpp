@@ -18,11 +18,11 @@
 
 #include <cxxopts.hpp>
 
-#include "dedup.hpp"
 #include "device.hpp"
 #include "inference.hpp"
 #include "io.hpp"
 #include "newick.hpp"
+#include "processing.hpp"
 #include "report.hpp"
 #include "version.hpp"
 
@@ -243,20 +243,16 @@ int main(int argc, char **argv) {
             fprintf(stderr, "p2v-bme: read %d sequences x %d sites in %.2f s\n", aln.n_taxa, aln.n_sites,
                     run.time_read);
 
-        /* identical sequences: two of each group stay in the search, the rest are put back */
+        /* identical sequences: two of each group stay in the search, the rest are put back; F81, F84, TN93: the
+         * base frequencies of the whole input, as FastME and ape count them */
         const std::vector<std::string> all_names = aln.names;
         p2vbme::Deduplication dd;
         run.dedup = !args.count("no-dedup");
-        /* F81, F84, TN93: the base frequencies of the whole input, as FastME and ape count them */
-        if (model == p2vbme::Model::F81 || model == p2vbme::Model::F84 || model == p2vbme::Model::TN93)
-            p2vbme::base_frequencies(aln.packed.data(), aln.n_taxa, aln.n_words, opt.substitution.base_freqs);
-        if (run.dedup) {
-            p2vbme::deduplicate(aln, dd);
-            run.n_identical_removed = dd.n_removed();
-            if (verbose && dd.n_removed() > 0)
-                fprintf(stderr, "p2v-bme: %d identical sequences set aside (two of each group kept): %d left\n",
-                        dd.n_removed(), aln.n_taxa);
-        }
+        p2vbme::prepare_alignment(aln, opt.substitution, run.dedup, dd);
+        run.n_identical_removed = dd.n_removed();
+        if (verbose && dd.n_removed() > 0)
+            fprintf(stderr, "p2v-bme: %d identical sequences set aside (two of each group kept): %d left\n",
+                    dd.n_removed(), aln.n_taxa);
         if (aln.n_taxa < 4)
             throw std::runtime_error("need at least 4 sequences" +
                                      std::string(run.dedup ? " after setting identical copies aside" : "") + ", have " +
@@ -277,8 +273,7 @@ int main(int argc, char **argv) {
             opt.start = p2vbme::Start::Random;
         } else {
             start_tree = p2vbme::read_newick(run.start_tree, all_names);
-            if (run.dedup && dd.n_removed() > 0)
-                start_tree = p2vbme::prune(start_tree, dd);
+            p2vbme::prepare_start_tree(start_tree, dd);
             opt.start = p2vbme::Start::Given;
         }
 
@@ -297,8 +292,7 @@ int main(int argc, char **argv) {
         p2vbme::Result res = p2vbme::infer(aln, opt, devices, &start_tree, log);
         for (const auto &dev : devices)
             run.gpu_memory_in_use_at_end_mb = std::max(run.gpu_memory_in_use_at_end_mb, dev->memory_in_use_mb());
-        if (run.dedup && dd.n_removed() > 0)
-            res.tree = p2vbme::reattach(res.tree, dd);
+        p2vbme::restore_copies(res.tree, dd);
 
         p2vbme::write_newick_unrooted(run.prefix + ".nwk", all_names, res.tree, run.neg_as_zero);
         run.time_total = omp_get_wtime() - t0;

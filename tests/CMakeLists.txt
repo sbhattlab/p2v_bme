@@ -11,8 +11,12 @@ target_link_libraries(test_maple PRIVATE p2vbme_io GTest::gtest_main)
 gtest_discover_tests(test_maple)
 
 add_executable(test_dedup test_dedup.cpp)
-target_link_libraries(test_dedup PRIVATE p2vbme_io GTest::gtest_main)
+target_link_libraries(test_dedup PRIVATE p2vbme_io p2vbme_processing GTest::gtest_main)
 gtest_discover_tests(test_dedup)
+
+add_executable(test_processing test_processing.cpp)
+target_link_libraries(test_processing PRIVATE p2vbme_io p2vbme_processing GTest::gtest_main)
+gtest_discover_tests(test_processing)
 
 add_executable(test_newick test_newick.cpp)
 target_link_libraries(test_newick PRIVATE p2vbme_io GTest::gtest_main)
@@ -32,7 +36,8 @@ gtest_discover_tests(test_distances)
 add_executable(test_cpu_device test_cpu_device.cpp ${BME_REFERENCE_SOURCE})
 target_include_directories(test_cpu_device PRIVATE ${BME_REFERENCE_INCLUDE})
 target_compile_options(test_cpu_device PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O2 -Wall -Wextra> $<$<COMPILE_LANGUAGE:C>:-O2>)
-target_link_libraries(test_cpu_device PRIVATE p2vbme p2vbme_io p2vbme_simulations GTest::gtest_main m)
+target_link_libraries(test_cpu_device PRIVATE p2vbme p2vbme_io p2vbme_processing p2vbme_simulations GTest::gtest_main
+                                              m)
 gtest_discover_tests(test_cpu_device DISCOVERY_TIMEOUT 60)
 
 # O(N) branch lengths against the exact O(N^2) ones: CPU device; BranchLengthsGpu.* on the GPU
@@ -72,7 +77,7 @@ if(P2VBME_CUDA)
   # GPU distances under every model against the CPU formulas
   add_executable(test_device_distances test_device_distances.cpp)
   target_compile_options(test_device_distances PRIVATE -Wall -Wextra)
-  target_link_libraries(test_device_distances PRIVATE p2vbme p2vbme_simulations GTest::gtest_main)
+  target_link_libraries(test_device_distances PRIVATE p2vbme p2vbme_processing p2vbme_simulations GTest::gtest_main)
   gtest_discover_tests(test_device_distances PROPERTIES LABELS gpu DISCOVERY_TIMEOUT 60)
 
   # Error paths: device-step failures (a fake device), argument errors; Errors.Gpu*: out of memory, CUDA errors

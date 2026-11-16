@@ -1,9 +1,10 @@
 /*
  * inference.hpp
  *
- * Public interface of the Phylo2Vec BME tree search, with core.hpp (the alignment and tree types) and the
- * input/output headers (fasta.hpp, maple.hpp, dedup.hpp, io.hpp): Settings, Result and infer() (balanced minimum
- * evolution, distances under a substitution model, GPU minibatch search).
+ * Public interface of the Phylo2Vec BME tree search, with core.hpp (the alignment and tree types), the
+ * input/output headers (fasta.hpp, maple.hpp, newick.hpp, io.hpp), processing.hpp (before and after inference)
+ * and device.hpp (the devices): Settings, Result and infer() (balanced minimum evolution, distances under a
+ * substitution model, GPU minibatch search).
  */
 #ifndef P2VBME_INFERENCE_HPP
 #define P2VBME_INFERENCE_HPP
@@ -56,7 +57,7 @@ struct Result {
     double time_start_assembly = 0.0; /*   assembling the full tree */
     double time_search = 0.0;         /* seconds: minibatch search */
     double time_branch_lengths = 0.0;
-    SubstitutionModel substitution; /* the model as used: with the base frequencies counted */
+    SubstitutionModel substitution; // the model as used (settings.substitution)
     int32_t sample_size_used = 0;
     int32_t rounds_planned = 0;
     int32_t rounds_run = 0;

@@ -85,17 +85,16 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
             throw std::runtime_error("start tree missing or not on the alignment's taxa");
     }
 
-    if (devices.empty())
-        throw std::runtime_error("no devices given (select_devices)");
-    const bool double_precision = opt.precision == Precision::Double;
-    /* F81, F84, TN93: the alignment's base frequencies, unless given (the command line counts them before setting
-     * identical sequences aside) */
-    SubstitutionModel substitution = opt.substitution;
+    // F81, F84, TN93: the caller gives the base frequencies (prepare_alignment counts those of the whole input)
+    const SubstitutionModel &substitution = opt.substitution;
     const double freq_sum = substitution.base_freqs[0] + substitution.base_freqs[1] + substitution.base_freqs[2] +
                             substitution.base_freqs[3];
     if ((substitution.model == Model::F81 || substitution.model == Model::F84 || substitution.model == Model::TN93) &&
         !(freq_sum > 0.0))
-        base_frequencies(aln.packed.data(), N, W, substitution.base_freqs);
+        throw std::runtime_error("F81, F84 and TN93 need the base frequencies (count_base_frequencies)");
+    if (devices.empty())
+        throw std::runtime_error("no devices given (select_devices)");
+    const bool double_precision = opt.precision == Precision::Double;
 
     for (auto &dev : devices) {
         dev->load(aln.packed.data(), N, W);

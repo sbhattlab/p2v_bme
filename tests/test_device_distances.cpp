@@ -384,6 +384,7 @@ TEST(DeviceDistances, CpuAgreesWithGpu) {
         Settings opt;
         opt.devices = {0};
         opt.substitution = distance_model(model);
+        opt = with_base_frequencies(aln, opt);
         opt.accelerator = Accelerator::Gpu;
         Devices gpu_devices = devices_for(opt);
         const Result gpu = infer(aln, opt, gpu_devices);
