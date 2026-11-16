@@ -21,6 +21,7 @@
 #include "inference.hpp"
 #include "io.hpp"
 #include "report.hpp"
+#include "version.hpp"
 
 namespace {
 
@@ -181,8 +182,7 @@ int main(int argc, char **argv) {
             return 0;
         }
         if (args.count("version")) {
-            const std::string git = p2vbme::package_git_revision();
-            printf("p2v-bme %s%s\n", p2vbme::package_version().c_str(), git.empty() ? "" : (" (" + git + ")").c_str());
+            printf("p2v-bme %s\n", p2vbme::version_string().c_str());
             return 0;
         }
         if (!args.unmatched().empty())

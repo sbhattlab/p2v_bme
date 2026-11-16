@@ -17,13 +17,7 @@
 #include "config.hpp"
 #include "device.hpp"
 #include "json_writer.hpp"
-
-#ifndef P2VBME_VERSION
-#define P2VBME_VERSION "unknown"
-#endif
-#ifndef P2VBME_GIT
-#define P2VBME_GIT ""
-#endif
+#include "version.hpp"
 
 namespace p2vbme {
 
@@ -59,10 +53,6 @@ const char *accelerator_name(Accelerator a) {
 }
 
 } // namespace
-
-std::string package_version() { return P2VBME_VERSION; }
-
-std::string package_git_revision() { return P2VBME_GIT; }
 
 std::string report_json(const RunInfo &run, const Options &opt, const Result &res) {
     std::string out;

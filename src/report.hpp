@@ -34,10 +34,6 @@ struct RunInfo {
     double time_total = 0.0;         /* seconds, from start to the report */
 };
 
-/* "0.1.0", and the git revision of a development build ("" if unknown). */
-std::string package_version();
-std::string package_git_revision();
-
 /* The report as JSON text. */
 std::string report_json(const RunInfo &run, const Options &options, const Result &result);
 
