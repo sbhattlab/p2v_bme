@@ -246,7 +246,7 @@ TEST(DeviceDistances, BmeLengthOfAGivenTree) {
     Alignment aln = simulate_alignment(tree, 4000, truth(), 22);
     punch_holes(aln, 0.05, 23);
     for (Model model : MODELS) {
-        Options opt;
+        Settings opt;
         opt.start = Start::Given;
         opt.max_rounds = 0;
         opt.bl_profile_cap = PROFILE_CAP_MAX;
@@ -267,7 +267,7 @@ TEST(DeviceDistances, SearchUnderEachModel) {
         for (double eta : {0.0, 1e30}) {
             if (eta > 0.0 && model != Model::TN93 && model != Model::GTR_GC)
                 continue; /* the exact check's per-pair path: two models are enough */
-            Options opt;
+            Settings opt;
             opt.start = Start::Random;
             opt.devices = {0};
             opt.exact_check_eta = eta;
@@ -277,7 +277,7 @@ TEST(DeviceDistances, SearchUnderEachModel) {
             const Result res = infer(aln, opt);
             EXPECT_LT(res.delta_bme, 0.0) << model_name(model); /* the tree got shorter */
             // the true tree, scored by the same pass
-            Options score = opt;
+            Settings score = opt;
             score.start = Start::Given;
             score.max_rounds = 0;
             const Result true_score = infer(aln, score, &tree);
@@ -381,7 +381,7 @@ TEST(DeviceDistances, CpuAgreesWithGpu) {
     const Tree tree = random_tree(N, 0.005, 0.08, 101);
     const Alignment aln = simulate_alignment(tree, 1000, truth(), 102);
     for (Model model : MODELS) {
-        Options opt;
+        Settings opt;
         opt.devices = {0};
         opt.distance = distance_model(model);
         opt.accelerator = Accelerator::Gpu;

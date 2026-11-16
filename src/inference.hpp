@@ -1,7 +1,7 @@
 /*
  * inference.hpp
  *
- * Public interface of the Phylo2Vec BME tree search, with io.hpp: the alignment and tree types, Options,
+ * Public interface of the Phylo2Vec BME tree search, with io.hpp: the alignment and tree types, Settings,
  * Result and infer() (balanced minimum evolution, distances under a substitution model, GPU minibatch search).
  */
 #ifndef P2VBME_INFERENCE_HPP
@@ -45,7 +45,7 @@ enum class Accelerator { Auto, Gpu, Cpu };
 enum class Precision { Single, Double };
 
 /* The settings of a run; defaults in config.hpp. */
-struct Options {
+struct Settings {
     Start start = Start::Sample;
     int32_t sample_size = DEFAULT_SAMPLE_SIZE;        /* sample-and-place start: 0 = min(100000, N / 10) */
     uint64_t seed = DEFAULT_SEED;                     /* seeds the sample-and-place or random start */
@@ -94,14 +94,14 @@ bool gpu_available();
 
 /* Throws std::runtime_error if a setting is out of range (infer() checks them too; the command line checks them
  * before reading the alignment). */
-void check_options(const Options &options);
+void check_settings(const Settings &settings);
 
 /* Receives the run's progress lines (the library itself prints nothing). */
 using LogCallback = std::function<void(const std::string &line)>;
 
-/* Infers a BME tree. `start_tree` is used when options.start == Start::Given. Errors (input, CUDA,
+/* Infers a BME tree. `start_tree` is used when settings.start == Start::Given. Errors (input, CUDA,
  * GPU memory) are thrown as std::exception. */
-Result infer(const Alignment &aln, const Options &options, const Tree *start_tree = nullptr,
+Result infer(const Alignment &aln, const Settings &settings, const Tree *start_tree = nullptr,
              const LogCallback &log = nullptr);
 
 } // namespace p2vbme

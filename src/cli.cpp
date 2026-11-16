@@ -197,7 +197,7 @@ int main(int argc, char **argv) {
         run.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : run.input_path;
         run.neg_as_zero = !args.count("no-neg-as-zero");
 
-        p2vbme::Options opt;
+        p2vbme::Settings opt;
         opt.distance.model = model;
         opt.sample_size = args["sample-size"].as<int>();
         opt.seed = args["seed"].as<uint64_t>();
@@ -226,7 +226,7 @@ int main(int argc, char **argv) {
             opt.devices = parse_devices(args["devices"].as<std::string>());
         else
             opt.threads = parse_threads(args["devices"].as<std::string>());
-        p2vbme::check_options(opt);
+        p2vbme::check_settings(opt);
         /* fail now, not after the search, if the outputs cannot be written */
         for (const char *ext : {".nwk", ".json"}) {
             FILE *f = fopen((run.prefix + ext).c_str(), "a");

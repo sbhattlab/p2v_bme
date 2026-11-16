@@ -24,7 +24,7 @@
 
 namespace p2vbme {
 
-// What the command line knows about a run, besides Options and Result.
+// What the command line knows about a run, besides Settings and Result.
 struct RunInfo {
     std::vector<std::string> command_line;
     std::vector<std::string> warnings; // also printed on stderr
@@ -40,10 +40,11 @@ struct RunInfo {
 };
 
 // The report as JSON text; full adds "details" (--report-full).
-std::string report_json(const RunInfo &run, const Options &options, const Result &result, bool full);
+std::string report_json(const RunInfo &run, const Settings &settings, const Result &result, bool full);
 
-// Writes report_json() to path. Throws std::runtime_error.
-void write_report(const std::string &path, const RunInfo &run, const Options &options, const Result &result, bool full);
+// Writes report_json() to path.
+void write_report(const std::string &path, const RunInfo &run, const Settings &settings, const Result &result,
+                  bool full);
 
 } // namespace p2vbme
 

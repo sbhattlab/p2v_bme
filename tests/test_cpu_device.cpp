@@ -141,8 +141,8 @@ double brute_force_min(int32_t N, const std::vector<double> &D) {
     return best;
 }
 
-Options cpu_options(Model model, Precision precision = Precision::Single, int32_t threads = 2) {
-    Options opt;
+Settings cpu_settings(Model model, Precision precision = Precision::Single, int32_t threads = 2) {
+    Settings opt;
     opt.start = Start::Random;
     opt.accelerator = Accelerator::Cpu;
     opt.threads = threads;
@@ -159,7 +159,7 @@ TEST(CpuDevice, BruteForceAtSmallN) {
             for (Model model : {Model::JC69, Model::TN93, Model::LogDet, Model::GTR_GC}) {
                 const Tree tree = random_tree(N, 0.02, 0.4, 100 * N + seed);
                 const Alignment aln = simulate_alignment(tree, 400, truth(), 7 * seed);
-                Options opt = cpu_options(model);
+                Settings opt = cpu_settings(model);
                 opt.seed = seed;
                 const Result res = infer(aln, opt);
                 const std::vector<double> D = distance_matrix(aln, res.distance); /* the model as used */
@@ -176,7 +176,7 @@ TEST(CpuDevice, SprOptimalByTheReferenceLibrary) {
         for (Precision precision : {Precision::Single, Precision::Double}) {
             const Tree tree = random_tree(N, 0.01, 0.3, 41);
             const Alignment aln = simulate_alignment(tree, 1000, truth(), 42);
-            const Result res = infer(aln, cpu_options(model, precision));
+            const Result res = infer(aln, cpu_settings(model, precision));
             const std::vector<double> D = distance_matrix(aln, res.distance); /* the model as used */
             double min_delta = 0.0;
             for (int32_t flip : {0, 1}) {
@@ -208,7 +208,7 @@ TEST(CpuDevice, BmeLengthOfAGivenTree) {
     const Alignment aln = simulate_alignment(tree, 4000, truth(), 22);
     for (Model model : {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC})
         for (Precision precision : {Precision::Single, Precision::Double}) {
-            Options opt = cpu_options(model, precision);
+            Settings opt = cpu_settings(model, precision);
             opt.start = Start::Given;
             opt.max_rounds = 0;
             opt.bl_profile_cap = PROFILE_CAP_MAX;
@@ -225,7 +225,7 @@ TEST(CpuDevice, DoublePrecisionNewick) {
     const int32_t N = 30;
     const Tree tree = random_tree(N, 0.02, 0.2, 51);
     const Alignment aln = simulate_alignment(tree, 2000, truth(), 52);
-    Options opt = cpu_options(Model::JC69, Precision::Double);
+    Settings opt = cpu_settings(Model::JC69, Precision::Double);
     const Result res = infer(aln, opt);
     const std::string path = ::testing::TempDir() + "cpu_double.nwk";
     write_newick_unrooted(path, aln.names, res.tree);
@@ -248,7 +248,7 @@ TEST(CpuDevice, SameTreeForAnyWorkerCount) {
     const Alignment aln = simulate_alignment(tree, 600, truth(), 62);
     Result one;
     for (int32_t workers : {1, 2, 3}) {
-        Options opt = cpu_options(Model::JC69, Precision::Single, workers);
+        Settings opt = cpu_settings(Model::JC69, Precision::Single, workers);
         opt.start = Start::Sample;
         const Result res = infer(aln, opt);
         if (workers == 1) {
@@ -334,10 +334,10 @@ TEST(CpuDevice, ExactCheck) {
 TEST(CpuDevice, Errors) {
     const Tree tree = random_tree(20, 0.01, 0.2, 81);
     const Alignment aln = simulate_alignment(tree, 300, truth(), 82);
-    Options opt = cpu_options(Model::JC69);
+    Settings opt = cpu_settings(Model::JC69);
     opt.threads = -1;
     EXPECT_THROW(infer(aln, opt), std::runtime_error);
-    opt = cpu_options(Model::JC69, Precision::Double);
+    opt = cpu_settings(Model::JC69, Precision::Double);
     opt.accelerator = Accelerator::Gpu;
     EXPECT_THROW(infer(aln, opt), std::runtime_error);
 }

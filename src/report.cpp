@@ -59,7 +59,7 @@ void detail_input(JsonWriter &w, const RunInfo &run) {
 }
 
 // Every setting, defaults included, with the auto values resolved: accelerator, threads, sample size.
-void detail_settings(JsonWriter &w, const RunInfo &run, const Options &opt, const Result &res) {
+void detail_settings(JsonWriter &w, const RunInfo &run, const Settings &opt, const Result &res) {
     w.key("settings");
     w.begin_object();
     w.field("model", model_name(opt.distance.model));
@@ -130,7 +130,7 @@ void detail_model(JsonWriter &w, const Result &res) {
 
 } // namespace
 
-std::string report_json(const RunInfo &run, const Options &opt, const Result &res, bool full) {
+std::string report_json(const RunInfo &run, const Settings &opt, const Result &res, bool full) {
     std::string out;
     JsonWriter w(out);
     w.begin_object();
@@ -164,9 +164,9 @@ std::string report_json(const RunInfo &run, const Options &opt, const Result &re
     return out;
 }
 
-void write_report(const std::string &path, const RunInfo &run, const Options &options, const Result &result,
+void write_report(const std::string &path, const RunInfo &run, const Settings &settings, const Result &result,
                   bool full) {
-    const std::string text = report_json(run, options, result, full);
+    const std::string text = report_json(run, settings, result, full);
     FILE *f = fopen(path.c_str(), "w");
     if (!f)
         throw std::runtime_error("cannot write " + path);

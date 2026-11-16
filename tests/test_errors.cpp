@@ -119,7 +119,7 @@ TEST(Errors, SampleStartNeedsSixteenSequences) {
 // infer() checks its input before it looks for a GPU.
 TEST(Errors, InferRejectsBadInput) {
     const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
-    Options opt;
+    Settings opt;
     EXPECT_NE(thrown_message([&] { infer(aln, opt); }).find("at least 16 sequences"), std::string::npos);
     opt.start = Start::Random;
     opt.profile_cap = 0;
@@ -128,7 +128,7 @@ TEST(Errors, InferRejectsBadInput) {
     opt.start = Start::Given;
     EXPECT_NE(thrown_message([&] { infer(aln, opt); }).find("start tree"), std::string::npos);
     const Alignment three = simulate_alignment(random_tree(3, 0.1, 0.1, 1), 50, SimulationModel(), 2);
-    EXPECT_NE(thrown_message([&] { infer(three, Options()); }).find("at least 4 sequences"), std::string::npos);
+    EXPECT_NE(thrown_message([&] { infer(three, Settings()); }).find("at least 4 sequences"), std::string::npos);
 }
 
 size_t gpu_free_bytes() {

@@ -2,7 +2,7 @@
  * inference.cpp
  *
  * p2vbme::infer: one run of the method on an in-memory alignment: devices, start tree, search, branch lengths,
- * with the settings taken from Options.
+ * with the settings taken from Settings.
  */
 #include <omp.h>
 
@@ -23,7 +23,7 @@ namespace p2vbme {
 
 bool gpu_available() { return visible_gpus() > 0; }
 
-void check_options(const Options &opt) {
+void check_settings(const Settings &opt) {
     if (opt.profile_cap < 1 || opt.profile_cap > PROFILE_CAP_MAX)
         throw std::runtime_error("profile cap must be in 1.." + std::to_string(PROFILE_CAP_MAX));
     if (opt.bl_profile_cap < 1 || opt.bl_profile_cap > PROFILE_CAP_MAX)
@@ -71,8 +71,8 @@ void check_options(const Options &opt) {
         throw std::runtime_error("no GPU found (" + gpu_build_info() + "); run on the CPU (--accelerator cpu)");
 }
 
-Result infer(const Alignment &aln, const Options &opt, const Tree *start_tree, const LogCallback &log) {
-    check_options(opt);
+Result infer(const Alignment &aln, const Settings &opt, const Tree *start_tree, const LogCallback &log) {
+    check_settings(opt);
     const int32_t N = aln.n_taxa;
     const int32_t W = aln.n_words;
     const int32_t n_nodes = 2 * N - 1;

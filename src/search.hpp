@@ -50,7 +50,7 @@ struct SearchEvent {
 
 /* ============================================================================
  * Settings of a search. They apply to the main search and to every search inside the sample-and-place
- * start; defaults in config.hpp (the published configuration), filled by infer() from Options.
+ * start; defaults in config.hpp (the published configuration), filled by infer() from Settings.
  * ============================================================================ */
 struct SearchSettings {
     /* outer rounds before the final cleanup pass; 0 = no search (the tree is left as it is) */
