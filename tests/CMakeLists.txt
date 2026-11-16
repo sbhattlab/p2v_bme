@@ -2,9 +2,21 @@
 find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
 
-add_executable(test_io_unit test_io_unit.cpp)
-target_link_libraries(test_io_unit PRIVATE p2vbme_io GTest::gtest_main)
-gtest_discover_tests(test_io_unit)
+add_executable(test_fasta test_fasta.cpp)
+target_link_libraries(test_fasta PRIVATE p2vbme_io GTest::gtest_main)
+gtest_discover_tests(test_fasta)
+
+add_executable(test_maple test_maple.cpp)
+target_link_libraries(test_maple PRIVATE p2vbme_io GTest::gtest_main)
+gtest_discover_tests(test_maple)
+
+add_executable(test_dedup test_dedup.cpp)
+target_link_libraries(test_dedup PRIVATE p2vbme_io GTest::gtest_main)
+gtest_discover_tests(test_dedup)
+
+add_executable(test_io test_io.cpp)
+target_link_libraries(test_io PRIVATE p2vbme_io GTest::gtest_main)
+gtest_discover_tests(test_io)
 
 add_executable(test_simulations test_simulations.cpp)
 target_compile_options(test_simulations PRIVATE -Wall -Wextra)
@@ -226,7 +238,3 @@ print('model ok')" ${CLI_DIR}/model_${model}.json ${name})
     endforeach()
   endif()
 endif()
-
-# Driver for the Python parity checks in tests/python/test_io.py
-add_executable(io_driver io_driver.cpp)
-target_link_libraries(io_driver PRIVATE p2vbme_io)
