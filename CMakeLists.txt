@@ -40,15 +40,22 @@ execute_process(
   ERROR_QUIET)
 
 # ---- package ---------------------------------------------------------------------------------------
+# Core types: the alignment and the tree, and the packing of a sequence (plain C++, no CUDA)
+add_library(p2vbme_core STATIC src/core.cpp)
+target_include_directories(p2vbme_core PUBLIC src)
+target_compile_options(p2vbme_core PRIVATE -O3)
+
 # I/O: FASTA, .maple, identical sequences, Newick (plain C++, no CUDA)
 add_library(p2vbme_io STATIC src/fasta.cpp src/maple.cpp src/dedup.cpp src/io.cpp)
 target_include_directories(p2vbme_io PUBLIC src)
 target_compile_options(p2vbme_io PRIVATE -O3)
+target_link_libraries(p2vbme_io PUBLIC p2vbme_core)
 
 # Sequence simulation along a tree (tests, pipeline tools)
 add_library(p2vbme_simulations STATIC src/simulations.cpp)
 target_include_directories(p2vbme_simulations PUBLIC src)
 target_compile_options(p2vbme_simulations PRIVATE -O3 -Wall -Wextra)
+target_link_libraries(p2vbme_simulations PUBLIC p2vbme_core)
 
 # Distance models: names, pair counts; the per-pair formulas are inline in the headers (plain C++, no CUDA)
 add_library(p2vbme_distances STATIC src/substitution_models.cpp src/eigen_dist.cpp)
@@ -71,7 +78,7 @@ set_source_files_properties(src/version.cpp PROPERTIES COMPILE_DEFINITIONS
 target_include_directories(p2vbme PUBLIC src)
 target_compile_options(p2vbme PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-O3 -Xcompiler=-fopenmp>
                                       $<$<COMPILE_LANGUAGE:CXX>:-O3>)
-target_link_libraries(p2vbme PUBLIC p2vbme_distances OpenMP::OpenMP_CXX)
+target_link_libraries(p2vbme PUBLIC p2vbme_core p2vbme_distances OpenMP::OpenMP_CXX)
 target_link_libraries(p2vbme PRIVATE p2vbme_json)
 if(P2VBME_CUDA)
   target_sources(p2vbme PRIVATE src/device_gpu.cu)

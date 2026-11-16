@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include <vector>
 
-#include "inference.hpp"
+#include "core.hpp"
 
 namespace p2vbme {
 

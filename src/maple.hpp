@@ -8,7 +8,7 @@
 
 #include <string>
 
-#include "inference.hpp"
+#include "core.hpp"
 
 namespace p2vbme {
 

@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "fasta.hpp"
+#include "core.hpp"
 #include "maple.hpp"
 
 namespace p2vbme {

@@ -1,9 +1,9 @@
 /*
  * inference.hpp
  *
- * Public interface of the Phylo2Vec BME tree search, with the input/output headers (fasta.hpp, maple.hpp, dedup.hpp,
- * io.hpp): the alignment and tree types, Settings, Result and infer() (balanced minimum evolution, distances under a
- * substitution model, GPU minibatch search).
+ * Public interface of the Phylo2Vec BME tree search, with core.hpp (the alignment and tree types) and the
+ * input/output headers (fasta.hpp, maple.hpp, dedup.hpp, io.hpp): Settings, Result and infer() (balanced minimum
+ * evolution, distances under a substitution model, GPU minibatch search).
  */
 #ifndef P2VBME_INFERENCE_HPP
 #define P2VBME_INFERENCE_HPP
@@ -15,31 +15,10 @@
 #include <vector>
 
 #include "config.hpp"
+#include "core.hpp"
 #include "eigen_dist.hpp"
 
 namespace p2vbme {
-
-/* N aligned sequences packed as bitplanes: packed[(i * 5 + plane) * n_words + w], bit k of word w is
- * site 64 w + k; planes A, C, G, T/U, valid (= any of the four). Other characters (gaps, N, IUPAC
- * ambiguity codes) set no bit. Same layout as the .bin bundles. */
-struct Alignment {
-    int32_t n_taxa = 0;
-    int32_t n_sites = 0;
-    int32_t n_words = 0;
-    std::vector<std::string> names;
-    std::vector<uint64_t> packed;
-};
-
-/* Rooted binary tree on N leaves: leaves 0..N-1 (alignment order), internal nodes N..2N-2, root 2N-2, children
- * c1[u], c2[u]. In start trees children come before parents (c1[u], c2[u] < u); the search keeps the root but
- * reuses the other internal ids, so in its result they are in no particular order: traverse from the root.
- * branch_lengths[u] is the length of the edge above u (empty when not computed): float values, or double values
- * when double_precision_lengths (the CPU device's --precision double; the output keeps their digits). */
-struct Tree {
-    std::vector<int32_t> c1, c2;
-    std::vector<double> branch_lengths;
-    bool double_precision_lengths = false;
-};
 
 enum class Start { Sample, Random, Given };
 enum class Accelerator { Auto, Gpu, Cpu };
