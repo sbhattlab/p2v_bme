@@ -55,6 +55,11 @@ add_library(p2vbme_distances STATIC src/substitution_models.cpp src/eigen_dist.c
 target_include_directories(p2vbme_distances PUBLIC src)
 target_compile_options(p2vbme_distances PRIVATE -O3 -Wall -Wextra)
 
+# JSON writer for the run report (plain C++, no CUDA)
+add_library(p2vbme_json STATIC src/json_writer.cpp)
+target_include_directories(p2vbme_json PUBLIC src)
+target_compile_options(p2vbme_json PRIVATE -O3 -Wall -Wextra)
+
 find_package(cxxopts CONFIG REQUIRED)
 
 # The method: infer(), start tree, search, branch lengths (host), the CPU device and, with CUDA, the GPU device
@@ -67,6 +72,7 @@ target_include_directories(p2vbme PUBLIC src)
 target_compile_options(p2vbme PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-O3 -Xcompiler=-fopenmp>
                                       $<$<COMPILE_LANGUAGE:CXX>:-O3>)
 target_link_libraries(p2vbme PUBLIC p2vbme_distances OpenMP::OpenMP_CXX)
+target_link_libraries(p2vbme PRIVATE p2vbme_json)
 if(P2VBME_CUDA)
   target_sources(p2vbme PRIVATE src/device_gpu.cu)
   target_compile_definitions(p2vbme PRIVATE P2VBME_WITH_CUDA)

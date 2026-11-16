@@ -33,9 +33,8 @@ if(P2VBME_CUDA)
 endif()
 
 add_executable(test_json_writer test_json_writer.cpp)
-target_include_directories(test_json_writer PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_compile_options(test_json_writer PRIVATE -Wall -Wextra)
-target_link_libraries(test_json_writer PRIVATE GTest::gtest_main)
+target_link_libraries(test_json_writer PRIVATE p2vbme_json GTest::gtest_main)
 gtest_discover_tests(test_json_writer)
 
 add_executable(test_random test_random.cpp)
