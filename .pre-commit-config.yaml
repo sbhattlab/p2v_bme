@@ -1,0 +1,14 @@
+repos:
+  # Same major version as the system clang-format the editor extension uses; style from .clang-format
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: "v18.1.8"
+    hooks:
+      - id: clang-format
+        types_or: [c, c++, cuda]
+
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: "v3.10.1"
+    hooks:
+      - id: prettier
+        types_or: [markdown, json]
+        args: [--prose-wrap=always, --print-width=120]
