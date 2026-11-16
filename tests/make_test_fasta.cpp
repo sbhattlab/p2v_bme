@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "io.hpp"
+#include "newick.hpp"
 #include "simulations.hpp"
 
 static bool write_fasta(const std::string &path, const std::vector<std::string> &names,

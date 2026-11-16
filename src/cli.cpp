@@ -20,6 +20,7 @@
 #include "dedup.hpp"
 #include "inference.hpp"
 #include "io.hpp"
+#include "newick.hpp"
 #include "report.hpp"
 #include "version.hpp"
 

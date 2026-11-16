@@ -46,7 +46,7 @@ target_include_directories(p2vbme_core PUBLIC src)
 target_compile_options(p2vbme_core PRIVATE -O3)
 
 # I/O: FASTA, .maple, identical sequences, Newick (plain C++, no CUDA)
-add_library(p2vbme_io STATIC src/fasta.cpp src/maple.cpp src/dedup.cpp src/io.cpp)
+add_library(p2vbme_io STATIC src/fasta.cpp src/maple.cpp src/dedup.cpp src/newick.cpp src/io.cpp)
 target_include_directories(p2vbme_io PUBLIC src)
 target_compile_options(p2vbme_io PRIVATE -O3)
 target_link_libraries(p2vbme_io PUBLIC p2vbme_core)

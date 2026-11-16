@@ -7,8 +7,8 @@
 #include <utility>
 #include <vector>
 
-#include "io.hpp"
 #include "io_test_helpers.hpp"
+#include "newick.hpp"
 
 namespace {
 

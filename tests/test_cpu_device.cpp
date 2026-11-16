@@ -24,7 +24,7 @@
 #include "device.hpp"
 #include "eigen_dist.hpp"
 #include "inference.hpp"
-#include "io.hpp"
+#include "newick.hpp"
 #include "search.hpp"
 #include "simulations.hpp"
 #include "substitution_models.hpp"

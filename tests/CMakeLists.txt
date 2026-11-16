@@ -14,9 +14,9 @@ add_executable(test_dedup test_dedup.cpp)
 target_link_libraries(test_dedup PRIVATE p2vbme_io GTest::gtest_main)
 gtest_discover_tests(test_dedup)
 
-add_executable(test_io test_io.cpp)
-target_link_libraries(test_io PRIVATE p2vbme_io GTest::gtest_main)
-gtest_discover_tests(test_io)
+add_executable(test_newick test_newick.cpp)
+target_link_libraries(test_newick PRIVATE p2vbme_io GTest::gtest_main)
+gtest_discover_tests(test_newick)
 
 add_executable(test_simulations test_simulations.cpp)
 target_compile_options(test_simulations PRIVATE -Wall -Wextra)
