@@ -15,8 +15,8 @@
  *   - Supplementary Section S5: Implementation details (O(N) ordered decoding & relabelling)
  */
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 #define P2V_RESTRICT __restrict__
@@ -50,12 +50,8 @@ extern "C" {
  *
  * @note Complexity: O(N^2) arithmetic operations and O(N^2) thread-local workspace.
  */
-void calculate_discrete_gradient_full_c(
-    const int64_t *P2V_RESTRICT v,
-    const double  *P2V_RESTRICT D,
-    int32_t                     n_leaves,
-    double        *P2V_RESTRICT delta_full_out
-);
+void calculate_discrete_gradient_full_c(const int64_t *P2V_RESTRICT v, const double *P2V_RESTRICT D, int32_t n_leaves,
+                                        double *P2V_RESTRICT delta_full_out);
 
 /**
  * @brief Computes the lower-triangular pendant-edge subset (0 <= j < i) of Delta_{i,j}.
@@ -68,12 +64,8 @@ void calculate_discrete_gradient_full_c(
  *
  * @note Complexity: O(N^2) time and O(N^2) space.
  */
-void calculate_discrete_gradient_c(
-    const int64_t *P2V_RESTRICT v,
-    const double  *P2V_RESTRICT D,
-    int32_t                     n_leaves,
-    double        *P2V_RESTRICT delta_out
-);
+void calculate_discrete_gradient_c(const int64_t *P2V_RESTRICT v, const double *P2V_RESTRICT D, int32_t n_leaves,
+                                   double *P2V_RESTRICT delta_out);
 
 /* ============================================================================
  * 2. O(N) Tree Bijections & Ordered ("Cherry-First") Relabelling (Section S5)
@@ -98,13 +90,8 @@ void calculate_discrete_gradient_c(
  *
  * @note Complexity: O(N) time and O(N) space.
  */
-void relabel_cherry_first_c(
-    const int64_t *P2V_RESTRICT v_in,
-    int32_t                     n_leaves,
-    int32_t                     flip_mode,
-    int64_t       *P2V_RESTRICT v_out,
-    int32_t       *P2V_RESTRICT perm_out
-);
+void relabel_cherry_first_c(const int64_t *P2V_RESTRICT v_in, int32_t n_leaves, int32_t flip_mode,
+                            int64_t *P2V_RESTRICT v_out, int32_t *P2V_RESTRICT perm_out);
 
 /**
  * @brief Encodes a rooted binary tree (given as child arrays) into its unique general
@@ -118,12 +105,8 @@ void relabel_cherry_first_c(
  *
  * @note Complexity: O(N) time and O(N) space.
  */
-void encode_rooted_to_v_c(
-    const int32_t *P2V_RESTRICT child1_r,
-    const int32_t *P2V_RESTRICT child2_r,
-    int32_t                     n_leaves,
-    int64_t       *P2V_RESTRICT v_out
-);
+void encode_rooted_to_v_c(const int32_t *P2V_RESTRICT child1_r, const int32_t *P2V_RESTRICT child2_r, int32_t n_leaves,
+                          int64_t *P2V_RESTRICT v_out);
 
 /**
  * @brief Encodes an unrooted binary tree (given as a degree-3 adjacency table) into
@@ -138,11 +121,7 @@ void encode_rooted_to_v_c(
  *
  * @note Complexity: O(N) time and O(N) space.
  */
-void encode_unrooted_to_v_c(
-    const int32_t *P2V_RESTRICT adj_u,
-    int32_t                     n_leaves,
-    int64_t       *P2V_RESTRICT v_out
-);
+void encode_unrooted_to_v_c(const int32_t *P2V_RESTRICT adj_u, int32_t n_leaves, int64_t *P2V_RESTRICT v_out);
 
 /* ============================================================================
  * 3. Exact BME Subtree Condensation & Expansion (Section S2, Equation S1)
@@ -173,18 +152,11 @@ void encode_unrooted_to_v_c(
  * @param[out] omega_leaf_out      Array of length N storing exact dyadic weight omega_a(x) = 2^{-h_a(x)}.
  * @param[out] D_eff_out           Output K x K condensed distance matrix D_tilde (row-major).
  */
-void condense_tree_bme_c(
-    const int64_t *P2V_RESTRICT v,
-    const double  *P2V_RESTRICT D,
-    int32_t                     n_leaves,
-    const uint8_t *P2V_RESTRICT is_condensed_node,
-    int32_t       *P2V_RESTRICT n_eff_out,
-    int64_t       *P2V_RESTRICT v_eff_out,
-    int32_t       *P2V_RESTRICT super_node_map_out,
-    int32_t       *P2V_RESTRICT leaf_to_super_out,
-    double        *P2V_RESTRICT omega_leaf_out,
-    double        *P2V_RESTRICT D_eff_out
-);
+void condense_tree_bme_c(const int64_t *P2V_RESTRICT v, const double *P2V_RESTRICT D, int32_t n_leaves,
+                         const uint8_t *P2V_RESTRICT is_condensed_node, int32_t *P2V_RESTRICT n_eff_out,
+                         int64_t *P2V_RESTRICT v_eff_out, int32_t *P2V_RESTRICT super_node_map_out,
+                         int32_t *P2V_RESTRICT leaf_to_super_out, double *P2V_RESTRICT omega_leaf_out,
+                         double *P2V_RESTRICT D_eff_out);
 
 /**
  * @brief Expands an updated K-leaf skeleton v_eff back into a full N-leaf Phylo2Vec vector.
@@ -198,14 +170,9 @@ void condense_tree_bme_c(
  *
  * @note Complexity: O(N) time and O(N) space.
  */
-void expand_condensed_tree_to_v_c(
-    const int64_t *P2V_RESTRICT v_orig,
-    int32_t                     n_leaves,
-    const int64_t *P2V_RESTRICT v_eff,
-    int32_t                     n_eff,
-    const int32_t *P2V_RESTRICT super_node_map,
-    int64_t       *P2V_RESTRICT v_expanded_out
-);
+void expand_condensed_tree_to_v_c(const int64_t *P2V_RESTRICT v_orig, int32_t n_leaves,
+                                  const int64_t *P2V_RESTRICT v_eff, int32_t n_eff,
+                                  const int32_t *P2V_RESTRICT super_node_map, int64_t *P2V_RESTRICT v_expanded_out);
 
 /**
  * @brief Selects a K-component clade partition on an N-leaf tree for CPU minibatch optimization.
@@ -216,13 +183,8 @@ void expand_condensed_tree_to_v_c(
  * @param[in]  batch_idx              Pass/window index controlling partition granularity.
  * @param[out] is_condensed_node_out  Output mask of length 2N-1 for condense_tree_bme_c.
  */
-void select_minibatch_clades_c(
-    const int64_t *P2V_RESTRICT v,
-    int32_t                     n_leaves,
-    int32_t                     target_n_eff,
-    int32_t                     batch_idx,
-    uint8_t       *P2V_RESTRICT is_condensed_node_out
-);
+void select_minibatch_clades_c(const int64_t *P2V_RESTRICT v, int32_t n_leaves, int32_t target_n_eff, int32_t batch_idx,
+                               uint8_t *P2V_RESTRICT is_condensed_node_out);
 
 /* ============================================================================
  * 4. End-to-End CPU Reference Tree Optimizers & Workspace Control
@@ -243,14 +205,9 @@ void select_minibatch_clades_c(
  * @param[out] elapsed_ms_out    Optional output pointer receiving elapsed wall time in ms.
  * @return                       Final exact Pauplin BME tree length L(T(v_out); D).
  */
-double optimize_phylo2vec_bme_c(
-    const int64_t *P2V_RESTRICT v_init,
-    const double  *P2V_RESTRICT D,
-    int32_t                     n_leaves,
-    int64_t       *P2V_RESTRICT v_out,
-    int32_t       *P2V_RESTRICT n_grad_evals_out,
-    double        *P2V_RESTRICT elapsed_ms_out
-);
+double optimize_phylo2vec_bme_c(const int64_t *P2V_RESTRICT v_init, const double *P2V_RESTRICT D, int32_t n_leaves,
+                                int64_t *P2V_RESTRICT v_out, int32_t *P2V_RESTRICT n_grad_evals_out,
+                                double *P2V_RESTRICT elapsed_ms_out);
 
 /**
  * @brief CPU reference multi-window condensed minibatch BME optimizer.
@@ -263,14 +220,9 @@ double optimize_phylo2vec_bme_c(
  * @param[out] v_out         Output N-leaf Phylo2Vec vector of length N-1.
  * @return                   Final exact Pauplin BME tree length.
  */
-double optimize_phylo2vec_bme_minibatch_c(
-    const int64_t *P2V_RESTRICT v_init,
-    const double  *P2V_RESTRICT D,
-    int32_t                     n_leaves,
-    int32_t                     target_n_eff,
-    int32_t                     n_batches,
-    int64_t       *P2V_RESTRICT v_out
-);
+double optimize_phylo2vec_bme_minibatch_c(const int64_t *P2V_RESTRICT v_init, const double *P2V_RESTRICT D,
+                                          int32_t n_leaves, int32_t target_n_eff, int32_t n_batches,
+                                          int64_t *P2V_RESTRICT v_out);
 
 /**
  * @brief Frees thread-local scratch buffers allocated by the C99 evaluator on the calling thread.

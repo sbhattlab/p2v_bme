@@ -6,9 +6,9 @@
  *   io_driver tree  <in.fa> <in.nwk> <out.nwk>     reads a start tree, writes it back unrooted
  *   io_driver write <in.fa> <tree.bin> <out.nwk>   tree.bin: int32 c1[2N-1], c2[2N-1], float bl[2N-1]
  */
+#include <exception>
 #include <stdio.h>
 #include <string.h>
-#include <exception>
 #include <vector>
 
 #include "io.hpp"
