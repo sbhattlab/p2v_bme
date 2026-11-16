@@ -5,7 +5,8 @@
  * and the algorithm's constants, input, date, host, devices), results (BME length, rounds, stop reason,
  * timings per stage, memory) and the model with the search's diagnostics. The tree is in its own file.
  */
-#pragma once
+#ifndef P2VBME_REPORT_HPP
+#define P2VBME_REPORT_HPP
 
 #include <stdint.h>
 
@@ -44,3 +45,5 @@ std::string report_json(const RunInfo &run, const Options &options, const Result
 void write_report(const std::string &path, const RunInfo &run, const Options &options, const Result &result);
 
 } // namespace p2vbme
+
+#endif // P2VBME_REPORT_HPP

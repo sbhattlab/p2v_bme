@@ -6,7 +6,8 @@
  * and a workspace. The host code (search, start_tree, branch_lengths) hands work to one Device per worker, one host
  * thread each. Only this interface has more than one implementation (device_gpu.cu, device_cpu.cpp).
  */
-#pragma once
+#ifndef P2VBME_DEVICE_HPP
+#define P2VBME_DEVICE_HPP
 
 #include <stdint.h>
 
@@ -118,3 +119,5 @@ Devices make_cpu_devices(int32_t n_workers, bool double_precision);
 std::unique_ptr<Device> make_cpu_device(int32_t worker, int32_t threads, bool double_precision);
 
 } // namespace p2vbme
+
+#endif // P2VBME_DEVICE_HPP

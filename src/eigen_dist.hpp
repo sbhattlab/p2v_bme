@@ -30,7 +30,8 @@
  * here a base absent from both sequences gives a pseudocount-only row of K~ (singular value 1/4), which reads as
  * a strongly diverged mode, as in the paper's GPU implementation.
  */
-#pragma once
+#ifndef P2VBME_EIGEN_DIST_HPP
+#define P2VBME_EIGEN_DIST_HPP
 
 #include <stdint.h>
 
@@ -441,3 +442,5 @@ template <class T> P2V_HD inline T pair_distance(const DistanceParams<T> &p, con
 }
 
 } // namespace p2vbme
+
+#endif // P2VBME_EIGEN_DIST_HPP

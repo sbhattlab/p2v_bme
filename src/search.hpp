@@ -5,7 +5,8 @@
  * each window a skeleton of K <= 1,500 components summarised by weighted leaf profiles and solved by a Device.
  * Also the Phylo2Vec encoding helpers the windows and the devices share. Internal to the package.
  */
-#pragma once
+#ifndef P2VBME_SEARCH_HPP
+#define P2VBME_SEARCH_HPP
 
 #include <stdint.h>
 #include <time.h>
@@ -165,3 +166,5 @@ double run_multi_gpu_minibatch_bme(int32_t N, Devices &devices, std::vector<int3
                                    SearchStats *stats = nullptr);
 
 } // namespace p2vbme
+
+#endif // P2VBME_SEARCH_HPP

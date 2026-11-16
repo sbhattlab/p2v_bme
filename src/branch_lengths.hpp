@@ -4,7 +4,8 @@
  * O(N) balanced minimum evolution branch lengths (Pauplin 2000; FastME, Desper & Gascuel 2002) by exact clade
  * condensation: capped dyadic inside and outside profiles on the host, the edge-length pass on the devices.
  */
-#pragma once
+#ifndef P2VBME_BRANCH_LENGTHS_HPP
+#define P2VBME_BRANCH_LENGTHS_HPP
 
 #include <stdint.h>
 
@@ -23,3 +24,5 @@ double compute_bme_branch_lengths(int32_t N, const int32_t *h_c1, const int32_t 
                                   double *out_kernel_sec = nullptr, bool double_precision = false);
 
 } // namespace p2vbme
+
+#endif // P2VBME_BRANCH_LENGTHS_HPP

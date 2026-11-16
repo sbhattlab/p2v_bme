@@ -4,7 +4,8 @@
  * Input and output of the package: aligned DNA FASTA in (packed as in the .bin bundles: 5 bitplanes), Newick
  * start trees in, unrooted Newick out.
  */
-#pragma once
+#ifndef P2VBME_IO_HPP
+#define P2VBME_IO_HPP
 
 #include <string>
 #include <vector>
@@ -57,3 +58,5 @@ void write_newick_unrooted(const std::string &path, const std::vector<std::strin
                            bool neg_as_zero = true);
 
 } // namespace p2vbme
+
+#endif // P2VBME_IO_HPP

@@ -4,7 +4,8 @@
  * Sequences along a tree under GTR with continuous gamma rate variation (+GC), JC69 as a special case, and
  * random trees to simulate on. Used by the tests and the pipeline tools; not part of the p2v-bme command.
  */
-#pragma once
+#ifndef P2VBME_SIMULATIONS_HPP
+#define P2VBME_SIMULATIONS_HPP
 
 #include <stdint.h>
 
@@ -36,3 +37,5 @@ Alignment simulate_alignment(const Tree &tree, int32_t n_sites, const Simulation
 double path_length(const Tree &tree, int32_t i, int32_t j);
 
 } // namespace p2vbme
+
+#endif // P2VBME_SIMULATIONS_HPP

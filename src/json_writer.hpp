@@ -6,7 +6,8 @@
  * (std::to_chars, independent of the locale), NaN and infinities as null, 64-bit integers exactly.
  * Indented by two spaces per level.
  */
-#pragma once
+#ifndef P2VBME_JSON_WRITER_HPP
+#define P2VBME_JSON_WRITER_HPP
 
 #include <stdint.h>
 
@@ -79,3 +80,5 @@ class JsonWriter {
 };
 
 } // namespace p2vbme
+
+#endif // P2VBME_JSON_WRITER_HPP

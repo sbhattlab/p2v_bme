@@ -5,7 +5,8 @@
  * command line both read these) and the algorithm's fixed constants. Values are the paper's (GPU suite).
  * Kernel tile sizes stay next to their kernels.
  */
-#pragma once
+#ifndef P2VBME_CONFIG_HPP
+#define P2VBME_CONFIG_HPP
 
 #include <stdint.h>
 
@@ -74,3 +75,5 @@ constexpr int32_t START_RANDOM_TREE_MAX = 1000; /* a sample of at most this size
 constexpr float NN_P_NO_OVERLAP = 0.6485f;
 
 } // namespace p2vbme
+
+#endif // P2VBME_CONFIG_HPP

@@ -17,7 +17,8 @@
  * every pair: a logarithm's argument is floored at 1e-4 and a distance capped at MAX_DISTANCE (the paper's C distance
  * library's rules); no shared valid site gives NO_OVERLAP_DISTANCE; an undefined LogDet gives MAX_DISTANCE.
  */
-#pragma once
+#ifndef P2VBME_SUBSTITUTION_MODELS_HPP
+#define P2VBME_SUBSTITUTION_MODELS_HPP
 
 #include <math.h>
 #include <stdint.h>
@@ -307,3 +308,5 @@ template <class T> P2V_HD inline T gtr_symmetric_rate_matrix(const T s[6], const
 }
 
 } // namespace p2vbme
+
+#endif // P2VBME_SUBSTITUTION_MODELS_HPP

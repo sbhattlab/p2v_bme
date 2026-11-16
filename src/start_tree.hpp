@@ -3,7 +3,8 @@
  *
  * Start trees of the search: sample-and-place (from the sequences) and random.
  */
-#pragma once
+#ifndef P2VBME_START_TREE_HPP
+#define P2VBME_START_TREE_HPP
 
 #include <stdint.h>
 
@@ -42,3 +43,5 @@ void build_sample_init_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devic
                             int32_t level = 0);
 
 } // namespace p2vbme
+
+#endif // P2VBME_START_TREE_HPP

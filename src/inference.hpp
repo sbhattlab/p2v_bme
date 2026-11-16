@@ -4,7 +4,8 @@
  * Public interface of the Phylo2Vec BME tree search, with io.hpp: the alignment and tree types, Options,
  * Result and infer() (balanced minimum evolution, distances under a substitution model, GPU minibatch search).
  */
-#pragma once
+#ifndef P2VBME_INFERENCE_HPP
+#define P2VBME_INFERENCE_HPP
 
 #include <stdint.h>
 
@@ -104,3 +105,5 @@ Result infer(const Alignment &aln, const Options &options, const Tree *start_tre
              const LogCallback &log = nullptr);
 
 } // namespace p2vbme
+
+#endif // P2VBME_INFERENCE_HPP
