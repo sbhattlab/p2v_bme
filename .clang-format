@@ -1,0 +1,6 @@
+---
+# C, C++ and CUDA style.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 120
+...

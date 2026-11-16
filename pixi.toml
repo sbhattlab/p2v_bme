@@ -1,0 +1,40 @@
+[workspace]
+authors = ["Neclow <32112754+Neclow@users.noreply.github.com>"]
+channels = ["conda-forge", "bioconda"]
+name = "phylo2vec_bme"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+# ---- package environment (default) ------------------------------------------------------------------
+# What building and testing p2v-bme needs. C/C++ compilers, CMake and nvcc come from the system
+# (cc, g++, cmake, nvcc on PATH).
+[dependencies]
+cxxopts = "3.2.*"
+gtest = "1.18.*"
+benchmark = ">=1.10.0,<2"
+
+[tasks]
+# CMake presets (CMakePresets.json); everything is built into build/
+build = "cmake --preset default && cmake --build --preset default -j 8"
+test = { cmd = "ctest --preset default", depends-on = ["build"] }
+# CPU tests under AddressSanitizer and UBSan, in build-asan/
+test-asan = "cmake --preset asan && cmake --build --preset asan -j 8 && ctest --preset asan"
+
+# ---- paper environment ---------------------------------------------------------------------------------
+# Python for the pipeline, plots and Python-side tests, plus the baseline programs the pipeline runs (those
+# folders and their tasks are added to the repository later).
+[feature.paper.dependencies]
+python = "3.12.*"
+numpy = ">=2.5.4,<3"
+matplotlib = ">=3.11.2,<4"
+pandas = ">=3.1,<4"
+pytest = ">=9.2.0,<10"
+fastme = "2.1.6.3.*"
+veryfasttree = "4.0.*"
+fasttree = "2.2.*"
+
+[feature.paper.activation.env]
+PYTHONPATH = "$PIXI_PROJECT_ROOT"
+
+[environments]
+paper = ["paper"]

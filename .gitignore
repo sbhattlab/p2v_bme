@@ -1,0 +1,39 @@
+# Build artifacts & binaries
+build/
+build-*/
+*.o
+*.so
+*.dylib
+*.a
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Data, figure outputs and local files
+data/
+img/
+notes/
+tmp/
+jobs/
+CLAUDE.md
+
+# Large benchmark data & logs (also outside data/)
+data_*/
+*.bin
+*.fa
+*.fasta
+*.maple
+*.tree
+*.treefile
+*.nwk
+*.log
+*.gz
+*.xz
+.DS_Store
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml
