@@ -1,55 +1,26 @@
 /*
  * io.cpp
  *
- * FASTA input (packed as in the .bin bundles), Newick start-tree input and unrooted Newick output.
+ * Alignment input by file type, Newick start-tree input and unrooted Newick output.
  * Tree traversals are iterative so that trees with millions of leaves do not overflow the stack.
  */
-#include <algorithm>
-#include <array>
 #include <charconv>
 #include <ctype.h>
 #include <stdexcept>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "fasta.hpp"
 #include "io.hpp"
+#include "maple.hpp"
 
 namespace p2vbme {
 
 namespace {
-
-// The plane of each byte: A 0, C 1, G 2, T and U 3 (either case), -1 for anything else (a missing site).
-// One table read per site instead of toupper and a chain of comparisons: about 3 times faster.
-constexpr std::array<int8_t, 256> kPlaneOf = [] {
-    std::array<int8_t, 256> t{};
-    for (int c = 0; c < 256; ++c)
-        t[c] = -1;
-    t['A'] = t['a'] = 0;
-    t['C'] = t['c'] = 1;
-    t['G'] = t['g'] = 2;
-    t['T'] = t['t'] = t['U'] = t['u'] = 3;
-    return t;
-}();
-
-/* Packs one aligned sequence; mirrors bme/bundles.py pack_sequences_bits. */
-void pack_sequence(const std::string &seq, int32_t n_words, uint64_t *out) {
-    const char *s = seq.data();
-    const size_t n = seq.size();
-    uint64_t *observed = out + (size_t)4 * n_words;
-    for (size_t i = 0; i < n; ++i) {
-        const int plane = kPlaneOf[(unsigned char)s[i]];
-        if (plane < 0)
-            continue;
-        const uint64_t bit = 1ULL << (i % 64);
-        out[(size_t)plane * n_words + i / 64] |= bit;
-        observed[i / 64] |= bit;
-    }
-}
 
 bool needs_quotes(const std::string &name) { return name.find_first_of(" \t()[]':;,") != std::string::npos; }
 
@@ -67,333 +38,13 @@ void write_name(FILE *f, const std::string &name) {
     fputc('\'', f);
 }
 
-/* The internal nodes of a rooted tree (root 2n-2) in post-order, found from the root: the search reuses internal
- * node ids, so ids alone do not give children before parents. */
-std::vector<int32_t> internal_postorder(const Tree &tree, int32_t n) {
-    std::vector<int32_t> order, stack = {2 * n - 2};
-    order.reserve(n - 1);
-    while (!stack.empty()) { /* parents before children, then reversed */
-        const int32_t u = stack.back();
-        stack.pop_back();
-        order.push_back(u);
-        if (tree.c1[u] >= n)
-            stack.push_back(tree.c1[u]);
-        if (tree.c2[u] >= n)
-            stack.push_back(tree.c2[u]);
-    }
-    if ((int32_t)order.size() != n - 1)
-        throw std::invalid_argument("the tree does not have " + std::to_string(n - 1) +
-                                    " internal nodes below its root");
-    std::reverse(order.begin(), order.end());
-    return order;
-}
-
 } // namespace
-
-Alignment read_fasta(const std::string &path) {
-    FILE *f = fopen(path.c_str(), "r");
-    if (!f)
-        throw std::runtime_error("cannot open " + path);
-    Alignment aln;
-    std::unordered_map<std::string, int32_t> seen;
-    std::string name, seq;
-    bool have_record = false;
-    auto finish_record = [&]() {
-        if (!have_record)
-            return;
-        if (aln.n_taxa == 0) {
-            if (seq.empty())
-                throw std::runtime_error(path + ": first sequence '" + name + "' is empty");
-            aln.n_sites = (int32_t)seq.size();
-            aln.n_words = (aln.n_sites + 63) / 64;
-        } else if ((int32_t)seq.size() != aln.n_sites) {
-            throw std::runtime_error(path + ": sequence '" + name + "' has " + std::to_string(seq.size()) +
-                                     " sites, the first has " + std::to_string(aln.n_sites) +
-                                     " (the alignment must be aligned)");
-        }
-        if (!seen.emplace(name, aln.n_taxa).second)
-            throw std::runtime_error(path + ": duplicate name '" + name + "'");
-        const size_t row = aln.packed.size();
-        aln.packed.resize(row + (size_t)5 * aln.n_words, 0);
-        pack_sequence(seq, aln.n_words, aln.packed.data() + row);
-        aln.names.push_back(name);
-        ++aln.n_taxa;
-        seq.clear();
-    };
-
-    char *line = NULL;
-    size_t cap = 0;
-    ssize_t len;
-    long line_no = 0;
-    try {
-        while ((len = getline(&line, &cap, f)) != -1) {
-            ++line_no;
-            while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
-                line[--len] = '\0';
-            if (len > 0 && line[0] == '>') {
-                finish_record();
-                const char *p = line + 1;
-                while (*p == ' ' || *p == '\t')
-                    ++p;
-                const char *q = p;
-                while (*q && *q != ' ' && *q != '\t')
-                    ++q;
-                name.assign(p, q - p);
-                if (name.empty())
-                    throw std::runtime_error(path + ":" + std::to_string(line_no) + ": empty sequence name");
-                have_record = true;
-                continue;
-            }
-            for (ssize_t i = 0; i < len; ++i) {
-                const char ch = line[i];
-                if (ch == ' ' || ch == '\t')
-                    continue;
-                if (!have_record)
-                    throw std::runtime_error(path + ":" + std::to_string(line_no) +
-                                             ": sequence data before the first '>' header");
-                seq.push_back(ch);
-            }
-        }
-    } catch (...) { /* release the line buffer and the file before passing the error on */
-        free(line);
-        fclose(f);
-        throw;
-    }
-    free(line);
-    fclose(f);
-    finish_record();
-    if (aln.n_taxa == 0)
-        throw std::runtime_error(path + ": no sequences");
-    return aln;
-}
-
-/* ---- .maple ------------------------------------------------------------------------------------------------- */
-
-Alignment read_maple(const std::string &path) {
-    FILE *f = fopen(path.c_str(), "r");
-    if (!f)
-        throw std::runtime_error("cannot open " + path);
-    std::vector<std::string> lines;
-    {
-        char *line = NULL;
-        size_t cap = 0;
-        ssize_t len;
-        while ((len = getline(&line, &cap, f)) != -1) {
-            while (len > 0 &&
-                   (line[len - 1] == '\n' || line[len - 1] == '\r' || line[len - 1] == ' ' || line[len - 1] == '\t'))
-                --len;
-            lines.emplace_back(line, (size_t)len);
-        }
-        free(line);
-        fclose(f);
-    }
-    auto header_name = [&](size_t i) {
-        const std::string &h = lines[i];
-        size_t p = 1;
-        while (p < h.size() && (h[p] == ' ' || h[p] == '\t'))
-            ++p;
-        size_t q = p;
-        while (q < h.size() && h[q] != ' ' && h[q] != '\t')
-            ++q;
-        if (q == p)
-            throw std::runtime_error(path + ":" + std::to_string(i + 1) + ": empty sequence name");
-        return h.substr(p, q - p);
-    };
-    size_t i = 0;
-    while (i < lines.size() && lines[i].empty())
-        ++i;
-    if (i == lines.size() || lines[i][0] != '>')
-        throw std::runtime_error(path + ": a .maple file starts with the reference sequence ('>' header)");
-    /* the reference: every line up to the next header */
-    std::string ref;
-    for (++i; i < lines.size() && (lines[i].empty() || lines[i][0] != '>'); ++i)
-        for (char ch : lines[i])
-            if (ch != ' ' && ch != '\t')
-                ref.push_back(ch);
-    if (ref.empty())
-        throw std::runtime_error(path + ": the reference sequence is empty");
-
-    Alignment aln;
-    aln.n_sites = (int32_t)ref.size();
-    aln.n_words = (aln.n_sites + 63) / 64;
-    const int32_t W = aln.n_words, L = aln.n_sites;
-    std::vector<uint64_t> ref_row((size_t)5 * W, 0);
-    pack_sequence(ref, W, ref_row.data());
-    std::unordered_map<std::string, int32_t> seen;
-    while (i < lines.size()) {
-        const std::string name = header_name(i);
-        if (!seen.emplace(name, aln.n_taxa).second)
-            throw std::runtime_error(path + ": duplicate name '" + name + "'");
-        const size_t row = aln.packed.size();
-        aln.packed.insert(aln.packed.end(), ref_row.begin(), ref_row.end());
-        uint64_t *r = aln.packed.data() + row;
-        /* differences: "<char> <position> [<length>]", positions from 1; A, C, G, T (or U) set the base, anything
-         * else (n, -, ambiguity codes) marks the sites missing (as pipeline/rnasim/pack_cmaple.cpp) */
-        for (++i; i < lines.size() && (lines[i].empty() || lines[i][0] != '>'); ++i) {
-            const std::string &ln = lines[i];
-            if (ln.empty())
-                continue;
-            const std::string where = path + ":" + std::to_string(i + 1) + ": ";
-            const char *p = ln.c_str() + 1;
-            char *endp = NULL;
-            const long pos = strtol(p, &endp, 10);
-            if (endp == p || (ln.size() > 1 && ln[1] != ' ' && ln[1] != '\t'))
-                throw std::runtime_error(where + "expected '<character> <position> [<length>]', got '" + ln + "'");
-            long span = 1;
-            const char *q = endp;
-            while (*q == ' ' || *q == '\t')
-                ++q;
-            if (*q) {
-                span = strtol(q, &endp, 10);
-                if (endp == q || *endp)
-                    throw std::runtime_error(where + "expected '<character> <position> [<length>]', got '" + ln + "'");
-            }
-            if (pos < 1 || pos > L || span < 1 || span > L - pos + 1) /* (no overflow for huge lengths) */
-                throw std::runtime_error(where + "position " + std::to_string(pos) + ", length " +
-                                         std::to_string(span) + ": outside the reference (sites 1.." +
-                                         std::to_string(L) + ")");
-            const int c = toupper((unsigned char)ln[0]);
-            const int plane = c == 'A' ? 0 : c == 'C' ? 1 : c == 'G' ? 2 : (c == 'T' || c == 'U') ? 3 : -1;
-            for (long site = pos - 1; site < pos - 1 + span; ++site) {
-                const uint64_t bit = 1ULL << (site % 64);
-                const size_t w = (size_t)(site / 64);
-                for (int b = 0; b < 5; ++b)
-                    r[(size_t)b * W + w] &= ~bit;
-                if (plane >= 0) {
-                    r[(size_t)plane * W + w] |= bit;
-                    r[(size_t)4 * W + w] |= bit;
-                }
-            }
-        }
-        aln.names.push_back(name);
-        ++aln.n_taxa;
-    }
-    if (aln.n_taxa == 0)
-        throw std::runtime_error(path + ": no sequences after the reference");
-    return aln;
-}
 
 Alignment read_alignment(const std::string &path) {
     std::string ext = path.size() >= 6 ? path.substr(path.size() - 6) : "";
     for (char &c : ext)
         c = (char)tolower((unsigned char)c);
     return ext == ".maple" ? read_maple(path) : read_fasta(path);
-}
-
-/* ---- identical sequences ---------------------------------------------------------------------------------- */
-
-void deduplicate(Alignment &aln, Deduplication &dd) {
-    const size_t row_words = (size_t)5 * aln.n_words;
-    dd.kept.clear();
-    dd.copy_of.assign(aln.n_taxa, -1);
-    /* rows grouped by a hash of their words, then compared word by word */
-    std::unordered_map<uint64_t, std::vector<int32_t>> by_hash; /* hash -> kept positions of the first copies */
-    std::vector<int32_t> group_size;                            /* per kept position: copies of its row seen */
-    for (int32_t x = 0; x < aln.n_taxa; ++x) {
-        const uint64_t *row = &aln.packed[(size_t)x * row_words];
-        uint64_t h = 1469598103934665603ULL;
-        for (size_t w = 0; w < row_words; ++w)
-            h = (h ^ row[w]) * 1099511628211ULL;
-        int32_t first = -1;
-        for (int32_t k : by_hash[h])
-            if (memcmp(row, &aln.packed[(size_t)dd.kept[k] * row_words], row_words * sizeof(uint64_t)) == 0) {
-                first = k;
-                break;
-            }
-        if (first >= 0 && group_size[first] >= 2) { /* a third or later copy: removed */
-            dd.copy_of[x] = first;
-            ++group_size[first];
-            continue;
-        }
-        if (first >= 0)
-            ++group_size[first];
-        dd.kept.push_back(x);
-        group_size.push_back(first >= 0 ? 0 : 1); /* only the first copy of a group counts the copies */
-        if (first < 0)
-            by_hash[h].push_back((int32_t)dd.kept.size() - 1);
-    }
-    /* compact the kept rows in place (no second copy of a large alignment) */
-    if (dd.kept.size() == (size_t)aln.n_taxa)
-        return;
-    for (size_t k = 0; k < dd.kept.size(); ++k) {
-        const int32_t x = dd.kept[k];
-        if ((size_t)x != k) {
-            std::copy(aln.packed.begin() + (size_t)x * row_words, aln.packed.begin() + (size_t)(x + 1) * row_words,
-                      aln.packed.begin() + k * row_words);
-            aln.names[k] = aln.names[x];
-        }
-    }
-    aln.n_taxa = (int32_t)dd.kept.size();
-    aln.packed.resize((size_t)aln.n_taxa * row_words);
-    aln.names.resize(aln.n_taxa);
-}
-
-Tree reattach(const Tree &tree, const Deduplication &dd) {
-    const int32_t M = (int32_t)dd.kept.size(), N = (int32_t)dd.copy_of.size();
-    if ((int32_t)tree.c1.size() != 2 * M - 1)
-        throw std::invalid_argument("reattach: the tree is not on the kept sequences");
-    const bool with_bl = !tree.branch_lengths.empty();
-    if (with_bl && (int32_t)tree.branch_lengths.size() < 2 * M - 2)
-        throw std::invalid_argument("reattach: fewer branch lengths than edges");
-    std::vector<std::vector<int32_t>> extra(M); /* removed copies, by the kept position of their first copy */
-    for (int32_t x = 0; x < N; ++x)
-        if (dd.copy_of[x] >= 0)
-            extra[dd.copy_of[x]].push_back(x);
-    Tree full;
-    full.double_precision_lengths = tree.double_precision_lengths;
-    full.c1.assign(2 * N - 1, -1);
-    full.c2.assign(2 * N - 1, -1);
-    if (with_bl) /* the 2N - 2 edges above nodes 0..2N-3, as compute_bme_branch_lengths */
-        full.branch_lengths.assign(2 * N - 2, 0.0);
-    std::vector<int32_t> top(2 * M - 1, -1); /* node of the full tree standing for each node of the reduced tree */
-    int32_t next = N;
-    for (int32_t k = 0; k < M; ++k) {
-        /* the kept sequence, then each removed copy joined to it by zero-length branches */
-        int32_t node = dd.kept[k];
-        for (int32_t x : extra[k]) {
-            full.c1[next] = node;
-            full.c2[next] = x;
-            node = next++;
-        }
-        top[k] = node;
-        if (with_bl)
-            full.branch_lengths[node] = tree.branch_lengths[k];
-    }
-    for (int32_t u : internal_postorder(tree, M)) { /* children before parents */
-        full.c1[next] = top[tree.c1[u]];
-        full.c2[next] = top[tree.c2[u]];
-        top[u] = next;
-        if (with_bl && u != 2 * M - 2) /* the root has no edge above it */
-            full.branch_lengths[next] = tree.branch_lengths[u];
-        ++next;
-    }
-    return full;
-}
-
-Tree prune(const Tree &tree, const Deduplication &dd) {
-    const int32_t N = (int32_t)dd.copy_of.size(), M = (int32_t)dd.kept.size();
-    if ((int32_t)tree.c1.size() != 2 * N - 1)
-        throw std::invalid_argument("prune: the tree is not on all sequences");
-    std::vector<int32_t> new_id(2 * N - 1, -1); /* reduced id of a kept leaf or of a kept internal node; -1 = gone */
-    for (int32_t k = 0; k < M; ++k)
-        new_id[dd.kept[k]] = k;
-    Tree out;
-    out.c1.assign(2 * M - 1, -1);
-    out.c2.assign(2 * M - 1, -1);
-    int32_t next = M;
-    for (int32_t u : internal_postorder(tree, N)) { /* children before parents */
-        const int32_t a = new_id[tree.c1[u]], b = new_id[tree.c2[u]];
-        if (a >= 0 && b >= 0) {
-            out.c1[next] = a;
-            out.c2[next] = b;
-            new_id[u] = next++;
-        } else {
-            new_id[u] = a >= 0 ? a : b; /* a node with a removed child is replaced by the other child */
-        }
-    }
-    if (next != 2 * M - 1)
-        throw std::logic_error("prune: wrong number of nodes");
-    return out;
 }
 
 Tree read_newick(const std::string &path, const std::vector<std::string> &names) {

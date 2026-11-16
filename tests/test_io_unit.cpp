@@ -9,7 +9,10 @@
 #include <string>
 #include <vector>
 
+#include "dedup.hpp"
+#include "fasta.hpp"
 #include "io.hpp"
+#include "maple.hpp"
 
 namespace {
 

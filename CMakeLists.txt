@@ -40,8 +40,8 @@ execute_process(
   ERROR_QUIET)
 
 # ---- package ---------------------------------------------------------------------------------------
-# I/O: FASTA, Newick (plain C++, no CUDA)
-add_library(p2vbme_io STATIC src/io.cpp)
+# I/O: FASTA, .maple, identical sequences, Newick (plain C++, no CUDA)
+add_library(p2vbme_io STATIC src/fasta.cpp src/maple.cpp src/dedup.cpp src/io.cpp)
 target_include_directories(p2vbme_io PUBLIC src)
 target_compile_options(p2vbme_io PRIVATE -O3)
 

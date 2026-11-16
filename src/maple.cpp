@@ -1,0 +1,123 @@
+/*
+ * maple.cpp
+ *
+ * .maple alignment input (MAPLE / CMAPLE), packed as FASTA input is.
+ */
+#include <ctype.h>
+#include <stdexcept>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "fasta.hpp"
+#include "maple.hpp"
+
+namespace p2vbme {
+
+Alignment read_maple(const std::string &path) {
+    FILE *f = fopen(path.c_str(), "r");
+    if (!f)
+        throw std::runtime_error("cannot open " + path);
+    std::vector<std::string> lines;
+    {
+        char *line = NULL;
+        size_t cap = 0;
+        ssize_t len;
+        while ((len = getline(&line, &cap, f)) != -1) {
+            while (len > 0 &&
+                   (line[len - 1] == '\n' || line[len - 1] == '\r' || line[len - 1] == ' ' || line[len - 1] == '\t'))
+                --len;
+            lines.emplace_back(line, (size_t)len);
+        }
+        free(line);
+        fclose(f);
+    }
+    auto header_name = [&](size_t i) {
+        const std::string &h = lines[i];
+        size_t p = 1;
+        while (p < h.size() && (h[p] == ' ' || h[p] == '\t'))
+            ++p;
+        size_t q = p;
+        while (q < h.size() && h[q] != ' ' && h[q] != '\t')
+            ++q;
+        if (q == p)
+            throw std::runtime_error(path + ":" + std::to_string(i + 1) + ": empty sequence name");
+        return h.substr(p, q - p);
+    };
+    size_t i = 0;
+    while (i < lines.size() && lines[i].empty())
+        ++i;
+    if (i == lines.size() || lines[i][0] != '>')
+        throw std::runtime_error(path + ": a .maple file starts with the reference sequence ('>' header)");
+    /* the reference: every line up to the next header */
+    std::string ref;
+    for (++i; i < lines.size() && (lines[i].empty() || lines[i][0] != '>'); ++i)
+        for (char ch : lines[i])
+            if (ch != ' ' && ch != '\t')
+                ref.push_back(ch);
+    if (ref.empty())
+        throw std::runtime_error(path + ": the reference sequence is empty");
+
+    Alignment aln;
+    aln.n_sites = (int32_t)ref.size();
+    aln.n_words = (aln.n_sites + 63) / 64;
+    const int32_t W = aln.n_words, L = aln.n_sites;
+    std::vector<uint64_t> ref_row((size_t)5 * W, 0);
+    pack_sequence(ref, W, ref_row.data());
+    std::unordered_map<std::string, int32_t> seen;
+    while (i < lines.size()) {
+        const std::string name = header_name(i);
+        if (!seen.emplace(name, aln.n_taxa).second)
+            throw std::runtime_error(path + ": duplicate name '" + name + "'");
+        const size_t row = aln.packed.size();
+        aln.packed.insert(aln.packed.end(), ref_row.begin(), ref_row.end());
+        uint64_t *r = aln.packed.data() + row;
+        /* differences: "<char> <position> [<length>]", positions from 1; A, C, G, T (or U) set the base, anything
+         * else (n, -, ambiguity codes) marks the sites missing (as pipeline/rnasim/pack_cmaple.cpp) */
+        for (++i; i < lines.size() && (lines[i].empty() || lines[i][0] != '>'); ++i) {
+            const std::string &ln = lines[i];
+            if (ln.empty())
+                continue;
+            const std::string where = path + ":" + std::to_string(i + 1) + ": ";
+            const char *p = ln.c_str() + 1;
+            char *endp = NULL;
+            const long pos = strtol(p, &endp, 10);
+            if (endp == p || (ln.size() > 1 && ln[1] != ' ' && ln[1] != '\t'))
+                throw std::runtime_error(where + "expected '<character> <position> [<length>]', got '" + ln + "'");
+            long span = 1;
+            const char *q = endp;
+            while (*q == ' ' || *q == '\t')
+                ++q;
+            if (*q) {
+                span = strtol(q, &endp, 10);
+                if (endp == q || *endp)
+                    throw std::runtime_error(where + "expected '<character> <position> [<length>]', got '" + ln + "'");
+            }
+            if (pos < 1 || pos > L || span < 1 || span > L - pos + 1) /* (no overflow for huge lengths) */
+                throw std::runtime_error(where + "position " + std::to_string(pos) + ", length " +
+                                         std::to_string(span) + ": outside the reference (sites 1.." +
+                                         std::to_string(L) + ")");
+            const int c = toupper((unsigned char)ln[0]);
+            const int plane = c == 'A' ? 0 : c == 'C' ? 1 : c == 'G' ? 2 : (c == 'T' || c == 'U') ? 3 : -1;
+            for (long site = pos - 1; site < pos - 1 + span; ++site) {
+                const uint64_t bit = 1ULL << (site % 64);
+                const size_t w = (size_t)(site / 64);
+                for (int b = 0; b < 5; ++b)
+                    r[(size_t)b * W + w] &= ~bit;
+                if (plane >= 0) {
+                    r[(size_t)plane * W + w] |= bit;
+                    r[(size_t)4 * W + w] |= bit;
+                }
+            }
+        }
+        aln.names.push_back(name);
+        ++aln.n_taxa;
+    }
+    if (aln.n_taxa == 0)
+        throw std::runtime_error(path + ": no sequences after the reference");
+    return aln;
+}
+
+} // namespace p2vbme

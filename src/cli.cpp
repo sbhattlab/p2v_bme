@@ -17,6 +17,7 @@
 
 #include <cxxopts.hpp>
 
+#include "dedup.hpp"
 #include "inference.hpp"
 #include "io.hpp"
 #include "report.hpp"

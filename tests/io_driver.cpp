@@ -11,6 +11,7 @@
 #include <string.h>
 #include <vector>
 
+#include "fasta.hpp"
 #include "io.hpp"
 
 int main(int argc, char **argv) {

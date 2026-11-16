@@ -1,8 +1,9 @@
 /*
  * inference.hpp
  *
- * Public interface of the Phylo2Vec BME tree search, with io.hpp: the alignment and tree types, Settings,
- * Result and infer() (balanced minimum evolution, distances under a substitution model, GPU minibatch search).
+ * Public interface of the Phylo2Vec BME tree search, with the input/output headers (fasta.hpp, maple.hpp, dedup.hpp,
+ * io.hpp): the alignment and tree types, Settings, Result and infer() (balanced minimum evolution, distances under a
+ * substitution model, GPU minibatch search).
  */
 #ifndef P2VBME_INFERENCE_HPP
 #define P2VBME_INFERENCE_HPP
