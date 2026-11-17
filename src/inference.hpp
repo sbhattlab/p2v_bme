@@ -67,8 +67,9 @@ struct Result {
                                      // (positive = shorter tree; the last is the cleanup pass when N > 1,050)
 };
 
-// Throws std::runtime_error if a setting is out of range
-// (infer() checks them too; the command line checks them before reading the alignment).
+// Throws std::runtime_error if a setting is out of range.
+// infer() calls it, so every caller of infer() is checked.
+// The command line also calls it before reading the alignment, to report a bad option without waiting for the read.
 void check_settings(const Settings &settings);
 
 // Receives the run's progress lines (the library itself prints nothing).
