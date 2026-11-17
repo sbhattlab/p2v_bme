@@ -67,9 +67,6 @@ struct Result {
                                         last is the cleanup pass when N > 1,050) */
 };
 
-/* Whether a GPU is visible (false in a build without CUDA). */
-bool gpu_available();
-
 /* Throws std::runtime_error if a setting is out of range (infer() checks them too; the command line checks them
  * before reading the alignment). */
 void check_settings(const Settings &settings);

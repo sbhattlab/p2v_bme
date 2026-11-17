@@ -21,8 +21,6 @@
 
 namespace p2vbme {
 
-bool gpu_available() { return visible_gpus() > 0; }
-
 void check_settings(const Settings &opt) {
     if (opt.profile_cap < 1 || opt.profile_cap > PROFILE_CAP_MAX)
         throw std::runtime_error("profile cap must be in 1.." + std::to_string(PROFILE_CAP_MAX));
