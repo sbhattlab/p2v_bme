@@ -4,11 +4,11 @@
  * The run report, <prefix>.json. The tree is in its own file.
  *
  * {
- *   "version", "command_line", "date",
+ *   "version", "command_line", "date", "substitution_model" (name and parameters),
  *   "bme_length", "rounds_run", "stop_reason", "time", "warnings",
  *   "details": {                                   with --report-full only
  *     "host", "input", "settings" (as used), "devices",
- *     "time" (per stage), "memory", "model" (its parameters), "round_gains"
+ *     "time" (per stage), "memory", "round_gains"
  *   }
  * }
  */

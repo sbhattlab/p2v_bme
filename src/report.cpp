@@ -62,7 +62,6 @@ void detail_input(JsonWriter &w, const Report &run) {
 void detail_settings(JsonWriter &w, const Report &run, const Settings &opt, const Result &res) {
     w.key("settings");
     w.begin_object();
-    w.field("model", model_name(opt.substitution.model));
     w.field("start_tree", run.tree_init);
     w.field("sample_size", res.sample_size_used); // 0 without sample-and-place
     w.field("seed", opt.seed);
@@ -115,14 +114,15 @@ void detail_memory(JsonWriter &w, const Report &run) {
     w.end_object();
 }
 
-// The model's parameters: for F81, F84 and TN93, the input alignment's base frequencies (A, C, G, T); none for
-// the other models.
-void detail_model(JsonWriter &w, const Result &res) {
-    w.key("model");
+// The substitution model of the distances: its name and, for F81, F84 and TN93, the input alignment's base
+// frequencies (A, C, G, T).
+void substitution_model(JsonWriter &w, const Settings &opt) {
+    const SubstitutionModel &m = opt.substitution;
+    w.key("substitution_model");
     w.begin_object();
-    const Model m = res.substitution.model;
-    if (m == Model::F81 || m == Model::F84 || m == Model::TN93) {
-        std::vector<double> freqs(res.substitution.base_freqs, res.substitution.base_freqs + 4);
+    w.field("name", model_name(m.model));
+    if (m.model == Model::F81 || m.model == Model::F84 || m.model == Model::TN93) {
+        std::vector<double> freqs(m.base_freqs, m.base_freqs + 4);
         w.array_field("base_frequencies", freqs);
     }
     w.end_object();
@@ -137,6 +137,7 @@ std::string report_json(const Report &run, const Settings &opt, const Result &re
     w.field("version", version_string());
     w.array_field("command_line", run.command_line);
     w.field("date", utc_now());
+    substitution_model(w, opt);
     w.key("bme_length"); // null without branch lengths
     if (opt.branch_lengths)
         w.value(res.bme_length);
@@ -155,7 +156,6 @@ std::string report_json(const Report &run, const Settings &opt, const Result &re
         detail_devices(w, run);
         detail_time(w, run, res);
         detail_memory(w, run);
-        detail_model(w, res);
         w.array_field("round_gains", res.round_gains);
         w.end_object();
     }

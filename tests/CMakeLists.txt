@@ -147,7 +147,8 @@ find_package(Python3 COMPONENTS Interpreter)
 if(Python3_FOUND)
   add_test(NAME cli_cpu_double_report
            COMMAND ${Python3_EXECUTABLE} -c "import json,sys; r=json.load(open(sys.argv[1])); d=r['details']; \
-s=d['settings']; assert s['precision'] == 'double' and s['model'] == 'TN93' and s['accelerator'] == 'cpu', s; \
+s=d['settings']; assert s['precision'] == 'double' and s['accelerator'] == 'cpu', s; \
+assert r['substitution_model']['name'] == 'TN93', r['substitution_model']; \
 assert r['bme_length'] > 0 and r['warnings'] == ['double precision: running on the CPU'], r; \
 assert d['devices'] == ['CPU: %d threads' % s['threads']], d['devices']; print('cpu report ok')"
            ${CLI_DIR}/cpu_double.json)
@@ -162,7 +163,7 @@ set_tests_properties(cli_cpu_f81_dups cli_cpu_f81_nodedup PROPERTIES FIXTURES_SE
 if(Python3_FOUND)
   add_test(NAME cli_f81_frequencies_of_the_input
            COMMAND ${Python3_EXECUTABLE} -c "import json, sys; \
-f = [json.load(open(p))['details']['model']['base_frequencies'] for p in sys.argv[2:4]]; \
+f = [json.load(open(p))['substitution_model']['base_frequencies'] for p in sys.argv[2:4]]; \
 seq = ''.join(l.strip().upper() for l in open(sys.argv[1]) if not l.startswith('>')); \
 n = [seq.count(b) for b in 'ACGT']; expect = [x / sum(n) for x in n]; \
 assert f[0] == f[1], f; assert all(abs(a - b) < 1e-12 for a, b in zip(f[0], expect)), (f[0], expect); \
@@ -214,7 +215,7 @@ if(P2VBME_CUDA)
   if(Python3_FOUND)
     add_test(NAME cli_report_is_json
              COMMAND ${Python3_EXECUTABLE} -c "import json,sys; r=json.load(open(sys.argv[1])); \
-assert list(r) == ['version', 'command_line', 'date', 'bme_length', \
+assert list(r) == ['version', 'command_line', 'date', 'substitution_model', 'bme_length', \
 'rounds_run', 'stop_reason', 'time', 'warnings'], list(r); \
 assert r['bme_length'] > 0 and r['rounds_run'] >= 1 and r['warnings'] == [], r; print('report ok')"
              ${CLI_DIR}/default.json)
@@ -243,11 +244,11 @@ assert json.load(open(sys.argv[3]))['details']['input']['identical_set_aside'] =
       list(GET kv 1 name)
       add_test(NAME cli_model_${model}_report
                COMMAND ${Python3_EXECUTABLE} -c "import json,sys; r=json.load(open(sys.argv[1])); d=r['details']; \
-assert list(r) == ['version', 'command_line', 'date', 'bme_length', \
+assert list(r) == ['version', 'command_line', 'date', 'substitution_model', 'bme_length', \
 'rounds_run', 'stop_reason', 'time', 'warnings'] + ['details'], list(r); \
-assert d['settings']['model'] == sys.argv[2], d['settings']; \
-assert r['bme_length'] > 0; f = d['model'].get('base_frequencies'); \
-assert (f is not None and abs(sum(f) - 1) < 1e-9) == (sys.argv[2] in ('F81', 'F84', 'TN93')), d['model']; \
+m = r['substitution_model']; assert m['name'] == sys.argv[2], m; \
+assert r['bme_length'] > 0; f = m.get('base_frequencies'); \
+assert (f is not None and abs(sum(f) - 1) < 1e-9) == (sys.argv[2] in ('F81', 'F84', 'TN93')), m; \
 assert all(g >= 0 for g in d['round_gains']) and d['round_gains'][0] > 0, d['round_gains']; \
 print('model ok')" ${CLI_DIR}/model_${model}.json ${name})
       set_tests_properties(cli_model_${model}_report PROPERTIES FIXTURES_REQUIRED cli_model_${model}_run LABELS gpu)
