@@ -47,7 +47,7 @@ Alignment read_maple(const std::string &path) {
         ++i;
     if (i == lines.size() || lines[i][0] != '>')
         throw std::runtime_error(path + ": a .maple file starts with the reference sequence ('>' header)");
-    /* the reference: every line up to the next header */
+    // the reference: every line up to the next header
     std::string ref;
     for (++i; i < lines.size() && (lines[i].empty() || lines[i][0] != '>'); ++i)
         for (char ch : lines[i])
@@ -70,8 +70,8 @@ Alignment read_maple(const std::string &path) {
         const size_t row = aln.packed.size();
         aln.packed.insert(aln.packed.end(), ref_row.begin(), ref_row.end());
         uint64_t *r = aln.packed.data() + row;
-        /* differences: "<char> <position> [<length>]", positions from 1; A, C, G, T (or U) set the base, anything
-         * else (n, -, ambiguity codes) marks the sites missing (as pipeline/rnasim/pack_cmaple.cpp) */
+        // differences: "<char> <position> [<length>]", positions from 1; A, C, G, T (or U) set the base, anything else
+        // (n, -, ambiguity codes) marks the sites missing (as pipeline/rnasim/pack_cmaple.cpp)
         for (++i; i < lines.size() && (lines[i].empty() || lines[i][0] != '>'); ++i) {
             const std::string &ln = lines[i];
             if (ln.empty())
@@ -91,7 +91,7 @@ Alignment read_maple(const std::string &path) {
                 if (endp == q || *endp)
                     throw std::runtime_error(where + "expected '<character> <position> [<length>]', got '" + ln + "'");
             }
-            if (pos < 1 || pos > L || span < 1 || span > L - pos + 1) /* (no overflow for huge lengths) */
+            if (pos < 1 || pos > L || span < 1 || span > L - pos + 1) // (no overflow for huge lengths)
                 throw std::runtime_error(where + "position " + std::to_string(pos) + ", length " +
                                          std::to_string(span) + ": outside the reference (sites 1.." +
                                          std::to_string(L) + ")");

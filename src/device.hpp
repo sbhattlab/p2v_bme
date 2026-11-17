@@ -114,7 +114,8 @@ class ParallelErrors {
 int visible_gpus();
 
 // One device per GPU number in gpu_ids (empty: all visible GPUs), each with a workspace for windows of up to
-// WORKSPACE_MAX_K components. Throws std::runtime_error if a GPU does not exist or there is none.
+// WORKSPACE_MAX_K components.
+// Throws std::runtime_error if a GPU does not exist or there is none.
 Devices make_devices(const std::vector<int> &gpu_ids);
 
 // The CUDA runtime and driver versions and the GPU architectures compiled for.
@@ -131,7 +132,8 @@ std::unique_ptr<Device> make_cpu_device(int32_t worker, int32_t threads, bool do
 // ---- The run's devices, chosen once (the command line, then infer() runs on them) ----
 
 // The processor of a run: the GPU or the CPU as asked; auto: the GPU if one is visible and the precision is
-// single, else the CPU, with the reason in `note` ("<why>: running on the CPU"). The only place auto is resolved.
+// single, else the CPU, with the reason in `note` ("<why>: running on the CPU").
+// The only place auto is resolved.
 struct DeviceChoice {
     bool on_gpu = false;
     std::string note; // auto on the CPU: why (else empty)

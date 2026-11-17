@@ -54,13 +54,13 @@ Tree read_newick(const std::string &path, const std::vector<std::string> &names)
     for (int32_t i = 0; i < N; ++i)
         leaf_id.emplace(names[i], i);
 
-    /* Parse into nodes: leaves carry their alignment index, internal nodes their children. */
+    // Parse into nodes: leaves carry their alignment index, internal nodes their children.
     struct Node {
         int32_t leaf = -1;
         std::vector<int32_t> kids;
     };
     std::vector<Node> nodes;
-    std::vector<int32_t> open; /* stack of internal nodes being filled */
+    std::vector<int32_t> open; // stack of internal nodes being filled
     std::vector<uint8_t> used(N, 0);
     int32_t root = -1;
     size_t i = 0;
@@ -119,7 +119,7 @@ Tree read_newick(const std::string &path, const std::vector<std::string> &names)
             const int32_t id = open.back();
             open.pop_back();
             ++i;
-            read_label(); /* internal labels (e.g. support values) are ignored */
+            read_label(); // internal labels (e.g. support values) are ignored
             skip_length();
             if (open.empty())
                 root = id;
@@ -149,7 +149,7 @@ Tree read_newick(const std::string &path, const std::vector<std::string> &names)
         if (!used[x])
             throw std::runtime_error(path + ": alignment sequence '" + names[x] + "' is not in the tree");
 
-    /* An unrooted tree (three children at the root) is rooted by joining the first two. */
+    // An unrooted tree (three children at the root) is rooted by joining the first two.
     if (nodes[root].kids.size() == 3) {
         Node joined;
         joined.kids = {nodes[root].kids[0], nodes[root].kids[1]};
@@ -161,7 +161,7 @@ Tree read_newick(const std::string &path, const std::vector<std::string> &names)
             throw std::runtime_error(path + ": the start tree must be binary (a node has " +
                                      std::to_string(nd.kids.size()) + " children)");
 
-    /* Number internal nodes in post-order: N, N+1, ..., root = 2N - 2. */
+    // Number internal nodes in post-order: N, N+1, ..., root = 2N - 2.
     Tree t;
     t.c1.assign(2 * N - 1, -1);
     t.c2.assign(2 * N - 1, -1);
@@ -204,10 +204,10 @@ void write_newick_unrooted(const std::string &path, const std::vector<std::strin
     const bool with_bl = !tree.branch_lengths.empty();
     const int32_t root = 2 * N - 2;
     const int32_t a = tree.c1[root], b = tree.c2[root];
-    /* The root's internal child becomes the trifurcation; its sibling hangs from it by the merged edge. */
+    // The root's internal child becomes the trifurcation; its sibling hangs from it by the merged edge.
     const int32_t centre = a >= N ? a : b;
     const int32_t sibling = a >= N ? b : a;
-    /* the length of the edge above u, in the lengths' precision (float: the sum of the root edge in float) */
+    // the length of the edge above u, in the lengths' precision (float: the sum of the root edge in float)
     auto edge = [&](int32_t u) -> double {
         if (tree.double_precision_lengths) {
             const double len = u == sibling ? tree.branch_lengths[a] + tree.branch_lengths[b] : tree.branch_lengths[u];
@@ -217,8 +217,7 @@ void write_newick_unrooted(const std::string &path, const std::vector<std::strin
                                        : (float)tree.branch_lengths[u];
         return (neg_as_zero && !(len > 0.0f)) ? 0.0f : len;
     };
-    /* ":length", the shortest decimal that reads back to the same value of the lengths' type, float or double
-     */
+    // ":length", the shortest decimal that reads back to the same value of the lengths' type, float or double
     auto put_length = [&](double len) {
         char buf[40];
         buf[0] = ':';

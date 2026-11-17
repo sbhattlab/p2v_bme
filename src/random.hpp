@@ -51,8 +51,8 @@ template <class RandomIt> void partial_shuffle(RandomIt first, RandomIt last, pt
     }
 }
 
-// Seed of an independent child stream: one splitmix64 output from seed XOR salt. A plain XOR is not
-// enough: applied twice with the same salt it returns the parent's seed, and seeds a splitmix64
+// Seed of an independent child stream: one splitmix64 output from seed XOR salt.
+// A plain XOR is not enough: applied twice with the same salt it returns the parent's seed, and seeds a splitmix64
 // state sequence can reach would replay the parent's stream.
 inline uint64_t derive_seed(uint64_t seed, uint64_t salt) {
     uint64_t s = seed ^ salt;

@@ -20,7 +20,7 @@
 
 namespace p2vbme {
 
-/* Monotonic wall clock, seconds. */
+// Monotonic wall clock, seconds.
 inline double wall_sec() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -30,62 +30,62 @@ inline double wall_sec() {
 struct SampleAndPlaceStats;
 struct SearchSettings;
 
-/* Progress of a search, reported through SearchSettings::on_event (the core keeps no diagnostic state and
- * prints nothing). */
+// Progress of a search, reported through SearchSettings::on_event (the core keeps no diagnostic state and prints
+// nothing).
 struct SearchEvent {
     enum Kind { Start, Stage, Stop, StartTree } kind = Stage;
-    int32_t level = 0;    /* 0 = the main search; k >= 1 = a search inside the sample-and-place start, k levels down */
-    int32_t n_leaves = 0; /* N of this search */
-    int32_t round = 0;    /* Stage: the outer round (the final cleanup pass has round = rounds run) */
-    const char *stage = ""; /* Stage: backbone1, comp_waves, backbone2, scale, round_end */
-    int64_t detail = 0;     /* Stage: waves (comp_waves), scale cap (scale), -1 (round_end), 0 (backbones) */
-    double total_dL = 0.0;  /* Stage: BME change of this search so far */
-    const std::vector<int32_t> *c1 = NULL, *c2 = NULL; /* Stage round_end: the current tree */
-    int32_t n_devices = 0;                             /* Start */
-    const SearchSettings *settings = NULL;             /* Start: the settings of this search */
-    int32_t rounds_planned = 0;                        /* Start */
-    double round_gain = 0.0, round0_gain = 0.0;        /* Stop: the round's gain and round 0's; `round` stopped */
-    const SampleAndPlaceStats *init_stats = NULL;      /* StartTree: the sample-and-place start of this level */
+    int32_t level = 0;      // 0 = the main search; k >= 1 = a search inside the sample-and-place start, k levels down
+    int32_t n_leaves = 0;   // N of this search
+    int32_t round = 0;      // Stage: the outer round (the final cleanup pass has round = rounds run)
+    const char *stage = ""; // Stage: backbone1, comp_waves, backbone2, scale, round_end
+    int64_t detail = 0;     // Stage: waves (comp_waves), scale cap (scale), -1 (round_end), 0 (backbones)
+    double total_dL = 0.0;  // Stage: BME change of this search so far
+    const std::vector<int32_t> *c1 = NULL, *c2 = NULL; // Stage round_end: the current tree
+    int32_t n_devices = 0;                             // Start
+    const SearchSettings *settings = NULL;             // Start: the settings of this search
+    int32_t rounds_planned = 0;                        // Start
+    double round_gain = 0.0, round0_gain = 0.0;        // Stop: the round's gain and round 0's; `round` stopped
+    const SampleAndPlaceStats *init_stats = NULL;      // StartTree: the sample-and-place start of this level
 };
 
-/* ============================================================================
- * Settings of a search. They apply to the main search and to every search inside the sample-and-place
- * start; defaults in config.hpp (the published configuration), filled by infer() from Settings.
- * ============================================================================ */
+// Settings of a search.
+// They apply to the main search and to every search inside the sample-and-place start; defaults in config.hpp (the
+// published configuration), filled by infer() from Settings.
 struct SearchSettings {
-    /* outer rounds before the final cleanup pass; 0 = no search (the tree is left as it is) */
+    // outer rounds before the final cleanup pass; 0 = no search (the tree is left as it is)
     int32_t rounds = p2vbme::DEFAULT_MAX_ROUNDS;
-    /* stop once a whole round (>= 1) accepts no move. Rounds >= 1 are a deterministic function of the tree,
-     * so this stop is lossless (the same tree as running all rounds). */
+    // stop once a whole round (>= 1) accepts no move.
+    // Rounds >= 1 are a deterministic function of the tree, so this stop is lossless (the same tree as running all
+    // rounds).
     bool stop_zero = p2vbme::DEFAULT_STOP_WHEN_IDLE;
-    /* > 0: stop once a round (>= 1) improves L by <= stop_tol x (total improvement so far) */
+    // > 0: stop once a round (>= 1) improves L by <= stop_tol x (total improvement so far)
     double stop_tol = p2vbme::DEFAULT_EARLY_STOPPING;
-    double deadline = 0.0;                             /* absolute wall_sec(): no new round after it; 0 = none */
-    double time_cap = p2vbme::DEFAULT_TIME_LIMIT;      /* the time limit behind the deadline, for reporting only */
-    int32_t profile_cap = p2vbme::DEFAULT_PROFILE_CAP; /* leaves kept per clade profile */
-    double exact_check_eta = p2vbme::DEFAULT_EXACT_CHECK_ETA; /* exact acceptance check, see optimize_skeleton_on_gpu */
-    /* progress of every search (main and start tree), for printing and diagnostics; empty = none */
+    double deadline = 0.0;                                    // absolute wall_sec(): no new round after it; 0 = none
+    double time_cap = p2vbme::DEFAULT_TIME_LIMIT;             // the time limit behind the deadline, for reporting only
+    int32_t profile_cap = p2vbme::DEFAULT_PROFILE_CAP;        // leaves kept per clade profile
+    double exact_check_eta = p2vbme::DEFAULT_EXACT_CHECK_ETA; // exact acceptance check, see optimize_skeleton_on_gpu
+    // progress of every search (main and start tree), for printing and diagnostics; empty = none
     std::function<void(const SearchEvent &)> on_event;
 };
 
-/* What a search did (the main search's values go into the reports). */
+// What a search did (the main search's values go into the reports).
 struct SearchStats {
     int32_t rounds_planned = 0, rounds_run = 0, stop_round = -1;
-    /* why the rounds ended: max_rounds (all ran), idle (a round changed nothing), early_stopping, time_limit,
-     * or none (no rounds: settings.rounds = 0) */
+    // why the rounds ended: max_rounds (all ran), idle (a round changed nothing), early_stopping, time_limit, or none
+    // (no rounds: settings.rounds = 0)
     const char *stop_reason = "max_rounds";
 };
 
-/* ---- Phylo2Vec encoding of rooted trees (leaves 0..n-1, internal nodes n..2n-2, root 2n-2) ---- */
+// ---- Phylo2Vec encoding of rooted trees (leaves 0..n-1, internal nodes n..2n-2, root 2n-2) ----
 
-/* Cherry-first Phylo2Vec vector of a rooted tree and the leaf permutation it implies (flip_mode 1: the other
- * labelling of each cherry). */
+// Cherry-first Phylo2Vec vector of a rooted tree and the leaf permutation it implies (flip_mode 1: the other labelling
+// of each cherry).
 void relabel_from_rooted_tree(const int32_t *c1_r, const int32_t *c2_r, int32_t n_leaves, int32_t flip_mode,
                               int64_t *v_cf_out, int32_t *perm_out);
-/* The rooted tree of a Phylo2Vec vector. */
+// The rooted tree of a Phylo2Vec vector.
 void decode_cf_to_rooted(const int64_t *v, int32_t N, int32_t *c1_r, int32_t *c2_r, int32_t *scratch_uf);
 
-/* ---- Skeleton of a window (shared with the devices' window solve) ---- */
+// ---- Skeleton of a window (shared with the devices' window solve) ----
 
 void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t> &c1_cf, std::vector<int32_t> &c2_cf,
                              std::vector<int32_t> &v_map_cf, std::vector<int32_t> &m_lmin_cf,
@@ -96,53 +96,53 @@ void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t
 void apply_unrooted_spr_host(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_u, int32_t dest_v);
 void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, int32_t root_edge_v, int32_t flip_mode,
                         std::vector<int64_t> &v_cf, std::vector<int32_t> &perm);
-/* All-pairs topological distances between the K super-leaves of a skeleton. */
+// All-pairs topological distances between the K super-leaves of a skeleton.
 void compute_skeleton_leaf_dists(const int64_t *v_cf, const int32_t *perm, int32_t K, std::vector<int32_t> &dist_out);
 
-/* ---- The window solve (Device::solve_window), shared by the devices ---- */
+// ---- The window solve (Device::solve_window), shared by the devices ----
 
-/* A skeleton of K super-leaves as build_skeleton_metadata describes it: rooted children c1, c2 (2K - 1 nodes), the
- * unrooted tree on 2K - 2 nodes rooted at node 2K - 3 (parent_u, sub_size, tin, adj_u) and the root's children. */
+// A skeleton of K super-leaves as build_skeleton_metadata describes it: rooted children c1, c2 (2K - 1 nodes), the
+// unrooted tree on 2K - 2 nodes rooted at node 2K - 3 (parent_u, sub_size, tin, adj_u) and the root's children.
 struct SkeletonMeta {
     std::vector<int32_t> c1, c2, v_map, m_lmin, next_k, parent_u, sub_size, tin, adj_u;
     int32_t other_rc = -1, rc0 = -1, rc1 = -1, rc2 = -1;
 };
 
-/* What a device computes for a window solve. */
+// What a device computes for a window solve.
 class WindowKernels {
   public:
     virtual ~WindowKernels() = default;
-    /* The K x K distances between the window's profiles (CSR), kept for the window. */
+    // The K x K distances between the window's profiles (CSR), kept for the window.
     virtual void distances(int32_t K, const int32_t *prof_offsets, const int32_t *prof_leaves,
                            const float *prof_weights) = 0;
-    /* The skeleton's average distances between all its node pairs (perm: super-leaf of each skeleton leaf), kept
-     * for best_moves; returns its BME length. */
+    // The skeleton's average distances between all its node pairs (perm: super-leaf of each skeleton leaf), kept for
+    // best_moves; returns its BME length.
     virtual double score(const SkeletonMeta &s, const std::vector<int32_t> &perm) = 0;
-    /* For rows i = 1 .. K - 2 of the vector: the best regraft edge of the subtree pruned at row i and the BME change
-     * of that move (best_delta[i], best_j[i]), from the last score. */
+    // For rows i = 1 .. K - 2 of the vector: the best regraft edge of the subtree pruned at row i and the BME change of
+    // that move (best_delta[i], best_j[i]), from the last score.
     virtual void best_moves(const SkeletonMeta &s, std::vector<double> &best_delta, std::vector<int32_t> &best_j) = 0;
-    /* The exact check: the distances of the pairs (pair_a[k], pair_b[k]) on complete profiles (CSR). */
+    // The exact check: the distances of the pairs (pair_a[k], pair_b[k]) on complete profiles (CSR).
     virtual void exact_distances(const std::vector<int32_t> &pair_a, const std::vector<int32_t> &pair_b,
                                  const int32_t *offsets, const int32_t *leaves, const float *weights,
                                  std::vector<double> &out) = 0;
-    /* The K x K distances of distances(), as doubles, for the exact check's uncapped pairs (a device may have
-     * overwritten the pairs exact_distances refined). */
+    // The K x K distances of distances(), as doubles, for the exact check's uncapped pairs (a device may have
+    // overwritten the pairs exact_distances refined).
     virtual void read_distances(std::vector<double> &D) = 0;
 };
 
-/* The window solve of Device::solve_window, with the device's kernels: up to max_iters sweeps of batched moves
- * (Algorithm S1), then the exact check when it applies. */
+// The window solve of Device::solve_window, with the device's kernels: up to max_iters sweeps of batched moves
+// (Algorithm S1), then the exact check when it applies.
 double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, double exact_check_eta,
                          const int32_t *prof_offsets, const int32_t *prof_leaves, const float *prof_weights,
                          std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
                          const ExactProfileBuilder *exact_builder, WindowKernels &kernels);
 
-/* The CPU device's window kernels on their own, one thread (tests): alignment rows read in place. */
+// The CPU device's window kernels on their own, one thread (tests): alignment rows read in place.
 std::unique_ptr<WindowKernels> make_cpu_window_kernels(const uint64_t *rows, int32_t n_words,
                                                        const SubstitutionModel &model, const EigenSettings &eigen,
                                                        bool double_precision);
 
-/* ---- Tree summaries and windows ---- */
+// ---- Tree summaries and windows ----
 
 void compute_tree_summaries_blind(const int32_t *c1_r, const int32_t *c2_r, int32_t N, std::vector<int32_t> &ord_out,
                                   std::vector<int32_t> &parent_r_out, std::vector<int32_t> &leaf_cnt_out,
@@ -158,10 +158,11 @@ void build_component_waves(int32_t N, const std::vector<int32_t> &ord, const std
                            const std::vector<int32_t> &curr_c2, int32_t max_cap, std::vector<uint8_t> &is_comp_root,
                            std::vector<std::vector<int32_t>> &level_waves);
 
-/* ---- The search ---- */
+// ---- The search ----
 
-/* Improves the rooted tree (curr_c1, curr_c2) in place; returns the BME change. The devices hold the alignment of
- * this tree's leaves. level: 0 = the main search, k = a search inside the sample-and-place start, k levels down. */
+// Improves the rooted tree (curr_c1, curr_c2) in place; returns the BME change.
+// The devices hold the alignment of this tree's leaves.
+// level: 0 = the main search, k = a search inside the sample-and-place start, k levels down.
 double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr_c1, std::vector<int32_t> &curr_c2,
                          const SearchSettings &settings, int32_t level = 0, SearchStats *stats = nullptr);
 

@@ -48,7 +48,7 @@ inline int32_t merge_profiles_capped(const LeafWeight *__restrict__ p1, int32_t 
     return k;
 }
 
-/* Step 4 of compute_bme_branch_lengths in precision T (float: the GPU's single precision). */
+// Step 4 of compute_bme_branch_lengths in precision T (float: the GPU's single precision).
 template <class T>
 double assemble_lengths(int32_t N, const int32_t *h_c1, const int32_t *h_c2, const std::vector<int32_t> &parent,
                         int32_t r_left, int32_t r_right, const std::vector<double> &h_dAB,
@@ -103,12 +103,12 @@ double compute_bme_branch_lengths(int32_t N, const int32_t *h_c1, const int32_t 
     const int32_t n_gpus = (int32_t)devices.size();
     const double t0 = omp_get_wtime();
     const int32_t root = 2 * N - 2;
-    const int32_t n_int = N - 2; /* internal nodes N .. 2N-3 */
+    const int32_t n_int = N - 2; // internal nodes N .. 2N-3
     h_branch_lengths.assign(2 * N - 2, 0.0);
     if (N <= 2)
         return 0.0;
 
-    /* 1. Build post-order traversal of internal nodes N .. 2N-2 and parent pointers */
+    // 1. Build post-order traversal of internal nodes N .. 2N-2 and parent pointers
     std::vector<int32_t> parent(2 * N - 1, -1);
     std::vector<int32_t> postorder;
     postorder.reserve(N - 1);
@@ -131,7 +131,7 @@ double compute_bme_branch_lengths(int32_t N, const int32_t *h_c1, const int32_t 
         std::reverse(postorder.begin(), postorder.end());
     }
 
-    /* 2. Allocate flat inside and outside profiles for the N - 2 internal nodes N .. 2N-3 */
+    // 2. Allocate flat inside and outside profiles for the N - 2 internal nodes N .. 2N-3
     std::vector<int32_t> in_len(n_int, 0), out_len(n_int, 0);
     std::vector<int32_t> in_leaves((size_t)n_int * cap, 0), out_leaves((size_t)n_int * cap, 0);
     std::vector<float> in_weights((size_t)n_int * cap, 0.0f), out_weights((size_t)n_int * cap, 0.0f);
@@ -217,13 +217,13 @@ double compute_bme_branch_lengths(int32_t N, const int32_t *h_c1, const int32_t 
     if (out_profile_sec)
         *out_profile_sec = t1 - t0;
 
-    /* 3. Edge-length pass on the devices (tiled evaluation of d_AB(p), d_AO(p), d_BO(p) for all p in 0..n_int-1 */
+    // 3. Edge-length pass on the devices (tiled evaluation of d_AB(p), d_AO(p), d_BO(p) for all p in 0..n_int-1
     std::vector<double> h_dAB(n_int, 0.0), h_dAO(n_int, 0.0), h_dBO(n_int, 0.0);
     int32_t active_gpus = std::max(1, std::min(n_gpus, n_int));
 
     ParallelErrors errors;
-    /* one work item per device, handed out by iteration (not by thread number, so every chunk is computed even if
-     * OpenMP gives fewer threads, e.g. when called from inside a parallel region) */
+    // one work item per device, handed out by iteration (not by thread number, so every chunk is computed even if
+    // OpenMP gives fewer threads, e.g. when called from inside a parallel region)
 #pragma omp parallel for num_threads(active_gpus) schedule(static, 1)
     for (int g = 0; g < active_gpus; ++g) {
 
@@ -246,7 +246,7 @@ double compute_bme_branch_lengths(int32_t N, const int32_t *h_c1, const int32_t 
     }
     errors.rethrow();
 
-    /* 4. Assemble all 2N - 3 unrooted FastME/BME branch lengths in O(N), in the run's precision */
+    // 4. Assemble all 2N - 3 unrooted FastME/BME branch lengths in O(N), in the run's precision
     const double total_bme_len =
         double_precision
             ? assemble_lengths<double>(N, h_c1, h_c2, parent, r_left, r_right, h_dAB, h_dAO, h_dBO, h_branch_lengths)

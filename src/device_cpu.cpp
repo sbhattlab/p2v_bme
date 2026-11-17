@@ -35,7 +35,7 @@ namespace p2vbme {
 
 namespace {
 
-/* The model's distance between two rows of the 5-bitplane layout (JC69 from its two counts, as the GPU). */
+// The model's distance between two rows of the 5-bitplane layout (JC69 from its two counts, as the GPU).
 template <class T> T row_distance(const uint64_t *a, const uint64_t *b, int32_t W, const DistanceParams<T> &dm) {
     if (dm.model == Model::JC69) {
         int32_t n_valid = 0, n_match = 0;
@@ -50,20 +50,20 @@ template <class T> T row_distance(const uint64_t *a, const uint64_t *b, int32_t 
     return pair_distance<T>(dm, c.n);
 }
 
-/* Threads for a step of `items` independent items: at most `threads`, and at least `per_thread` items each (a
- * small window does not pay for a large team). */
+// Threads for a step of `items` independent items: at most `threads`, and at least `per_thread` items each (a small
+// window does not pay for a large team).
 inline int threads_for(int threads, int64_t items, int64_t per_thread) {
     return (int)std::max<int64_t>(1, std::min<int64_t>(threads, items / per_thread));
 }
 
-/* The start tree's subsamples, shared by the CPU devices of one run: each device pushes the same rows, and the first
- * one gathers them (a GPU copies them to each GPU; the CPU workers share one host copy). */
+// The start tree's subsamples, shared by the CPU devices of one run: each device pushes the same rows, and the first
+// one gathers them (a GPU copies them to each GPU; the CPU workers share one host copy).
 struct SubsetStore {
     std::mutex mutex;
     std::vector<std::pair<std::vector<int32_t>, std::weak_ptr<const std::vector<uint64_t>>>> levels;
 };
 
-/* What one CPU device keeps between windows: the window's distances and the skeleton's subtree averages. */
+// What one CPU device keeps between windows: the window's distances and the skeleton's subtree averages.
 template <class T> struct CpuWorkspace {
     std::vector<T> D, subdist, nd_u;
 };
@@ -72,11 +72,11 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
   public:
     CpuWindowKernels(const uint64_t *rows, int32_t W, const DistanceParams<T> &dm, int threads, CpuWorkspace<T> &ws)
         : rows_(rows), W_(W), dm_(dm), threads_(threads), ws_(ws) {}
-    /* with a workspace of its own (make_cpu_window_kernels) */
+    // with a workspace of its own (make_cpu_window_kernels)
     CpuWindowKernels(const uint64_t *rows, int32_t W, const DistanceParams<T> &dm, int threads)
         : rows_(rows), W_(W), dm_(dm), threads_(threads), owned_(new CpuWorkspace<T>()), ws_(*owned_) {}
 
-    /* K x K profile-weighted distances, summed as on the GPU: row sums over q, then over p. */
+    // K x K profile-weighted distances, summed as on the GPU: row sums over q, then over p.
     void distances(int32_t K, const int32_t *off, const int32_t *leaves, const float *weights) override {
         K_ = K;
         M_ = 2 * K - 2;
@@ -102,8 +102,8 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
         ws_.subdist.resize((size_t)M * M);
         T *sd = ws_.subdist.data();
         const T *D = ws_.D.data();
-        /* bottom up: internal nodes to leaves, then (after the transpose) to internal nodes; then top down, where node
-         * v reads and writes entries no other node touches (as one GPU thread per v) */
+        // bottom up: internal nodes to leaves, then (after the transpose) to internal nodes; then top down, where node
+        // v reads and writes entries no other node touches (as one GPU thread per v)
 #pragma omp parallel num_threads(threads_for(threads_, M, 64))
         {
 #pragma omp for
@@ -129,7 +129,7 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
         double acc = 0.0;
         for (int32_t x = 0; x < K; ++x)
             acc += (double)sd[(size_t)x * M + s.parent_u[x]];
-        /* for best_moves (k_populate_nd_u): per internal node, the average distance between its other neighbours */
+        // for best_moves (k_populate_nd_u): per internal node, the average distance between its other neighbours
         ws_.nd_u.resize((size_t)3 * M);
         T *nd = ws_.nd_u.data();
         for (int32_t u = K; u <= root_u; ++u) {
@@ -146,8 +146,8 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
         best_delta.assign(K, 1e30);
         best_j.assign(K, -1);
         const T *sd = ws_.subdist.data();
-        /* per-thread buffers, allocated before the parallel region (an exception must not leave it); the stack never
-         * holds more than the M nodes */
+        // per-thread buffers, allocated before the parallel region (an exception must not leave it); the stack never
+        // holds more than the M nodes
         const int nt = threads_for(threads_, K, 8);
         std::vector<std::vector<T>> edges(nt, std::vector<T>((size_t)M));
         std::vector<std::vector<Frame>> stacks(nt);
@@ -173,12 +173,12 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
                 }
                 if (other0 == -1)
                     continue;
-                /* every edge starts at "no move"; the edges at the pruning point stay so */
+                // every edge starts at "no move"; the edges at the pruning point stay so
                 std::fill(edge.begin(), edge.end(), T(1e30));
                 const T *row_root = sd + (size_t)tree_root * M;
                 seed(s, other0, other1, parent, row_root, sd + (size_t)other1 * M, edge.data(), stack);
                 seed(s, other1, other0, parent, row_root, sd + (size_t)other0 * M, edge.data(), stack);
-                /* the smallest change; ties to the smallest edge (the GPU reduction's rule) */
+                // the smallest change; ties to the smallest edge (the GPU reduction's rule)
                 T b_val = T(1e30);
                 int32_t b_j = -1;
                 for (int32_t du = 0; du < root_u; ++du)
@@ -192,7 +192,7 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
         }
     }
 
-    /* The exact check: complete-profile distances in double, as the GPU's refinement */
+    // The exact check: complete-profile distances in double, as the GPU's refinement
     void exact_distances(const std::vector<int32_t> &pair_a, const std::vector<int32_t> &pair_b, const int32_t *off,
                          const int32_t *leaves, const float *weights, std::vector<double> &out) override {
         const int32_t n_pairs = (int32_t)pair_a.size();
@@ -264,8 +264,8 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
         sd[(size_t)v * M + v] = T(0);
     }
 
-    /* The score changes of the regraft edges in the half tree beyond `start` (a neighbour of the pruning point
-     * `parent`; `orig` is its other neighbour), for the subtree whose row of averages is row_root. */
+    // The score changes of the regraft edges in the half tree beyond `start` (a neighbour of the pruning point
+    // `parent`; `orig` is its other neighbour), for the subtree whose row of averages is row_root.
     void seed(const SkeletonMeta &s, int32_t start, int32_t orig, int32_t parent, const T *row_root, const T *row_orig,
               T *edge, std::vector<Frame> &stack) const {
         const int32_t K = K_;
@@ -324,7 +324,7 @@ template <class T> class CpuDevice final : public Device {
     CpuDevice(int32_t worker, int32_t threads, std::shared_ptr<SubsetStore> store)
         : worker_(worker), threads_(std::max(1, threads)), store_(std::move(store)) {}
 
-    /* The CPU device reads the caller's alignment in place (no copy): it must stay alive while the device uses it. */
+    // The CPU device reads the caller's alignment in place (no copy): it must stay alive while the device uses it.
     void load(const uint64_t *packed, int32_t, int32_t n_words) override {
         subsets_.clear();
         base_ = packed;
@@ -335,7 +335,7 @@ template <class T> class CpuDevice final : public Device {
         dm_ = distance_params<T>(model, eigen);
     }
 
-    /* The rows of the current alignment (k_gather_rows), shared with the run's other CPU devices at this depth. */
+    // The rows of the current alignment (k_gather_rows), shared with the run's other CPU devices at this depth.
     void push_subset(const std::vector<int32_t> &rows) override {
         const size_t depth = subsets_.size();
         std::shared_ptr<const std::vector<uint64_t>> sub;
@@ -370,8 +370,8 @@ template <class T> class CpuDevice final : public Device {
 
     double memory_in_use_mb() const override { return 0.0; }
 
-    /* The nearest sample of each query by p-distance (as k_nearest_sample: the same float p, ties to the lower
-     * position). */
+    // The nearest sample of each query by p-distance (as k_nearest_sample: the same float p, ties to the lower
+    // position).
     void nearest_sampled(const int32_t *queries, int32_t n_queries, const int32_t *samples, int32_t n_samples,
                          int32_t *best_pos) override {
         const uint64_t *seqs = packed();
@@ -408,8 +408,8 @@ template <class T> class CpuDevice final : public Device {
                                  v_cf, perm, exact_builder, kernels);
     }
 
-    /* Per internal node and kind (0: the two child subtrees, 1 and 2: each child and the rest of the tree), the
-     * profile-weighted distance, as k_eval_internal_node_triples_tiled. */
+    // Per internal node and kind (0: the two child subtrees, 1 and 2: each child and the rest of the tree), the
+    // profile-weighted distance, as k_eval_internal_node_triples_tiled.
     void edge_lengths(int32_t n_leaves, int32_t cap, int32_t count, const int32_t *c1, const int32_t *c2, int32_t,
                       const int32_t *in_len, const int32_t *in_leaves, const float *in_weights, const int32_t *out_len,
                       const int32_t *out_leaves, const float *out_weights, double *dAB, double *dAO,
@@ -419,7 +419,7 @@ template <class T> class CpuDevice final : public Device {
 #pragma omp parallel for schedule(dynamic, 16) num_threads(threads_for(step_threads(), 3 * (int64_t)count, 64))
         for (int32_t job = 0; job < 3 * count; ++job) {
             const int32_t i = job / 3, kind = job % 3;
-            /* one side: a single leaf or a node's inside profile; the other: the sibling's or the outside profile */
+            // one side: a single leaf or a node's inside profile; the other: the sibling's or the outside profile
             const int32_t node1 = (kind == 2) ? c2[i] : c1[i];
             int32_t len1, len2, leaf1 = -1, leaf2 = -1;
             const int32_t *l1 = nullptr, *l2 = nullptr;
@@ -463,7 +463,7 @@ template <class T> class CpuDevice final : public Device {
     }
 
   private:
-    /* The run's threads when this step runs alone, one when several devices work in parallel. */
+    // The run's threads when this step runs alone, one when several devices work in parallel.
     int step_threads() const { return omp_in_parallel() ? 1 : threads_; }
 
     const uint64_t *packed() const {
@@ -474,10 +474,10 @@ template <class T> class CpuDevice final : public Device {
 
     int32_t worker_;
     int threads_;
-    DistanceParams<T> dm_ = distance_params<T>(SubstitutionModel(), EigenSettings()); /* JC69 until set_distance */
+    DistanceParams<T> dm_ = distance_params<T>(SubstitutionModel(), EigenSettings()); // JC69 until set_distance
     const uint64_t *base_ = nullptr;
     int32_t n_words_ = 0;
-    std::vector<std::shared_ptr<const std::vector<uint64_t>>> subsets_; /* start-tree subsamples, innermost last */
+    std::vector<std::shared_ptr<const std::vector<uint64_t>>> subsets_; // start-tree subsamples, innermost last
     std::shared_ptr<SubsetStore> store_;
     CpuWorkspace<T> ws_;
 };
@@ -511,14 +511,14 @@ Devices make_cpu_devices(int32_t n_workers, bool double_precision) {
     if (n_workers < 1)
         throw std::runtime_error("the CPU needs at least one thread");
     Devices devices;
-    auto store = std::make_shared<SubsetStore>(); /* one copy of each subsample for all workers */
+    auto store = std::make_shared<SubsetStore>(); // one copy of each subsample for all workers
     for (int32_t w = 0; w < n_workers; ++w)
         devices.push_back(cpu_device(w, n_workers, double_precision, store));
     return devices;
 }
 
 #ifndef P2VBME_WITH_CUDA
-/* A build without CUDA has no GPU. */
+// A build without CUDA has no GPU.
 int visible_gpus() { return 0; }
 
 Devices make_devices(const std::vector<int> &) { throw std::runtime_error("this p2v-bme was built without CUDA"); }

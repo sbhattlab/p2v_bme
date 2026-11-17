@@ -19,12 +19,12 @@
 
 namespace p2vbme {
 
-/* Reads a .maple alignment (MAPLE / CMAPLE).
- * First: the reference sequence first ('>' header and sequence lines
- * Then: each sequence as '>' name and its differences from the reference, one per line: "<character> <position>
- * [<length>]" (positions from 1; length 1 if omitted).
- * A, C, G, T (or U) set the base; anything else (n, -, * ambiguity codes) marks the sites missing.
- * The reference itself is not a sequence of the alignment. */
+// Reads a .maple alignment (MAPLE / CMAPLE).
+// First: the reference sequence first ('>' header and sequence lines
+// Then: each sequence as '>' name and its differences from the reference, one per line: "<character> <position>
+// [<length>]" (positions from 1; length 1 if omitted).
+// A, C, G, T (or U) set the base; anything else (n, -, * ambiguity codes) marks the sites missing.
+// The reference itself is not a sequence of the alignment.
 Alignment read_maple(const std::string &path);
 
 } // namespace p2vbme

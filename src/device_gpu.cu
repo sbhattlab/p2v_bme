@@ -30,7 +30,7 @@
 #include "search.hpp"
 #include "substitution_models.hpp"
 
-/* Every CUDA call is checked; a failure throws std::runtime_error (the library never exits). */
+// Every CUDA call is checked; a failure throws std::runtime_error (the library never exits).
 #define CUDA_CHECK(call)                                                                                               \
     do {                                                                                                               \
         cudaError_t err_ = (call);                                                                                     \
@@ -42,7 +42,7 @@ namespace p2vbme {
 
 namespace {
 
-/* What to try when a GPU runs out of memory. */
+// What to try when a GPU runs out of memory.
 constexpr const char *OUT_OF_MEMORY_HINT = "use other or more GPUs (--devices) or the CPU (--accelerator cpu)";
 
 std::string gpu_name(int dev) {
@@ -53,21 +53,21 @@ std::string gpu_name(int dev) {
 }
 
 [[noreturn]] void cuda_fail(cudaError_t err, const char *call, int line) {
-    cudaGetLastError(); /* clear a non-sticky error, so it is not reported again by a later call */
+    cudaGetLastError(); // clear a non-sticky error, so it is not reported again by a later call
     int dev = -1;
     cudaGetDevice(&dev);
     throw std::runtime_error("CUDA error on GPU " + std::to_string(dev) + " (" + gpu_name(dev) + "): " +
                              cudaGetErrorString(err) + " [" + call + ", device_gpu.cu:" + std::to_string(line) + "]");
 }
 
-/* cudaMalloc that reports running out of memory: the GPU, the size requested and the memory free. */
+// cudaMalloc that reports running out of memory: the GPU, the size requested and the memory free.
 void gpu_alloc_bytes(void **ptr, size_t bytes, int line) {
     const cudaError_t err = cudaMalloc(ptr, bytes);
     if (err == cudaSuccess)
         return;
     if (err != cudaErrorMemoryAllocation)
         cuda_fail(err, "cudaMalloc", line);
-    cudaGetLastError(); /* clear the (non-sticky) allocation error */
+    cudaGetLastError(); // clear the (non-sticky) allocation error
     int dev = -1;
     size_t free_b = 0, total_b = 0;
     cudaGetDevice(&dev);
@@ -80,10 +80,9 @@ void gpu_alloc_bytes(void **ptr, size_t bytes, int line) {
 }
 #define gpu_alloc(ptr, bytes) gpu_alloc_bytes((void **)(ptr), (bytes), __LINE__)
 
-/* ============================================================================
- * 2. Pairwise distances from the bit-packed alignment
- * ============================================================================ */
-using DeviceDistance = DistanceParams<float>; /* the run's model on the GPU (float) */
+// ---- 2. Pairwise distances from the bit-packed alignment ----
+
+using DeviceDistance = DistanceParams<float>; // the run's model on the GPU (float)
 
 __device__ __forceinline__ float dev_jc69_dist_popc(int32_t x, int32_t y, const uint64_t *__restrict__ d_packed_seqs,
                                                     int32_t W) {
@@ -105,7 +104,7 @@ __device__ __forceinline__ float dev_jc69_dist_popc(int32_t x, int32_t y, const 
     return jc69_distance<float>(n_valid, n_match);
 }
 
-/* The 16 pair counts of leaves x and y: c[4 i + j] = sites with base i in x and base j in y. */
+// The 16 pair counts of leaves x and y: c[4 i + j] = sites with base i in x and base j in y.
 __device__ __forceinline__ void dev_pair_counts(int32_t x, int32_t y, const uint64_t *__restrict__ d_packed_seqs,
                                                 int32_t W, uint32_t c[16]) {
     const uint64_t *sx = &d_packed_seqs[(size_t)x * 5 * W];
@@ -129,7 +128,7 @@ __device__ __forceinline__ void dev_pair_counts(int32_t x, int32_t y, const uint
     }
 }
 
-/* The model's distance between leaves x and y (any model; JC69 has the faster dev_jc69_dist_popc). */
+// The model's distance between leaves x and y (any model; JC69 has the faster dev_jc69_dist_popc).
 __device__ __forceinline__ float dev_model_dist(int32_t x, int32_t y, const uint64_t *__restrict__ d_packed_seqs,
                                                 int32_t W, const DeviceDistance &dm) {
     if (x == y)
@@ -139,12 +138,12 @@ __device__ __forceinline__ float dev_model_dist(int32_t x, int32_t y, const uint
     return pair_distance<float>(dm, c);
 }
 
-/* Build K x K condensed distance matrix on the fly from dyadic-weighted super-leaf profiles:
- *   D_cond[a, b] = sum_{p in prof(a)} sum_{q in prof(b)} w_p * w_q * D(leaf_p, leaf_q).
- * Each super-leaf profile is stored in CSR format (d_prof_offsets, d_prof_leaves, d_prof_weights)
- * with nonnegative weights w_p summing to 1 (exact dyadic weights w_p = 2^{-depth(leaf_p)} when
- * leaf_cnt <= max_prof_leaves or max_prof_leaves <= 0; approximate frontier-subtree collapse above cap).
- * JC69 (template JC) or the model dm. */
+// Build K x K condensed distance matrix on the fly from dyadic-weighted super-leaf profiles:
+//   D_cond[a, b] = sum_{p in prof(a)} sum_{q in prof(b)} w_p * w_q * D(leaf_p, leaf_q).
+// Each super-leaf profile is stored in CSR format (d_prof_offsets, d_prof_leaves, d_prof_weights)
+// with nonnegative weights w_p summing to 1 (exact dyadic weights w_p = 2^{-depth(leaf_p)} when
+// leaf_cnt <= max_prof_leaves or max_prof_leaves <= 0; approximate frontier-subtree collapse above cap).
+// JC69 (template JC) or the model dm.
 template <bool JC>
 __global__ void k_build_real_seq_condensed_D(int32_t K, int32_t W, const int32_t *__restrict__ d_prof_offsets,
                                              const int32_t *__restrict__ d_prof_leaves,
@@ -162,7 +161,7 @@ __global__ void k_build_real_seq_condensed_D(int32_t K, int32_t W, const int32_t
     if (a < b) {
         int32_t off_a = d_prof_offsets[a], end_a = d_prof_offsets[a + 1];
         int32_t off_b = d_prof_offsets[b], end_b = d_prof_offsets[b + 1];
-        /* Pairs where both profiles have >= heavy_min leaves are left to the tiled kernel. */
+        // Pairs where both profiles have >= heavy_min leaves are left to the tiled kernel.
         if (end_a - off_a >= heavy_min && end_b - off_b >= heavy_min)
             return;
         float d_val = 0.0f;
@@ -185,26 +184,25 @@ __global__ void k_build_real_seq_condensed_D(int32_t K, int32_t W, const int32_t
     }
 }
 
-/* Same float formula as dev_jc69_dist_popc, from precomputed popcounts. */
+// Same float formula as dev_jc69_dist_popc, from precomputed popcounts.
 __device__ __forceinline__ float dev_jc69_from_counts(int32_t n_valid, int32_t n_match) {
     return jc69_distance<float>(n_valid, n_match);
 }
 
-constexpr int32_t HB_T = 64;        /* leaf tile edge */
-constexpr int32_t HB_CW = 5;        /* words per staged chunk (25 words = 5 chunks) */
-constexpr int32_t HB_HEAVY_MIN = 8; /* both profiles at least this large -> tiled kernel */
+constexpr int32_t HB_T = 64;        // leaf tile edge
+constexpr int32_t HB_CW = 5;        // words per staged chunk (25 words = 5 chunks)
+constexpr int32_t HB_HEAVY_MIN = 8; // both profiles at least this large -> tiled kernel
 
-/* Tiled k_build_real_seq_condensed_D for heavy pairs (one block per pair a < b).
- * Leaf sequences are staged in shared memory in word chunks and each thread keeps a
- * 4x4 tile of exact popcounts. Distances use the same float formula, and the weighted
- * sums run in the same order as k_build_real_seq_condensed_D (row sums over q, then
- * over p), so D_cond is bit-identical for any W > 0. */
+// Tiled k_build_real_seq_condensed_D for heavy pairs (one block per pair a < b).
+// Leaf sequences are staged in shared memory in word chunks and each thread keeps a 4x4 tile of exact popcounts.
+// Distances use the same float formula, and the weighted sums run in the same order as k_build_real_seq_condensed_D
+// (row sums over q, then over p), so D_cond is bit-identical for any W > 0.
 __global__ __launch_bounds__(256) void k_build_condensed_D_heavy_tiled(
     int32_t K, int32_t W, int32_t n_pairs, const int32_t *__restrict__ d_pair_a, const int32_t *__restrict__ d_pair_b,
     const int32_t *__restrict__ d_prof_offsets, const int32_t *__restrict__ d_prof_leaves,
     const float *__restrict__ d_prof_weights, const uint64_t *__restrict__ d_packed_seqs,
     float *__restrict__ d_D_cond) {
-    __shared__ uint64_t sA[5 * HB_CW * HB_T]; /* [channel][word][row] */
+    __shared__ uint64_t sA[5 * HB_CW * HB_T]; // [channel][word][row]
     __shared__ uint64_t sB[5 * HB_CW * HB_T];
     __shared__ float s_dist[HB_T][HB_T + 1];
     __shared__ float s_row_sum[HB_T];
@@ -249,8 +247,8 @@ __global__ __launch_bounds__(256) void k_build_condensed_D_heavy_tiled(
                 }
 
             for (int32_t w0 = 0; w0 < W; w0 += HB_CW) {
-                /* Stage words w0..w0+HB_CW-1 of all 5 channels; consecutive threads read
-                 * consecutive words of one sequence. */
+                // Stage words w0..w0+HB_CW-1 of all 5 channels; consecutive threads read consecutive words of one
+                // sequence.
                 for (int32_t e = tid; e < 5 * HB_CW * HB_T; e += 256) {
                     const int32_t cw = e % HB_CW, ch = (e / HB_CW) % 5, r = e / (5 * HB_CW);
                     const int32_t s_idx = (ch * HB_CW + cw) * HB_T + r;
@@ -327,12 +325,11 @@ __global__ __launch_bounds__(256) void k_build_condensed_D_heavy_tiled(
     }
 }
 
-/* Block-parallel exact refinement of selected super-leaf pairs (a, b) using uncapped
- * dyadic profiles (d_exact_offsets, d_exact_leaves, d_exact_weights) and on-the-fly JC69
- * popcount distances. Uses shared-memory staged, k-sliced, 4x4 register-tiled evaluation
- * with adaptive A-tile heights (16, 32, 48, 64) and multi-pair packing across consecutive
- * pairs sharing the same right-hand profile b, updating d_D_cond[a * K + b],
- * d_D_cond[b * K + a], and d_pair_exact_D[pid]. */
+// Block-parallel exact refinement of selected super-leaf pairs (a, b) using uncapped dyadic profiles (d_exact_offsets,
+// d_exact_leaves, d_exact_weights) and on-the-fly JC69 popcount distances.
+// Uses shared-memory staged, k-sliced, 4x4 register-tiled evaluation with adaptive A-tile heights (16, 32, 48, 64) and
+// multi-pair packing across consecutive pairs sharing the same right-hand profile b, updating d_D_cond[a * K + b],
+// d_D_cond[b * K + a], and d_pair_exact_D[pid].
 template <bool JC>
 __global__ __launch_bounds__(256, 2) void k_refine_real_seq_condensed_D_pairs(
     int32_t K, int32_t W, int32_t n_pairs, const int32_t *__restrict__ d_pair_a, const int32_t *__restrict__ d_pair_b,
@@ -370,7 +367,7 @@ __global__ __launch_bounds__(256, 2) void k_refine_real_seq_condensed_D_pairs(
     __shared__ double s_row_sum[BM];
     __shared__ int32_t s_meta[6];
 
-    /* Per-pair path: models other than JC69, and word counts the tiled path does not handle */
+    // Per-pair path: models other than JC69, and word counts the tiled path does not handle
     if (!JC || W <= 0 || (W % 5) != 0) {
         int32_t a = d_pair_a[pid];
         int32_t b = d_pair_b[pid];
@@ -750,9 +747,8 @@ __global__ __launch_bounds__(256, 2) void k_refine_real_seq_condensed_D_pairs(
     }
 }
 
-/* ============================================================================
- * 3. Exact Verified GPU Discrete Gradient Kernels (Stage 2 + Stage 3)
- * ============================================================================ */
+// ---- 3. Exact Verified GPU Discrete Gradient Kernels (Stage 2 + Stage 3) ----
+
 __global__ void k_copy_leaf_rows_perm(const float *__restrict__ D_orig, const int32_t *__restrict__ d_perm,
                                       float *__restrict__ subdist, int32_t N, int32_t M) {
     int32_t col = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1268,9 +1264,8 @@ __global__ void k_spr_rows_top1(int32_t r_start, int32_t n_leaves, int32_t n_nod
     }
 }
 
-/* ============================================================================
- * Start tree: gathering a subsample's rows; the nearest sampled sequence
- * ============================================================================ */
+// ---- Start tree: gathering a subsample's rows; the nearest sampled sequence ----
+
 __global__ void k_gather_rows(const uint64_t *__restrict__ src, const int32_t *__restrict__ idx, int64_t n_rows,
                               int32_t row_words, uint64_t *__restrict__ dst) {
     int64_t t = (int64_t)blockIdx.x * blockDim.x + threadIdx.x;
@@ -1281,9 +1276,10 @@ __global__ void k_gather_rows(const uint64_t *__restrict__ src, const int32_t *_
     }
 }
 
-/* Tiled nearest-sample search. Block = 64 queries x (all samples, 64 at a time), 256 threads,
- * each thread owns a 4x4 block of (query, sample) pairs. Sequences are streamed through shared
- * memory 4 words at a time. Output: position (in samp[]) of the nearest sample per query. */
+// Tiled nearest-sample search.
+// Block = 64 queries x (all samples, 64 at a time), 256 threads, each thread owns a 4x4 block of (query, sample) pairs.
+// Sequences are streamed through shared memory 4 words at a time.
+// Output: position (in samp[]) of the nearest sample per query.
 #define NN_TQ 64
 #define NN_TS 64
 #define NN_WC 4
@@ -1371,9 +1367,8 @@ __global__ void __launch_bounds__(256)
     }
 }
 
-/* ============================================================================
- * Branch lengths: the edge-length pass (from bme_branch_lengths_gpu.cuh)
- * ============================================================================ */
+// ---- Branch lengths: the edge-length pass (from bme_branch_lengths_gpu.cuh) ----
+
 __device__ __forceinline__ float dev_jc69_from_nv_nm(int32_t n_valid, int32_t n_match) {
     return jc69_distance<float>(n_valid, n_match);
 }
@@ -1400,11 +1395,11 @@ __device__ __forceinline__ float dev_jc69_bl_popc(const uint64_t *__restrict__ d
 constexpr int32_t BL_TILE = 32;
 constexpr int32_t BL_CW = 4;
 
-/* 64 threads per block (8x8 grid of 4x4 register tiles covering 32x32 tiles).
- * One block evaluates one (local_i, kind) job in [0, 3 * n_int_chunk).
- *   - Fast path when len1 == 1 or len2 == 1: 64 threads evaluate up to 64 leaf pairs in 1 step.
- *   - Tiled shared-memory path when len1 > 1 and len2 > 1: stages sequences into sA/sB in
- *     chunks of BL_CW = 4 words and accumulates 4x4 popcount tiles in registers. */
+// 64 threads per block (8x8 grid of 4x4 register tiles covering 32x32 tiles).
+// One block evaluates one (local_i, kind) job in [0, 3 * n_int_chunk).
+//   - Fast path when len1 == 1 or len2 == 1: 64 threads evaluate up to 64 leaf pairs in 1 step.
+//   - Tiled shared-memory path when len1 > 1 and len2 > 1: stages sequences into sA/sB in
+//     chunks of BL_CW = 4 words and accumulates 4x4 popcount tiles in registers.
 template <bool JC>
 __global__ __launch_bounds__(64) void k_eval_internal_node_triples_tiled(
     int32_t n_int_chunk, int32_t N, int32_t W, int32_t cap, const int32_t *__restrict__ d_c1,
@@ -1424,7 +1419,7 @@ __global__ __launch_bounds__(64) void k_eval_internal_node_triples_tiled(
         return;
 
     const int32_t local_i = job_id / 3;
-    const int32_t kind = job_id - local_i * 3; /* 0: AB, 1: AO, 2: BO */
+    const int32_t kind = job_id - local_i * 3; // 0: AB, 1: AO, 2: BO
     const int32_t tid = (int32_t)threadIdx.x;
     const int32_t tx = tid & 7;
     const int32_t ty = tid >> 3;
@@ -1468,8 +1463,8 @@ __global__ __launch_bounds__(64) void k_eval_internal_node_triples_tiled(
 
     float thread_sum = 0.0f;
 
-    /* Per-pair path: at least one side has length <= 2 (covers all N pendant leaf edges), or a model other
-     * than JC69 (the tiled path counts JC69's two numbers only), for which every pair goes this way. */
+    // Per-pair path: at least one side has length <= 2 (covers all N pendant leaf edges), or a model other than JC69
+    // (the tiled path counts JC69's two numbers only), for which every pair goes this way.
     if (!JC || len1 <= 2 || len2 <= 2) {
         const int32_t total = len1 * len2;
         for (int32_t idx = tid; idx < total; idx += 64) {
@@ -1485,7 +1480,7 @@ __global__ __launch_bounds__(64) void k_eval_internal_node_triples_tiled(
                 thread_sum += wu * wv * dev_model_dist(lu, lv, d_packed_seqs, W, dm);
         }
     } else {
-        /* Shared-memory staged 32x32 tiled path with 4x4 register tiles per thread */
+        // Shared-memory staged 32x32 tiled path with 4x4 register tiles per thread
         for (int32_t pa0 = 0; pa0 < len1; pa0 += BL_TILE) {
             const int32_t na = min(BL_TILE, len1 - pa0);
             if (tid < na) {
@@ -1583,7 +1578,7 @@ __global__ __launch_bounds__(64) void k_eval_internal_node_triples_tiled(
         }
     }
 
-/* Reduce across the 64 threads (2 warps) */
+// Reduce across the 64 threads (2 warps)
 #pragma unroll
     for (int offset = 16; offset > 0; offset >>= 1) {
         thread_sum += __shfl_down_sync(0xffffffffu, thread_sum, offset);
@@ -1603,9 +1598,8 @@ __global__ __launch_bounds__(64) void k_eval_internal_node_triples_tiled(
     }
 }
 
-/* ============================================================================
- * 5. GPU Workspace for Full-Tree and Multi-GPU Minibatch Optimization
- * ============================================================================ */
+// ---- 5. GPU Workspace for Full-Tree and Multi-GPU Minibatch Optimization ----
+
 struct RnaSimGpuWorkspace {
     int32_t dev_id;
     int32_t max_K;
@@ -1641,7 +1635,7 @@ struct RnaSimGpuWorkspace {
     double *d_curr_L = NULL;
     float *d_refine_D_scratch = NULL;
     bool refine_split_ready;
-    /* Heavy-pair list for k_build_condensed_D_heavy_tiled (grown on demand). */
+    // Heavy-pair list for k_build_condensed_D_heavy_tiled (grown on demand).
     int32_t *d_heavy_a = NULL;
     int32_t *d_heavy_b = NULL;
     size_t heavy_cap;
@@ -1696,8 +1690,8 @@ struct RnaSimGpuWorkspace {
         if (needed > exact_prof_cap) {
             CUDA_CHECK(cudaSetDevice(dev_id));
             CUDA_CHECK(cudaStreamSynchronize(stream));
-            /* freed pointers are cleared and the capacity set only once allocated, so a failed allocation
-             * leaves nothing for destroy() to free twice */
+            // freed pointers are cleared and the capacity set only once allocated, so a failed allocation leaves
+            // nothing for destroy() to free twice
             cudaFree(d_exact_leaves);
             cudaFree(d_exact_weights);
             d_exact_leaves = NULL;
@@ -1709,10 +1703,10 @@ struct RnaSimGpuWorkspace {
             exact_prof_cap = new_cap;
         }
         if (!refine_split_ready) {
-            /* Room for the load-balanced exact refinement in optimize_skeleton_on_gpu: up to
-             * 4 * max_K virtual CSR slots and appended launch pairs, plus a D scratch matrix the
-             * refinement kernel writes at indices a * K + b and b * K + a with a, b < 5 * K.
-             * Allocated on first use, so workspaces that never refine exactly do not pay for it. */
+            // Room for the load-balanced exact refinement in optimize_skeleton_on_gpu: up to 4 * max_K virtual CSR
+            // slots and appended launch pairs, plus a D scratch matrix the refinement kernel writes at indices
+            // a * K + b and b * K + a with a, b < 5 * K.
+            // Allocated on first use, so workspaces that never refine exactly do not pay for it.
             CUDA_CHECK(cudaSetDevice(dev_id));
             CUDA_CHECK(cudaStreamSynchronize(stream));
             size_t extra = (size_t)4 * (size_t)max_K;
@@ -1733,7 +1727,7 @@ struct RnaSimGpuWorkspace {
         }
     }
 
-    /* Frees everything allocated so far (also after a failed init); never throws. */
+    // Frees everything allocated so far (also after a failed init); never throws.
     void destroy() noexcept {
         cudaSetDevice(dev_id);
         if (stream)
@@ -1776,8 +1770,8 @@ struct RnaSimGpuWorkspace {
     }
 };
 
-/* The GPU parts of a window solve; the sweeps of batched moves and the exact check's bookkeeping are
- * solve_window_host's (search.cpp), shared with the CPU device. */
+// The GPU parts of a window solve; the sweeps of batched moves and the exact check's bookkeeping are
+// solve_window_host's (search.cpp), shared with the CPU device.
 class GpuWindowKernels final : public WindowKernels {
   public:
     GpuWindowKernels(RnaSimGpuWorkspace &ws, const uint64_t *seqs, int32_t n_words, const DeviceDistance &model)
@@ -1798,8 +1792,9 @@ class GpuWindowKernels final : public WindowKernels {
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
         dim3 blk2d(16, 16);
         dim3 grd2d((K + 15) / 16, (K + 15) / 16);
-        /* JC69: pairs whose profiles both have >= HB_HEAVY_MIN leaves go to the tiled kernel; the
-         * rest (singletons, singleton x outgroup) stay on the per-thread kernel. Other models: all pairs there. */
+        // JC69: pairs whose profiles both have >= HB_HEAVY_MIN leaves go to the tiled kernel; the rest (singletons,
+        // singleton x outgroup) stay on the per-thread kernel.
+        // Other models: all pairs there.
         const int32_t heavy_min = (W > 0 && jc69) ? HB_HEAVY_MIN : INT32_MAX;
         gpu_ws.h_heavy_a.clear();
         gpu_ws.h_heavy_b.clear();
@@ -1909,8 +1904,8 @@ class GpuWindowKernels final : public WindowKernels {
         CUDA_CHECK(cudaMemcpyAsync(h_best_j.data(), gpu_ws.d_best_j, (size_t)K * sizeof(int32_t),
                                    cudaMemcpyDeviceToHost, gpu_ws.stream));
         CUDA_CHECK(cudaStreamSynchronize(gpu_ws.stream));
-        best_delta.assign(h_best_delta.begin(), h_best_delta.end()); /* exact: float to double */
-        /* rows 0 and K - 1 have no move (the kernel leaves them unwritten) */
+        best_delta.assign(h_best_delta.begin(), h_best_delta.end()); // exact: float to double
+        // rows 0 and K - 1 have no move (the kernel leaves them unwritten)
         best_delta[0] = best_delta[K - 1] = 1e30;
         h_best_j[0] = h_best_j[K - 1] = -1;
     }
@@ -1925,22 +1920,23 @@ class GpuWindowKernels final : public WindowKernels {
         int32_t total_exact_prof = exact_prof_offsets[K];
         gpu_ws.ensure_exact_prof_cap((size_t)total_exact_prof);
 
-        /* Load balancing. The refinement kernel runs one 256-thread block per launch pair,
-         * so a capped pair with ~1e9 leaf pairs would occupy one SM while the rest of the
-         * GPU idles. Such pairs are split into row chunks of their smaller exact profile.
-         * Each chunk is a virtual super-leaf id >= K + 1 whose CSR range in refine_offsets
-         * points into the same exact leaf and weight arrays. Chunk 0 takes the pair's own
-         * launch slot, chunks 1..c-1 are appended after n_pairs, and the chunk sums are added
-         * back per pair in a fixed order, so results are deterministic. With a split,
-         * d_exact_offsets receives K + 1 + slots entries, the launch has n_launch > n_pairs
-         * slots, and D is written to the scratch matrix because virtual ids fall outside the
-         * K x K layout of d_D. Without a heavy pair the launch equals the unsplit one. */
+        // Load balancing.
+        // The refinement kernel runs one 256-thread block per launch pair, so a capped pair with ~1e9 leaf pairs would
+        // occupy one SM while the rest of the GPU idles.
+        // Such pairs are split into row chunks of their smaller exact profile.
+        // Each chunk is a virtual super-leaf id >= K + 1 whose CSR range in refine_offsets points into the same exact
+        // leaf and weight arrays.
+        // Chunk 0 takes the pair's own launch slot, chunks 1..c-1 are appended after n_pairs, and the chunk sums are
+        // added back per pair in a fixed order, so results are deterministic.
+        // With a split, d_exact_offsets receives K + 1 + slots entries, the launch has n_launch > n_pairs slots, and D
+        // is written to the scratch matrix because virtual ids fall outside the K x K layout of d_D.
+        // Without a heavy pair the launch equals the unsplit one.
         std::vector<int32_t> launch_a(pair_a), launch_b(pair_b), chunk_owner;
         std::vector<int32_t> refine_offsets;
         {
-            const double chunk_leaf_pairs = 4194304.0;  /* target leaf pairs per block */
-            const int64_t b_chunk_target = 6144;        /* ~6-8k leaf B-chunks sized for L2 cache */
-            const int64_t max_virtual = (int64_t)4 * K; /* slots reserved by ensure_exact_prof_cap */
+            const double chunk_leaf_pairs = 4194304.0;  // target leaf pairs per block
+            const int64_t b_chunk_target = 6144;        // ~6-8k leaf B-chunks sized for L2 cache
+            const int64_t max_virtual = (int64_t)4 * K; // slots reserved by ensure_exact_prof_cap
             std::vector<int32_t> heavy_pid, heavy_small, heavy_large;
             std::vector<int64_t> heavy_rows;
             std::vector<std::vector<int32_t>> b_split_pids((size_t)K);
@@ -2084,7 +2080,7 @@ class GpuWindowKernels final : public WindowKernels {
         CUDA_CHECK(cudaMemcpyAsync(h_D_cond.data(), gpu_ws.d_D, (size_t)K * K * sizeof(float), cudaMemcpyDeviceToHost,
                                    gpu_ws.stream));
         CUDA_CHECK(cudaStreamSynchronize(gpu_ws.stream));
-        D.assign(h_D_cond.begin(), h_D_cond.end()); /* exact: float to double */
+        D.assign(h_D_cond.begin(), h_D_cond.end()); // exact: float to double
     }
 
   private:
@@ -2096,9 +2092,8 @@ class GpuWindowKernels final : public WindowKernels {
     int32_t K = 0, M_sk = 0, root_u_sk = 0;
 };
 
-/* ============================================================================
- * The GPU device
- * ============================================================================ */
+// ---- The GPU device ----
+
 class GpuDevice final : public Device {
   public:
     GpuDevice(int gpu, int32_t max_k) : id_(gpu) {
@@ -2127,7 +2122,7 @@ class GpuDevice final : public Device {
         CUDA_CHECK(cudaSetDevice(id_));
         for (Rows &r : rows_)
             cudaFree(r.d);
-        rows_.clear(); /* if the copy below fails, the device holds no alignment (packed() throws) */
+        rows_.clear(); // if the copy below fails, the device holds no alignment (packed() throws)
         n_words_ = n_words;
         const size_t total_u64 = (size_t)n_taxa * 5 * (size_t)n_words;
         Rows r;
@@ -2262,7 +2257,7 @@ class GpuDevice final : public Device {
         CUDA_CHECK(cudaMemcpy(hAB.data(), d_dAB_g, (size_t)count * sizeof(float), cudaMemcpyDeviceToHost));
         CUDA_CHECK(cudaMemcpy(hAO.data(), d_dAO_g, (size_t)count * sizeof(float), cudaMemcpyDeviceToHost));
         CUDA_CHECK(cudaMemcpy(hBO.data(), d_dBO_g, (size_t)count * sizeof(float), cudaMemcpyDeviceToHost));
-        std::copy(hAB.begin(), hAB.end(), dAB); /* float to double, exact */
+        std::copy(hAB.begin(), hAB.end(), dAB); // float to double, exact
         std::copy(hAO.begin(), hAO.end(), dAO);
         std::copy(hBO.begin(), hBO.end(), dBO);
 
@@ -2281,7 +2276,7 @@ class GpuDevice final : public Device {
 
   private:
     struct Rows {
-        uint64_t *d = NULL; /* n x 5 x n_words_ bitplanes on the device */
+        uint64_t *d = NULL; // n x 5 x n_words_ bitplanes on the device
         int32_t n = 0;
     };
     const uint64_t *packed() const {
@@ -2291,9 +2286,9 @@ class GpuDevice final : public Device {
     }
 
     int id_;
-    DeviceDistance dm_ = distance_params<float>(SubstitutionModel(), EigenSettings()); /* JC69 until set_distance */
+    DeviceDistance dm_ = distance_params<float>(SubstitutionModel(), EigenSettings()); // JC69 until set_distance
     int32_t n_words_ = 0;
-    std::vector<Rows> rows_; /* the alignment, then one entry per pushed subsample */
+    std::vector<Rows> rows_; // the alignment, then one entry per pushed subsample
     RnaSimGpuWorkspace ws_;
 };
 

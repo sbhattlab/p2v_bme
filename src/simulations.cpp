@@ -20,15 +20,15 @@ namespace p2vbme {
 
 namespace {
 
-/* Uniform in (0, 1]. */
+// Uniform in (0, 1].
 double uniform_open0(uint64_t &state) { return (double)((splitmix64(state) >> 11) + 1) * 0x1.0p-53; }
 
-double standard_normal(uint64_t &state) { /* Box-Muller */
+double standard_normal(uint64_t &state) { // Box-Muller
     const double u1 = uniform_open0(state), u2 = uniform_open0(state);
     return sqrt(-2.0 * log(u1)) * cos(2.0 * M_PI * u2);
 }
 
-/* Gamma(shape, 1): Marsaglia & Tsang (2000) for shape >= 1; shape < 1 via Gamma(shape + 1) U^(1 / shape). */
+// Gamma(shape, 1): Marsaglia & Tsang (2000) for shape >= 1; shape < 1 via Gamma(shape + 1) U^(1 / shape).
 double gamma_draw(double shape, uint64_t &state) {
     if (shape < 1.0) {
         const double u = uniform_open0(state);
@@ -50,13 +50,13 @@ double gamma_draw(double shape, uint64_t &state) {
     }
 }
 
-/* Q = U diag(lambda) Uinv for the normalised GTR rate matrix. */
+// Q = U diag(lambda) Uinv for the normalised GTR rate matrix.
 struct Eigen4 {
     double U[4][4], Uinv[4][4], lambda[4];
     double pi[4];
 };
 
-/* Cyclic Jacobi eigenvalue algorithm for a symmetric 4 x 4 matrix: A = V diag(d) V^T (A is overwritten). */
+// Cyclic Jacobi eigenvalue algorithm for a symmetric 4 x 4 matrix: A = V diag(d) V^T (A is overwritten).
 void jacobi4(double A[4][4], double V[4][4], double d[4]) {
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
@@ -75,17 +75,17 @@ void jacobi4(double A[4][4], double V[4][4], double d[4]) {
                 const double theta = (A[q][q] - A[p][p]) / (2.0 * A[p][q]);
                 const double t = (theta >= 0.0 ? 1.0 : -1.0) / (fabs(theta) + sqrt(theta * theta + 1.0));
                 const double c = 1.0 / sqrt(t * t + 1.0), s = t * c;
-                for (int k = 0; k < 4; ++k) { /* A <- A J */
+                for (int k = 0; k < 4; ++k) { // A <- A J
                     const double akp = A[k][p], akq = A[k][q];
                     A[k][p] = c * akp - s * akq;
                     A[k][q] = s * akp + c * akq;
                 }
-                for (int k = 0; k < 4; ++k) { /* A <- J^T A */
+                for (int k = 0; k < 4; ++k) { // A <- J^T A
                     const double apk = A[p][k], aqk = A[q][k];
                     A[p][k] = c * apk - s * aqk;
                     A[q][k] = s * apk + c * aqk;
                 }
-                for (int k = 0; k < 4; ++k) { /* V <- V J */
+                for (int k = 0; k < 4; ++k) { // V <- V J
                     const double vkp = V[k][p], vkq = V[k][q];
                     V[k][p] = c * vkp - s * vkq;
                     V[k][q] = s * vkp + c * vkq;
@@ -113,18 +113,18 @@ Eigen4 decompose(const SimulationModel &m) {
     if (!(m.alpha >= 0.0))
         throw std::invalid_argument("simulation: alpha must be >= 0");
 
-    /* exchangeabilities r_ij in the order AC, AG, AT, CG, CT, GT */
+    // exchangeabilities r_ij in the order AC, AG, AT, CG, CT, GT
     double r[4][4] = {};
     const int pairs[6][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
     for (int k = 0; k < 6; ++k)
         r[pairs[k][0]][pairs[k][1]] = r[pairs[k][1]][pairs[k][0]] = m.rates[k];
-    /* mean rate mu = sum_i pi_i sum_{j != i} r_ij pi_j; Q = R Pi / mu has one substitution per unit time */
+    // mean rate mu = sum_i pi_i sum_{j != i} r_ij pi_j; Q = R Pi / mu has one substitution per unit time
     double mu = 0.0;
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
             if (i != j)
                 mu += e.pi[i] * r[i][j] * e.pi[j];
-    /* S = Pi^(1/2) Q Pi^(-1/2): S_ij = r_ij sqrt(pi_i pi_j) / mu (i != j), S_ii = Q_ii */
+    // S = Pi^(1/2) Q Pi^(-1/2): S_ij = r_ij sqrt(pi_i pi_j) / mu (i != j), S_ii = Q_ii
     double S[4][4];
     for (int i = 0; i < 4; ++i) {
         double row = 0.0;
@@ -146,7 +146,7 @@ Eigen4 decompose(const SimulationModel &m) {
     return e;
 }
 
-/* Cumulative transition probabilities of row `from` at time t: cum[b] = P(from -> 0..b). */
+// Cumulative transition probabilities of row `from` at time t: cum[b] = P(from -> 0..b).
 void cumulative_row(const Eigen4 &e, int from, double t, double cum[4]) {
     double ex[4];
     for (int k = 0; k < 4; ++k)
@@ -162,7 +162,7 @@ void cumulative_row(const Eigen4 &e, int from, double t, double cum[4]) {
 }
 
 int draw_base(const double cum[4], uint64_t &state) {
-    const double u = (1.0 - uniform_open0(state)) * cum[3]; /* in [0, total) */
+    const double u = (1.0 - uniform_open0(state)) * cum[3]; // in [0, total)
     for (int b = 0; b < 3; ++b)
         if (u < cum[b])
             return b;
@@ -236,7 +236,7 @@ Alignment simulate_alignment(const Tree &tree, int32_t n_sites, const Simulation
     for (int32_t i = 0; i < N; ++i)
         aln.names.push_back("t" + std::to_string(i));
 
-    /* Sequences of internal nodes live until their two children are drawn (a depth-first stack). */
+    // Sequences of internal nodes live until their two children are drawn (a depth-first stack).
     std::vector<std::vector<uint8_t>> seq(n_nodes);
     seq[root].resize(n_sites);
     double cum_pi[4], acc = 0.0;
@@ -289,7 +289,7 @@ double path_length(const Tree &tree, int32_t i, int32_t j) {
     std::vector<int32_t> parent(n_nodes, -1);
     for (int32_t m = (n_nodes + 1) / 2; m < n_nodes; ++m)
         parent[tree.c1[m]] = parent[tree.c2[m]] = m;
-    std::vector<double> up(n_nodes, -1.0); /* distance from i up to each of its ancestors */
+    std::vector<double> up(n_nodes, -1.0); // distance from i up to each of its ancestors
     double d = 0.0;
     for (int32_t u = i; u != -1; u = parent[u]) {
         up[u] = d;

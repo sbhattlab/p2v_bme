@@ -108,9 +108,8 @@ static void emit_stage(const SearchSettings &s, int32_t level, int32_t N, int ro
     s.on_event(e);
 }
 
-/* ============================================================================
- * 4. Host Tree Metadata & Active Skeleton Extraction
- * ============================================================================ */
+// ---- 4. Host Tree Metadata & Active Skeleton Extraction ----
+
 void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t> &c1_cf, std::vector<int32_t> &c2_cf,
                              std::vector<int32_t> &v_map_cf, std::vector<int32_t> &m_lmin_cf,
                              std::vector<int32_t> &next_k_cf, std::vector<int32_t> &parent_u_cf,
@@ -170,7 +169,7 @@ void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t
         adj_u_cf[3 * u + 0] = b0;
         adj_u_cf[3 * u + 1] = b1;
     }
-    sub_sz_cf[root_u_sk] = M_sk; /* the root's Euler interval spans every node: it is an ancestor of all */
+    sub_sz_cf[root_u_sk] = M_sk; // the root's Euler interval spans every node: it is an ancestor of all
     parent_u_cf[r_c0] = root_u_sk;
     parent_u_cf[r_c1] = root_u_sk;
     parent_u_cf[r_c2] = root_u_sk;
@@ -238,14 +237,14 @@ void compute_tree_summaries_blind(const int32_t *c1_r, const int32_t *c2_r, int3
     }
 }
 
-/* Compute the dyadic leaf-weight profile w(x) = 2^{-depth_u(x)} for a rooted clade u.
- * Expands internal nodes in best-first order (highest weight w = 2^{-d} first).
- * When max_prof_leaves <= 0 or leaf_cnt[u] <= max_prof_leaves (for balanced, unbalanced,
- * or caterpillar clades alike), all leaves in u are emitted with their exact dyadic weights.
- * When max_prof_leaves > 0 and leaf_cnt[u] > max_prof_leaves, expansion stops at max_prof_leaves
- * entries and each remaining frontier subtree in the priority queue collapses its mass onto a
- * single representative leaf node_rep0[top.u] (an approximation that can retain substantial
- * collapsed mass on balanced clades of size > max_prof_leaves). */
+// Compute the dyadic leaf-weight profile w(x) = 2^{-depth_u(x)} for a rooted clade u.
+// Expands internal nodes in best-first order (highest weight w = 2^{-d} first).
+// When max_prof_leaves <= 0 or leaf_cnt[u] <= max_prof_leaves (for balanced, unbalanced, or caterpillar clades alike),
+// all leaves in u are emitted with their exact dyadic weights.
+// When max_prof_leaves > 0 and leaf_cnt[u] > max_prof_leaves, expansion stops at max_prof_leaves entries and each
+// remaining frontier subtree in the priority queue collapses its mass onto a single representative leaf
+// node_rep0[top.u] (an approximation that can retain substantial collapsed mass on balanced clades of
+// size > max_prof_leaves).
 static void compute_clade_dyadic_profile(int32_t u, int32_t N, const int32_t *c1_r, const int32_t *c2_r,
                                          const int32_t *node_rep0, int32_t max_prof_leaves,
                                          std::vector<int32_t> &prof_leaves_out, std::vector<float> &prof_weights_out) {
@@ -323,11 +322,11 @@ static void compute_clade_dyadic_profile(int32_t u, int32_t N, const int32_t *c1
     }
 }
 
-/* Compute the unrooted dyadic leaf-weight profile w_out(x) = 2^{-d_unrooted(sub_root, x)}
- * for the entire outside component V \ L(sub_root) across the full ancestor path to root_r
- * (suppressing degree-2 root_r). Expands directed subtrees in best-first weight order.
- * Exact when max_prof_leaves <= 0 or N - leaf_cnt[sub_root] <= max_prof_leaves; above a positive
- * cap max_prof_leaves > 0, unresolved directed frontier subtrees collapse onto node_rep0 representatives. */
+// Compute the unrooted dyadic leaf-weight profile w_out(x) = 2^{-d_unrooted(sub_root, x)} for the entire outside
+// component V \ L(sub_root) across the full ancestor path to root_r (suppressing degree-2 root_r).
+// Expands directed subtrees in best-first weight order.
+// Exact when max_prof_leaves <= 0 or N - leaf_cnt[sub_root] <= max_prof_leaves; above a positive cap
+// max_prof_leaves > 0, unresolved directed frontier subtrees collapse onto node_rep0 representatives.
 static void compute_outgroup_dyadic_profile(int32_t sub_root, int32_t root_r, int32_t N, const int32_t *c1_r,
                                             const int32_t *c2_r, const int32_t *parent_r, const int32_t *node_rep0,
                                             int32_t max_prof_leaves, std::vector<int32_t> &prof_leaves_out,
@@ -540,10 +539,10 @@ void extract_active_skeleton(int32_t root_r, const int32_t *c1_r, const int32_t 
     *out_root_skel_id = -1 - last_ret;
 }
 
-/* Partition all N - 1 internal nodes into connected components of size <= max_cap and schedule all
- * leaf-bearing components into ancestor-independent level waves (exposing 100% of the N original
- * leaves, while pure internal connector components with zero direct leaves are covered by the
- * whole-tree window and the coarse windows of the V-cycle). */
+// Partition all N - 1 internal nodes into connected components of size <= max_cap and schedule all leaf-bearing
+// components into ancestor-independent level waves (exposing 100% of the N original leaves, while pure internal
+// connector components with zero direct leaves are covered by the whole-tree window and the coarse windows of the
+// V-cycle).
 void build_component_waves(int32_t N, const std::vector<int32_t> &ord, const std::vector<int32_t> &curr_c1,
                            const std::vector<int32_t> &curr_c2, int32_t max_cap, std::vector<uint8_t> &is_comp_root,
                            std::vector<std::vector<int32_t>> &level_waves) {
@@ -754,9 +753,8 @@ void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, in
     perm = new_perm;
 }
 
-/* Compute all-pairs unrooted topological edge distances dist_out[a * K + b]
- * between original super-leaves a, b in {0, ..., K-1} for skeleton (v_cf, perm)
- * in O(K^2) time by visiting each leaf pair once at its rooted LCA. */
+// Compute all-pairs unrooted topological edge distances dist_out[a * K + b] between original super-leaves a, b in
+// {0, ..., K-1} for skeleton (v_cf, perm) in O(K^2) time by visiting each leaf pair once at its rooted LCA.
 void compute_skeleton_leaf_dists(const int64_t *v_cf, const int32_t *perm, int32_t K, std::vector<int32_t> &dist_out) {
     const int32_t R_sk = 2 * K - 1;
     const int32_t root_r = R_sk - 1;
@@ -808,7 +806,7 @@ void compute_skeleton_leaf_dists(const int64_t *v_cf, const int32_t *perm, int32
 }
 
 namespace {
-/* A candidate move of the window solve: row i regrafted onto edge j, BME change d. */
+// A candidate move of the window solve: row i regrafted onto edge j, BME change d.
 struct MoveCand {
     int32_t i;
     int32_t j;
@@ -816,18 +814,20 @@ struct MoveCand {
 };
 } // namespace
 
-/* Exact acceptance check (exact_check_eta). A window's skeleton update is re-scored on complete
- * leaf profiles only when its capped-profile gain is small, dL_capped > -eta; larger gains are
- * accepted as proposed. eta = inf checks every improving window; eta = 0 (default) none. */
+// Exact acceptance check (exact_check_eta).
+// A window's skeleton update is re-scored on complete leaf profiles only when its capped-profile gain is small,
+// dL_capped > -eta; larger gains are accepted as proposed.
+// eta = inf checks every improving window; eta = 0 (default) none.
 
-/* Optimize one K-leaf skeleton with path-disjoint SPR batching, a monotonic condensed-skeleton BME check,
- * and (when exact_builder is supplied) an exact full-objective acceptance check on all changed
- * super-leaf pairs involving capped clades or capped outside profiles. The device does the arithmetic. */
+// Optimize one K-leaf skeleton with path-disjoint SPR batching, a monotonic condensed-skeleton BME check, and (when
+// exact_builder is supplied) an exact full-objective acceptance check on all changed super-leaf pairs involving capped
+// clades or capped outside profiles.
+// The device does the arithmetic.
 double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, double exact_check_eta,
                          const int32_t *prof_offsets, const int32_t *prof_leaves, const float *prof_weights,
                          std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
                          const ExactProfileBuilder *exact_builder, WindowKernels &kernels) {
-    /* complete profiles, from exact_builder when the check needs them */
+    // complete profiles, from exact_builder when the check needs them
     const int32_t *exact_prof_offsets = NULL;
     const int32_t *exact_prof_leaves = NULL;
     const float *exact_prof_weights = NULL;
@@ -846,8 +846,8 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
     std::vector<int64_t> best_v_cf = v_cf, prev_v_cf = v_cf;
     std::vector<int32_t> best_perm = perm, prev_perm = perm;
     int32_t flipped_already = 0;
-    int32_t cur_batch_cap = max_batch_cap; /* the batch cap B of Algorithm S1 */
-    bool batch_pending = false;            /* a batch was applied in the previous sweep and is checked now */
+    int32_t cur_batch_cap = max_batch_cap; // the batch cap B of Algorithm S1
+    bool batch_pending = false;            // a batch was applied in the previous sweep and is checked now
 
     for (int32_t iter = 0; iter <= max_iters; ++iter) {
         build_skeleton_metadata(v_cf.data(), K, sk.c1, sk.c2, sk.v_map, sk.m_lmin, sk.next_k, sk.parent_u, sk.sub_size,
@@ -862,9 +862,9 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
             best_L = curr_L;
             prev_L = curr_L;
         } else if (batch_pending && curr_L >= prev_L - 1e-8) {
-            /* the last batch did not lower the objective: restore the tree before it and use smaller
-             * batches (Algorithm S1, line 4). A single move that fails is below the resolution of the
-             * scores, so the window is converged. */
+            // the last batch did not lower the objective: restore the tree before it and use smaller batches (Algorithm
+            // S1, line 4).
+            // A single move that fails is below the resolution of the scores, so the window is converged.
             v_cf = prev_v_cf;
             perm = prev_perm;
             batch_pending = false;
@@ -873,7 +873,7 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
             cur_batch_cap = std::max(1, cur_batch_cap / 2);
             continue;
         } else if (batch_pending) {
-            cur_batch_cap = std::min(max_batch_cap, cur_batch_cap + 16); /* it fell: allow larger batches */
+            cur_batch_cap = std::min(max_batch_cap, cur_batch_cap + 16); // it fell: allow larger batches
         }
         batch_pending = false;
         prev_L = curr_L;
@@ -889,10 +889,10 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
         kernels.best_moves(sk, h_best_delta, h_best_j);
 
         std::vector<MoveCand> cands;
-        /* A move is applied only if its single-precision score is below this numerical zero;
-         * any larger cutoff leaves real improvements on the table (checked against double-precision
-         * scores and FastME's SPR optimum). Termination is guaranteed by max_iters and by the
-         * double-precision length check that reverts a batch which does not decrease L. */
+        // A move is applied only if its single-precision score is below this numerical zero; any larger cutoff leaves
+        // real improvements on the table (checked against double-precision scores and FastME's SPR optimum).
+        // Termination is guaranteed by max_iters and by the double-precision length check that reverts a batch which
+        // does not decrease L.
         const float eps_move_thresh = -1e-6f;
         for (int32_t i = 1; i < K - 1; ++i) {
             if (h_best_delta[i] < eps_move_thresh && h_best_j[i] >= 0 && h_best_j[i] < root_u_sk) {
@@ -935,8 +935,8 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
             mark_tins.clear();
             bool conflict = false;
             {
-                /* the move's prune and regraft paths must be node-disjoint from every move already in
-                 * the batch (Algorithm S1, line 10) */
+                // the move's prune and regraft paths must be node-disjoint from every move already in the batch
+                // (Algorithm S1, line 10)
                 mark_tins.push_back(tin_cf[tr]);
                 mark_tins.push_back(tin_cf[dst_v]);
                 int32_t u_anc = pr;
@@ -1101,8 +1101,8 @@ static inline void update_one_node_summary(int32_t u, int32_t b0, int32_t b1, in
     node_rep0[u] = (leaf_cnt[b0] <= leaf_cnt[b1]) ? node_rep0[b0] : node_rep0[b1];
 }
 
-/* Optimize a skeleton rooted at sub_root (either root_r or a proper subtree with outgroup)
- * using dyadic-weighted clade & outgroup profiles, and update curr_c1, curr_c2, parent_r, leaf_cnt, node_rep0. */
+// Optimize a skeleton rooted at sub_root (either root_r or a proper subtree with outgroup) using dyadic-weighted clade
+// & outgroup profiles, and update curr_c1, curr_c2, parent_r, leaf_cnt, node_rep0.
 
 static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t condense_thresh, int32_t max_iters,
                                            const SearchSettings &settings, const std::vector<uint8_t> &node_has_active,
@@ -1445,7 +1445,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
     const SearchSettings &kn = settings;
     SearchStats stats_local;
     SearchStats &run_stats = stats ? *stats : stats_local;
-    if (kn.rounds <= 0) { /* no search, not even the final cleanup pass */
+    if (kn.rounds <= 0) { // no search, not even the final cleanup pass
         run_stats = SearchStats();
         run_stats.stop_reason = "none";
         return 0.0;
@@ -1480,7 +1480,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
     for (int outer_round = 0; outer_round < total_passes; ++outer_round) {
         const bool is_final_leaf_cleanup = (outer_round == n_outer_rounds);
         round_start_dL = total_mb_delta_L;
-        /* Pass 1: Global Backbone (priority-queue bounded to WINDOW_MAX_INTERNALS, so K <= 1,500) */
+        // Pass 1: Global Backbone (priority-queue bounded to WINDOW_MAX_INTERNALS, so K <= 1,500)
         if (outer_round > 0 && !is_final_leaf_cleanup && N >= p2vbme::BACKBONE_MIN_N) {
             total_mb_delta_L += run_subtree_minibatch_window(
                 root_r, N, 1, p2vbme::WINDOW_MAX_SWEEPS, kn, node_has_active, empty_out_leaves, empty_out_weights,
@@ -1489,17 +1489,17 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
             emit_stage(kn, level, N, outer_round, "backbone1", 0, total_mb_delta_L);
         }
 
-        /* Pass 2A: Leaf-Complete Connected Component Waves (100% of all N original leaves across all leaf-bearing
-         * internal components, K <= 1056 <= 2048) */
+        // Pass 2A: Leaf-Complete Connected Component Waves (100% of all N original leaves across all leaf-bearing
+        // internal components, K <= 1056 <= 2048)
         std::vector<uint8_t> is_comp_root;
         std::vector<std::vector<int32_t>> level_waves;
         build_component_waves(N, ord, curr_c1, curr_c2, p2vbme::WAVE_COMPONENT_CAP, is_comp_root, level_waves);
 
         for (size_t lvl = 0; lvl < level_waves.size(); ++lvl) {
             const std::vector<int32_t> &wave = level_waves[lvl];
-            /* A wave of several windows always takes the snapshot path, whatever the number of devices, so the
-             * tree does not depend on it: every window reads the tree as it was before the
-             * wave and writes only its own subtree; the gains are summed in wave order. */
+            // A wave of several windows always takes the snapshot path, whatever the number of devices, so the tree
+            // does not depend on it: every window reads the tree as it was before the wave and writes only its own
+            // subtree; the gains are summed in wave order.
             if (wave.size() > 1) {
                 std::vector<int32_t> snap_c1 = curr_c1, snap_c2 = curr_c2, snap_par = parent_r, snap_rep0 = node_rep0;
                 std::vector<double> window_dL(wave.size(), 0.0);
@@ -1564,7 +1564,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
         }
         emit_stage(kn, level, N, outer_round, "comp_waves", (int64_t)level_waves.size(), total_mb_delta_L);
 
-        /* Pass 2B: whole-tree window (from round 1) + full multi-scale V-cycle */
+        // Pass 2B: whole-tree window (from round 1) + full multi-scale V-cycle
         if (N > p2vbme::VCYCLE_MIN_N) {
             {
                 compute_tree_summaries_blind(curr_c1.data(), curr_c2.data(), N, ord, parent_r, leaf_cnt, node_rep0);
@@ -1597,7 +1597,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                 scale_caps.push_back(sc);
             if (N > p2vbme::VCYCLE_FINEST_SCALE || (N > p2vbme::WAVE_COMPONENT_CAP && N < 2000))
                 scale_caps.push_back(
-                    p2vbme::VCYCLE_FINEST_SCALE); /* for 2,000 <= N <= 3,200 the scale N already selects the root */
+                    p2vbme::VCYCLE_FINEST_SCALE); // for 2,000 <= N <= 3,200 the scale N already selects the root
             for (int32_t sc_cap : scale_caps) {
                 compute_tree_summaries_blind(curr_c1.data(), curr_c2.data(), N, ord, parent_r, leaf_cnt, node_rep0);
                 const int32_t min_sc = (sc_cap <= p2vbme::VCYCLE_BASE_SCALE) ? p2vbme::WAVE_COMPONENT_CAP
@@ -1621,7 +1621,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                 }
                 if (mid_roots.empty())
                     continue;
-                /* several windows at this scale: the snapshot path for any number of devices, as the waves */
+                // several windows at this scale: the snapshot path for any number of devices, as the waves
                 if (mid_roots.size() > 1) {
                     std::vector<int32_t> snap_c1 = curr_c1, snap_c2 = curr_c2, snap_par = parent_r,
                                          snap_rep0 = node_rep0;
@@ -1690,11 +1690,11 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
         emit_stage(kn, level, N, outer_round, "round_end", -1, total_mb_delta_L, &curr_c1, &curr_c2);
         if (!is_final_leaf_cleanup && outer_round < n_outer_rounds) {
             run_stats.rounds_run = outer_round + 1;
-            const double round_gain = round_start_dL - total_mb_delta_L; /* positive = improvement */
+            const double round_gain = round_start_dL - total_mb_delta_L; // positive = improvement
             if (outer_round == 0)
                 round0_gain = round_gain;
-            /* Accepted windows always lower L by > 1e-7, so a zero gain means the round changed nothing;
-             * rounds >= 1 are deterministic in the tree, so every later regular round would also change nothing. */
+            // Accepted windows always lower L by > 1e-7, so a zero gain means the round changed nothing; rounds >= 1
+            // are deterministic in the tree, so every later regular round would also change nothing.
             const char *reason = NULL;
             if (kn.stop_zero && outer_round >= 1 && round_gain <= 0.0)
                 reason = "idle";

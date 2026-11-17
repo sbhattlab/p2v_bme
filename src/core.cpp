@@ -28,7 +28,7 @@ constexpr std::array<int8_t, 256> kPlaneOf = [] {
 
 } // namespace
 
-/* Packs one aligned sequence; mirrors bme/bundles.py pack_sequences_bits. */
+// Packs one aligned sequence; mirrors bme/bundles.py pack_sequences_bits.
 void pack_sequence(const std::string &seq, int32_t n_words, uint64_t *out) {
     const char *s = seq.data();
     const size_t n = seq.size();

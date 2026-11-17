@@ -15,10 +15,11 @@
 
 namespace p2vbme {
 
-/* BME lengths of the 2N - 2 edges above nodes 0..2N-3 of the rooted tree (the root's right child gets 0 and its
- * left child the merged root edge); profiles keep at most `cap` leaves. Returns their sum. The lengths are
- * computed in single precision (float values) or, with double_precision (the CPU device's --precision double), in
- * double. */
+// BME lengths of the 2N - 2 edges above nodes 0..2N-3 of the rooted tree (the root's right child gets 0 and its left
+// child the merged root edge); profiles keep at most `cap` leaves.
+// Returns their sum.
+// The lengths are computed in single precision (float values) or, with double_precision (the CPU device's --precision
+// double), in double.
 double compute_bme_branch_lengths(int32_t N, const int32_t *h_c1, const int32_t *h_c2, Devices &devices,
                                   std::vector<double> &h_branch_lengths, int32_t cap, double *out_profile_sec = nullptr,
                                   double *out_kernel_sec = nullptr, bool double_precision = false);
