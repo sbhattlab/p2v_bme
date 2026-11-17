@@ -10,10 +10,6 @@ add_executable(test_maple test_maple.cpp)
 target_link_libraries(test_maple PRIVATE p2vbme_io GTest::gtest_main)
 gtest_discover_tests(test_maple)
 
-add_executable(test_dedup test_dedup.cpp)
-target_link_libraries(test_dedup PRIVATE p2vbme_io p2vbme_processing GTest::gtest_main)
-gtest_discover_tests(test_dedup)
-
 add_executable(test_processing test_processing.cpp)
 target_link_libraries(test_processing PRIVATE p2vbme_io p2vbme_processing GTest::gtest_main)
 gtest_discover_tests(test_processing)

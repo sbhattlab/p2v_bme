@@ -63,7 +63,7 @@ target_include_directories(p2vbme_distances PUBLIC src)
 target_compile_options(p2vbme_distances PRIVATE -O3 -Wall -Wextra)
 
 # Before and after inference: base frequencies, identical sequences, the start tree (plain C++, no CUDA)
-add_library(p2vbme_processing STATIC src/dedup.cpp src/processing.cpp)
+add_library(p2vbme_processing STATIC src/processing.cpp)
 target_include_directories(p2vbme_processing PUBLIC src)
 target_compile_options(p2vbme_processing PRIVATE -O3)
 target_link_libraries(p2vbme_processing PUBLIC p2vbme_core p2vbme_distances)

@@ -1,4 +1,4 @@
-// Helpers shared by the input/output unit tests (test_fasta, test_maple, test_dedup, test_newick).
+// Helpers shared by the input/output unit tests (test_fasta, test_maple, test_processing, test_newick).
 #ifndef P2VBME_TESTS_IO_TEST_HELPERS_HPP
 #define P2VBME_TESTS_IO_TEST_HELPERS_HPP
 
