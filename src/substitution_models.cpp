@@ -53,7 +53,7 @@ Model parse_model(const std::string &name) {
         throw std::runtime_error("model '" + name + "': continuous gamma is written +GC (e.g. GTR+GC); +G is not used");
     if (m == "GTR")
         throw std::runtime_error("model 'GTR' (without gamma) is not available; use GTR+GC");
-    throw std::runtime_error("unknown model '" + name + "' (models: JC69, K80, F81, F84, TN93, LogDet, GTR+GC)");
+    throw std::runtime_error("unknown value for model: '" + name + "' (JC69, K80, F81, F84, TN93, LogDet or GTR+GC)");
 }
 
 void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, double freqs[4]) {

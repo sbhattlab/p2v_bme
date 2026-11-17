@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "accelerator.hpp"
 #include "config.hpp"
 #include "eigen_dist.hpp"
 
@@ -119,9 +120,6 @@ Devices make_cpu_devices(int32_t n_workers, bool double_precision);
 std::unique_ptr<Device> make_cpu_device(int32_t worker, int32_t threads, bool double_precision);
 
 // ---- The run's devices, chosen once (the command line, then infer() runs on them) ----
-
-enum class Accelerator { Auto, Gpu, Cpu };
-enum class Precision { Single, Double };
 
 // The processor of a run: the GPU or the CPU as asked; auto: the GPU if one is visible and the precision is
 // single, else the CPU, with the reason in `note` ("<why>: running on the CPU"). The only place auto is resolved.

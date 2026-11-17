@@ -113,16 +113,16 @@ set_tests_properties(cli_error_exit_code PROPERTIES WILL_FAIL TRUE)
 p2vbme_cli_test(model_planned "model 'GTR\\+GC' is not available" -s ${CLI_DIR}/input.fa -m GTR+GC)
 p2vbme_cli_test(model_plain_gtr "without gamma" -s ${CLI_DIR}/input.fa -m GTR)
 p2vbme_cli_test(model_plus_g "continuous gamma is written" -s ${CLI_DIR}/input.fa -m GTR+G)
-p2vbme_cli_test(model_unknown "unknown model" -s ${CLI_DIR}/input.fa -m XYZ)
-p2vbme_cli_test(bad_devices "--devices .*must be" -s ${CLI_DIR}/input.fa -m JC69 --devices x)
-p2vbme_cli_test(bad_accelerator "--accelerator must be" -s ${CLI_DIR}/input.fa -m JC69 --accelerator tpu)
+p2vbme_cli_test(model_unknown "unknown value for model: 'XYZ'" -s ${CLI_DIR}/input.fa -m XYZ)
+p2vbme_cli_test(bad_devices "unknown value for devices: 'x'" -s ${CLI_DIR}/input.fa -m JC69 --devices x)
+p2vbme_cli_test(bad_accelerator "unknown value for accelerator: 'tpu'" -s ${CLI_DIR}/input.fa -m JC69 --accelerator tpu)
 p2vbme_cli_test(duplicate_devices "GPU 0 is listed twice" -s ${CLI_DIR}/input.fa -m JC69 --accelerator gpu
                 --devices 0,0)
-p2vbme_cli_test(bad_precision "--precision must be single or double" -s ${CLI_DIR}/input.fa -m JC69 --precision
+p2vbme_cli_test(bad_precision "unknown value for precision: 'quad'" -s ${CLI_DIR}/input.fa -m JC69 --precision
                 quad)
 p2vbme_cli_test(gpu_double_refused "the GPU computes in single precision" -s ${CLI_DIR}/input.fa -m JC69
                 --accelerator gpu --precision double)
-p2vbme_cli_test(cpu_device_list_refused "--devices on the CPU must be auto or a number of threads" -s
+p2vbme_cli_test(cpu_device_list_refused "unknown value for devices on the CPU: '0,1'" -s
                 ${CLI_DIR}/input.fa -m JC69 --accelerator cpu --devices 0,1)
 p2vbme_cli_test(extra_argument "unexpected argument 'extra'" -s ${CLI_DIR}/input.fa -m JC69 extra)
 p2vbme_cli_test(negative_time_limit "time limit must be >= 0" -s ${CLI_DIR}/input.fa -m JC69 --time-limit -5)

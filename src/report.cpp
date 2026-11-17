@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "accelerator.hpp"
 #include "json_writer.hpp"
 #include "substitution_models.hpp"
 #include "version.hpp"
@@ -74,10 +75,10 @@ void detail_settings(JsonWriter &w, const Report &run, const Settings &opt, cons
     w.field("bl_profile_cap", opt.bl_profile_cap);
     w.field("neg_as_zero", run.neg_as_zero);
     w.field("dedup", run.dedup);
-    w.field("accelerator", run.on_gpu ? "gpu" : "cpu");
+    w.field("accelerator", accelerator_name(run.on_gpu ? Accelerator::Gpu : Accelerator::Cpu));
     // CPU: the workers; GPU: the host's threads
     w.field("threads", run.on_gpu ? (int32_t)omp_get_max_threads() : (int32_t)run.devices.size());
-    w.field("precision", opt.precision == Precision::Double ? "double" : "single");
+    w.field("precision", precision_name(opt.precision));
     w.field("prefix", run.prefix);
     w.end_object();
 }

@@ -14,31 +14,13 @@
 
 #include <cxxopts.hpp>
 
+#include "accelerator.hpp"
 #include "cli.hpp"
 #include "version.hpp"
 
 namespace {
-// -m. GTR+GC needs the parameter fit, which comes later.
-p2vbme::Model parse_model(const std::string &name) {
-    const p2vbme::Model m = p2vbme::parse_model(name);
-    if (m == p2vbme::Model::GTR_GC)
-        throw std::runtime_error("model '" + name +
-                                 "' is not available in this version (models: JC69, K80, F81, F84, TN93, LogDet)");
-    return m;
-}
-
-p2vbme::Accelerator parse_accelerator(const std::string &a) {
-    if (a == "auto")
-        return p2vbme::Accelerator::Auto;
-    if (a == "gpu")
-        return p2vbme::Accelerator::Gpu;
-    if (a == "cpu")
-        return p2vbme::Accelerator::Cpu;
-    throw std::runtime_error("--accelerator must be cpu, gpu or auto, not '" + a + "'");
-}
-
 // --devices: "auto" (the first GPU), N (the first N), or a comma list of GPU numbers ("0,2"; "1," for GPU 1 alone).
-std::vector<int> parse_devices(const std::string &d) {
+std::vector<int> parse_gpu_devices(const std::string &d) {
     std::vector<int> ids;
     if (d == "auto")
         return {0};
@@ -58,18 +40,18 @@ std::vector<int> parse_devices(const std::string &d) {
                 used = 0;
             }
             if (used != item.size() || v < 0)
-                throw std::runtime_error("--devices must be auto, a number or a comma list of GPU numbers, not '" + d +
-                                         "'");
+                throw std::runtime_error("unknown value for devices: '" + d +
+                                         "' (auto, a number, or a comma list of GPU numbers)");
             ids.push_back(v);
         }
         pos = end + 1;
     }
     if (ids.empty())
-        throw std::runtime_error("--devices: no device given in '" + d + "'");
+        throw std::runtime_error("unknown value for devices: '" + d + "' (no GPU number given)");
     if (!list) { // a single number N: the first N GPUs
         const int n = ids[0];
         if (n < 1)
-            throw std::runtime_error("--devices: need at least one device");
+            throw std::runtime_error("unknown value for devices: '" + d + "' (at least one GPU)");
         ids.clear();
         for (int g = 0; g < n; ++g)
             ids.push_back(g);
@@ -78,7 +60,7 @@ std::vector<int> parse_devices(const std::string &d) {
 }
 
 // --devices on the CPU: auto (0: the OpenMP default, all cores but one; see main) or a number of threads.
-int32_t parse_threads(const std::string &d) {
+int32_t parse_cpu_threads(const std::string &d) {
     if (d == "auto")
         return 0;
     bool digits = !d.empty() && d.size() <= 9;
@@ -86,16 +68,8 @@ int32_t parse_threads(const std::string &d) {
         digits = digits && c >= '0' && c <= '9';
     const int v = digits ? std::stoi(d) : 0;
     if (v < 1)
-        throw std::runtime_error("--devices on the CPU must be auto or a number of threads, not '" + d + "'");
+        throw std::runtime_error("unknown value for devices on the CPU: '" + d + "' (auto or a number of threads)");
     return v;
-}
-
-p2vbme::Precision parse_precision(const std::string &p) {
-    if (p == "single")
-        return p2vbme::Precision::Single;
-    if (p == "double")
-        return p2vbme::Precision::Double;
-    throw std::runtime_error("--precision must be single or double, not '" + p + "'");
 }
 
 } // namespace
@@ -183,14 +157,18 @@ CommandLine parse_command_line(int argc, char **argv) {
     for (int a = 0; a < argc; ++a)
         run.command_line.push_back(argv[a]);
     run.input_path = args["alignment"].as<std::string>();
-    const p2vbme::Model model = parse_model(args["model"].as<std::string>());
+    const std::string model_name = args["model"].as<std::string>();
+    const p2vbme::Model model = p2vbme::parse_model(model_name);
+    if (model == p2vbme::Model::GTR_GC) // it needs its parameters, and their fit comes later
+        throw std::runtime_error("model '" + model_name +
+                                 "' is not available in this version (models: JC69, K80, F81, F84, TN93, LogDet)");
     run.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : run.input_path;
     run.neg_as_zero = !args.count("no-neg-as-zero");
 
     opt.substitution.model = model;
     opt.branch_lengths = !args.count("no-branch-lengths");
-    opt.accelerator = parse_accelerator(args["accelerator"].as<std::string>());
-    opt.precision = parse_precision(args["precision"].as<std::string>());
+    opt.accelerator = p2vbme::parse_accelerator(args["accelerator"].as<std::string>());
+    opt.precision = p2vbme::parse_precision(args["precision"].as<std::string>());
     result.devices = args["devices"].as<std::string>();
     run.tree_init = args["tree"].as<std::string>();
     run.dedup = !args.count("no-dedup");
@@ -200,7 +178,7 @@ CommandLine parse_command_line(int argc, char **argv) {
 
 void parse_devices_option(const std::string &devices, bool on_gpu, p2vbme::Settings &opt) {
     if (on_gpu)
-        opt.devices = parse_devices(devices);
+        opt.devices = parse_gpu_devices(devices);
     else
-        opt.threads = parse_threads(devices);
+        opt.threads = parse_cpu_threads(devices);
 }

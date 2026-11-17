@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "accelerator.hpp"
 #include "config.hpp"
 #include "core.hpp"
 #include "device.hpp"
