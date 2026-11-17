@@ -1,9 +1,10 @@
 /*
  * cli.cpp
  *
- * The command line of p2v-bme (cxxopts): the options and their help, and the arguments as Settings and run
- * options. Options follow IQ-TREE where the tools overlap (-s, -m, --prefix, --seed, -v, -t); --accelerator and
- * --devices follow PyTorch Lightning.
+ * The command line of p2v-bme (cxxopts): the options and their help,
+ * and the arguments as Settings and the Report's command-line part.
+ * Note: most options follow IQ-TREE names where the tools overlap
+ *       Device and precision options follow lightning names.
  */
 #include <exception>
 #include <iostream>
@@ -185,12 +186,14 @@ CommandLine parse_command_line(int argc, char **argv) {
         std::cerr << "p2v-bme: -s ALIGNMENT and -m MODEL are required (see --help)\n";
         return done(2);
     }
-    RunOptions &options = result.options;
-    options.verbose = args.count("verbose") > 0;
-    options.input_path = args["alignment"].as<std::string>();
+    result.verbose = args.count("verbose") > 0;
+    p2vbme::Report &run = result.report;
+    for (int a = 0; a < argc; ++a)
+        run.command_line.push_back(argv[a]);
+    run.input_path = args["alignment"].as<std::string>();
     const p2vbme::Model model = parse_model(args["model"].as<std::string>());
-    options.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : options.input_path;
-    options.neg_as_zero = !args.count("no-neg-as-zero");
+    run.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : run.input_path;
+    run.neg_as_zero = !args.count("no-neg-as-zero");
 
     p2vbme::Settings &opt = result.settings;
     opt.substitution.model = model;
@@ -205,10 +208,10 @@ CommandLine parse_command_line(int argc, char **argv) {
     opt.bl_profile_cap = args["bl-profile-cap"].as<int>();
     opt.accelerator = parse_accelerator(args["accelerator"].as<std::string>());
     opt.precision = parse_precision(args["precision"].as<std::string>());
-    options.devices = args["devices"].as<std::string>();
-    options.tree_init = args["tree"].as<std::string>();
-    options.dedup = !args.count("no-dedup");
-    options.report_full = args.count("report-full") > 0;
+    result.devices = args["devices"].as<std::string>();
+    run.tree_init = args["tree"].as<std::string>();
+    run.dedup = !args.count("no-dedup");
+    run.full = args.count("report-full") > 0;
     return result;
 }
 

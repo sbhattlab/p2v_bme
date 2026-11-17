@@ -35,15 +35,8 @@ int main(int argc, char **argv) {
         if (args.done)
             return args.exit_code;
         p2vbme::Settings &opt = args.settings;
-        const RunOptions &options = args.options;
-        const bool verbose = options.verbose;
-
-        p2vbme::RunInfo run;
-        for (int a = 0; a < argc; ++a)
-            run.command_line.push_back(argv[a]);
-        run.input_path = options.input_path;
-        run.prefix = options.prefix;
-        run.neg_as_zero = options.neg_as_zero;
+        p2vbme::Report &run = args.report;
+        const bool verbose = args.verbose;
 
         const p2vbme::DeviceChoice choice = p2vbme::choose_devices(opt.accelerator, opt.precision);
         // Device: if auto and no GPU found, indicate what precision is used for CPU.
@@ -51,7 +44,7 @@ int main(int argc, char **argv) {
             run.warnings.push_back(choice.note);
             std::cerr << "p2v-bme: warning: " << choice.note << '\n';
         }
-        parse_devices_option(options.devices, choice.on_gpu, opt);
+        parse_devices_option(args.devices, choice.on_gpu, opt);
         p2vbme::check_settings(opt);
         p2vbme::check_devices(choice, opt.precision);
 
@@ -78,7 +71,6 @@ int main(int argc, char **argv) {
         //   so dedup does not change any distance (FastME and ape count them on the whole input too).
         const std::vector<std::string> all_names = aln.names;
         p2vbme::Deduplication dd;
-        run.dedup = options.dedup;
         // Data: count base frequencies and deduplicate
         p2vbme::prepare_alignment(aln, opt.substitution, run.dedup, dd);
         run.n_identical_removed = dd.n_removed();
@@ -90,7 +82,6 @@ int main(int argc, char **argv) {
                                      std::string(run.dedup ? " after setting identical copies aside" : "") + ", have " +
                                      std::to_string(aln.n_taxa) + (run.dedup ? " (--no-dedup keeps them)" : ""));
 
-        run.tree_init = options.tree_init;
         p2vbme::Tree start_tree;
         if (run.tree_init == "sample") {
             // Tree: Sample-and-place start tree
@@ -141,7 +132,7 @@ int main(int argc, char **argv) {
         // Time: end of main
         run.time_total = omp_get_wtime() - t0;
         // Output: write the report
-        p2vbme::write_report(run.prefix + ".json", run, opt, res, options.report_full);
+        p2vbme::write_report(run.prefix + ".json", run, opt, res);
         if (verbose)
             std::cerr << "p2v-bme: " << run.tree_init << " start, " << res.rounds_run << " rounds, BME length "
                       << std::fixed << std::setprecision(6) << res.bme_length << "; " << std::setprecision(2)

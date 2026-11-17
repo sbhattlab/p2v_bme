@@ -47,7 +47,7 @@ double peak_host_ram_mb() {
 }
 
 // The input as read, before identical sequences are set aside.
-void detail_input(JsonWriter &w, const RunInfo &run) {
+void detail_input(JsonWriter &w, const Report &run) {
     w.key("input");
     w.begin_object();
     w.field("path", run.input_path);
@@ -58,7 +58,7 @@ void detail_input(JsonWriter &w, const RunInfo &run) {
 }
 
 // Every setting, defaults included, with the auto values resolved: accelerator, threads, sample size.
-void detail_settings(JsonWriter &w, const RunInfo &run, const Settings &opt, const Result &res) {
+void detail_settings(JsonWriter &w, const Report &run, const Settings &opt, const Result &res) {
     w.key("settings");
     w.begin_object();
     w.field("model", model_name(opt.substitution.model));
@@ -83,7 +83,7 @@ void detail_settings(JsonWriter &w, const RunInfo &run, const Settings &opt, con
 }
 
 // The GPUs used, each with the CUDA versions, or one line for the CPU workers.
-void detail_devices(JsonWriter &w, const RunInfo &run) {
+void detail_devices(JsonWriter &w, const Report &run) {
     std::vector<std::string> devices;
     if (run.on_gpu) {
         for (const std::string &name : run.devices)
@@ -95,7 +95,7 @@ void detail_devices(JsonWriter &w, const RunInfo &run) {
 }
 
 // Seconds per stage; the total is in the summary.
-void detail_time(JsonWriter &w, const RunInfo &run, const Result &res) {
+void detail_time(JsonWriter &w, const Report &run, const Result &res) {
     w.key("time");
     w.begin_object();
     w.field("read", run.time_read);
@@ -105,7 +105,7 @@ void detail_time(JsonWriter &w, const RunInfo &run, const Result &res) {
     w.end_object();
 }
 
-void detail_memory(JsonWriter &w, const RunInfo &run) {
+void detail_memory(JsonWriter &w, const Report &run) {
     w.key("memory");
     w.begin_object();
     w.field("host_ram_mb", peak_host_ram_mb()); // peak
@@ -129,7 +129,7 @@ void detail_model(JsonWriter &w, const Result &res) {
 
 } // namespace
 
-std::string report_json(const RunInfo &run, const Settings &opt, const Result &res, bool full) {
+std::string report_json(const Report &run, const Settings &opt, const Result &res) {
     std::string out;
     JsonWriter w(out);
     w.begin_object();
@@ -145,7 +145,7 @@ std::string report_json(const RunInfo &run, const Settings &opt, const Result &r
     w.field("stop_reason", res.stop_reason);
     w.field("time", run.time_total);
     w.array_field("warnings", run.warnings);
-    if (full) {
+    if (run.full) {
         w.key("details");
         w.begin_object();
         w.field("host", host_name());
@@ -163,9 +163,8 @@ std::string report_json(const RunInfo &run, const Settings &opt, const Result &r
     return out;
 }
 
-void write_report(const std::string &path, const RunInfo &run, const Settings &settings, const Result &result,
-                  bool full) {
-    const std::string text = report_json(run, settings, result, full);
+void write_report(const std::string &path, const Report &run, const Settings &settings, const Result &result) {
+    const std::string text = report_json(run, settings, result);
     FILE *f = fopen(path.c_str(), "w");
     if (!f)
         throw std::runtime_error("cannot write " + path);
