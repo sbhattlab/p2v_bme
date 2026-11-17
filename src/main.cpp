@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
         // Device: if auto and no GPU found, indicate what precision is used for CPU.
         if (!choice.note.empty()) {
             run.warnings.push_back(choice.note);
-            fprintf(stderr, "p2v-bme: %s\n", run.warnings.back().c_str());
+            fprintf(stderr, "p2v-bme: warning: %s\n", run.warnings.back().c_str());
         }
         parse_devices_option(options.devices, choice.on_gpu, opt);
         p2vbme::check_settings(opt);
