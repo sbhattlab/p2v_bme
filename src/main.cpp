@@ -8,10 +8,12 @@
  * Quiet by default: progress with -v; warnings and errors always on stderr.
  */
 #include <omp.h>
-#include <stdio.h>
 
 #include <algorithm>
 #include <exception>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -47,7 +49,7 @@ int main(int argc, char **argv) {
         // Device: if auto and no GPU found, indicate what precision is used for CPU.
         if (!choice.note.empty()) {
             run.warnings.push_back(choice.note);
-            fprintf(stderr, "p2v-bme: warning: %s\n", run.warnings.back().c_str());
+            std::cerr << "p2v-bme: warning: " << choice.note << '\n';
         }
         parse_devices_option(options.devices, choice.on_gpu, opt);
         p2vbme::check_settings(opt);
@@ -55,10 +57,9 @@ int main(int argc, char **argv) {
 
         // Output: fail now if the outputs cannot be written
         for (const char *ext : {".nwk", ".json"}) {
-            FILE *f = fopen((run.prefix + ext).c_str(), "a");
+            std::ofstream f(run.prefix + ext, std::ios::app);
             if (!f)
                 throw std::runtime_error("cannot write " + run.prefix + ext);
-            fclose(f);
         }
 
         // Time: start of reading the alignment
@@ -69,8 +70,8 @@ int main(int argc, char **argv) {
         run.n_taxa = aln.n_taxa;
         run.n_sites = aln.n_sites;
         if (verbose)
-            fprintf(stderr, "p2v-bme: read %d sequences x %d sites in %.2f s\n", aln.n_taxa, aln.n_sites,
-                    run.time_read);
+            std::cerr << "p2v-bme: read " << aln.n_taxa << " sequences x " << aln.n_sites << " sites in " << std::fixed
+                      << std::setprecision(2) << run.time_read << " s\n";
 
         // Data: if identical sequences, two of each group stay in the search, the rest are put back after it.
         // F81, F84, TN93: base frequencies are counted on the whole input, before the copies are set aside
@@ -82,8 +83,8 @@ int main(int argc, char **argv) {
         p2vbme::prepare_alignment(aln, opt.substitution, run.dedup, dd);
         run.n_identical_removed = dd.n_removed();
         if (verbose && dd.n_removed() > 0)
-            fprintf(stderr, "p2v-bme: %d identical sequences set aside (two of each group kept): %d left\n",
-                    dd.n_removed(), aln.n_taxa);
+            std::cerr << "p2v-bme: " << dd.n_removed()
+                      << " identical sequences set aside (two of each group kept): " << aln.n_taxa << " left\n";
         if (aln.n_taxa < 4)
             throw std::runtime_error("need at least 4 sequences" +
                                      std::string(run.dedup ? " after setting identical copies aside" : "") + ", have " +
@@ -104,7 +105,7 @@ int main(int argc, char **argv) {
             if (aln.n_taxa < p2vbme::START_SAMPLE_MIN_N) {
                 run.warnings.push_back("fewer than " + std::to_string(p2vbme::START_SAMPLE_MIN_N) +
                                        " sequences, using the random start instead of sample-and-place");
-                fprintf(stderr, "p2v-bme: warning: %s\n", run.warnings.back().c_str());
+                std::cerr << "p2v-bme: warning: " << run.warnings.back() << '\n';
                 opt.start = p2vbme::Start::Random;
                 run.start_tree = "random";
             }
@@ -119,10 +120,7 @@ int main(int argc, char **argv) {
 
         p2vbme::LogCallback log;
         if (verbose)
-            log = [](const std::string &line) {
-                fprintf(stderr, "%s\n", line.c_str());
-                fflush(stderr);
-            };
+            log = [](const std::string &line) { std::cerr << line << std::endl; };
         // Device: select the devices
         p2vbme::Devices devices = p2vbme::select_devices(choice, opt.precision, opt.devices, opt.threads);
         run.on_gpu = choice.on_gpu;
@@ -145,11 +143,11 @@ int main(int argc, char **argv) {
         // Output: write the report
         p2vbme::write_report(run.prefix + ".json", run, opt, res, options.report_full);
         if (verbose)
-            fprintf(stderr, "p2v-bme: %s start, %d rounds, BME length %.6f; %.2f s in total; wrote %s.nwk, %s.json\n",
-                    run.start_tree.c_str(), res.rounds_run, res.bme_length, run.time_total, run.prefix.c_str(),
-                    run.prefix.c_str());
+            std::cerr << "p2v-bme: " << run.start_tree << " start, " << res.rounds_run << " rounds, BME length "
+                      << std::fixed << std::setprecision(6) << res.bme_length << "; " << std::setprecision(2)
+                      << run.time_total << " s in total; wrote " << run.prefix << ".nwk, " << run.prefix << ".json\n";
     } catch (const std::exception &e) {
-        fprintf(stderr, "p2v-bme: error: %s\n", e.what());
+        std::cerr << "p2v-bme: error: " << e.what() << '\n';
         return 1;
     }
     return 0;
