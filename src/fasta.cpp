@@ -3,9 +3,8 @@
  *
  * Aligned DNA FASTA input, packed as in the .bin bundles.
  */
+#include <fstream>
 #include <stdexcept>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string>
 #include <unordered_map>
 
@@ -14,8 +13,8 @@
 namespace p2vbme {
 
 Alignment read_fasta(const std::string &path) {
-    FILE *f = fopen(path.c_str(), "r");
-    if (!f)
+    std::ifstream in(path);
+    if (!in)
         throw std::runtime_error("cannot open " + path);
     // One pass over the file: a '>' line starts a record, and the lines after it are its sequence.
     // A record is packed when the next one starts, or at the end of the file.
@@ -50,51 +49,42 @@ Alignment read_fasta(const std::string &path) {
         seq.clear();
     };
 
-    char *line = NULL;
-    size_t cap = 0;
-    ssize_t len;
+    std::string line;
     long line_no = 0;
-    try {
-        // getline (POSIX) grows `line` as needed; it is freed below.
-        while ((len = getline(&line, &cap, f)) != -1) {
-            ++line_no;
-            // Strips the line ending (\n, or \r\n in Windows files).
-            while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
-                line[--len] = '\0';
-            // A header: the name is the first word after '>'; the rest of the line (a description) is ignored.
-            if (len > 0 && line[0] == '>') {
-                finish_record();
-                const char *p = line + 1;
-                while (*p == ' ' || *p == '\t')
-                    ++p;
-                const char *q = p;
-                while (*q && *q != ' ' && *q != '\t')
-                    ++q;
-                name.assign(p, q - p);
-                if (name.empty())
-                    throw std::runtime_error(path + ":" + std::to_string(line_no) + ": empty sequence name");
-                have_record = true;
-                continue;
-            }
-            // A sequence line: every character but spaces and tabs is a site.
-            // Gaps and ambiguity codes count as sites too; pack_sequence sets no bit for them.
-            for (ssize_t i = 0; i < len; ++i) {
-                const char ch = line[i];
-                if (ch == ' ' || ch == '\t')
-                    continue;
-                if (!have_record)
-                    throw std::runtime_error(path + ":" + std::to_string(line_no) +
-                                             ": sequence data before the first '>' header");
-                seq.push_back(ch);
-            }
+    // std::getline drops the '\n'; the file closes itself, also when an error is thrown.
+    while (std::getline(in, line)) {
+        ++line_no;
+        // Strips the '\r' of Windows line endings (\r\n).
+        while (!line.empty() && line.back() == '\r')
+            line.pop_back();
+        // A header: the name is the first word after '>'; the rest of the line (a description) is ignored.
+        if (!line.empty() && line[0] == '>') {
+            finish_record();
+            size_t p = 1;
+            while (p < line.size() && (line[p] == ' ' || line[p] == '\t'))
+                ++p;
+            size_t q = p;
+            while (q < line.size() && line[q] != ' ' && line[q] != '\t')
+                ++q;
+            name.assign(line, p, q - p);
+            if (name.empty())
+                throw std::runtime_error(path + ":" + std::to_string(line_no) + ": empty sequence name");
+            have_record = true;
+            continue;
         }
-    } catch (...) { // release the line buffer and the file before passing the error on
-        free(line);
-        fclose(f);
-        throw;
+        // A sequence line: every character but spaces and tabs is a site.
+        // Gaps and ambiguity codes count as sites too; pack_sequence sets no bit for them.
+        for (const char ch : line) {
+            if (ch == ' ' || ch == '\t')
+                continue;
+            if (!have_record)
+                throw std::runtime_error(path + ":" + std::to_string(line_no) +
+                                         ": sequence data before the first '>' header");
+            seq.push_back(ch);
+        }
     }
-    free(line);
-    fclose(f);
+    if (in.bad())
+        throw std::runtime_error("cannot read " + path);
     finish_record(); // the last record has no '>' after it
     if (aln.n_taxa == 0)
         throw std::runtime_error(path + ": no sequences");

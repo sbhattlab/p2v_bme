@@ -4,11 +4,12 @@
  * .maple alignment input (MAPLE / CMAPLE), packed as FASTA input is.
  */
 #include <ctype.h>
+#include <fstream>
 #include <stdexcept>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "core.hpp"
@@ -17,23 +18,18 @@
 namespace p2vbme {
 
 Alignment read_maple(const std::string &path) {
-    FILE *f = fopen(path.c_str(), "r");
-    if (!f)
+    std::ifstream in(path);
+    if (!in)
         throw std::runtime_error("cannot open " + path);
+    // Every line, without its ending ('\n', or '\r\n') and trailing spaces or tabs.
     std::vector<std::string> lines;
-    {
-        char *line = NULL;
-        size_t cap = 0;
-        ssize_t len;
-        while ((len = getline(&line, &cap, f)) != -1) {
-            while (len > 0 &&
-                   (line[len - 1] == '\n' || line[len - 1] == '\r' || line[len - 1] == ' ' || line[len - 1] == '\t'))
-                --len;
-            lines.emplace_back(line, (size_t)len);
-        }
-        free(line);
-        fclose(f);
+    for (std::string line; std::getline(in, line);) {
+        while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\t'))
+            line.pop_back();
+        lines.push_back(std::move(line));
     }
+    if (in.bad())
+        throw std::runtime_error("cannot read " + path);
     auto header_name = [&](size_t i) {
         const std::string &h = lines[i];
         size_t p = 1;
