@@ -8,7 +8,6 @@
  */
 #include <exception>
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -19,14 +18,6 @@
 #include "version.hpp"
 
 namespace {
-
-// Default value of an option, as text for cxxopts (from config.hpp).
-template <class T> std::string text(T value) {
-    std::ostringstream s;
-    s << value;
-    return s.str();
-}
-
 // -m (IQ-TREE style names, case-insensitive). GTR+GC needs the parameter fit, which comes later.
 p2vbme::Model parse_model(const std::string &name) {
     const p2vbme::Model m = p2vbme::parse_model(name);
@@ -110,6 +101,8 @@ p2vbme::Precision parse_precision(const std::string &p) {
 } // namespace
 
 CommandLine parse_command_line(int argc, char **argv) {
+    CommandLine result;
+    p2vbme::Settings &opt = result.settings; // the numeric options are parsed into it; not given: its defaults
     cxxopts::Options cli("p2v-bme", "Balanced minimum evolution tree from an aligned DNA alignment (FASTA), by the "
                                     "Phylo2Vec minibatch search.\nWrites <prefix>.nwk (unrooted tree) and "
                                     "<prefix>.json (run report).\n");
@@ -126,33 +119,33 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value<std::string>()->default_value("auto"))
         ("devices", "GPU: auto (all visible, at most 8), N (the first N) or a list such as 0,2; CPU: auto (all "
          "cores) or N threads", cxxopts::value<std::string>()->default_value("auto"))
-        ("seed", "seed of the start tree", cxxopts::value<uint64_t>()->default_value(text(p2vbme::DEFAULT_SEED)), "N")
+        ("seed", "seed of the start tree", cxxopts::value(opt.seed), "N")
         ("v,verbose", "print progress on stderr")
         ("version", "print the version")
         ("h,help", "print the core options")
         ("help-all", "print all options");
     cli.add_options("Search")
         ("max-rounds", "rounds of the search; 0 = no search (score the start tree)",
-         cxxopts::value<int>()->default_value(text(p2vbme::DEFAULT_MAX_ROUNDS)), "N")
+         cxxopts::value(opt.max_rounds), "N")
         ("early-stopping", "stop once a round gains at most TOL x the total gain; 0 = only when a round changes "
-         "nothing", cxxopts::value<double>()->default_value(text(p2vbme::DEFAULT_EARLY_STOPPING)), "TOL")
+         "nothing", cxxopts::value(opt.early_stopping), "TOL")
         ("time-limit", "seconds after which no new round starts (0 = none)",
-         cxxopts::value<double>()->default_value(text(p2vbme::DEFAULT_TIME_LIMIT)), "S")
+         cxxopts::value(opt.time_limit), "S")
         ("profile-cap", "leaves kept per clade profile in a window (1-256)",
-         cxxopts::value<int>()->default_value(text(p2vbme::DEFAULT_PROFILE_CAP)), "N")
+         cxxopts::value(opt.profile_cap), "N")
         ("exact-check-eta", "re-check windows whose capped gain is above -ETA on complete profiles (0 = never)",
-         cxxopts::value<double>()->default_value(text(p2vbme::DEFAULT_EXACT_CHECK_ETA)), "ETA")
+         cxxopts::value(opt.exact_check_eta), "ETA")
         ("precision", "single or double; double runs on the CPU only (the GPU computes in single precision)",
          cxxopts::value<std::string>()->default_value("single"));
     cli.add_options("Start tree")
         ("t,tree", "start tree: sample (sample-and-place), random, or a Newick file",
          cxxopts::value<std::string>()->default_value("sample"), "TREE")
         ("sample-size", "sequences sampled for sample-and-place (0 = min(100000, N/10))",
-         cxxopts::value<int>()->default_value(text(p2vbme::DEFAULT_SAMPLE_SIZE)), "N");
+         cxxopts::value(opt.sample_size), "N");
     cli.add_options("Branch lengths and output")
         ("no-branch-lengths", "do not estimate BME branch lengths")
         ("bl-profile-cap", "leaves kept per subtree profile for branch lengths (1-256)",
-         cxxopts::value<int>()->default_value(text(p2vbme::DEFAULT_BL_PROFILE_CAP)), "N")
+         cxxopts::value(opt.bl_profile_cap), "N")
         ("no-neg-as-zero", "write negative branch lengths as they are (default: as 0)")
         ("report-full", "add the details to <prefix>.json: host, input, settings as used, devices, time per stage, "
          "memory, model parameters, gain of each round");
@@ -161,7 +154,6 @@ CommandLine parse_command_line(int argc, char **argv) {
          "others put back next to them, with zero-length branches)");
     // clang-format on
 
-    CommandLine result;
     auto done = [&](int exit_code) {
         result.done = true;
         result.exit_code = exit_code;
@@ -195,17 +187,8 @@ CommandLine parse_command_line(int argc, char **argv) {
     run.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : run.input_path;
     run.neg_as_zero = !args.count("no-neg-as-zero");
 
-    p2vbme::Settings &opt = result.settings;
     opt.substitution.model = model;
-    opt.sample_size = args["sample-size"].as<int>();
-    opt.seed = args["seed"].as<uint64_t>();
-    opt.max_rounds = args["max-rounds"].as<int>();
-    opt.early_stopping = args["early-stopping"].as<double>();
-    opt.time_limit = args["time-limit"].as<double>();
-    opt.profile_cap = args["profile-cap"].as<int>();
-    opt.exact_check_eta = args["exact-check-eta"].as<double>();
     opt.branch_lengths = !args.count("no-branch-lengths");
-    opt.bl_profile_cap = args["bl-profile-cap"].as<int>();
     opt.accelerator = parse_accelerator(args["accelerator"].as<std::string>());
     opt.precision = parse_precision(args["precision"].as<std::string>());
     result.devices = args["devices"].as<std::string>();
