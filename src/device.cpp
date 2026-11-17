@@ -13,6 +13,7 @@
 
 namespace p2vbme {
 
+// auto: the GPU if one is found (and single precision), else the CPU, with a message
 DeviceChoice choose_devices(Accelerator accelerator, Precision precision) {
     DeviceChoice choice;
     choice.on_gpu = accelerator == Accelerator::Gpu;

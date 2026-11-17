@@ -26,7 +26,9 @@
 
 int main(int argc, char **argv) {
     try {
+        // Time: start of main
         const double t0 = omp_get_wtime();
+        // Input: parse CLI args
         CommandLine args = parse_command_line(argc, argv);
         if (args.done)
             return args.exit_code;
@@ -41,8 +43,8 @@ int main(int argc, char **argv) {
         run.prefix = options.prefix;
         run.neg_as_zero = options.neg_as_zero;
 
-        /* auto: the GPU if one is found (and single precision), else the CPU, with a message */
         const p2vbme::DeviceChoice choice = p2vbme::choose_devices(opt.accelerator, opt.precision);
+        // Device: if auto and no GPU found, indicate what precision is used for CPU.
         if (!choice.note.empty()) {
             run.warnings.push_back(choice.note);
             fprintf(stderr, "p2v-bme: %s\n", run.warnings.back().c_str());
@@ -50,7 +52,8 @@ int main(int argc, char **argv) {
         parse_devices_option(options.devices, choice.on_gpu, opt);
         p2vbme::check_settings(opt);
         p2vbme::check_devices(choice, opt.precision);
-        /* fail now, not after the search, if the outputs cannot be written */
+
+        // Output: fail now if the outputs cannot be written
         for (const char *ext : {".nwk", ".json"}) {
             FILE *f = fopen((run.prefix + ext).c_str(), "a");
             if (!f)
@@ -58,8 +61,10 @@ int main(int argc, char **argv) {
             fclose(f);
         }
 
+        // Time: start of reading the alignment
         const double t_read = omp_get_wtime();
         p2vbme::Alignment aln = p2vbme::read_alignment(run.input_path);
+        // Time: end of reading the alignment
         run.time_read = omp_get_wtime() - t_read;
         run.n_taxa = aln.n_taxa;
         run.n_sites = aln.n_sites;
@@ -67,11 +72,13 @@ int main(int argc, char **argv) {
             fprintf(stderr, "p2v-bme: read %d sequences x %d sites in %.2f s\n", aln.n_taxa, aln.n_sites,
                     run.time_read);
 
-        /* identical sequences: two of each group stay in the search, the rest are put back; F81, F84, TN93: the
-         * base frequencies of the whole input, as FastME and ape count them */
+        // Data: if identical sequences, two of each group stay in the search, the rest are put back after it.
+        // F81, F84, TN93: base frequencies are counted on the whole input, before the copies are set aside
+        //   so dedup does not change any distance (FastME and ape count them on the whole input too).
         const std::vector<std::string> all_names = aln.names;
         p2vbme::Deduplication dd;
         run.dedup = options.dedup;
+        // Data: count base frequencies and deduplicate
         p2vbme::prepare_alignment(aln, opt.substitution, run.dedup, dd);
         run.n_identical_removed = dd.n_removed();
         if (verbose && dd.n_removed() > 0)
@@ -85,7 +92,15 @@ int main(int argc, char **argv) {
         run.start_tree = options.start_tree;
         p2vbme::Tree start_tree;
         if (run.start_tree == "sample") {
+            // Tree: Sample-and-place start tree
+            // 1. Pick n0 sequences at random
+            // 2. Start t0 on the n0 sequences from a random (Yule-Harding) tree, or, if n0 > START_RANDOM_TREE_MAX
+            //    (1000), from a sample-and-place tree of its own (on a sample of max(1000, n0 / 10))
+            // 3. Optimise t0 with the minibatch search
+            // 4. Assign every other sequence to its nearest neighbour in t0 (p-distance)
+            // 5. Replace each sampled leaf by a small balanced subtree made of itself + its assigned sequences
             opt.start = p2vbme::Start::Sample;
+            // Tree: if too few sequences, use a random start
             if (aln.n_taxa < p2vbme::START_SAMPLE_MIN_N) {
                 run.warnings.push_back("fewer than " + std::to_string(p2vbme::START_SAMPLE_MIN_N) +
                                        " sequences, using the random start instead of sample-and-place");
@@ -96,6 +111,7 @@ int main(int argc, char **argv) {
         } else if (run.start_tree == "random") {
             opt.start = p2vbme::Start::Random;
         } else {
+            // Tree: predefined tree as a Newick
             start_tree = p2vbme::read_newick(run.start_tree, all_names);
             p2vbme::prepare_start_tree(start_tree, dd);
             opt.start = p2vbme::Start::Given;
@@ -107,19 +123,26 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "%s\n", line.c_str());
                 fflush(stderr);
             };
+        // Device: select the devices
         p2vbme::Devices devices = p2vbme::select_devices(choice, opt.precision, opt.devices, opt.threads);
         run.on_gpu = choice.on_gpu;
         for (const auto &dev : devices)
             run.devices.push_back(dev->name());
         if (run.on_gpu)
             run.gpu_build_info = p2vbme::gpu_build_info();
+        // Main: inference search on the devices (the alignment is loaded onto them)
         p2vbme::Result res = p2vbme::infer(aln, opt, devices, &start_tree, log);
+        // Device: record the largest memory in use on the devices (GPU-wide, other processes included)
         for (const auto &dev : devices)
             run.gpu_memory_in_use_at_end_mb = std::max(run.gpu_memory_in_use_at_end_mb, dev->memory_in_use_mb());
+        // Data: put back the identical sequences set aside, with zero-length branches
         p2vbme::restore_copies(res.tree, dd);
 
+        // Output: write the unrooted tree
         p2vbme::write_newick_unrooted(run.prefix + ".nwk", all_names, res.tree, run.neg_as_zero);
+        // Time: end of main
         run.time_total = omp_get_wtime() - t0;
+        // Output: write the report
         p2vbme::write_report(run.prefix + ".json", run, opt, res, options.report_full);
         if (verbose)
             fprintf(stderr, "p2v-bme: %s start, %d rounds, BME length %.6f; %.2f s in total; wrote %s.nwk, %s.json\n",
