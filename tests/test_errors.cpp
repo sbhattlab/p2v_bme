@@ -111,20 +111,11 @@ TEST(Errors, EdgeLengthFailureLeavesTheBranchLengths) {
     EXPECT_EQ(msg, "injected failure in edge_lengths");
 }
 
-TEST(Errors, SampleStartNeedsSixteenSequences) {
-    Devices devices = failing_devices(1, "none");
-    std::vector<int32_t> c1, c2;
-    SampleInitStats stats;
-    EXPECT_THROW(build_sample_init_tree(10, 8, 1, devices, c1, c2, stats, SearchSettings()), std::invalid_argument);
-}
-
 // infer() checks its input before it uses the devices.
 TEST(Errors, InferRejectsBadInput) {
     const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
     Devices devices = failing_devices(1, "none");
     Settings opt;
-    EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("at least 16 sequences"), std::string::npos);
-    opt.tree_init = TreeInit::Random;
     opt.profile_cap = 0;
     EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("profile cap"), std::string::npos);
     opt.profile_cap = DEFAULT_PROFILE_CAP;
@@ -135,16 +126,29 @@ TEST(Errors, InferRejectsBadInput) {
               std::string::npos);
 }
 
+// Below START_SAMPLE_MIN_N sequences, the sample-and-place start falls back to the random start, with a warning.
+TEST(Errors, SampleStartFallsBackToRandom) {
+    const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
+    Devices devices = failing_devices(1, "none");
+    const Result res = infer(aln, Settings(), devices);
+    EXPECT_EQ(res.tree_init, TreeInit::Random);
+    ASSERT_EQ(res.warnings.size(), 1u);
+    EXPECT_NE(res.warnings[0].find("using the random start"), std::string::npos);
+}
+
 // Base frequencies must be finite and >= 0: NaN, inf and negative values are refused.
 TEST(Errors, BaseFrequenciesMustBeFinite) {
+    const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
+    Devices devices = failing_devices(1, "none");
     Settings opt;
+    opt.tree_init = TreeInit::Random;
     opt.substitution.model = Model::F81;
     const double freqs[4] = {0.1, 0.2, 0.3, 0.4};
     std::copy(freqs, freqs + 4, opt.substitution.base_freqs);
-    EXPECT_NO_THROW(check_settings(opt));
+    EXPECT_NO_THROW(infer(aln, opt, devices));
     for (double bad : {-0.1, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
         opt.substitution.base_freqs[2] = bad;
-        EXPECT_NE(thrown_message([&] { check_settings(opt); }).find("base frequencies"), std::string::npos) << bad;
+        EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("base frequencies"), std::string::npos) << bad;
     }
 }
 

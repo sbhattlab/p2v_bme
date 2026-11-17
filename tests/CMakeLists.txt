@@ -97,8 +97,9 @@ target_link_libraries(make_test_fasta PRIVATE p2vbme_io p2vbme_simulations)
 set(CLI_DIR ${CMAKE_CURRENT_BINARY_DIR}/cli)
 add_test(NAME cli_setup COMMAND ${CMAKE_COMMAND} -E make_directory ${CLI_DIR})
 add_test(NAME cli_make_input COMMAND make_test_fasta ${CLI_DIR}/input 300 600 7)
+add_test(NAME cli_make_small COMMAND make_test_fasta ${CLI_DIR}/small 10 300 3)
 set_tests_properties(cli_setup PROPERTIES FIXTURES_SETUP cli_dir)
-set_tests_properties(cli_make_input PROPERTIES FIXTURES_SETUP cli_input FIXTURES_REQUIRED cli_dir)
+set_tests_properties(cli_make_input cli_make_small PROPERTIES FIXTURES_SETUP cli_input FIXTURES_REQUIRED cli_dir)
 function(p2vbme_cli_test name regex)
   add_test(NAME cli_${name} COMMAND p2v-bme ${ARGN})
   set_tests_properties(cli_${name} PROPERTIES FIXTURES_REQUIRED cli_input PASS_REGULAR_EXPRESSION "${regex}")
@@ -130,6 +131,10 @@ p2vbme_cli_test(extra_argument "unexpected argument 'extra'" -s ${CLI_DIR}/input
 p2vbme_cli_test(negative_time_limit "time limit must be >= 0" -s ${CLI_DIR}/input.fa -m JC69 --time-limit -5)
 p2vbme_cli_test(unwritable_prefix "cannot write /nonexistent_dir/x.nwk" -s ${CLI_DIR}/input.fa -m JC69 --prefix
                 /nonexistent_dir/x)
+# fewer than 16 sequences: the random start instead of sample-and-place, with a warning (-q keeps warnings)
+p2vbme_cli_test(small_input
+                "^p2v-bme: warning: fewer than 16 sequences, using the random start instead of sample-and-place\n$"
+                -s ${CLI_DIR}/small.fa -m JC69 --prefix ${CLI_DIR}/small --accelerator cpu -q)
 # -q: no progress (on the CPU, so no fallback warning either)
 p2vbme_cli_test(quiet "^$" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/quiet --accelerator cpu -q)
 # on the CPU: workers, double precision (auto selects the CPU for it)

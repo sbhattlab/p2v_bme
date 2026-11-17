@@ -62,22 +62,22 @@ struct Result {
     int32_t sample_size_used = 0;
     int32_t rounds_planned = 0;
     int32_t rounds_run = 0;
-    std::string stop_reason;         // max_rounds, idle, early_stopping, time_limit, or none (no search)
-    std::vector<double> round_gains; // BME decrease in each round of the main search
-                                     // (positive = shorter tree; the last is the cleanup pass when N > 1,050)
+    std::string stop_reason;               // max_rounds, idle, early_stopping, time_limit, or none (no search)
+    std::vector<double> round_gains;       // BME decrease in each round of the main search
+                                           // (positive = shorter tree; the last is the cleanup pass when N > 1,050)
+    TreeInit tree_init = TreeInit::Sample; // the start used (Random when Sample falls back)
+    std::vector<std::string> warnings;     // for the caller to show (the library prints nothing)
 };
-
-// Throws std::runtime_error if a setting is out of range.
-// infer() calls it, so every caller of infer() is checked.
-// The command line also calls it before reading the alignment, to report a bad option without waiting for the read.
-void check_settings(const Settings &settings);
 
 // Receives the run's progress lines (the library itself prints nothing).
 using LogCallback = std::function<void(const std::string &line)>;
 
 // Infers a BME tree on the devices (select_devices; the alignment is loaded onto them).
+// First checks the settings and the input, the only place they are checked.
+// With fewer than START_SAMPLE_MIN_N sequences, the sample-and-place start falls back to the random start (a
+// warning in Result).
 // `start_tree` is used when settings.tree_init == TreeInit::Given.
-// Errors (input, CUDA, GPU memory) are thrown as std::exception.
+// Errors (bad settings or input, CUDA, GPU memory) are thrown as std::exception.
 Result infer(const Alignment &aln, const Settings &settings, Devices &devices, const Tree *start_tree = nullptr,
              const LogCallback &log = nullptr);
 

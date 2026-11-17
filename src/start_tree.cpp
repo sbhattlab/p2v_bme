@@ -50,9 +50,6 @@ void build_sample_init_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devic
                             int32_t level) {
     const int n_gpus = (int)devices.size();
     const double t_begin = wall_sec();
-    if (N < p2vbme::START_SAMPLE_MIN_N) /* infer() refuses this; keep the function safe on its own */
-        throw std::invalid_argument("sample-and-place start: N = " + std::to_string(N) +
-                                    " is too small (need N >= " + std::to_string(p2vbme::START_SAMPLE_MIN_N) + ")");
     if (n0 > N / 2)
         n0 = N / 2;
     if (n0 < p2vbme::START_SAMPLE_MIN)

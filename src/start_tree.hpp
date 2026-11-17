@@ -36,6 +36,7 @@ void make_uniform_random_tree_host(int32_t n, uint64_t seed, std::vector<int32_t
  *      a pair with no shared valid site ranks like JC69 = 1.5 (p = 0.6485)
  *   3. replace each sampled leaf by a balanced tree of itself + its assigned leaves (random order)
  * Uses only the sequences: no information from the true tree.
+ * Needs N >= START_SAMPLE_MIN_N (below it, infer() uses the random start instead).
  * ============================================================================ */
 
 void build_sample_init_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devices, std::vector<int32_t> &out_c1,

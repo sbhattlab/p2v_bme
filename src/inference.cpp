@@ -21,6 +21,10 @@
 
 namespace p2vbme {
 
+namespace {
+
+// Throws std::runtime_error if a setting is out of range.
+// The device settings (devices, threads) are checked by select_devices, which uses them.
 void check_settings(const Settings &opt) {
     if (opt.profile_cap < 1 || opt.profile_cap > PROFILE_CAP_MAX)
         throw std::runtime_error("profile cap must be in 1.." + std::to_string(PROFILE_CAP_MAX));
@@ -55,6 +59,8 @@ void check_settings(const Settings &opt) {
     }
 }
 
+} // namespace
+
 Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const Tree *start_tree,
              const LogCallback &log) {
     check_settings(opt);
@@ -65,9 +71,6 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
         throw std::runtime_error("need at least 4 sequences, got " + std::to_string(N));
     if ((size_t)N * 5 * (size_t)W != aln.packed.size())
         throw std::runtime_error("alignment: packed size mismatch");
-    if (opt.tree_init == TreeInit::Sample && N < START_SAMPLE_MIN_N)
-        throw std::runtime_error("the sample-and-place start needs at least " + std::to_string(START_SAMPLE_MIN_N) +
-                                 " sequences; use the random start");
     if (opt.tree_init == TreeInit::Given) {
         if (!start_tree || (int32_t)start_tree->c1.size() != n_nodes || (int32_t)start_tree->c2.size() != n_nodes)
             throw std::runtime_error("start tree missing or not on the alignment's taxa");
@@ -101,6 +104,12 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
 
     Result res;
     res.substitution = substitution;
+    res.tree_init = opt.tree_init;
+    if (res.tree_init == TreeInit::Sample && N < START_SAMPLE_MIN_N) {
+        res.tree_init = TreeInit::Random;
+        res.warnings.push_back("fewer than " + std::to_string(START_SAMPLE_MIN_N) +
+                               " sequences, using the random start instead of sample-and-place");
+    }
     // Progress lines for the caller's log (the library prints nothing): one per search start, stage and early stop,
     // and per sample-and-place level (rf: -1 = no reference tree, -2 = not computed at this stage).
     double t_start = 0.0, t_last = 0.0, dL_last = 0.0, round_end_dL = 0.0;
@@ -144,7 +153,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     if (settings.time_cap > 0.0)
         settings.deadline = t0 + settings.time_cap; // covers start tree + search
     std::vector<int32_t> c1(n_nodes), c2(n_nodes);
-    if (opt.tree_init == TreeInit::Sample) {
+    if (res.tree_init == TreeInit::Sample) {
         const int32_t n0 =
             opt.sample_size > 0 ? opt.sample_size : std::min<int32_t>(START_SAMPLE_MAX, N / START_SAMPLE_DIVISOR);
         SampleInitStats stats;
@@ -159,7 +168,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
         res.time_start_sample = stats.dt_sub;
         res.time_start_nearest = stats.dt_nn;
         res.time_start_assembly = stats.dt_build;
-    } else if (opt.tree_init == TreeInit::Random) {
+    } else if (res.tree_init == TreeInit::Random) {
         make_uniform_random_tree_host(N, opt.seed, c1, c2);
     } else {
         c1 = start_tree->c1;

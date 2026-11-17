@@ -50,7 +50,6 @@ int main(int argc, char **argv) {
             std::cerr << "p2v-bme: warning: " << choice.note << '\n';
         }
         parse_devices_option(args.devices, choice.on_gpu, opt);
-        p2vbme::check_settings(opt);
 
         // Output: fail now if the outputs cannot be written
         for (const char *ext : {".nwk", ".json"}) {
@@ -90,10 +89,6 @@ int main(int argc, char **argv) {
             std::cout << "p2v-bme: " << dd.n_removed()
                       << " identical sequences set aside (two of each group kept): " << aln.n_taxa << " left"
                       << std::endl;
-        if (aln.n_taxa < 4)
-            throw std::runtime_error("need at least 4 sequences" +
-                                     std::string(run.dedup ? " after setting identical copies aside" : "") + ", have " +
-                                     std::to_string(aln.n_taxa) + (run.dedup ? " (--no-dedup keeps them)" : ""));
 
         p2vbme::Tree start_tree;
         if (run.tree_init == "sample") {
@@ -104,15 +99,8 @@ int main(int argc, char **argv) {
             // 3. Optimise t0 with the minibatch search
             // 4. Assign every other sequence to its nearest neighbour in t0 (p-distance)
             // 5. Replace each sampled leaf by a small balanced subtree made of itself + its assigned sequences
+            // (with fewer than START_SAMPLE_MIN_N sequences, infer() uses the random start instead and warns)
             opt.tree_init = p2vbme::TreeInit::Sample;
-            // Tree: if too few sequences, use a random start
-            if (aln.n_taxa < p2vbme::START_SAMPLE_MIN_N) {
-                run.warnings.push_back("fewer than " + std::to_string(p2vbme::START_SAMPLE_MIN_N) +
-                                       " sequences, using the random start instead of sample-and-place");
-                std::cerr << "p2v-bme: warning: " << run.warnings.back() << '\n';
-                opt.tree_init = p2vbme::TreeInit::Random;
-                run.tree_init = "random";
-            }
         } else if (run.tree_init == "random") {
             opt.tree_init = p2vbme::TreeInit::Random;
         } else {
@@ -125,8 +113,14 @@ int main(int argc, char **argv) {
         p2vbme::LogCallback log;
         if (progress)
             log = [](const std::string &line) { std::cout << line << std::endl; };
-        // Main: inference search on the devices (the alignment is loaded onto them)
+        // Main: inference search on the devices (the alignment is loaded onto them); infer() checks the settings
         p2vbme::Result res = p2vbme::infer(aln, opt, devices, &start_tree, log);
+        if (res.tree_init == p2vbme::TreeInit::Random)
+            run.tree_init = "random";
+        for (const std::string &w : res.warnings) {
+            run.warnings.push_back(w);
+            std::cerr << "p2v-bme: warning: " << w << '\n';
+        }
         // Device: record the largest memory in use on the devices (GPU-wide, other processes included)
         for (const auto &dev : devices)
             run.gpu_memory_in_use_at_end_mb = std::max(run.gpu_memory_in_use_at_end_mb, dev->memory_in_use_mb());
