@@ -51,7 +51,7 @@ void build_sample_init_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devic
         n0 = p2vbme::START_SAMPLE_MIN;
     stats.n0 = n0;
 
-    // 1. random subsample (partial Fisher-Yates)
+    // 1. pick n0 sequences at random (partial Fisher-Yates)
     uint64_t st = seed;
     std::vector<int32_t> order(N);
     for (int32_t i = 0; i < N; ++i)
@@ -62,31 +62,32 @@ void build_sample_init_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devic
     std::sort(qry.begin(), qry.end());
     const int32_t n_q = (int32_t)qry.size();
 
-    // 2. optimise the subsample from a Yule-Harding random tree with the run's settings
+    // 2. start tree t0 (sub_c1, sub_c2) on the sample: a random tree, or above START_RANDOM_TREE_MAX a
+    // sample-and-place tree of its own
     for (int g = 0; g < n_gpus; ++g)
         devices[g]->push_subset(samp);
     std::vector<int32_t> sub_c1, sub_c2;
+    double dL_inner = 0.0;
     if (n0 > p2vbme::START_RANDOM_TREE_MAX) {
         int32_t n0_inner = std::max(p2vbme::START_RANDOM_TREE_MAX, n0 / p2vbme::START_SAMPLE_DIVISOR);
         SampleInitStats inner_stats;
         // an independent seed per level (an XOR alone would return to the top-level seed two levels down)
         const uint64_t inner_seed = p2vbme::derive_seed(seed, p2vbme::SALT_START_TREE_LEVEL);
         build_sample_init_tree(n0, n0_inner, inner_seed, devices, sub_c1, sub_c2, inner_stats, settings, level + 1);
-        // the sample is refined by the same solver with the same settings (rounds, stop rule) as the main run
-        stats.dL_sub =
-            inner_stats.dL_sub + run_multi_gpu_minibatch_bme(n0, devices, sub_c1, sub_c2, settings, level + 1);
+        dL_inner = inner_stats.dL_sub;
     } else {
         // independent stream: seed the random subsample tree with a splitmix64 output, not with a value that
         // splitmix64's own state sequence (step 0x9E3779B97F4A7C15) can reach
         make_uniform_random_tree_host(n0, p2vbme::derive_seed(seed, p2vbme::SALT_START_TREE_RANDOM), sub_c1, sub_c2);
-        stats.dL_sub = run_multi_gpu_minibatch_bme(n0, devices, sub_c1, sub_c2, settings, level + 1);
     }
+    // 3. optimise t0 with the same solver and settings (rounds, stop rule) as the main run
+    stats.dL_sub = dL_inner + run_multi_gpu_minibatch_bme(n0, devices, sub_c1, sub_c2, settings, level + 1);
     for (int g = 0; g < n_gpus; ++g)
         devices[g]->pop_subset();
     const double t_sub = wall_sec();
     stats.dt_sub = t_sub - t_begin;
 
-    // 3. nearest sampled leaf for every other leaf, queries split across GPUs
+    // 4. nearest sampled sequence for every other sequence, queries split across GPUs
     std::vector<int32_t> best_pos(n_q, 0);
     ParallelErrors errors;
 #pragma omp parallel for num_threads(n_gpus) schedule(static, 1)
@@ -104,7 +105,7 @@ void build_sample_init_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devic
     const double t_nn = wall_sec();
     stats.dt_nn = t_nn - t_sub;
 
-    // 4. full tree: a balanced tree per bucket (members in random order, paired two at a time, level by level), then
+    // 5. full tree: a balanced tree per bucket (members in random order, paired two at a time, level by level), then
     // the subsample tree on top.
     // Ids are assigned children-first, so the result is post-order with root 2N-2.
     std::vector<int32_t> bucket_off(n0 + 1, 0), bucket_mem(n_q);
