@@ -253,7 +253,7 @@ TEST(DeviceDistances, BmeLengthOfAGivenTree) {
         opt.devices = {0};
         opt.substitution = distance_model(model);
         const Result res = run_infer(aln, opt, &tree);
-        const double exact = pauplin_length(aln, res.substitution, tree); /* the model as used (base frequencies) */
+        const double exact = pauplin_length(aln, with_base_frequencies(aln, opt).substitution, tree);
         EXPECT_NEAR(res.bme_length, exact, 1e-4 * exact) << model_name(model);
     }
 }

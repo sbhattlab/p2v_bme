@@ -135,7 +135,6 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     settings.exact_check_eta = opt.exact_check_eta;
 
     Result res;
-    res.substitution = substitution;
     warn_gtr_precision(opt, res.warnings);
     res.tree_init = opt.tree_init;
     if (res.tree_init == TreeInit::Sample && N < START_SAMPLE_MIN_N) {

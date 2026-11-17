@@ -58,7 +58,6 @@ struct Result {
     double time_start_assembly = 0.0; //   assembling the full tree
     double time_search = 0.0;         // seconds: minibatch search
     double time_branch_lengths = 0.0;
-    SubstitutionModel substitution; // the model as used (settings.substitution)
     int32_t sample_size_used = 0;
     int32_t rounds_planned = 0;
     int32_t rounds_run = 0;
