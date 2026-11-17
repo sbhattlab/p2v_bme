@@ -7,8 +7,9 @@
 #include <omp.h>
 
 #include <algorithm>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string>
 #include <vector>
@@ -121,37 +122,33 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
         }
         if (!log)
             return;
-        {
-            char line[512];
-            if (e.kind == SearchEvent::Start) {
-                t_start = t_last = wall_sec();
-                dL_last = 0.0;
-                snprintf(line, sizeof(line),
-                         "[DIAG] N=%d n_gpus=%d n_outer_rounds=%d max_prof_leaves=%d stop_zero=%d stop_tol=%g "
-                         "time_cap=%g",
-                         e.n_leaves, e.n_devices, e.rounds_planned, e.settings->profile_cap, (int)e.settings->stop_zero,
-                         e.settings->stop_tol, e.settings->time_cap);
-            } else if (e.kind == SearchEvent::Stop) {
-                snprintf(line, sizeof(line),
-                         "[DIAG] stopping after round %d (gain %.6f, round-0 gain %.6f); running final cleanup",
-                         e.round, e.round_gain, e.round0_gain);
-            } else if (e.kind == SearchEvent::StartTree) {
-                const SampleInitStats &st = *e.init_stats;
-                snprintf(line, sizeof(line),
-                         "[INIT] sample-and-place: n0=%d sub=%.2fs (dL %.4f) nn=%.2fs build=%.2fs total=%.2fs "
-                         "max_bucket=%d",
-                         st.n0, st.dt_sub, st.dL_sub, st.dt_nn, st.dt_build, st.dt_total, st.max_bucket);
-            } else {
-                const double t = wall_sec();
-                snprintf(line, sizeof(line),
-                         "[DIAG] round=%d stage=%-10s sc=%-9lld dL=%+14.6f dt=%8.2fs t=%9.2fs rf=%lld", e.round,
-                         e.stage, (long long)e.detail, e.total_dL - dL_last, t - t_last, t - t_start,
-                         e.c1 ? -1LL : -2LL);
-                t_last = t;
-                dL_last = e.total_dL;
-            }
-            log(line);
+        std::ostringstream line;
+        if (e.kind == SearchEvent::Start) {
+            t_start = t_last = wall_sec();
+            dL_last = 0.0;
+            line << "[DIAG] N=" << e.n_leaves << " n_gpus=" << e.n_devices << " n_outer_rounds=" << e.rounds_planned
+                 << " max_prof_leaves=" << e.settings->profile_cap << " stop_zero=" << e.settings->stop_zero
+                 << " stop_tol=" << e.settings->stop_tol << " time_cap=" << e.settings->time_cap;
+        } else if (e.kind == SearchEvent::Stop) {
+            line << std::fixed << std::setprecision(6) << "[DIAG] stopping after round " << e.round << " (gain "
+                 << e.round_gain << ", round-0 gain " << e.round0_gain << "); running final cleanup";
+        } else if (e.kind == SearchEvent::StartTree) {
+            const SampleInitStats &st = *e.init_stats;
+            line << std::fixed << std::setprecision(2) << "[INIT] sample-and-place: n0=" << st.n0
+                 << " sub=" << st.dt_sub << "s (dL " << std::setprecision(4) << st.dL_sub << std::setprecision(2)
+                 << ") nn=" << st.dt_nn << "s build=" << st.dt_build << "s total=" << st.dt_total
+                 << "s max_bucket=" << st.max_bucket;
+        } else {
+            const double t = wall_sec();
+            line << std::fixed << "[DIAG] round=" << e.round << " stage=" << std::left << std::setw(10) << e.stage
+                 << " sc=" << std::setw(9) << e.detail << std::right << " dL=" << std::showpos << std::setprecision(6)
+                 << std::setw(14) << e.total_dL - dL_last << std::noshowpos << std::setprecision(2)
+                 << " dt=" << std::setw(8) << t - t_last << "s t=" << std::setw(9) << t - t_start
+                 << "s rf=" << (e.c1 ? -1 : -2);
+            t_last = t;
+            dL_last = e.total_dL;
         }
+        log(line.str());
     };
 
     const double t0 = wall_sec();
