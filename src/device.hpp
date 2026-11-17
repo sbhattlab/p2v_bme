@@ -33,8 +33,10 @@ class Device {
   public:
     virtual ~Device() = default;
 
-    // 1. Setup. Makes the alignment (n_taxa rows of 5 x n_words bitplanes, the Alignment layout) the device's,
-    // replacing the one held: the GPU copies it; the CPU device reads it in place, so the caller keeps it alive.
+    // 1. Setup: load the alignment, replacing any previous one.
+    // `packed` is laid out as in Alignment (n_taxa rows of 5 x n_words bitplanes).
+    // The GPU device copies it.
+    // The CPU device reads it in place, so `packed` must stay valid until the next load() or the device's destruction.
     virtual void load(const uint64_t *packed, int32_t n_taxa, int32_t n_words) = 0;
     // The distance model of the window solve and the edge-length pass (JC69 until set).
     virtual void set_distance(const SubstitutionModel &model, const EigenSettings &eigen) = 0;
@@ -50,26 +52,33 @@ class Device {
     // Memory in use on the device, MiB (for a GPU: GPU-wide, other processes included).
     virtual double memory_in_use_mb() const = 0;
 
-    // 2. Nearest sampled sequence (start tree): for each query row, the position in samples[] of its nearest
-    // sample in p-distance over shared valid sites (no shared site: p = NN_P_NO_OVERLAP); ties to the lower
-    // position.
+    // 2. Nearest sampled sequence (start tree).
+    // For each query row, the position in samples[] of its nearest sample in p-distance over shared valid sites
+    // (no shared site: p = NN_P_NO_OVERLAP).
+    // Ties to the lower position.
     virtual void nearest_sampled(const int32_t *queries, int32_t n_queries, const int32_t *samples, int32_t n_samples,
                                  int32_t *best_pos) = 0;
 
-    // 3. Window solve. The window is a skeleton tree on K components (Phylo2Vec vector v_cf over the leaf
-    // permutation perm), each component a weighted leaf profile (CSR: prof_offsets[K + 1], prof_leaves,
-    // prof_weights). Runs up to max_sweeps sweeps of batched moves (batch cap max_batch_cap); updates v_cf and
-    // perm and returns the BME change (0 and the input tree if nothing improved). With exact_builder, small
-    // gains (> -exact_check_eta) are re-checked on complete profiles.
+    // 3. Window solve.
+    // A window is part of the tree cut into K pieces.
+    // Each piece is summarised as a weighted leaf profile (CSR: prof_offsets[K + 1], prof_leaves, prof_weights).
+    // Its skeleton, the tree connecting the pieces, is the Phylo2Vec vector v_cf over the leaf permutation perm.
+    // Runs up to max_sweeps sweeps of batched moves on the skeleton (batch cap max_batch_cap) to shorten its BME
+    // length.
+    // Updates v_cf and perm and returns the BME change (0 and the input tree if nothing improved).
+    // The caller writes the new skeleton back into the full tree.
+    // With exact_builder, small gains (> -exact_check_eta) are re-checked on complete profiles.
     virtual double solve_window(int32_t K, int32_t max_sweeps, int32_t max_batch_cap, double exact_check_eta,
                                 const int32_t *prof_offsets, const int32_t *prof_leaves, const float *prof_weights,
                                 std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
                                 const ExactProfileBuilder *exact_builder = nullptr) = 0;
 
-    // 4. Edge-length pass (branch lengths). For `count` internal nodes with children c1[i], c2[i]: the
-    // profile-weighted distances between the two child subtrees (dAB) and between each child and the rest of the
-    // tree (dAO, dBO). Inside profiles of all n_int internal nodes (node n_leaves + j at j, cap entries each);
-    // outside profiles of the `count` nodes. The sums are in the device's precision (the GPU: float).
+    // 4. Edge-length pass (branch lengths).
+    // For each of `count` internal nodes with children c1[i] and c2[i], computes the profile-weighted distances
+    // between the two child subtrees (dAB[i]) and between each child and the rest of the tree (dAO[i], dBO[i]).
+    // The inside profiles cover all n_int internal nodes (node n_leaves + j at position j, cap entries each).
+    // The outside profiles cover the `count` nodes.
+    // The sums are in the device's precision (GPU: float).
     virtual void edge_lengths(int32_t n_leaves, int32_t cap, int32_t count, const int32_t *c1, const int32_t *c2,
                               int32_t n_int, const int32_t *in_len, const int32_t *in_leaves, const float *in_weights,
                               const int32_t *out_len, const int32_t *out_leaves, const float *out_weights, double *dAB,
@@ -78,9 +87,9 @@ class Device {
 
 using Devices = std::vector<std::unique_ptr<Device>>;
 
-// The first exception thrown by the device steps inside an OpenMP region (one host thread per device), kept
-// and rethrown after the region: an exception must not leave a parallel region. Once one is caught, the
-// remaining work items are skipped.
+// The first exception thrown by the device steps inside an OpenMP region (one host thread per device).
+// It is kept and rethrown after the region, because an exception must not leave a parallel region.
+// Once one is caught, the remaining work items are skipped.
 class ParallelErrors {
   public:
     bool failed() const { return failed_.load(std::memory_order_relaxed); }
