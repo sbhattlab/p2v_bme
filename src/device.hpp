@@ -113,8 +113,8 @@ class ParallelErrors {
 // Number of visible GPUs (0 without CUDA or without a GPU).
 int visible_gpus();
 
-// One device per GPU number in gpu_ids (empty: all visible GPUs, at most MAX_GPUS), each with a workspace for
-// windows of up to WORKSPACE_MAX_K components. Throws std::runtime_error if a GPU does not exist or there is none.
+// One device per GPU number in gpu_ids (empty: all visible GPUs), each with a workspace for windows of up to
+// WORKSPACE_MAX_K components. Throws std::runtime_error if a GPU does not exist or there is none.
 Devices make_devices(const std::vector<int> &gpu_ids);
 
 // The CUDA runtime and driver versions and the GPU architectures compiled for.
@@ -141,8 +141,8 @@ DeviceChoice choose_devices(Accelerator accelerator, Precision precision);
 // Throws std::runtime_error if the choice cannot run: the GPU in double precision, or no GPU visible.
 void check_devices(const DeviceChoice &choice, Precision precision);
 
-// The devices of the choice (after check_devices): one per GPU number in gpu_ids (empty: all visible, at most
-// MAX_GPUS), or `threads` CPU workers (0: all, omp_get_max_threads) in the precision.
+// The devices of the choice (after check_devices): one per GPU number in gpu_ids (empty: all visible), or `threads`
+// CPU workers (0: all, omp_get_max_threads) in the precision.
 Devices select_devices(const DeviceChoice &choice, Precision precision, const std::vector<int> &gpu_ids,
                        int32_t threads);
 

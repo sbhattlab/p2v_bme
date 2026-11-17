@@ -2315,14 +2315,12 @@ int visible_gpus() {
 Devices make_devices(const std::vector<int> &gpu_ids) {
     std::vector<int> ids = gpu_ids;
     if (ids.empty()) {
-        const int n = std::min(visible_gpus(), MAX_GPUS);
+        const int n = visible_gpus();
         if (n < 1)
             throw std::runtime_error("no CUDA device found");
         for (int g = 0; g < n; ++g)
             ids.push_back(g);
     }
-    if ((int)ids.size() > MAX_GPUS)
-        throw std::runtime_error("at most " + std::to_string(MAX_GPUS) + " GPUs");
     Devices devices;
     for (int g : ids)
         devices.push_back(make_gpu_device(g, WORKSPACE_MAX_K));

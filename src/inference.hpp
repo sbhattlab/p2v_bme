@@ -42,7 +42,7 @@ struct Settings {
                                                       // GTR+GC with given parameters (the fit comes later)
     EigenSettings eigen;                              // how GTR+GC distances are estimated (not on the command line)
     Accelerator accelerator = Accelerator::Auto;      // auto: the GPU if one is visible, else the CPU
-    std::vector<int> devices;                         // GPU numbers; empty = all visible (at most MAX_GPUS)
+    std::vector<int> devices;                         // GPU numbers; empty = all visible
     int32_t threads = 0;                              // CPU: workers (threads); 0 = all (omp_get_max_threads)
     Precision precision = Precision::Single;          // CPU only: single (the GPU's) or double;
                                                       // double with accelerator auto selects the CPU

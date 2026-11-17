@@ -28,7 +28,6 @@ constexpr int32_t DEFAULT_GTR_REWEIGHT = 2;     /* GTR+GC SymWLS: weight updates
 
 /* ---- Limits ------------------------------------------------------------------------------------------ */
 
-constexpr int32_t MAX_GPUS = 8;           /* one host thread per GPU */
 constexpr int32_t PROFILE_CAP_MAX = 256;  /* the GPU profile buffer holds PROFILE_CAP_MAX x WORKSPACE_MAX_K entries */
 constexpr int32_t WORKSPACE_MAX_K = 2048; /* components a GPU workspace can hold (windows use K <= 1,500) */
 

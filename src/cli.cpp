@@ -91,7 +91,7 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value<std::string>(), "STR")
         ("a,accelerator", "cpu, gpu or auto (auto: the GPU if one is found, else the CPU)",
          cxxopts::value<std::string>()->default_value("auto"))
-        ("d,devices", "GPU: auto (the first GPU), N (the first N, at most 8) or a list such as 0,2; CPU: auto (all "
+        ("d,devices", "GPU: auto (the first GPU), N (the first N) or a list such as 0,2; CPU: auto (all "
          "cores but one, or OMP_NUM_THREADS if set) or N threads", cxxopts::value<std::string>()->default_value("auto"))
         ("seed", "seed of the start tree", cxxopts::value(opt.seed), "N")
         ("q,quiet", "print no progress (warnings and errors still go to stderr)")
