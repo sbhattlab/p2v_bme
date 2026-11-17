@@ -57,7 +57,9 @@ void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &
     for (int32_t i = 0; i < N; ++i)
         order[i] = i;
     p2vbme::partial_shuffle(order.begin(), order.end(), n0, st);
+    // the sampled sequences, in random order: samp[j] is leaf j of t0
     std::vector<int32_t> samp(order.begin(), order.begin() + n0);
+    // the other sequences (the queries of step 4), sorted
     std::vector<int32_t> qry(order.begin() + n0, order.end());
     std::sort(qry.begin(), qry.end());
     const int32_t n_q = (int32_t)qry.size();
