@@ -31,6 +31,15 @@ constexpr int32_t DEFAULT_GTR_REWEIGHT = 2;     /* GTR+GC SymWLS: weight updates
 constexpr int32_t PROFILE_CAP_MAX = 256;  /* the GPU profile buffer holds PROFILE_CAP_MAX x WORKSPACE_MAX_K entries */
 constexpr int32_t WORKSPACE_MAX_K = 2048; /* components a GPU workspace can hold (windows use K <= 1,500) */
 
+// GTR+GC: the range where single-precision distances (the GPU's) were checked against double precision.
+// Inside it, 99% of simulated pairs of 1,500 sites were within 0.3% of double precision.
+// Outside it, the error grows: about 1% at alpha = 0.001, and several-fold on rare pairs when one exchangeability is
+// 1,000 times the others.
+// infer() warns outside it in single precision; it requires only alpha > 0 and exchangeabilities > 0.
+constexpr double GTR_FLOAT_ALPHA_MIN = 0.05;
+constexpr double GTR_FLOAT_ALPHA_MAX = 1e3;
+constexpr double GTR_FLOAT_RATE_RATIO_MAX = 100.0; // largest / smallest exchangeability
+
 /* ---- Search: windows ---------------------------------------------------------------------------------- */
 
 /* Sweeps of the core step per window, at most (each sweep applies a batch of moves); windows usually stop

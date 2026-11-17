@@ -136,6 +136,56 @@ TEST(Errors, SampleStartFallsBackToRandom) {
     EXPECT_NE(res.warnings[0].find("using the random start"), std::string::npos);
 }
 
+// GTR+GC needs alpha > 0 (a normal float), exchangeabilities > 0 with a finite sum, and reweighting passes >= 0.
+// Values outside the range checked in single precision run, with a warning (none in double precision).
+TEST(Errors, GtrGcParameters) {
+    const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
+    Devices devices = failing_devices(1, "none");
+    Settings opt;
+    opt.tree_init = TreeInit::Random;
+    opt.substitution.model = Model::GTR_GC;
+    auto refused = [&](const char *what) {
+        return thrown_message([&] { infer(aln, opt, devices); }).find(what) != std::string::npos;
+    };
+    auto warnings = [&] { return infer(aln, opt, devices).warnings; };
+    const double inf = std::numeric_limits<double>::infinity(), nan = std::numeric_limits<double>::quiet_NaN();
+
+    for (double a : {0.0, -1.0, 1e-40, 1e39, inf, nan}) {
+        opt.substitution.gtr_alpha = a;
+        EXPECT_TRUE(refused("alpha must be > 0")) << a;
+    }
+    opt.substitution.gtr_alpha = 1.0;
+    double *s = opt.substitution.gtr_rates;
+    for (double r : {0.0, -1.0, inf, nan}) {
+        s[4] = r;
+        EXPECT_TRUE(refused("exchangeabilities must be finite and > 0")) << r;
+    }
+    std::fill(s, s + 6, 1e308);
+    EXPECT_TRUE(refused("sum of the exchangeabilities"));
+    std::fill(s, s + 6, 1.0);
+    opt.eigen.reweight = -1;
+    EXPECT_TRUE(refused("reweighting passes must be >= 0"));
+    opt.eigen.reweight = 1000;
+    EXPECT_TRUE(warnings().empty());
+
+    // outside the checked range: a warning per parameter in single precision, none in double
+    opt.substitution.gtr_alpha = 2.0 * GTR_FLOAT_ALPHA_MAX;
+    s[1] = 2.0 * GTR_FLOAT_RATE_RATIO_MAX;
+    const std::vector<std::string> w = warnings();
+    ASSERT_EQ(w.size(), 2u);
+    EXPECT_NE(w[0].find("alpha = 2000 is outside [0.05, 1000]"), std::string::npos) << w[0];
+    EXPECT_NE(w[1].find("200 times the smallest, above 100"), std::string::npos) << w[1];
+    opt.precision = Precision::Double;
+    EXPECT_TRUE(warnings().empty());
+    // only the ratios matter: tiny or large exchangeabilities of ratio 1 are fine
+    opt.precision = Precision::Single;
+    opt.substitution.gtr_alpha = 1.0;
+    for (double scale : {1e-30, 1e30}) {
+        std::fill(s, s + 6, scale);
+        EXPECT_TRUE(warnings().empty()) << scale;
+    }
+}
+
 // Base frequencies must be finite and >= 0: NaN, inf and negative values are refused.
 TEST(Errors, BaseFrequenciesMustBeFinite) {
     const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);

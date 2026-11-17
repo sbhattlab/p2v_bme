@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <stdlib.h>
@@ -47,15 +48,44 @@ void check_settings(const Settings &opt) {
         (int32_t)opt.substitution.model > (int32_t)Model::GTR_GC)
         throw std::runtime_error("unknown distance model");
     if (opt.substitution.model == Model::GTR_GC) {
-        // ranges the single-precision GPU evaluates accurately (the fit's own range is [0.05, 148])
+        // What the distance needs.
+        // Single precision divides by alpha, so alpha must be a normal float.
+        // The exchangeabilities are scaled to mean 1 (distance_params), so their sum must be finite.
         const SubstitutionModel &m = opt.substitution;
-        if (!(m.gtr_alpha >= 1e-3 && m.gtr_alpha <= 1e4))
-            throw std::runtime_error("GTR+GC: alpha must be in [0.001, 10000]");
-        for (double r : m.gtr_rates)
-            if (!(r > 0.0 && r <= 1e6))
-                throw std::runtime_error("GTR+GC: exchangeabilities must be in (0, 1e6]");
-        if (opt.eigen.reweight < 0 || opt.eigen.reweight > 100)
-            throw std::runtime_error("GTR+GC: reweighting passes must be in 0..100");
+        if (!(m.gtr_alpha >= std::numeric_limits<float>::min() && m.gtr_alpha <= std::numeric_limits<float>::max()))
+            throw std::runtime_error("GTR+GC: alpha must be > 0 and finite in single precision");
+        double rate_sum = 0.0;
+        for (double r : m.gtr_rates) {
+            if (!(std::isfinite(r) && r > 0.0))
+                throw std::runtime_error("GTR+GC: exchangeabilities must be finite and > 0");
+            rate_sum += r;
+        }
+        if (!std::isfinite(rate_sum))
+            throw std::runtime_error("GTR+GC: the sum of the exchangeabilities must be finite");
+        if (opt.eigen.reweight < 0)
+            throw std::runtime_error("GTR+GC: reweighting passes must be >= 0");
+    }
+}
+
+// Warnings for GTR+GC parameters outside the range where single precision was checked against double (config.hpp).
+void warn_gtr_precision(const Settings &opt, std::vector<std::string> &warnings) {
+    const SubstitutionModel &m = opt.substitution;
+    if (m.model != Model::GTR_GC || opt.precision != Precision::Single)
+        return;
+    const char *consequence = "; single-precision distances may be less accurate (--precision double avoids this)";
+    if (m.gtr_alpha < GTR_FLOAT_ALPHA_MIN || m.gtr_alpha > GTR_FLOAT_ALPHA_MAX) {
+        std::ostringstream w;
+        w << "GTR+GC: alpha = " << m.gtr_alpha << " is outside [" << GTR_FLOAT_ALPHA_MIN << ", " << GTR_FLOAT_ALPHA_MAX
+          << "]" << consequence;
+        warnings.push_back(w.str());
+    }
+    const auto lo_hi = std::minmax_element(m.gtr_rates, m.gtr_rates + 6);
+    const double ratio = *lo_hi.second / *lo_hi.first;
+    if (ratio > GTR_FLOAT_RATE_RATIO_MAX) {
+        std::ostringstream w;
+        w << "GTR+GC: the largest exchangeability is " << ratio << " times the smallest, above "
+          << GTR_FLOAT_RATE_RATIO_MAX << consequence;
+        warnings.push_back(w.str());
     }
 }
 
@@ -104,6 +134,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
 
     Result res;
     res.substitution = substitution;
+    warn_gtr_precision(opt, res.warnings);
     res.tree_init = opt.tree_init;
     if (res.tree_init == TreeInit::Sample && N < START_SAMPLE_MIN_N) {
         res.tree_init = TreeInit::Random;
