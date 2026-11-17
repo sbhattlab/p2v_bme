@@ -184,6 +184,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     const double t0 = wall_sec();
     if (settings.time_cap > 0.0)
         settings.deadline = t0 + settings.time_cap; // covers start tree + search
+    // Set up the start tree (sample-and-place, random, or given) in c1/c2, and time it.
     std::vector<int32_t> c1(n_nodes), c2(n_nodes);
     if (res.tree_init == TreeInit::Sample) {
         const int32_t n0 =
@@ -210,6 +211,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     res.time_start = t1 - t0;
 
     SearchStats search_stats;
+    // Core of the method: the minibatch BME search, which edits c1/c2 in place.
     res.delta_bme = run_minibatch_bme(N, devices, c1, c2, settings, 0, &search_stats);
     for (auto &dev : devices)
         dev->synchronize();
@@ -218,6 +220,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     res.rounds_run = search_stats.rounds_run;
     res.stop_reason = search_stats.stop_reason;
 
+    // Compute the BME branch lengths of the final tree
     if (opt.branch_lengths) {
         double prof_s = 0.0, kern_s = 0.0;
         res.bme_length = compute_bme_branch_lengths(N, c1.data(), c2.data(), devices, res.tree.branch_lengths,
