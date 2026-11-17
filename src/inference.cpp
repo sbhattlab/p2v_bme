@@ -4,8 +4,6 @@
  * p2vbme::infer: one run of the method on an in-memory alignment, on the given devices: start tree, search,
  * branch lengths, with the settings taken from Settings.
  */
-#include <omp.h>
-
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
@@ -38,15 +36,9 @@ void check_settings(const Settings &opt) {
         throw std::runtime_error("time limit must be >= 0 (0 = none)");
     if (!(opt.exact_check_eta >= 0.0))
         throw std::runtime_error("exact-check eta must be >= 0");
-    for (size_t i = 0; i < opt.devices.size(); ++i)
-        for (size_t j = 0; j < i; ++j)
-            if (opt.devices[i] == opt.devices[j])
-                throw std::runtime_error("GPU " + std::to_string(opt.devices[i]) + " is listed twice");
     for (double f : opt.substitution.base_freqs)
         if (!(std::isfinite(f) && f >= 0.0))
             throw std::runtime_error("base frequencies must be finite and >= 0");
-    if (opt.threads < 0)
-        throw std::runtime_error("CPU threads must be >= 0 (0 = all)");
     if ((int32_t)opt.substitution.model < (int32_t)Model::JC69 ||
         (int32_t)opt.substitution.model > (int32_t)Model::GTR_GC)
         throw std::runtime_error("unknown distance model");
@@ -61,10 +53,6 @@ void check_settings(const Settings &opt) {
         if (opt.eigen.reweight < 0 || opt.eigen.reweight > 100)
             throw std::runtime_error("GTR+GC: reweighting passes must be in 0..100");
     }
-    // last, so that the other errors come first in a build without a GPU
-    if (opt.threads > omp_get_num_procs())
-        throw std::runtime_error("CPU threads must be at most the " + std::to_string(omp_get_num_procs()) +
-                                 " processors available");
 }
 
 Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const Tree *start_tree,

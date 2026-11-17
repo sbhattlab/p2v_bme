@@ -26,6 +26,9 @@ DeviceChoice choose_devices(Accelerator accelerator, Precision precision) {
     return choice;
 }
 
+namespace {
+
+// Throws std::runtime_error if the choice cannot run: the GPU in double precision, or no GPU visible.
 void check_devices(const DeviceChoice &choice, Precision precision) {
     if (choice.on_gpu && precision == Precision::Double)
         throw std::runtime_error("the GPU computes in single precision; double precision runs on the CPU "
@@ -34,8 +37,19 @@ void check_devices(const DeviceChoice &choice, Precision precision) {
         throw std::runtime_error("no GPU found (" + gpu_build_info() + "); run on the CPU (--accelerator cpu)");
 }
 
+} // namespace
+
 Devices select_devices(const DeviceChoice &choice, Precision precision, const std::vector<int> &gpu_ids,
                        int32_t threads) {
+    for (size_t i = 0; i < gpu_ids.size(); ++i)
+        for (size_t j = 0; j < i; ++j)
+            if (gpu_ids[i] == gpu_ids[j])
+                throw std::runtime_error("GPU " + std::to_string(gpu_ids[i]) + " is listed twice");
+    if (threads < 0)
+        throw std::runtime_error("CPU threads must be >= 0 (0 = all)");
+    if (threads > omp_get_num_procs())
+        throw std::runtime_error("CPU threads must be at most the " + std::to_string(omp_get_num_procs()) +
+                                 " processors available");
     check_devices(choice, precision);
     if (choice.on_gpu)
         return make_devices(gpu_ids);

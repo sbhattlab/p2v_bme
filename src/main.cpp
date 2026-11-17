@@ -51,7 +51,6 @@ int main(int argc, char **argv) {
         }
         parse_devices_option(args.devices, choice.on_gpu, opt);
         p2vbme::check_settings(opt);
-        p2vbme::check_devices(choice, opt.precision);
 
         // Output: fail now if the outputs cannot be written
         for (const char *ext : {".nwk", ".json"}) {
@@ -59,6 +58,14 @@ int main(int argc, char **argv) {
             if (!f)
                 throw std::runtime_error("cannot write " + run.prefix + ext);
         }
+
+        // Device: select the devices (this checks the device settings), before the read so that errors come early
+        p2vbme::Devices devices = p2vbme::select_devices(choice, opt.precision, opt.devices, opt.threads);
+        run.on_gpu = choice.on_gpu;
+        for (const auto &dev : devices)
+            run.devices.push_back(dev->name());
+        if (run.on_gpu)
+            run.gpu_build_info = p2vbme::gpu_build_info();
 
         // Time: start of reading the alignment
         const double t_read = omp_get_wtime();
@@ -118,13 +125,6 @@ int main(int argc, char **argv) {
         p2vbme::LogCallback log;
         if (progress)
             log = [](const std::string &line) { std::cout << line << std::endl; };
-        // Device: select the devices
-        p2vbme::Devices devices = p2vbme::select_devices(choice, opt.precision, opt.devices, opt.threads);
-        run.on_gpu = choice.on_gpu;
-        for (const auto &dev : devices)
-            run.devices.push_back(dev->name());
-        if (run.on_gpu)
-            run.gpu_build_info = p2vbme::gpu_build_info();
         // Main: inference search on the devices (the alignment is loaded onto them)
         p2vbme::Result res = p2vbme::infer(aln, opt, devices, &start_tree, log);
         // Device: record the largest memory in use on the devices (GPU-wide, other processes included)

@@ -138,11 +138,11 @@ struct DeviceChoice {
 };
 DeviceChoice choose_devices(Accelerator accelerator, Precision precision);
 
-// Throws std::runtime_error if the choice cannot run: the GPU in double precision, or no GPU visible.
-void check_devices(const DeviceChoice &choice, Precision precision);
-
-// The devices of the choice (after check_devices): one per GPU number in gpu_ids (empty: all visible), or `threads`
-// CPU workers (0: all, omp_get_max_threads) in the precision.
+// The devices of the choice: one per GPU number in gpu_ids (empty: all visible), or `threads` CPU workers (0: all,
+// omp_get_max_threads) in the precision.
+// First checks the device settings, the only place they are checked.
+// Throws std::runtime_error if a GPU is listed twice, the number of threads is out of range, or the choice cannot run
+// (the GPU in double precision, or no GPU visible).
 Devices select_devices(const DeviceChoice &choice, Precision precision, const std::vector<int> &gpu_ids,
                        int32_t threads);
 
