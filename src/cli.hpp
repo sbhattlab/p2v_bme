@@ -26,9 +26,9 @@ struct CommandLine {
 CommandLine parse_command_line(int argc, char **argv);
 
 // Parse device options via `--devices`
-// --devices once the devices are chosen (choose_devices): on the GPU, GPU numbers into settings.devices ("auto", N:
-// the first N, or a list such as 0,2); on the CPU, a number of threads into settings.threads ("auto" or N). Throws
-// std::runtime_error.
+// --devices once the devices are chosen (choose_devices): on the GPU, GPU numbers into settings.devices ("auto": the
+// first GPU, N: the first N, or a list such as 0,2); on the CPU, a number of threads into settings.threads ("auto": 0,
+// the OpenMP default, which main sets to all cores but one, or N). Throws std::runtime_error.
 void parse_devices_option(const std::string &devices, bool on_gpu, p2vbme::Settings &settings);
 
 #endif // P2VBME_CLI_HPP

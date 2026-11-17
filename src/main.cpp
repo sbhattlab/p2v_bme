@@ -10,6 +10,7 @@
 #include <omp.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <exception>
 #include <fstream>
 #include <iomanip>
@@ -37,6 +38,10 @@ int main(int argc, char **argv) {
         p2vbme::Settings &opt = args.settings;
         p2vbme::Report &run = args.report;
         const bool verbose = args.verbose;
+        // Device: leave one core free (the CPU workers with --devices auto, the host threads of GPU runs), unless
+        // OMP_NUM_THREADS sets the number of threads
+        if (!std::getenv("OMP_NUM_THREADS"))
+            omp_set_num_threads(std::max(1, omp_get_num_procs() - 1));
 
         const p2vbme::DeviceChoice choice = p2vbme::choose_devices(opt.accelerator, opt.precision);
         // Device: if auto and no GPU found, indicate what precision is used for CPU.

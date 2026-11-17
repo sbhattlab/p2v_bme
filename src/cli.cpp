@@ -37,11 +37,11 @@ p2vbme::Accelerator parse_accelerator(const std::string &a) {
     throw std::runtime_error("--accelerator must be cpu, gpu or auto, not '" + a + "'");
 }
 
-// --devices: "auto" (all), N (the first N), or a comma list of GPU numbers ("0,2"; "1," for GPU 1 alone).
+// --devices: "auto" (the first GPU), N (the first N), or a comma list of GPU numbers ("0,2"; "1," for GPU 1 alone).
 std::vector<int> parse_devices(const std::string &d) {
     std::vector<int> ids;
     if (d == "auto")
-        return ids;
+        return {0};
     const bool list = d.find(',') != std::string::npos;
     size_t pos = 0;
     while (pos < d.size()) {
@@ -77,7 +77,7 @@ std::vector<int> parse_devices(const std::string &d) {
     return ids;
 }
 
-// --devices on the CPU: auto (0: all cores) or a number of threads.
+// --devices on the CPU: auto (0: the OpenMP default, all cores but one; see main) or a number of threads.
 int32_t parse_threads(const std::string &d) {
     if (d == "auto")
         return 0;
@@ -117,8 +117,8 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value<std::string>(), "STR")
         ("accelerator", "cpu, gpu or auto (auto: the GPU if one is found, else the CPU)",
          cxxopts::value<std::string>()->default_value("auto"))
-        ("devices", "GPU: auto (all visible, at most 8), N (the first N) or a list such as 0,2; CPU: auto (all "
-         "cores) or N threads", cxxopts::value<std::string>()->default_value("auto"))
+        ("devices", "GPU: auto (the first GPU), N (the first N, at most 8) or a list such as 0,2; CPU: auto (all "
+         "cores but one, or OMP_NUM_THREADS if set) or N threads", cxxopts::value<std::string>()->default_value("auto"))
         ("seed", "seed of the start tree", cxxopts::value(opt.seed), "N")
         ("v,verbose", "print progress on stderr")
         ("version", "print the version")
