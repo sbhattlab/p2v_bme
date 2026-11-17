@@ -27,7 +27,7 @@ inline double wall_sec() {
     return (double)ts.tv_sec + 1e-9 * (double)ts.tv_nsec;
 }
 
-struct SampleInitStats;
+struct SampleAndPlaceStats;
 struct SearchSettings;
 
 /* Progress of a search, reported through SearchSettings::on_event (the core keeps no diagnostic state and
@@ -45,7 +45,7 @@ struct SearchEvent {
     const SearchSettings *settings = NULL;             /* Start: the settings of this search */
     int32_t rounds_planned = 0;                        /* Start */
     double round_gain = 0.0, round0_gain = 0.0;        /* Stop: the round's gain and round 0's; `round` stopped */
-    const SampleInitStats *init_stats = NULL;          /* StartTree: the sample-and-place start of this level */
+    const SampleAndPlaceStats *init_stats = NULL;      /* StartTree: the sample-and-place start of this level */
 };
 
 /* ============================================================================

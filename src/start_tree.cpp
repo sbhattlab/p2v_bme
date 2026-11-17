@@ -14,7 +14,7 @@
 
 namespace p2vbme {
 
-void make_uniform_random_tree_host(int32_t n, uint64_t seed, std::vector<int32_t> &c1, std::vector<int32_t> &c2) {
+void build_random_tree(int32_t n, uint64_t seed, std::vector<int32_t> &c1, std::vector<int32_t> &c2) {
     uint64_t st = seed;
     std::vector<int32_t> perm(n), uf(n);
     for (int32_t i = 0; i < n; ++i) {
@@ -40,9 +40,9 @@ void make_uniform_random_tree_host(int32_t n, uint64_t seed, std::vector<int32_t
     }
 }
 
-void build_sample_init_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devices, std::vector<int32_t> &out_c1,
-                            std::vector<int32_t> &out_c2, SampleInitStats &stats, const SearchSettings &settings,
-                            int32_t level) {
+void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devices, std::vector<int32_t> &out_c1,
+                                 std::vector<int32_t> &out_c2, SampleAndPlaceStats &stats,
+                                 const SearchSettings &settings, int32_t level) {
     const int n_gpus = (int)devices.size();
     const double t_begin = wall_sec();
     if (n0 > N / 2)
@@ -70,15 +70,16 @@ void build_sample_init_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devic
     double dL_inner = 0.0;
     if (n0 > p2vbme::START_RANDOM_TREE_MAX) {
         int32_t n0_inner = std::max(p2vbme::START_RANDOM_TREE_MAX, n0 / p2vbme::START_SAMPLE_DIVISOR);
-        SampleInitStats inner_stats;
+        SampleAndPlaceStats inner_stats;
         // an independent seed per level (an XOR alone would return to the top-level seed two levels down)
         const uint64_t inner_seed = p2vbme::derive_seed(seed, p2vbme::SALT_START_TREE_LEVEL);
-        build_sample_init_tree(n0, n0_inner, inner_seed, devices, sub_c1, sub_c2, inner_stats, settings, level + 1);
+        build_sample_and_place_tree(n0, n0_inner, inner_seed, devices, sub_c1, sub_c2, inner_stats, settings,
+                                    level + 1);
         dL_inner = inner_stats.dL_sub;
     } else {
         // independent stream: seed the random subsample tree with a splitmix64 output, not with a value that
         // splitmix64's own state sequence (step 0x9E3779B97F4A7C15) can reach
-        make_uniform_random_tree_host(n0, p2vbme::derive_seed(seed, p2vbme::SALT_START_TREE_RANDOM), sub_c1, sub_c2);
+        build_random_tree(n0, p2vbme::derive_seed(seed, p2vbme::SALT_START_TREE_RANDOM), sub_c1, sub_c2);
     }
     // 3. optimise t0 with the same solver and settings (rounds, stop rule) as the main run
     stats.dL_sub = dL_inner + run_multi_gpu_minibatch_bme(n0, devices, sub_c1, sub_c2, settings, level + 1);

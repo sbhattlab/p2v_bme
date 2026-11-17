@@ -38,10 +38,10 @@ RunResult run(const Alignment &aln, int n_devices, bool sample_start) {
     SearchSettings settings; // the defaults
     RunResult r;
     if (sample_start) {
-        SampleInitStats stats;
-        build_sample_init_tree(N, N / START_SAMPLE_DIVISOR, 1, devices, r.c1, r.c2, stats, settings);
+        SampleAndPlaceStats stats;
+        build_sample_and_place_tree(N, N / START_SAMPLE_DIVISOR, 1, devices, r.c1, r.c2, stats, settings);
     } else {
-        make_uniform_random_tree_host(N, 1, r.c1, r.c2);
+        build_random_tree(N, 1, r.c1, r.c2);
     }
     r.delta = run_multi_gpu_minibatch_bme(N, devices, r.c1, r.c2, settings, 0, &r.stats);
     r.bme_length =
@@ -105,7 +105,7 @@ TEST(SearchDevices, BranchLengthsInsideAParallelRegion) {
     for (auto &dev : devices)
         dev->load(aln.packed.data(), aln.n_taxa, aln.n_words);
     std::vector<int32_t> c1, c2;
-    make_uniform_random_tree_host(aln.n_taxa, 5, c1, c2);
+    build_random_tree(aln.n_taxa, 5, c1, c2);
     std::vector<double> outside, inside;
     const double total = compute_bme_branch_lengths(aln.n_taxa, c1.data(), c2.data(), devices, outside, 32);
     double total_nested = 0.0;

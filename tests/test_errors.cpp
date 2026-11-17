@@ -85,7 +85,7 @@ TEST(Errors, WindowSolveFailureLeavesTheSearch) {
     for (int n_devices : {1, 3}) {
         Devices devices = failing_devices(n_devices, "solve_window");
         std::vector<int32_t> c1, c2;
-        make_uniform_random_tree_host(3000, 1, c1, c2);
+        build_random_tree(3000, 1, c1, c2);
         const std::string msg =
             thrown_message([&] { run_multi_gpu_minibatch_bme(3000, devices, c1, c2, SearchSettings()); });
         EXPECT_EQ(msg, "injected failure in solve_window") << n_devices;
@@ -95,16 +95,16 @@ TEST(Errors, WindowSolveFailureLeavesTheSearch) {
 TEST(Errors, NearestSampleFailureLeavesTheStartTree) {
     Devices devices = failing_devices(2, "nearest_sampled");
     std::vector<int32_t> c1, c2;
-    SampleInitStats stats;
+    SampleAndPlaceStats stats;
     const std::string msg =
-        thrown_message([&] { build_sample_init_tree(200, 20, 1, devices, c1, c2, stats, SearchSettings()); });
+        thrown_message([&] { build_sample_and_place_tree(200, 20, 1, devices, c1, c2, stats, SearchSettings()); });
     EXPECT_EQ(msg, "injected failure in nearest_sampled");
 }
 
 TEST(Errors, EdgeLengthFailureLeavesTheBranchLengths) {
     Devices devices = failing_devices(3, "edge_lengths");
     std::vector<int32_t> c1, c2;
-    make_uniform_random_tree_host(500, 1, c1, c2);
+    build_random_tree(500, 1, c1, c2);
     std::vector<double> bl;
     const std::string msg = thrown_message(
         [&] { compute_bme_branch_lengths(500, c1.data(), c2.data(), devices, bl, DEFAULT_BL_PROFILE_CAP); });

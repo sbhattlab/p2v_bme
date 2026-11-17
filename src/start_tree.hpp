@@ -19,7 +19,7 @@
 
 namespace p2vbme {
 
-struct SampleInitStats {
+struct SampleAndPlaceStats {
     // Sample size, after clamping to [START_SAMPLE_MIN, N/2]
     int32_t n0 = 0;
     // Time for the subsample's own search (subsample + its search)
@@ -40,7 +40,7 @@ struct SampleInitStats {
 // permutation.
 // This is the Yule-Harding (ranked-uniform) distribution, NOT uniform over topologies.
 // Same construction as hx2_parallel_suite.make_uniform_random_tree (different RNG).
-void make_uniform_random_tree_host(int32_t n, uint64_t seed, std::vector<int32_t> &c1, std::vector<int32_t> &c2);
+void build_random_tree(int32_t n, uint64_t seed, std::vector<int32_t> &c1, std::vector<int32_t> &c2);
 
 // Sample-and-place start tree (branch diag-scaling)
 //   1. pick n0 sequences at random (n0 clamped to [START_SAMPLE_MIN, N / 2])
@@ -52,9 +52,9 @@ void make_uniform_random_tree_host(int32_t n, uint64_t seed, std::vector<int32_t
 //   5. replace each sampled leaf by a balanced tree of itself + its assigned sequences (random order)
 // Uses only the sequences: no information from the true tree.
 // Needs N >= START_SAMPLE_MIN_N (below it, infer() uses the random start instead).
-void build_sample_init_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devices, std::vector<int32_t> &out_c1,
-                            std::vector<int32_t> &out_c2, SampleInitStats &stats, const SearchSettings &settings,
-                            int32_t level = 0);
+void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devices, std::vector<int32_t> &out_c1,
+                                 std::vector<int32_t> &out_c2, SampleAndPlaceStats &stats,
+                                 const SearchSettings &settings, int32_t level = 0);
 
 } // namespace p2vbme
 

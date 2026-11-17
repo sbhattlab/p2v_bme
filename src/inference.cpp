@@ -162,7 +162,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
             line << std::fixed << std::setprecision(6) << "[DIAG] stopping after round " << e.round << " (gain "
                  << e.round_gain << ", round-0 gain " << e.round0_gain << "); running final cleanup";
         } else if (e.kind == SearchEvent::StartTree) {
-            const SampleInitStats &st = *e.init_stats;
+            const SampleAndPlaceStats &st = *e.init_stats;
             line << std::fixed << std::setprecision(2) << "[INIT] sample-and-place: n0=" << st.n0
                  << " sub=" << st.dt_sub << "s (dL " << std::setprecision(4) << st.dL_sub << std::setprecision(2)
                  << ") nn=" << st.dt_nn << "s build=" << st.dt_build << "s total=" << st.dt_total
@@ -187,20 +187,20 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     if (res.tree_init == TreeInit::Sample) {
         const int32_t n0 =
             opt.sample_size > 0 ? opt.sample_size : std::min<int32_t>(START_SAMPLE_MAX, N / START_SAMPLE_DIVISOR);
-        SampleInitStats stats;
+        SampleAndPlaceStats stats;
         // the start tree's own searches use the run's settings;
         // with max_rounds = 0 (score the start tree) they keep the default rounds,
         // so the start tree is the one a normal run starts from
         SearchSettings start_settings = settings;
         if (start_settings.rounds == 0)
             start_settings.rounds = DEFAULT_MAX_ROUNDS;
-        build_sample_init_tree(N, n0, opt.seed, devices, c1, c2, stats, start_settings);
+        build_sample_and_place_tree(N, n0, opt.seed, devices, c1, c2, stats, start_settings);
         res.sample_size_used = stats.n0;
         res.time_start_sample = stats.dt_sub;
         res.time_start_nearest = stats.dt_nn;
         res.time_start_assembly = stats.dt_build;
     } else if (res.tree_init == TreeInit::Random) {
-        make_uniform_random_tree_host(N, opt.seed, c1, c2);
+        build_random_tree(N, opt.seed, c1, c2);
     } else {
         c1 = start_tree->c1;
         c2 = start_tree->c2;
