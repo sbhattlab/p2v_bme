@@ -1,8 +1,8 @@
 /*
  * cli.cpp
  *
- * The command line of p2v-bme (cxxopts): the options and their help,
- * and the arguments as Settings and the Report's command-line part.
+ * The command line of p2v-bme, via cxxopts.
+ *
  * Note: most options follow IQ-TREE names where the tools overlap
  *       Device and precision options follow lightning names.
  */
@@ -18,7 +18,7 @@
 #include "version.hpp"
 
 namespace {
-// -m (IQ-TREE style names, case-insensitive). GTR+GC needs the parameter fit, which comes later.
+// -m. GTR+GC needs the parameter fit, which comes later.
 p2vbme::Model parse_model(const std::string &name) {
     const p2vbme::Model m = p2vbme::parse_model(name);
     if (m == p2vbme::Model::GTR_GC)
@@ -113,11 +113,11 @@ CommandLine parse_command_line(int argc, char **argv) {
          "FILE")
         ("m,model", "substitution model of the distances: JC69, K80, F81, F84, TN93 or LogDet",
          cxxopts::value<std::string>(), "MODEL")
-        ("prefix", "output prefix: <prefix>.nwk, <prefix>.json (default: the alignment's file name)",
+        ("p,prefix", "output prefix: <prefix>.nwk, <prefix>.json (default: the alignment's file name)",
          cxxopts::value<std::string>(), "STR")
-        ("accelerator", "cpu, gpu or auto (auto: the GPU if one is found, else the CPU)",
+        ("a,accelerator", "cpu, gpu or auto (auto: the GPU if one is found, else the CPU)",
          cxxopts::value<std::string>()->default_value("auto"))
-        ("devices", "GPU: auto (the first GPU), N (the first N, at most 8) or a list such as 0,2; CPU: auto (all "
+        ("d,devices", "GPU: auto (the first GPU), N (the first N, at most 8) or a list such as 0,2; CPU: auto (all "
          "cores but one, or OMP_NUM_THREADS if set) or N threads", cxxopts::value<std::string>()->default_value("auto"))
         ("seed", "seed of the start tree", cxxopts::value(opt.seed), "N")
         ("q,quiet", "print no progress (warnings and errors still go to stderr)")
