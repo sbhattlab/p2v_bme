@@ -6,6 +6,8 @@
 
 #include <string.h>
 
+#include <algorithm>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -131,6 +133,19 @@ TEST(Errors, InferRejectsBadInput) {
     const Alignment three = simulate_alignment(random_tree(3, 0.1, 0.1, 1), 50, SimulationModel(), 2);
     EXPECT_NE(thrown_message([&] { infer(three, Settings(), devices); }).find("at least 4 sequences"),
               std::string::npos);
+}
+
+// Base frequencies must be finite and >= 0: NaN, inf and negative values are refused.
+TEST(Errors, BaseFrequenciesMustBeFinite) {
+    Settings opt;
+    opt.substitution.model = Model::F81;
+    const double freqs[4] = {0.1, 0.2, 0.3, 0.4};
+    std::copy(freqs, freqs + 4, opt.substitution.base_freqs);
+    EXPECT_NO_THROW(check_settings(opt));
+    for (double bad : {-0.1, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
+        opt.substitution.base_freqs[2] = bad;
+        EXPECT_NE(thrown_message([&] { check_settings(opt); }).find("base frequencies"), std::string::npos) << bad;
+    }
 }
 
 size_t gpu_free_bytes() {

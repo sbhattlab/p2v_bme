@@ -7,6 +7,7 @@
 #include <omp.h>
 
 #include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
@@ -42,7 +43,7 @@ void check_settings(const Settings &opt) {
             if (opt.devices[i] == opt.devices[j])
                 throw std::runtime_error("GPU " + std::to_string(opt.devices[i]) + " is listed twice");
     for (double f : opt.substitution.base_freqs)
-        if (!(f >= 0.0 && f <= 1e30))
+        if (!(std::isfinite(f) && f >= 0.0))
             throw std::runtime_error("base frequencies must be finite and >= 0");
     if (opt.threads < 0)
         throw std::runtime_error("CPU threads must be >= 0 (0 = all)");
