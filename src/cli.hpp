@@ -10,7 +10,7 @@
 
 #include "inference.hpp"
 
-// The options of a run besides Settings.
+// Run options
 struct RunOptions {
     std::string input_path;   // -s
     std::string prefix;       // outputs <prefix>.nwk and <prefix>.json (default: the input path)

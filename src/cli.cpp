@@ -5,9 +5,8 @@
  * options. Options follow IQ-TREE where the tools overlap (-s, -m, --prefix, --seed, -v, -t); --accelerator and
  * --devices follow PyTorch Lightning.
  */
-#include <stdio.h>
-
 #include <exception>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -20,15 +19,14 @@
 
 namespace {
 
-/* Default value of an option, as text for cxxopts (from config.hpp). */
+// Default value of an option, as text for cxxopts (from config.hpp).
 template <class T> std::string text(T value) {
     std::ostringstream s;
     s << value;
     return s.str();
 }
 
-/* -m (IQ-TREE style names, case-insensitive). GTR+GC needs the parameter fit, which comes
- * later. */
+// -m (IQ-TREE style names, case-insensitive). GTR+GC needs the parameter fit, which comes later.
 p2vbme::Model parse_model(const std::string &name) {
     const p2vbme::Model m = p2vbme::parse_model(name);
     if (m == p2vbme::Model::GTR_GC)
@@ -47,7 +45,7 @@ p2vbme::Accelerator parse_accelerator(const std::string &a) {
     throw std::runtime_error("--accelerator must be cpu, gpu or auto, not '" + a + "'");
 }
 
-/* --devices: "auto" (all), N (the first N), or a comma list of GPU numbers ("0,2"; "1," for GPU 1 alone). */
+// --devices: "auto" (all), N (the first N), or a comma list of GPU numbers ("0,2"; "1," for GPU 1 alone).
 std::vector<int> parse_devices(const std::string &d) {
     std::vector<int> ids;
     if (d == "auto")
@@ -76,7 +74,7 @@ std::vector<int> parse_devices(const std::string &d) {
     }
     if (ids.empty())
         throw std::runtime_error("--devices: no device given in '" + d + "'");
-    if (!list) { /* a single number N: the first N GPUs */
+    if (!list) { // a single number N: the first N GPUs
         const int n = ids[0];
         if (n < 1)
             throw std::runtime_error("--devices: need at least one device");
@@ -87,7 +85,7 @@ std::vector<int> parse_devices(const std::string &d) {
     return ids;
 }
 
-/* --devices on the CPU: auto (0: all cores) or a number of threads. */
+// --devices on the CPU: auto (0: all cores) or a number of threads.
 int32_t parse_threads(const std::string &d) {
     if (d == "auto")
         return 0;
@@ -170,21 +168,21 @@ CommandLine parse_command_line(int argc, char **argv) {
     };
     const auto args = cli.parse(argc, argv);
     if (args.count("help")) {
-        printf("%s\nAll options: --help-all\n", cli.help({""}).c_str());
+        std::cout << cli.help({""}) << "\nAll options: --help-all\n";
         return done(0);
     }
     if (args.count("help-all")) {
-        printf("%s\n", cli.help({"", "Search", "Start tree", "Branch lengths and output", "Input"}).c_str());
+        std::cout << cli.help({"", "Search", "Start tree", "Branch lengths and output", "Input"}) << '\n';
         return done(0);
     }
     if (args.count("version")) {
-        printf("p2v-bme %s\n", p2vbme::version_string().c_str());
+        std::cout << "p2v-bme " << p2vbme::version_string() << '\n';
         return done(0);
     }
     if (!args.unmatched().empty())
         throw std::runtime_error("unexpected argument '" + args.unmatched()[0] + "' (see --help)");
     if (!args.count("alignment") || !args.count("model")) {
-        fprintf(stderr, "p2v-bme: -s ALIGNMENT and -m MODEL are required (see --help)\n");
+        std::cerr << "p2v-bme: -s ALIGNMENT and -m MODEL are required (see --help)\n";
         return done(2);
     }
     RunOptions &options = result.options;
