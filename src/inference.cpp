@@ -49,7 +49,7 @@ void check_settings(const Settings &opt) {
         (int32_t)opt.substitution.model > (int32_t)Model::GTR_GC)
         throw std::runtime_error("unknown distance model");
     if (opt.substitution.model == Model::GTR_GC) {
-        /* ranges the single-precision GPU evaluates accurately (the fit's own range is [0.05, 148]) */
+        // ranges the single-precision GPU evaluates accurately (the fit's own range is [0.05, 148])
         const SubstitutionModel &m = opt.substitution;
         if (!(m.gtr_alpha >= 1e-3 && m.gtr_alpha <= 1e4))
             throw std::runtime_error("GTR+GC: alpha must be in [0.001, 10000]");
@@ -59,7 +59,7 @@ void check_settings(const Settings &opt) {
         if (opt.eigen.reweight < 0 || opt.eigen.reweight > 100)
             throw std::runtime_error("GTR+GC: reweighting passes must be in 0..100");
     }
-    /* last, so that the other errors come first in a build without a GPU */
+    // last, so that the other errors come first in a build without a GPU
     if (opt.threads > omp_get_num_procs())
         throw std::runtime_error("CPU threads must be at most the " + std::to_string(omp_get_num_procs()) +
                                  " processors available");
@@ -103,7 +103,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
 
     SearchSettings settings;
     settings.rounds = opt.max_rounds;
-    settings.stop_zero = true; /* the lossless idle stop is always on */
+    settings.stop_zero = true; // the lossless idle stop is always on
     settings.stop_tol = opt.early_stopping;
     settings.time_cap = opt.time_limit;
     settings.profile_cap = opt.profile_cap;
@@ -111,12 +111,12 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
 
     Result res;
     res.substitution = substitution;
-    /* Progress lines for the caller's log (the library prints nothing): one per search start, stage and early
-     * stop, and per sample-and-place level (rf: -1 = no reference tree, -2 = not computed at this stage). */
+    // Progress lines for the caller's log (the library prints nothing): one per search start, stage and early stop,
+    // and per sample-and-place level (rf: -1 = no reference tree, -2 = not computed at this stage).
     double t_start = 0.0, t_last = 0.0, dL_last = 0.0, round_end_dL = 0.0;
     settings.on_event = [&](const SearchEvent &e) {
-        if (e.level == 0 && e.kind == SearchEvent::Stage && e.c1) { /* a round end of the main search */
-            res.round_gains.push_back(round_end_dL - e.total_dL);   /* positive = the tree got shorter */
+        if (e.level == 0 && e.kind == SearchEvent::Stage && e.c1) { // a round end of the main search
+            res.round_gains.push_back(round_end_dL - e.total_dL);   // positive = the tree got shorter
             round_end_dL = e.total_dL;
         }
         if (!log)
@@ -156,14 +156,15 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
 
     const double t0 = wall_sec();
     if (settings.time_cap > 0.0)
-        settings.deadline = t0 + settings.time_cap; /* covers start tree + search */
+        settings.deadline = t0 + settings.time_cap; // covers start tree + search
     std::vector<int32_t> c1(n_nodes), c2(n_nodes);
     if (opt.tree_init == TreeInit::Sample) {
         const int32_t n0 =
             opt.sample_size > 0 ? opt.sample_size : std::min<int32_t>(START_SAMPLE_MAX, N / START_SAMPLE_DIVISOR);
         SampleInitStats stats;
-        /* the start tree's own searches use the run's settings; with max_rounds = 0 (score the start tree) they
-         * keep the default rounds, so the start tree is the one a normal run starts from */
+        // the start tree's own searches use the run's settings;
+        // with max_rounds = 0 (score the start tree) they keep the default rounds,
+        // so the start tree is the one a normal run starts from
         SearchSettings start_settings = settings;
         if (start_settings.rounds == 0)
             start_settings.rounds = DEFAULT_MAX_ROUNDS;
