@@ -182,7 +182,7 @@ void build_sample_init_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devic
         e.kind = SearchEvent::StartTree;
         e.level = level;
         e.n_leaves = N;
-        e.start_tree = &stats;
+        e.init_stats = &stats;
         settings.on_event(e);
     }
 }

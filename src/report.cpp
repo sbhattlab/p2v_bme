@@ -62,7 +62,7 @@ void detail_settings(JsonWriter &w, const RunInfo &run, const Settings &opt, con
     w.key("settings");
     w.begin_object();
     w.field("model", model_name(opt.substitution.model));
-    w.field("start_tree", run.start_tree);
+    w.field("start_tree", run.tree_init);
     w.field("sample_size", res.sample_size_used); // 0 without sample-and-place
     w.field("seed", opt.seed);
     w.field("max_rounds", opt.max_rounds);

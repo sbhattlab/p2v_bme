@@ -122,11 +122,11 @@ TEST(Errors, InferRejectsBadInput) {
     Devices devices = failing_devices(1, "none");
     Settings opt;
     EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("at least 16 sequences"), std::string::npos);
-    opt.start = Start::Random;
+    opt.tree_init = TreeInit::Random;
     opt.profile_cap = 0;
     EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("profile cap"), std::string::npos);
     opt.profile_cap = DEFAULT_PROFILE_CAP;
-    opt.start = Start::Given;
+    opt.tree_init = TreeInit::Given;
     EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("start tree"), std::string::npos);
     const Alignment three = simulate_alignment(random_tree(3, 0.1, 0.1, 1), 50, SimulationModel(), 2);
     EXPECT_NE(thrown_message([&] { infer(three, Settings(), devices); }).find("at least 4 sequences"),

@@ -90,9 +90,9 @@ int main(int argc, char **argv) {
                                      std::string(run.dedup ? " after setting identical copies aside" : "") + ", have " +
                                      std::to_string(aln.n_taxa) + (run.dedup ? " (--no-dedup keeps them)" : ""));
 
-        run.start_tree = options.start_tree;
+        run.tree_init = options.tree_init;
         p2vbme::Tree start_tree;
-        if (run.start_tree == "sample") {
+        if (run.tree_init == "sample") {
             // Tree: Sample-and-place start tree
             // 1. Pick n0 sequences at random
             // 2. Start t0 on the n0 sequences from a random (Yule-Harding) tree, or, if n0 > START_RANDOM_TREE_MAX
@@ -100,22 +100,22 @@ int main(int argc, char **argv) {
             // 3. Optimise t0 with the minibatch search
             // 4. Assign every other sequence to its nearest neighbour in t0 (p-distance)
             // 5. Replace each sampled leaf by a small balanced subtree made of itself + its assigned sequences
-            opt.start = p2vbme::Start::Sample;
+            opt.tree_init = p2vbme::TreeInit::Sample;
             // Tree: if too few sequences, use a random start
             if (aln.n_taxa < p2vbme::START_SAMPLE_MIN_N) {
                 run.warnings.push_back("fewer than " + std::to_string(p2vbme::START_SAMPLE_MIN_N) +
                                        " sequences, using the random start instead of sample-and-place");
                 std::cerr << "p2v-bme: warning: " << run.warnings.back() << '\n';
-                opt.start = p2vbme::Start::Random;
-                run.start_tree = "random";
+                opt.tree_init = p2vbme::TreeInit::Random;
+                run.tree_init = "random";
             }
-        } else if (run.start_tree == "random") {
-            opt.start = p2vbme::Start::Random;
+        } else if (run.tree_init == "random") {
+            opt.tree_init = p2vbme::TreeInit::Random;
         } else {
             // Tree: predefined tree as a Newick
-            start_tree = p2vbme::read_newick(run.start_tree, all_names);
+            start_tree = p2vbme::read_newick(run.tree_init, all_names);
             p2vbme::prepare_start_tree(start_tree, dd);
-            opt.start = p2vbme::Start::Given;
+            opt.tree_init = p2vbme::TreeInit::Given;
         }
 
         p2vbme::LogCallback log;
@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
         // Output: write the report
         p2vbme::write_report(run.prefix + ".json", run, opt, res, options.report_full);
         if (verbose)
-            std::cerr << "p2v-bme: " << run.start_tree << " start, " << res.rounds_run << " rounds, BME length "
+            std::cerr << "p2v-bme: " << run.tree_init << " start, " << res.rounds_run << " rounds, BME length "
                       << std::fixed << std::setprecision(6) << res.bme_length << "; " << std::setprecision(2)
                       << run.time_total << " s in total; wrote " << run.prefix << ".nwk, " << run.prefix << ".json\n";
     } catch (const std::exception &e) {

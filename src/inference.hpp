@@ -22,11 +22,11 @@
 
 namespace p2vbme {
 
-enum class Start { Sample, Random, Given };
+enum class TreeInit { Sample, Random, Given };
 
 /* The settings of a run; defaults in config.hpp. */
 struct Settings {
-    Start start = Start::Sample;
+    TreeInit tree_init = TreeInit::Sample;
     int32_t sample_size = DEFAULT_SAMPLE_SIZE;        /* sample-and-place start: 0 = min(100000, N / 10) */
     uint64_t seed = DEFAULT_SEED;                     /* seeds the sample-and-place or random start */
     int32_t max_rounds = DEFAULT_MAX_ROUNDS;          /* rounds of the search; 0 = no search (score the start) */
@@ -77,7 +77,7 @@ void check_settings(const Settings &settings);
 using LogCallback = std::function<void(const std::string &line)>;
 
 // Infers a BME tree on the devices (select_devices; the alignment is loaded onto them). `start_tree` is used when
-// settings.start == Start::Given. Errors (input, CUDA, GPU memory) are thrown as std::exception.
+// settings.tree_init == TreeInit::Given. Errors (input, CUDA, GPU memory) are thrown as std::exception.
 Result infer(const Alignment &aln, const Settings &settings, Devices &devices, const Tree *start_tree = nullptr,
              const LogCallback &log = nullptr);
 

@@ -247,7 +247,7 @@ TEST(DeviceDistances, BmeLengthOfAGivenTree) {
     punch_holes(aln, 0.05, 23);
     for (Model model : MODELS) {
         Settings opt;
-        opt.start = Start::Given;
+        opt.tree_init = TreeInit::Given;
         opt.max_rounds = 0;
         opt.bl_profile_cap = PROFILE_CAP_MAX;
         opt.devices = {0};
@@ -268,7 +268,7 @@ TEST(DeviceDistances, SearchUnderEachModel) {
             if (eta > 0.0 && model != Model::TN93 && model != Model::GTR_GC)
                 continue; /* the exact check's per-pair path: two models are enough */
             Settings opt;
-            opt.start = Start::Random;
+            opt.tree_init = TreeInit::Random;
             opt.devices = {0};
             opt.exact_check_eta = eta;
             if (eta > 0.0)
@@ -278,7 +278,7 @@ TEST(DeviceDistances, SearchUnderEachModel) {
             EXPECT_LT(res.delta_bme, 0.0) << model_name(model); /* the tree got shorter */
             // the true tree, scored by the same pass
             Settings score = opt;
-            score.start = Start::Given;
+            score.tree_init = TreeInit::Given;
             score.max_rounds = 0;
             const Result true_score = run_infer(aln, score, &tree);
             EXPECT_LE(res.bme_length, true_score.bme_length * (1.0 + 1e-4))

@@ -30,7 +30,7 @@ struct RunInfo {
     std::vector<std::string> warnings; // also printed on stderr
     std::string input_path;
     int32_t n_taxa = 0, n_sites = 0; // as read, before identical sequences are set aside
-    std::string start_tree;          // sample, random, or the start tree's file
+    std::string tree_init;           // sample, random, or the start tree's file
     std::string prefix;              // outputs <prefix>.nwk and <prefix>.json
     bool neg_as_zero = true;         // negative branch lengths written as 0
     bool dedup = true;               // identical sequences set aside (--no-dedup turns it off)

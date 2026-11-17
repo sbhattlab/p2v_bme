@@ -145,7 +145,7 @@ double brute_force_min(int32_t N, const std::vector<double> &D) {
 
 Settings cpu_settings(Model model, Precision precision = Precision::Single, int32_t threads = 2) {
     Settings opt;
-    opt.start = Start::Random;
+    opt.tree_init = TreeInit::Random;
     opt.accelerator = Accelerator::Cpu;
     opt.threads = threads;
     opt.precision = precision;
@@ -211,7 +211,7 @@ TEST(CpuDevice, BmeLengthOfAGivenTree) {
     for (Model model : {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC})
         for (Precision precision : {Precision::Single, Precision::Double}) {
             Settings opt = cpu_settings(model, precision);
-            opt.start = Start::Given;
+            opt.tree_init = TreeInit::Given;
             opt.max_rounds = 0;
             opt.bl_profile_cap = PROFILE_CAP_MAX;
             const Result res = run_infer(aln, opt, &tree);
@@ -251,7 +251,7 @@ TEST(CpuDevice, SameTreeForAnyWorkerCount) {
     Result one;
     for (int32_t workers : {1, 2, 3}) {
         Settings opt = cpu_settings(Model::JC69, Precision::Single, workers);
-        opt.start = Start::Sample;
+        opt.tree_init = TreeInit::Sample;
         const Result res = run_infer(aln, opt);
         if (workers == 1) {
             one = res;

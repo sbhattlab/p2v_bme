@@ -206,7 +206,7 @@ CommandLine parse_command_line(int argc, char **argv) {
     opt.accelerator = parse_accelerator(args["accelerator"].as<std::string>());
     opt.precision = parse_precision(args["precision"].as<std::string>());
     options.devices = args["devices"].as<std::string>();
-    options.start_tree = args["tree"].as<std::string>();
+    options.tree_init = args["tree"].as<std::string>();
     options.dedup = !args.count("no-dedup");
     options.report_full = args.count("report-full") > 0;
     return result;

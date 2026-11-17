@@ -14,7 +14,7 @@
 struct RunOptions {
     std::string input_path;   // -s
     std::string prefix;       // outputs <prefix>.nwk and <prefix>.json (default: the input path)
-    std::string start_tree;   // -t: sample, random, or a Newick file
+    std::string tree_init;    // -t: sample, random, or a Newick file
     std::string devices;      // --devices, read by parse_devices_option once the devices are chosen
     bool verbose = false;     // -v
     bool dedup = true;        // identical sequences set aside (--no-dedup turns it off)

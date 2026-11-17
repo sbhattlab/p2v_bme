@@ -77,10 +77,10 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
         throw std::runtime_error("need at least 4 sequences, got " + std::to_string(N));
     if ((size_t)N * 5 * (size_t)W != aln.packed.size())
         throw std::runtime_error("alignment: packed size mismatch");
-    if (opt.start == Start::Sample && N < START_SAMPLE_MIN_N)
+    if (opt.tree_init == TreeInit::Sample && N < START_SAMPLE_MIN_N)
         throw std::runtime_error("the sample-and-place start needs at least " + std::to_string(START_SAMPLE_MIN_N) +
                                  " sequences; use the random start");
-    if (opt.start == Start::Given) {
+    if (opt.tree_init == TreeInit::Given) {
         if (!start_tree || (int32_t)start_tree->c1.size() != n_nodes || (int32_t)start_tree->c2.size() != n_nodes)
             throw std::runtime_error("start tree missing or not on the alignment's taxa");
     }
@@ -138,7 +138,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
                          "[DIAG] stopping after round %d (gain %.6f, round-0 gain %.6f); running final cleanup",
                          e.round, e.round_gain, e.round0_gain);
             } else if (e.kind == SearchEvent::StartTree) {
-                const SampleInitStats &st = *e.start_tree;
+                const SampleInitStats &st = *e.init_stats;
                 snprintf(line, sizeof(line),
                          "[INIT] sample-and-place: n0=%d sub=%.2fs (dL %.4f) nn=%.2fs build=%.2fs total=%.2fs "
                          "max_bucket=%d",
@@ -160,7 +160,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     if (settings.time_cap > 0.0)
         settings.deadline = t0 + settings.time_cap; /* covers start tree + search */
     std::vector<int32_t> c1(n_nodes), c2(n_nodes);
-    if (opt.start == Start::Sample) {
+    if (opt.tree_init == TreeInit::Sample) {
         const int32_t n0 =
             opt.sample_size > 0 ? opt.sample_size : std::min<int32_t>(START_SAMPLE_MAX, N / START_SAMPLE_DIVISOR);
         SampleInitStats stats;
@@ -174,7 +174,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
         res.time_start_sample = stats.dt_sub;
         res.time_start_nearest = stats.dt_nn;
         res.time_start_assembly = stats.dt_build;
-    } else if (opt.start == Start::Random) {
+    } else if (opt.tree_init == TreeInit::Random) {
         make_uniform_random_tree_host(N, opt.seed, c1, c2);
     } else {
         c1 = start_tree->c1;
