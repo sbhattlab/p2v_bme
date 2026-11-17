@@ -92,10 +92,15 @@ if(P2VBME_CUDA)
   target_link_libraries(p2vbme PUBLIC CUDA::cudart)
 endif()
 
+# The command line (cxxopts): the arguments into Settings and the Report's command-line part
+add_library(p2vbme_cli STATIC src/cli.cpp)
+target_compile_options(p2vbme_cli PRIVATE -O3)
+target_link_libraries(p2vbme_cli PUBLIC p2vbme PRIVATE cxxopts::cxxopts)
+
 # Command-line tool (GPU and CPU, or CPU only without CUDA)
-add_executable(p2v-bme src/main.cpp src/cli.cpp)
+add_executable(p2v-bme src/main.cpp)
 target_compile_options(p2v-bme PRIVATE -O3)
-target_link_libraries(p2v-bme PRIVATE p2vbme p2vbme_io p2vbme_processing cxxopts::cxxopts OpenMP::OpenMP_CXX)
+target_link_libraries(p2v-bme PRIVATE p2vbme_cli p2vbme p2vbme_io p2vbme_processing OpenMP::OpenMP_CXX)
 install(TARGETS p2v-bme)
 
 # ---- reference library (C99), as a shared library for the Python helpers --------------------------------

@@ -54,6 +54,12 @@ target_compile_options(test_json_writer PRIVATE -Wall -Wextra)
 target_link_libraries(test_json_writer PRIVATE p2vbme_json GTest::gtest_main)
 gtest_discover_tests(test_json_writer)
 
+# --devices: GPU numbers and CPU threads
+add_executable(test_cli test_cli.cpp)
+target_compile_options(test_cli PRIVATE -Wall -Wextra)
+target_link_libraries(test_cli PRIVATE p2vbme_cli GTest::gtest_main)
+gtest_discover_tests(test_cli)
+
 add_executable(test_random test_random.cpp)
 target_include_directories(test_random PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_compile_options(test_random PRIVATE -Wall -Wextra)
