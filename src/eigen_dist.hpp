@@ -24,7 +24,8 @@
  * to about 14, 6.9 to 9.8 above. Distances lie in [0, 10]; no shared valid site gives 2.0, identical sequences 0.
  *
  * wls and svd with the default settings are the paper's GPU implementation, ported line by line (bitwise equal when
- * both are compiled without FMA contraction); orig and `pair` follow the paper's C distance library, with the GPU
+ * both are compiled without FMA contraction, for exchangeabilities with mean 1 as the paper's fit returns them; others
+ * are scaled to mean 1 first); orig and `pair` follow the paper's C distance library, with the GPU
  * implementation's pseudocount 1e-5 (library: 1e-8).
  * Not ported: the library's projection onto the bases present when a base is missing (its "reduced alphabet");
  * here a base absent from both sequences gives a pseudocount-only row of K~ (singular value 1/4), which reads as
@@ -399,8 +400,14 @@ template <class T> struct DistanceParams {
 template <class T> inline DistanceParams<T> distance_params(const SubstitutionModel &m, const EigenSettings &eigen) {
     DistanceParams<T> p;
     p.model = m.model;
+    // The exchangeabilities scaled to mean 1, as the paper's fit returns them.
+    // The distance depends only on their ratios; the scaling keeps the rate matrix's own normalisation in range.
+    double rate_sum = 0.0;
     for (int k = 0; k < 6; ++k)
-        p.rates[k] = (T)m.gtr_rates[k];
+        rate_sum += m.gtr_rates[k];
+    const double rate_scale = 6.0 / rate_sum;
+    for (int k = 0; k < 6; ++k)
+        p.rates[k] = (T)(m.gtr_rates[k] * rate_scale);
     p.alpha = (T)m.gtr_alpha;
     p.inv_alpha = T(1) / p.alpha; /* as the paper's GPU implementation: 1 / alpha in the device's precision */
     p.eigen = eigen;
