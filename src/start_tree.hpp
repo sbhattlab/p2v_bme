@@ -34,7 +34,7 @@ void make_uniform_random_tree_host(int32_t n, uint64_t seed, std::vector<int32_t
  *   2. assign every other leaf to its nearest sampled leaf by p-distance over shared valid sites, for
  *      every model (the order of JC69, which is monotone in p; the paper's GPU implementation did the same for GTR+GC);
  *      a pair with no shared valid site ranks like JC69 = 1.5 (p = 0.6485)
- *   3. replace each sampled leaf by a caterpillar of itself + its assigned leaves (random order)
+ *   3. replace each sampled leaf by a balanced tree of itself + its assigned leaves (random order)
  * Uses only the sequences: no information from the true tree.
  * ============================================================================ */
 

@@ -112,8 +112,8 @@ void build_sample_init_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devic
     const double t_nn = wall_sec();
     stats.dt_nn = t_nn - t_sub;
 
-    /* 4. full tree: caterpillar per bucket (random member order), then the subsample tree on top.
-     * Ids are assigned children-first, so the result is post-order with root 2N-2. */
+    /* 4. full tree: a balanced tree per bucket (members in random order, paired two at a time, level by level),
+     * then the subsample tree on top. Ids are assigned children-first, so the result is post-order with root 2N-2. */
     std::vector<int32_t> bucket_off(n0 + 1, 0), bucket_mem(n_q);
     for (int32_t k = 0; k < n_q; ++k)
         bucket_off[best_pos[k] + 1]++;
