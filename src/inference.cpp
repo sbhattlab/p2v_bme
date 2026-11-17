@@ -41,17 +41,17 @@ void check_settings(const Settings &opt) {
         throw std::runtime_error("time limit must be >= 0 (0 = none)");
     if (!(opt.exact_check_eta >= 0.0))
         throw std::runtime_error("exact-check eta must be >= 0");
-    for (double f : opt.substitution.base_freqs)
+    for (double f : opt.substitution_model.base_freqs)
         if (!(std::isfinite(f) && f >= 0.0))
             throw std::runtime_error("base frequencies must be finite and >= 0");
-    if ((int32_t)opt.substitution.model < (int32_t)Model::JC69 ||
-        (int32_t)opt.substitution.model > (int32_t)Model::GTR_GC)
+    if ((int32_t)opt.substitution_model.model < (int32_t)Model::JC69 ||
+        (int32_t)opt.substitution_model.model > (int32_t)Model::GTR_GC)
         throw std::runtime_error("unknown distance model");
-    if (opt.substitution.model == Model::GTR_GC) {
+    if (opt.substitution_model.model == Model::GTR_GC) {
         // What the distance needs.
         // Single precision divides by alpha, so alpha must be a normal float.
         // The exchangeabilities are scaled to mean 1 (distance_params), so their sum must be finite.
-        const SubstitutionModel &m = opt.substitution;
+        const SubstitutionModel &m = opt.substitution_model;
         if (!(m.gtr_alpha >= std::numeric_limits<float>::min() && m.gtr_alpha <= std::numeric_limits<float>::max()))
             throw std::runtime_error("GTR+GC: alpha must be > 0 and finite in single precision");
         double rate_sum = 0.0;
@@ -69,7 +69,7 @@ void check_settings(const Settings &opt) {
 
 // Warnings for GTR+GC parameters outside the range where single precision was checked against double (config.hpp).
 void warn_gtr_precision(const Settings &opt, std::vector<std::string> &warnings) {
-    const SubstitutionModel &m = opt.substitution;
+    const SubstitutionModel &m = opt.substitution_model;
     if (m.model != Model::GTR_GC || opt.precision != Precision::Single)
         return;
     const char *consequence = "; single-precision distances may be less accurate (--precision double avoids this)";
@@ -107,7 +107,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     }
 
     // F81, F84, TN93: the caller gives the base frequencies (prepare_alignment counts those of the whole input)
-    const SubstitutionModel &substitution = opt.substitution;
+    const SubstitutionModel &substitution = opt.substitution_model;
     const double freq_sum = substitution.base_freqs[0] + substitution.base_freqs[1] + substitution.base_freqs[2] +
                             substitution.base_freqs[3];
     if ((substitution.model == Model::F81 || substitution.model == Model::F84 || substitution.model == Model::TN93) &&

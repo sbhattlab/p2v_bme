@@ -149,7 +149,7 @@ Settings cpu_settings(Model model, Precision precision = Precision::Single, int3
     opt.accelerator = Accelerator::Cpu;
     opt.threads = threads;
     opt.precision = precision;
-    opt.substitution = distance_model(model);
+    opt.substitution_model = distance_model(model);
     return opt;
 }
 
@@ -164,7 +164,7 @@ TEST(CpuDevice, BruteForceAtSmallN) {
                 Settings opt = cpu_settings(model);
                 opt.seed = seed;
                 const Result res = run_infer(aln, opt);
-                const std::vector<double> D = distance_matrix(aln, with_base_frequencies(aln, opt).substitution);
+                const std::vector<double> D = distance_matrix(aln, with_base_frequencies(aln, opt).substitution_model);
                 const double found = pauplin(unrooted(res.tree, N), N, D), best = brute_force_min(N, D);
                 EXPECT_LE(found, best + 1e-6 * best) << "N=" << N << " seed=" << seed << " " << model_name(model);
             }
@@ -180,7 +180,7 @@ TEST(CpuDevice, SprOptimalByTheReferenceLibrary) {
             const Alignment aln = simulate_alignment(tree, 1000, truth(), 42);
             const Settings opt = cpu_settings(model, precision);
             const Result res = run_infer(aln, opt);
-            const std::vector<double> D = distance_matrix(aln, with_base_frequencies(aln, opt).substitution);
+            const std::vector<double> D = distance_matrix(aln, with_base_frequencies(aln, opt).substitution_model);
             double min_delta = 0.0;
             for (int32_t flip : {0, 1}) {
                 std::vector<int64_t> v(N - 1);
@@ -217,7 +217,7 @@ TEST(CpuDevice, BmeLengthOfAGivenTree) {
             opt.bl_profile_cap = PROFILE_CAP_MAX;
             const Result res = run_infer(aln, opt, &tree);
             const double exact =
-                pauplin(unrooted(tree, N), N, distance_matrix(aln, with_base_frequencies(aln, opt).substitution));
+                pauplin(unrooted(tree, N), N, distance_matrix(aln, with_base_frequencies(aln, opt).substitution_model));
             const double tol = precision == Precision::Double ? 1e-9 : 1e-4;
             EXPECT_NEAR(res.bme_length, exact, tol * exact) << model_name(model);
             EXPECT_EQ(res.tree.double_precision_lengths, precision == Precision::Double);

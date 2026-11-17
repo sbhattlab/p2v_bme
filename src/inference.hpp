@@ -38,7 +38,7 @@ struct Settings {
     double exact_check_eta = DEFAULT_EXACT_CHECK_ETA; // exact re-check of windows whose capped gain is > -eta
     bool branch_lengths = DEFAULT_BRANCH_LENGTHS;     // estimate BME branch lengths
     int32_t bl_profile_cap = DEFAULT_BL_PROFILE_CAP;  // leaves kept per subtree profile for branch lengths
-    SubstitutionModel substitution;                   // the model of the distances (JC69 by default);
+    SubstitutionModel substitution_model;             // the model of the distances (JC69 by default);
                                                       // GTR+GC with given parameters (the fit comes later)
     EigenSettings eigen;                              // how GTR+GC distances are estimated (not on the command line)
     Accelerator accelerator = Accelerator::Auto;      // auto: the GPU if one is visible, else the CPU

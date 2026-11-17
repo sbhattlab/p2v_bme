@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
         const std::vector<std::string> all_names = aln.names;
         p2vbme::Deduplication dd;
         // Data: count base frequencies and deduplicate
-        p2vbme::prepare_alignment(aln, opt.substitution, run.dedup, dd);
+        p2vbme::prepare_alignment(aln, opt.substitution_model, run.dedup, dd);
         run.n_identical_removed = dd.n_removed();
         if (progress && dd.n_removed() > 0)
             std::cout << "p2v-bme: " << dd.n_removed()

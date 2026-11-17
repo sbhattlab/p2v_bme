@@ -165,7 +165,7 @@ CommandLine parse_command_line(int argc, char **argv) {
     run.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : run.input_path;
     run.neg_as_zero = !args.count("no-neg-as-zero");
 
-    opt.substitution.model = model;
+    opt.substitution_model.model = model;
     opt.branch_lengths = !args.count("no-branch-lengths");
     opt.accelerator = p2vbme::parse_accelerator(args["accelerator"].as<std::string>());
     opt.precision = p2vbme::parse_precision(args["precision"].as<std::string>());

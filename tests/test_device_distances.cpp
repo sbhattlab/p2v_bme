@@ -251,9 +251,9 @@ TEST(DeviceDistances, BmeLengthOfAGivenTree) {
         opt.max_rounds = 0;
         opt.bl_profile_cap = PROFILE_CAP_MAX;
         opt.devices = {0};
-        opt.substitution = distance_model(model);
+        opt.substitution_model = distance_model(model);
         const Result res = run_infer(aln, opt, &tree);
-        const double exact = pauplin_length(aln, with_base_frequencies(aln, opt).substitution, tree);
+        const double exact = pauplin_length(aln, with_base_frequencies(aln, opt).substitution_model, tree);
         EXPECT_NEAR(res.bme_length, exact, 1e-4 * exact) << model_name(model);
     }
 }
@@ -273,7 +273,7 @@ TEST(DeviceDistances, SearchUnderEachModel) {
             opt.exact_check_eta = eta;
             if (eta > 0.0)
                 opt.profile_cap = 8; /* capped profiles, so the check runs (on complete profiles) */
-            opt.substitution = distance_model(model);
+            opt.substitution_model = distance_model(model);
             const Result res = run_infer(aln, opt);
             EXPECT_LT(res.delta_bme, 0.0) << model_name(model); /* the tree got shorter */
             // the true tree, scored by the same pass
@@ -383,7 +383,7 @@ TEST(DeviceDistances, CpuAgreesWithGpu) {
     for (Model model : MODELS) {
         Settings opt;
         opt.devices = {0};
-        opt.substitution = distance_model(model);
+        opt.substitution_model = distance_model(model);
         opt = with_base_frequencies(aln, opt);
         opt.accelerator = Accelerator::Gpu;
         Devices gpu_devices = devices_for(opt);

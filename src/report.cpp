@@ -117,7 +117,7 @@ void detail_memory(JsonWriter &w, const Report &run) {
 // The substitution model of the distances: its name and, for F81, F84 and TN93, the input alignment's base
 // frequencies (A, C, G, T).
 void substitution_model(JsonWriter &w, const Settings &opt) {
-    const SubstitutionModel &m = opt.substitution;
+    const SubstitutionModel &m = opt.substitution_model;
     w.key("substitution_model");
     w.begin_object();
     w.field("name", model_name(m.model));

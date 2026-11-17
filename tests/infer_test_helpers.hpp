@@ -17,7 +17,7 @@ p2vbme::Devices devices_for(const p2vbme::Settings &opt) {
 
 // The settings with the alignment's base frequencies (F81, F84, TN93), as the command line counts them.
 p2vbme::Settings with_base_frequencies(const p2vbme::Alignment &aln, p2vbme::Settings opt) {
-    p2vbme::count_base_frequencies(aln, opt.substitution);
+    p2vbme::count_base_frequencies(aln, opt.substitution_model);
     return opt;
 }
 

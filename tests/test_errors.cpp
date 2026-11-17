@@ -142,7 +142,7 @@ TEST(Errors, GtrGcParameters) {
     Devices devices = failing_devices(1, "none");
     Settings opt;
     opt.tree_init = TreeInit::Random;
-    opt.substitution.model = Model::GTR_GC;
+    opt.substitution_model.model = Model::GTR_GC;
     auto refused = [&](const char *what) {
         return thrown_message([&] { infer(aln, opt, devices); }).find(what) != std::string::npos;
     };
@@ -150,11 +150,11 @@ TEST(Errors, GtrGcParameters) {
     const double inf = std::numeric_limits<double>::infinity(), nan = std::numeric_limits<double>::quiet_NaN();
 
     for (double a : {0.0, -1.0, 1e-40, 1e39, inf, nan}) {
-        opt.substitution.gtr_alpha = a;
+        opt.substitution_model.gtr_alpha = a;
         EXPECT_TRUE(refused("alpha must be > 0")) << a;
     }
-    opt.substitution.gtr_alpha = 1.0;
-    double *s = opt.substitution.gtr_rates;
+    opt.substitution_model.gtr_alpha = 1.0;
+    double *s = opt.substitution_model.gtr_rates;
     for (double r : {0.0, -1.0, inf, nan}) {
         s[4] = r;
         EXPECT_TRUE(refused("exchangeabilities must be finite and > 0")) << r;
@@ -168,7 +168,7 @@ TEST(Errors, GtrGcParameters) {
     EXPECT_TRUE(warnings().empty());
 
     // outside the checked range: a warning per parameter in single precision, none in double
-    opt.substitution.gtr_alpha = 2.0 * GTR_FLOAT_ALPHA_MAX;
+    opt.substitution_model.gtr_alpha = 2.0 * GTR_FLOAT_ALPHA_MAX;
     s[1] = 2.0 * GTR_FLOAT_RATE_RATIO_MAX;
     const std::vector<std::string> w = warnings();
     ASSERT_EQ(w.size(), 2u);
@@ -178,7 +178,7 @@ TEST(Errors, GtrGcParameters) {
     EXPECT_TRUE(warnings().empty());
     // only the ratios matter: tiny or large exchangeabilities of ratio 1 are fine
     opt.precision = Precision::Single;
-    opt.substitution.gtr_alpha = 1.0;
+    opt.substitution_model.gtr_alpha = 1.0;
     for (double scale : {1e-30, 1e30}) {
         std::fill(s, s + 6, scale);
         EXPECT_TRUE(warnings().empty()) << scale;
@@ -191,12 +191,12 @@ TEST(Errors, BaseFrequenciesMustBeFinite) {
     Devices devices = failing_devices(1, "none");
     Settings opt;
     opt.tree_init = TreeInit::Random;
-    opt.substitution.model = Model::F81;
+    opt.substitution_model.model = Model::F81;
     const double freqs[4] = {0.1, 0.2, 0.3, 0.4};
-    std::copy(freqs, freqs + 4, opt.substitution.base_freqs);
+    std::copy(freqs, freqs + 4, opt.substitution_model.base_freqs);
     EXPECT_NO_THROW(infer(aln, opt, devices));
     for (double bad : {-0.1, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
-        opt.substitution.base_freqs[2] = bad;
+        opt.substitution_model.base_freqs[2] = bad;
         EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("base frequencies"), std::string::npos) << bad;
     }
 }
