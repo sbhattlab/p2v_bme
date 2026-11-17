@@ -117,10 +117,12 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
         throw std::runtime_error("no devices given (select_devices)");
     const bool double_precision = opt.precision == Precision::Double;
 
+    // Load the alignment and set the distance model on all devices.
     for (auto &dev : devices) {
         dev->load(aln.packed.data(), N, W);
         dev->set_distance(substitution, opt.eigen);
     }
+    // The devices are used in parallel, so they must all finish their work before the next step.
     for (auto &dev : devices)
         dev->synchronize();
 
