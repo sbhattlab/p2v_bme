@@ -5,14 +5,9 @@
  */
 #include "start_tree.hpp"
 
-#include <omp.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #include <algorithm>
 #include <stdexcept>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "random.hpp"
