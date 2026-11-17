@@ -86,8 +86,7 @@ TEST(Errors, WindowSolveFailureLeavesTheSearch) {
         Devices devices = failing_devices(n_devices, "solve_window");
         std::vector<int32_t> c1, c2;
         build_random_tree(3000, 1, c1, c2);
-        const std::string msg =
-            thrown_message([&] { run_multi_gpu_minibatch_bme(3000, devices, c1, c2, SearchSettings()); });
+        const std::string msg = thrown_message([&] { run_minibatch_bme(3000, devices, c1, c2, SearchSettings()); });
         EXPECT_EQ(msg, "injected failure in solve_window") << n_devices;
     }
 }

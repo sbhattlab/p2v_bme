@@ -43,7 +43,7 @@ void build_random_tree(int32_t n, uint64_t seed, std::vector<int32_t> &c1, std::
 void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devices, std::vector<int32_t> &out_c1,
                                  std::vector<int32_t> &out_c2, SampleAndPlaceStats &stats,
                                  const SearchSettings &settings, int32_t level) {
-    const int n_gpus = (int)devices.size();
+    const int n_devices = (int)devices.size();
     const double t_begin = wall_sec();
     if (n0 > N / 2)
         n0 = N / 2;
@@ -66,8 +66,8 @@ void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &
 
     // 2. start tree t0 (sub_c1, sub_c2) on the sample: a random tree, or above START_RANDOM_TREE_MAX a
     // sample-and-place tree of its own
-    for (int g = 0; g < n_gpus; ++g)
-        devices[g]->push_subset(samp);
+    for (int d = 0; d < n_devices; ++d)
+        devices[d]->push_subset(samp);
     std::vector<int32_t> sub_c1, sub_c2;
     double dL_inner = 0.0;
     if (n0 > p2vbme::START_RANDOM_TREE_MAX) {
@@ -84,22 +84,22 @@ void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &
         build_random_tree(n0, p2vbme::derive_seed(seed, p2vbme::SALT_START_TREE_RANDOM), sub_c1, sub_c2);
     }
     // 3. optimise t0 with the same solver and settings (rounds, stop rule) as the main run
-    stats.dL_sub = dL_inner + run_multi_gpu_minibatch_bme(n0, devices, sub_c1, sub_c2, settings, level + 1);
-    for (int g = 0; g < n_gpus; ++g)
-        devices[g]->pop_subset();
+    stats.dL_sub = dL_inner + run_minibatch_bme(n0, devices, sub_c1, sub_c2, settings, level + 1);
+    for (int d = 0; d < n_devices; ++d)
+        devices[d]->pop_subset();
     const double t_sub = wall_sec();
     stats.dt_sub = t_sub - t_begin;
 
-    // 4. nearest sampled sequence for every other sequence, queries split across GPUs
+    // 4. nearest sampled sequence for every other sequence, queries split across the devices
     std::vector<int32_t> best_pos(n_q, 0);
     ParallelErrors errors;
-#pragma omp parallel for num_threads(n_gpus) schedule(static, 1)
-    for (int g = 0; g < n_gpus; ++g) {
-        int32_t lo = (int32_t)((int64_t)n_q * g / n_gpus), hi = (int32_t)((int64_t)n_q * (g + 1) / n_gpus);
-        int32_t nq_g = hi - lo;
+#pragma omp parallel for num_threads(n_devices) schedule(static, 1)
+    for (int d = 0; d < n_devices; ++d) {
+        int32_t lo = (int32_t)((int64_t)n_q * d / n_devices), hi = (int32_t)((int64_t)n_q * (d + 1) / n_devices);
+        int32_t nq_d = hi - lo;
         try {
-            if (nq_g > 0)
-                devices[g]->nearest_sampled(qry.data() + lo, nq_g, samp.data(), n0, best_pos.data() + lo);
+            if (nq_d > 0)
+                devices[d]->nearest_sampled(qry.data() + lo, nq_d, samp.data(), n0, best_pos.data() + lo);
         } catch (...) {
             errors.capture();
         }

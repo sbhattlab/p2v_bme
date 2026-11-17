@@ -4,7 +4,7 @@
  * Start trees of the search: sample-and-place (from the sequences) and random.
  * Both functions write the tree into their two output vectors (resized and overwritten), in the layout of Tree::c1
  * and Tree::c2 (core.hpp), with children before parents (c1[u], c2[u] < u).
- * They do not return a Tree: the search (run_multi_gpu_minibatch_bme) edits the two vectors in place, so infer() keeps
+ * They do not return a Tree: the search (run_minibatch_bme) edits the two vectors in place, so infer() keeps
  * them through the start tree and the search, and puts them into Result::tree at the end.
  */
 #ifndef P2VBME_START_TREE_HPP

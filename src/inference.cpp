@@ -211,7 +211,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     res.time_start = t1 - t0;
 
     SearchStats search_stats;
-    res.delta_bme = run_multi_gpu_minibatch_bme(N, devices, c1, c2, settings, 0, &search_stats);
+    res.delta_bme = run_minibatch_bme(N, devices, c1, c2, settings, 0, &search_stats);
     for (auto &dev : devices)
         dev->synchronize();
     res.time_search = wall_sec() - t1;

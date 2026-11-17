@@ -162,9 +162,8 @@ void build_component_waves(int32_t N, const std::vector<int32_t> &ord, const std
 
 /* Improves the rooted tree (curr_c1, curr_c2) in place; returns the BME change. The devices hold the alignment of
  * this tree's leaves. level: 0 = the main search, k = a search inside the sample-and-place start, k levels down. */
-double run_multi_gpu_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr_c1,
-                                   std::vector<int32_t> &curr_c2, const SearchSettings &settings, int32_t level = 0,
-                                   SearchStats *stats = nullptr);
+double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr_c1, std::vector<int32_t> &curr_c2,
+                         const SearchSettings &settings, int32_t level = 0, SearchStats *stats = nullptr);
 
 } // namespace p2vbme
 

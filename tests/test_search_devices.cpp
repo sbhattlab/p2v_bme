@@ -43,7 +43,7 @@ RunResult run(const Alignment &aln, int n_devices, bool sample_start) {
     } else {
         build_random_tree(N, 1, r.c1, r.c2);
     }
-    r.delta = run_multi_gpu_minibatch_bme(N, devices, r.c1, r.c2, settings, 0, &r.stats);
+    r.delta = run_minibatch_bme(N, devices, r.c1, r.c2, settings, 0, &r.stats);
     r.bme_length =
         compute_bme_branch_lengths(N, r.c1.data(), r.c2.data(), devices, r.branch_lengths, DEFAULT_BL_PROFILE_CAP);
     return r;

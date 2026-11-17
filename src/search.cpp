@@ -1439,9 +1439,8 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
     }
 }
 
-double run_multi_gpu_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr_c1,
-                                   std::vector<int32_t> &curr_c2, const SearchSettings &settings, int32_t level,
-                                   SearchStats *stats) {
+double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr_c1, std::vector<int32_t> &curr_c2,
+                         const SearchSettings &settings, int32_t level, SearchStats *stats) {
     const int n_gpus = (int)devices.size();
     const SearchSettings &kn = settings;
     SearchStats stats_local;
