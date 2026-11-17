@@ -12,7 +12,8 @@
 
 namespace p2vbme {
 
-/* Reads an aligned DNA FASTA file; all sequences must have the same length. Throws std::runtime_error. */
+// Reads an aligned DNA FASTA file.
+// All sequences must have the same length.
 Alignment read_fasta(const std::string &path);
 
 } // namespace p2vbme

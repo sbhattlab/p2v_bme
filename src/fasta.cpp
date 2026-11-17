@@ -17,10 +17,14 @@ Alignment read_fasta(const std::string &path) {
     FILE *f = fopen(path.c_str(), "r");
     if (!f)
         throw std::runtime_error("cannot open " + path);
+    // One pass over the file: a '>' line starts a record, and the lines after it are its sequence.
+    // A record is packed when the next one starts, or at the end of the file.
     Alignment aln;
     std::unordered_map<std::string, int32_t> seen;
     std::string name, seq;
     bool have_record = false;
+    // Packs the record read so far (name, seq) into the alignment.
+    // The first record sets the number of sites; every other one must have the same.
     auto finish_record = [&]() {
         if (!have_record)
             return;
@@ -36,6 +40,8 @@ Alignment read_fasta(const std::string &path) {
         }
         if (!seen.emplace(name, aln.n_taxa).second)
             throw std::runtime_error(path + ": duplicate name '" + name + "'");
+        // Appends the sequence's 5 bitplanes (A, C, G, T, observed), n_words 64-bit words each, zeroed.
+        // pack_sequence then sets one bit per site.
         const size_t row = aln.packed.size();
         aln.packed.resize(row + (size_t)5 * aln.n_words, 0);
         pack_sequence(seq, aln.n_words, aln.packed.data() + row);
@@ -49,10 +55,13 @@ Alignment read_fasta(const std::string &path) {
     ssize_t len;
     long line_no = 0;
     try {
+        // getline (POSIX) grows `line` as needed; it is freed below.
         while ((len = getline(&line, &cap, f)) != -1) {
             ++line_no;
+            // Strips the line ending (\n, or \r\n in Windows files).
             while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
                 line[--len] = '\0';
+            // A header: the name is the first word after '>'; the rest of the line (a description) is ignored.
             if (len > 0 && line[0] == '>') {
                 finish_record();
                 const char *p = line + 1;
@@ -67,6 +76,8 @@ Alignment read_fasta(const std::string &path) {
                 have_record = true;
                 continue;
             }
+            // A sequence line: every character but spaces and tabs is a site.
+            // Gaps and ambiguity codes count as sites too; pack_sequence sets no bit for them.
             for (ssize_t i = 0; i < len; ++i) {
                 const char ch = line[i];
                 if (ch == ' ' || ch == '\t')
@@ -77,14 +88,14 @@ Alignment read_fasta(const std::string &path) {
                 seq.push_back(ch);
             }
         }
-    } catch (...) { /* release the line buffer and the file before passing the error on */
+    } catch (...) { // release the line buffer and the file before passing the error on
         free(line);
         fclose(f);
         throw;
     }
     free(line);
     fclose(f);
-    finish_record();
+    finish_record(); // the last record has no '>' after it
     if (aln.n_taxa == 0)
         throw std::runtime_error(path + ": no sequences");
     return aln;

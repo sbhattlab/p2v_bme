@@ -12,7 +12,7 @@
 
 namespace p2vbme {
 
-/* read_maple for a path ending in .maple (any case), read_fasta otherwise. */
+// read_maple for a path ending in .maple (any case), read_fasta otherwise.
 Alignment read_alignment(const std::string &path);
 
 } // namespace p2vbme
