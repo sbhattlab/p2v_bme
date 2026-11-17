@@ -5,7 +5,7 @@
  * the unrooted tree to <prefix>.nwk and the run report to <prefix>.json. The run, step by step: the arguments
  * (cli), the devices (device), the alignment (io), before inference (processing), inference, after inference,
  * the tree (newick) and the report.
- * Quiet by default: progress with -v; warnings and errors always on stderr.
+ * Progress on stdout (none with -q); warnings and errors on stderr.
  */
 #include <omp.h>
 
@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
             return args.exit_code;
         p2vbme::Settings &opt = args.settings;
         p2vbme::Report &run = args.report;
-        const bool verbose = args.verbose;
+        const bool progress = !args.quiet;
         // Device: leave one core free (the CPU workers with --devices auto, the host threads of GPU runs), unless
         // OMP_NUM_THREADS sets the number of threads
         if (!std::getenv("OMP_NUM_THREADS"))
@@ -67,9 +67,9 @@ int main(int argc, char **argv) {
         run.time_read = omp_get_wtime() - t_read;
         run.n_taxa = aln.n_taxa;
         run.n_sites = aln.n_sites;
-        if (verbose)
-            std::cerr << "p2v-bme: read " << aln.n_taxa << " sequences x " << aln.n_sites << " sites in " << std::fixed
-                      << std::setprecision(2) << run.time_read << " s\n";
+        if (progress)
+            std::cout << "p2v-bme: read " << aln.n_taxa << " sequences x " << aln.n_sites << " sites in " << std::fixed
+                      << std::setprecision(2) << run.time_read << " s" << std::endl;
 
         // Data: if identical sequences, two of each group stay in the search, the rest are put back after it.
         // F81, F84, TN93: base frequencies are counted on the whole input, before the copies are set aside
@@ -79,9 +79,10 @@ int main(int argc, char **argv) {
         // Data: count base frequencies and deduplicate
         p2vbme::prepare_alignment(aln, opt.substitution, run.dedup, dd);
         run.n_identical_removed = dd.n_removed();
-        if (verbose && dd.n_removed() > 0)
-            std::cerr << "p2v-bme: " << dd.n_removed()
-                      << " identical sequences set aside (two of each group kept): " << aln.n_taxa << " left\n";
+        if (progress && dd.n_removed() > 0)
+            std::cout << "p2v-bme: " << dd.n_removed()
+                      << " identical sequences set aside (two of each group kept): " << aln.n_taxa << " left"
+                      << std::endl;
         if (aln.n_taxa < 4)
             throw std::runtime_error("need at least 4 sequences" +
                                      std::string(run.dedup ? " after setting identical copies aside" : "") + ", have " +
@@ -115,8 +116,8 @@ int main(int argc, char **argv) {
         }
 
         p2vbme::LogCallback log;
-        if (verbose)
-            log = [](const std::string &line) { std::cerr << line << std::endl; };
+        if (progress)
+            log = [](const std::string &line) { std::cout << line << std::endl; };
         // Device: select the devices
         p2vbme::Devices devices = p2vbme::select_devices(choice, opt.precision, opt.devices, opt.threads);
         run.on_gpu = choice.on_gpu;
@@ -138,10 +139,11 @@ int main(int argc, char **argv) {
         run.time_total = omp_get_wtime() - t0;
         // Output: write the report
         p2vbme::write_report(run.prefix + ".json", run, opt, res);
-        if (verbose)
-            std::cerr << "p2v-bme: " << run.tree_init << " start, " << res.rounds_run << " rounds, BME length "
+        if (progress)
+            std::cout << "p2v-bme: " << run.tree_init << " start, " << res.rounds_run << " rounds, BME length "
                       << std::fixed << std::setprecision(6) << res.bme_length << "; " << std::setprecision(2)
-                      << run.time_total << " s in total; wrote " << run.prefix << ".nwk, " << run.prefix << ".json\n";
+                      << run.time_total << " s in total; wrote " << run.prefix << ".nwk, " << run.prefix << ".json"
+                      << std::endl;
     } catch (const std::exception &e) {
         std::cerr << "p2v-bme: error: " << e.what() << '\n';
         return 1;

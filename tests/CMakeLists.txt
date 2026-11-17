@@ -105,6 +105,7 @@ endfunction()
 p2vbme_cli_test(help "-s ALIGNMENT -m MODEL.*All options: --help-all" --help)
 p2vbme_cli_test(help_all "Search options:.*--max-rounds.*Start tree options:.*Branch lengths and output" --help-all)
 p2vbme_cli_test(version "p2v-bme 0.1.0" --version)
+p2vbme_cli_test(version_short "p2v-bme 0.1.0" -v)
 p2vbme_cli_test(missing_args "-s ALIGNMENT and -m MODEL are required" -s ${CLI_DIR}/input.fa)
 p2vbme_cli_test(error_message "p2v-bme: error: cannot open .*missing.fa" -s ${CLI_DIR}/missing.fa -m JC69)
 add_test(NAME cli_error_exit_code COMMAND p2v-bme -s ${CLI_DIR}/missing.fa -m JC69)
@@ -127,11 +128,13 @@ p2vbme_cli_test(extra_argument "unexpected argument 'extra'" -s ${CLI_DIR}/input
 p2vbme_cli_test(negative_time_limit "time limit must be >= 0" -s ${CLI_DIR}/input.fa -m JC69 --time-limit -5)
 p2vbme_cli_test(unwritable_prefix "cannot write /nonexistent_dir/x.nwk" -s ${CLI_DIR}/input.fa -m JC69 --prefix
                 /nonexistent_dir/x)
+# -q: no progress (on the CPU, so no fallback warning either)
+p2vbme_cli_test(quiet "^$" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/quiet --accelerator cpu -q)
 # on the CPU: workers, double precision (auto selects the CPU for it)
 p2vbme_cli_test(cpu "BME length" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/cpu --accelerator cpu
-                --devices 2 -v)
+                --devices 2)
 p2vbme_cli_test(cpu_double "double precision: running on the CPU.*BME length" -s ${CLI_DIR}/input.fa -m TN93
-                --prefix ${CLI_DIR}/cpu_double --precision double -v --report-full)
+                --prefix ${CLI_DIR}/cpu_double --precision double --report-full)
 set_tests_properties(cli_cpu_double PROPERTIES FIXTURES_SETUP cli_cpu_double_run)
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_FOUND)
@@ -145,9 +148,9 @@ assert d['devices'] == ['CPU: %d threads' % s['threads']], d['devices']; print('
 endif()
 # F81, F84, TN93: the base frequencies are those of the whole input, counted before dedup (as FastME counts them)
 p2vbme_cli_test(cpu_f81_dups "BME length" -s ${CLI_DIR}/input_dups.fa -m F81 --prefix ${CLI_DIR}/f81_dups
-                --accelerator cpu -v --report-full)
+                --accelerator cpu --report-full)
 p2vbme_cli_test(cpu_f81_nodedup "BME length" -s ${CLI_DIR}/input_dups.fa -m F81 --prefix ${CLI_DIR}/f81_nodedup
-                --accelerator cpu -v --no-dedup --report-full)
+                --accelerator cpu --no-dedup --report-full)
 set_tests_properties(cli_cpu_f81_dups cli_cpu_f81_nodedup PROPERTIES FIXTURES_SETUP cli_f81_runs)
 if(Python3_FOUND)
   add_test(NAME cli_f81_frequencies_of_the_input
@@ -172,29 +175,30 @@ if(P2VBME_CUDA)
     p2vbme_cli_test(${name} "${regex}" ${_args})
     list(APPEND CLI_GPU_TESTS cli_${name})
   endmacro()
-  p2vbme_cli_gpu_test(default "^$" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/default)
-  p2vbme_cli_gpu_test(verbose "read 300 sequences x 600 sites.*sample-and-place: n0=30 .*BME length" -s
-                      ${CLI_DIR}/input.fa -m jc --prefix ${CLI_DIR}/verbose -v --accelerator gpu --devices 1
+  p2vbme_cli_gpu_test(default "read 300 sequences x 600 sites.*BME length" -s ${CLI_DIR}/input.fa -m JC69 --prefix
+                      ${CLI_DIR}/default)
+  p2vbme_cli_gpu_test(progress "read 300 sequences x 600 sites.*sample-and-place: n0=30 .*BME length" -s
+                      ${CLI_DIR}/input.fa -m jc --prefix ${CLI_DIR}/progress --accelerator gpu --devices 1
                       --seed 3)
-  p2vbme_cli_gpu_test(device_list "BME length" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/list -v
+  p2vbme_cli_gpu_test(device_list "BME length" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/list
                       --devices 0, -t random --max-rounds 3 --early-stopping 0 --time-limit 100)
-  p2vbme_cli_gpu_test(advanced "BME length" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/advanced -v
+  p2vbme_cli_gpu_test(advanced "BME length" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/advanced
                       --sample-size 40 --profile-cap 8 --exact-check-eta 0.01 --bl-profile-cap 8 --no-neg-as-zero)
   p2vbme_cli_gpu_test(no_branch_lengths "BME length 0.000000" -s ${CLI_DIR}/input.fa -m JC69 --prefix
-                      ${CLI_DIR}/nobl -v --no-branch-lengths)
-  p2vbme_cli_gpu_test(score_given_tree "0 rounds" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/score -v -t
+                      ${CLI_DIR}/nobl --no-branch-lengths)
+  p2vbme_cli_gpu_test(score_given_tree "0 rounds" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/score -t
                       ${CLI_DIR}/input_true.nwk --max-rounds 0 --report-full)
   # input: .maple gives the same tree as FASTA; identical sequences are put back
-  p2vbme_cli_gpu_test(maple "BME length" -s ${CLI_DIR}/input.maple -m JC69 --prefix ${CLI_DIR}/maple -v)
+  p2vbme_cli_gpu_test(maple "BME length" -s ${CLI_DIR}/input.maple -m JC69 --prefix ${CLI_DIR}/maple)
   p2vbme_cli_gpu_test(dups "3 identical sequences set aside" -s ${CLI_DIR}/input_dups.fa -m JC69 --prefix
-                      ${CLI_DIR}/dups -v --report-full)
-  p2vbme_cli_gpu_test(no_dedup "BME length" -s ${CLI_DIR}/input_dups.fa -m JC69 --prefix ${CLI_DIR}/nodedup -v
+                      ${CLI_DIR}/dups --report-full)
+  p2vbme_cli_gpu_test(no_dedup "BME length" -s ${CLI_DIR}/input_dups.fa -m JC69 --prefix ${CLI_DIR}/nodedup
                       --no-dedup --report-full)
   set_tests_properties(cli_maple cli_dups cli_no_dedup PROPERTIES FIXTURES_SETUP cli_input_runs)
   # every distance model of this version runs; its report names it (k2p = K80)
   foreach(model k2p F81 F84 TN93 LogDet)
     p2vbme_cli_gpu_test(model_${model} "BME length" -s ${CLI_DIR}/input.fa -m ${model} --prefix
-                        ${CLI_DIR}/model_${model} -v --report-full)
+                        ${CLI_DIR}/model_${model} --report-full)
     set_tests_properties(cli_model_${model} PROPERTIES FIXTURES_SETUP cli_model_${model}_run)
   endforeach()
   set_tests_properties(${CLI_GPU_TESTS} PROPERTIES LABELS gpu)

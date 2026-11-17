@@ -120,8 +120,8 @@ CommandLine parse_command_line(int argc, char **argv) {
         ("devices", "GPU: auto (the first GPU), N (the first N, at most 8) or a list such as 0,2; CPU: auto (all "
          "cores but one, or OMP_NUM_THREADS if set) or N threads", cxxopts::value<std::string>()->default_value("auto"))
         ("seed", "seed of the start tree", cxxopts::value(opt.seed), "N")
-        ("v,verbose", "print progress on stderr")
-        ("version", "print the version")
+        ("q,quiet", "print no progress (warnings and errors still go to stderr)")
+        ("v,version", "print the version")
         ("h,help", "print the core options")
         ("help-all", "print all options");
     cli.add_options("Search")
@@ -178,7 +178,7 @@ CommandLine parse_command_line(int argc, char **argv) {
         std::cerr << "p2v-bme: -s ALIGNMENT and -m MODEL are required (see --help)\n";
         return done(2);
     }
-    result.verbose = args.count("verbose") > 0;
+    result.quiet = args.count("quiet") > 0;
     p2vbme::Report &run = result.report;
     for (int a = 0; a < argc; ++a)
         run.command_line.push_back(argv[a]);

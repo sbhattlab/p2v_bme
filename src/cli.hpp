@@ -17,7 +17,7 @@ struct CommandLine {
     p2vbme::Settings settings; // Inference settings
     p2vbme::Report report;     // Report of the run
     std::string devices;       // Devices
-    bool verbose = false;
+    bool quiet = false;
     bool done = false;
     int exit_code = 0;
 };
@@ -26,9 +26,9 @@ struct CommandLine {
 CommandLine parse_command_line(int argc, char **argv);
 
 // Parse device options via `--devices`
-// --devices once the devices are chosen (choose_devices): on the GPU, GPU numbers into settings.devices ("auto": the
-// first GPU, N: the first N, or a list such as 0,2); on the CPU, a number of threads into settings.threads ("auto": 0,
-// the OpenMP default, which main sets to all cores but one, or N). Throws std::runtime_error.
+// on the GPU, GPU numbers into settings.devices ("auto": the first GPU, N: the first N, or a list such as 0,2)
+// on the CPU: a number of threads into settings.threads ("auto": 0, the OpenMP default, which main sets to all cores
+// but one, or N). Throws std::runtime_error.
 void parse_devices_option(const std::string &devices, bool on_gpu, p2vbme::Settings &settings);
 
 #endif // P2VBME_CLI_HPP
