@@ -129,57 +129,55 @@ void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t
     }
 }
 
-void compute_tree_summaries_blind(const int32_t *c1_r, const int32_t *c2_r, int32_t N, std::vector<int32_t> &ord_out,
-                                  std::vector<int32_t> &parent_r_out, std::vector<int32_t> &leaf_cnt_out,
-                                  std::vector<int32_t> &node_rep0_out) {
+void compute_tree_summary(const int32_t *c1_r, const int32_t *c2_r, int32_t N, TreeSummary &out) {
     const int32_t n_nodes_r = 2 * N - 1;
     const int32_t root_r = n_nodes_r - 1;
 
-    ord_out.resize(N - 1);
-    parent_r_out.assign(n_nodes_r, -1);
+    out.order.resize(N - 1);
+    out.parent.assign(n_nodes_r, -1);
     int32_t ord_len = 0;
-    ord_out[ord_len++] = root_r;
+    out.order[ord_len++] = root_r;
     for (int32_t idx = 0; idx < ord_len; ++idx) {
-        int32_t u = ord_out[idx];
+        int32_t u = out.order[idx];
         int32_t b0 = c1_r[u], b1 = c2_r[u];
-        parent_r_out[b0] = u;
-        parent_r_out[b1] = u;
+        out.parent[b0] = u;
+        out.parent[b1] = u;
         if (b0 >= N)
-            ord_out[ord_len++] = b0;
+            out.order[ord_len++] = b0;
         if (b1 >= N)
-            ord_out[ord_len++] = b1;
+            out.order[ord_len++] = b1;
     }
 
-    leaf_cnt_out.assign(n_nodes_r, 1);
-    node_rep0_out.resize(n_nodes_r);
+    out.leaf_count.assign(n_nodes_r, 1);
+    out.stand_in.resize(n_nodes_r);
     std::vector<int32_t> min_depth(n_nodes_r, 0);
     for (int32_t x = 0; x < N; ++x) {
-        node_rep0_out[x] = x;
+        out.stand_in[x] = x;
     }
     for (int32_t idx = ord_len - 1; idx >= 0; --idx) {
-        int32_t u = ord_out[idx];
+        int32_t u = out.order[idx];
         int32_t b0 = c1_r[u], b1 = c2_r[u];
-        leaf_cnt_out[u] = leaf_cnt_out[b0] + leaf_cnt_out[b1];
+        out.leaf_count[u] = out.leaf_count[b0] + out.leaf_count[b1];
         if (min_depth[b0] <= min_depth[b1]) {
             min_depth[u] = 1 + min_depth[b0];
-            node_rep0_out[u] = node_rep0_out[b0];
+            out.stand_in[u] = out.stand_in[b0];
         } else {
             min_depth[u] = 1 + min_depth[b1];
-            node_rep0_out[u] = node_rep0_out[b1];
+            out.stand_in[u] = out.stand_in[b1];
         }
     }
 }
 
 // Compute the dyadic leaf-weight profile w(x) = 2^{-depth_u(x)} for a rooted clade u.
 // Expands internal nodes in best-first order (highest weight w = 2^{-d} first).
-// When max_prof_leaves <= 0 or leaf_cnt[u] <= max_prof_leaves (for balanced, unbalanced, or caterpillar clades alike),
-// all leaves in u are emitted with their exact dyadic weights.
-// When max_prof_leaves > 0 and leaf_cnt[u] > max_prof_leaves, expansion stops at max_prof_leaves entries and each
+// When max_prof_leaves <= 0 or leaf_count[u] <= max_prof_leaves (for balanced, unbalanced, or caterpillar clades
+// alike), all leaves in u are emitted with their exact dyadic weights.
+// When max_prof_leaves > 0 and leaf_count[u] > max_prof_leaves, expansion stops at max_prof_leaves entries and each
 // remaining frontier subtree in the priority queue collapses its mass onto a single representative leaf
-// node_rep0[top.u] (an approximation that can retain substantial collapsed mass on balanced clades of
+// stand_in[top.u] (an approximation that can retain substantial collapsed mass on balanced clades of
 // size > max_prof_leaves).
 static void compute_clade_dyadic_profile(int32_t u, int32_t N, const int32_t *c1_r, const int32_t *c2_r,
-                                         const int32_t *node_rep0, int32_t max_prof_leaves,
+                                         const TreeSummary &summary, int32_t max_prof_leaves,
                                          std::vector<int32_t> &prof_leaves_out, std::vector<float> &prof_weights_out) {
     if (u < N) {
         prof_leaves_out.push_back(u);
@@ -250,7 +248,7 @@ static void compute_clade_dyadic_profile(int32_t u, int32_t N, const int32_t *c1
     while (!pq.empty()) {
         WeightedNode top = pq.top();
         pq.pop();
-        prof_leaves_out.push_back(node_rep0[top.u]);
+        prof_leaves_out.push_back(summary.stand_in[top.u]);
         prof_weights_out.push_back((float)top.weight);
     }
 }
@@ -258,15 +256,15 @@ static void compute_clade_dyadic_profile(int32_t u, int32_t N, const int32_t *c1
 // Compute the unrooted dyadic leaf-weight profile w_out(x) = 2^{-d_unrooted(sub_root, x)} for the entire outside
 // component V \ L(sub_root) across the full ancestor path to root_r (suppressing degree-2 root_r).
 // Expands directed subtrees in best-first weight order.
-// Exact when max_prof_leaves <= 0 or N - leaf_cnt[sub_root] <= max_prof_leaves; above a positive cap
-// max_prof_leaves > 0, unresolved directed frontier subtrees collapse onto node_rep0 representatives.
+// Exact when max_prof_leaves <= 0 or N - leaf_count[sub_root] <= max_prof_leaves; above a positive cap
+// max_prof_leaves > 0, unresolved directed frontier subtrees collapse onto their stand_in leaves.
 static void compute_outgroup_dyadic_profile(int32_t sub_root, int32_t root_r, int32_t N, const int32_t *c1_r,
-                                            const int32_t *c2_r, const int32_t *parent_r, const int32_t *node_rep0,
-                                            int32_t max_prof_leaves, std::vector<int32_t> &prof_leaves_out,
+                                            const int32_t *c2_r, const TreeSummary &summary, int32_t max_prof_leaves,
+                                            std::vector<int32_t> &prof_leaves_out,
                                             std::vector<float> &prof_weights_out) {
-    if (sub_root == root_r || parent_r[sub_root] == -1)
+    if (sub_root == root_r || summary.parent[sub_root] == -1)
         return;
-    int32_t p0 = parent_r[sub_root];
+    int32_t p0 = summary.parent[sub_root];
     int32_t start_u = (p0 == root_r) ? ((c1_r[root_r] == sub_root) ? c2_r[root_r] : c1_r[root_r]) : p0;
     if (start_u < N) {
         prof_leaves_out.push_back(start_u);
@@ -288,7 +286,7 @@ static void compute_outgroup_dyadic_profile(int32_t sub_root, int32_t root_r, in
             int32_t v = top.u;
             int32_t n0 = c1_r[v];
             int32_t n1 = c2_r[v];
-            int32_t pv = parent_r[v];
+            int32_t pv = summary.parent[v];
             int32_t n2 = (pv == root_r) ? ((c1_r[root_r] == v) ? c2_r[root_r] : c1_r[root_r]) : pv;
             int32_t nbs[3] = {n0, n1, n2};
             double hw = 0.5 * top.weight;
@@ -328,7 +326,7 @@ static void compute_outgroup_dyadic_profile(int32_t sub_root, int32_t root_r, in
         int32_t v = top.u;
         int32_t n0 = c1_r[v];
         int32_t n1 = c2_r[v];
-        int32_t pv = parent_r[v];
+        int32_t pv = summary.parent[v];
         int32_t n2 = (pv == root_r) ? ((c1_r[root_r] == v) ? c2_r[root_r] : c1_r[root_r]) : pv;
         int32_t nbs[3] = {n0, n1, n2};
         double hw = 0.5 * top.weight;
@@ -350,10 +348,10 @@ static void compute_outgroup_dyadic_profile(int32_t sub_root, int32_t root_r, in
         int32_t v = top.u;
         int32_t rep_leaf;
         if (top.from_u != c1_r[v] && top.from_u != c2_r[v]) {
-            rep_leaf = node_rep0[v];
+            rep_leaf = summary.stand_in[v];
         } else {
             int32_t sib = (top.from_u == c1_r[v]) ? c2_r[v] : c1_r[v];
-            rep_leaf = node_rep0[sib];
+            rep_leaf = summary.stand_in[sib];
         }
         prof_leaves_out.push_back(rep_leaf);
         prof_weights_out.push_back((float)top.weight);
@@ -361,7 +359,7 @@ static void compute_outgroup_dyadic_profile(int32_t sub_root, int32_t root_r, in
 }
 
 void extract_active_skeleton(int32_t root_r, const int32_t *c1_r, const int32_t *c2_r, int32_t N,
-                             const std::vector<int32_t> &leaf_cnt, std::vector<int32_t> &super_roots,
+                             const TreeSummary &summary, std::vector<int32_t> &super_roots,
                              std::vector<int32_t> &split_internals, std::vector<int32_t> &skel_left,
                              std::vector<int32_t> &skel_right, int32_t *out_root_skel_id, int32_t max_internals,
                              const uint8_t *stop_at_comp_root) {
@@ -389,7 +387,7 @@ void extract_active_skeleton(int32_t root_r, const int32_t *c1_r, const int32_t 
     };
 
     std::vector<ExpNode> exp_nodes;
-    exp_nodes.reserve(std::min(max_internals, std::max(16, leaf_cnt[root_r])));
+    exp_nodes.reserve(std::min(max_internals, std::max(16, summary.leaf_count[root_r])));
     exp_nodes.push_back({root_r, -1, -1});
 
     auto is_eligible = [&](int32_t w) -> bool {
@@ -403,9 +401,9 @@ void extract_active_skeleton(int32_t root_r, const int32_t *c1_r, const int32_t 
     std::priority_queue<PqCand> pq;
     int32_t b0_root = c1_r[root_r], b1_root = c2_r[root_r];
     if (is_eligible(b0_root))
-        pq.push({leaf_cnt[b0_root], b0_root, 0, 0});
+        pq.push({summary.leaf_count[b0_root], b0_root, 0, 0});
     if (is_eligible(b1_root))
-        pq.push({leaf_cnt[b1_root], b1_root, 0, 1});
+        pq.push({summary.leaf_count[b1_root], b1_root, 0, 1});
 
     while (!pq.empty() && (int32_t)exp_nodes.size() < max_internals) {
         PqCand cand = pq.top();
@@ -419,9 +417,9 @@ void extract_active_skeleton(int32_t root_r, const int32_t *c1_r, const int32_t 
 
         int32_t b0 = c1_r[cand.u], b1 = c2_r[cand.u];
         if (is_eligible(b0))
-            pq.push({leaf_cnt[b0], b0, my_exp, 0});
+            pq.push({summary.leaf_count[b0], b0, my_exp, 0});
         if (is_eligible(b1))
-            pq.push({leaf_cnt[b1], b1, my_exp, 1});
+            pq.push({summary.leaf_count[b1], b1, my_exp, 1});
     }
 
     struct Frame {
@@ -473,7 +471,7 @@ void extract_active_skeleton(int32_t root_r, const int32_t *c1_r, const int32_t 
 // components into ancestor-independent level waves (exposing 100% of the N original leaves, while pure internal
 // connector components with zero direct leaves are covered by the whole-tree window and the coarse windows of the
 // V-cycle).
-void build_component_waves(int32_t N, const std::vector<int32_t> &ord, const std::vector<int32_t> &curr_c1,
+void build_component_waves(int32_t N, const TreeSummary &summary, const std::vector<int32_t> &curr_c1,
                            const std::vector<int32_t> &curr_c2, int32_t max_cap, std::vector<uint8_t> &is_comp_root,
                            std::vector<std::vector<int32_t>> &level_waves) {
     const int32_t n_nodes_r = 2 * N - 1;
@@ -485,8 +483,8 @@ void build_component_waves(int32_t N, const std::vector<int32_t> &ord, const std
 
     std::vector<int32_t> rem_int(n_nodes_r, 0);
 
-    for (int32_t idx = (int32_t)ord.size() - 1; idx >= 0; --idx) {
-        int32_t u = ord[idx];
+    for (int32_t idx = (int32_t)summary.order.size() - 1; idx >= 0; --idx) {
+        int32_t u = summary.order[idx];
         int32_t c1 = curr_c1[u], c2 = curr_c2[u];
         int32_t r1 = rem_int[c1], r2 = rem_int[c2];
         const int32_t cap = max_cap;
@@ -554,8 +552,8 @@ void build_component_waves(int32_t N, const std::vector<int32_t> &ord, const std
     for (int32_t x = 0; x < N; ++x)
         direct_leaves[x] = 1;
     int32_t max_lvl = 0;
-    for (int32_t idx = (int32_t)ord.size() - 1; idx >= 0; --idx) {
-        int32_t u = ord[idx];
+    for (int32_t idx = (int32_t)summary.order.size() - 1; idx >= 0; --idx) {
+        int32_t u = summary.order[idx];
         int32_t c1 = curr_c1[u], c2 = curr_c2[u];
         int32_t l1 = (c1 >= N && is_comp_root[c1]) ? (comp_lvl[c1] + 1) : max_ch_lvl[c1];
         int32_t l2 = (c2 >= N && is_comp_root[c2]) ? (comp_lvl[c2] + 1) : max_ch_lvl[c2];
@@ -571,8 +569,8 @@ void build_component_waves(int32_t N, const std::vector<int32_t> &ord, const std
     }
 
     level_waves.resize(max_lvl + 1);
-    for (int32_t idx = (int32_t)ord.size() - 1; idx >= 0; --idx) {
-        int32_t u = ord[idx];
+    for (int32_t idx = (int32_t)summary.order.size() - 1; idx >= 0; --idx) {
+        int32_t u = summary.order[idx];
         if (is_comp_root[u] && direct_leaves[u] > 0) {
             level_waves[comp_lvl[u]].push_back(u);
         }
@@ -1023,15 +1021,15 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
     return best_L - init_L;
 }
 
-static inline void update_one_node_summary(int32_t u, int32_t b0, int32_t b1, int32_t *parent_r, int32_t *leaf_cnt,
-                                           int32_t *node_rep0) {
-    parent_r[b0] = u;
-    parent_r[b1] = u;
-    leaf_cnt[u] = leaf_cnt[b0] + leaf_cnt[b1];
-    node_rep0[u] = (leaf_cnt[b0] <= leaf_cnt[b1]) ? node_rep0[b0] : node_rep0[b1];
+static inline void update_one_node_summary(int32_t u, int32_t b0, int32_t b1, TreeSummary &summary) {
+    summary.parent[b0] = u;
+    summary.parent[b1] = u;
+    summary.leaf_count[u] = summary.leaf_count[b0] + summary.leaf_count[b1];
+    summary.stand_in[u] =
+        (summary.leaf_count[b0] <= summary.leaf_count[b1]) ? summary.stand_in[b0] : summary.stand_in[b1];
 }
 
-// Optimize the window below sub_root and write the result into curr_c1, curr_c2, parent_r, leaf_cnt and node_rep0.
+// Optimize the window below sub_root and write the result into curr_c1, curr_c2 and summary.
 // The window collapses clades into K taxa, each with a dyadic-weighted leaf profile, and optimizes them as an unrooted
 // BME tree.
 // A subtree window (sub_root != root_r) also sees the rest of the tree, as one extra taxon, the outgroup, because BME
@@ -1039,23 +1037,22 @@ static inline void update_one_node_summary(int32_t u, int32_t b0, int32_t b1, in
 // Its result is rooted where the outgroup attaches, so the subtree keeps its place, and the outgroup is dropped.
 // The whole-tree window (sub_root == root_r) has no outgroup and BME does not fix a root, so it re-roots on the
 // centroid edge.
-// Windows of one wave run in parallel: they pass a snapshot (outgroup_c1, outgroup_c2, outgroup_par, outgroup_rep0),
-// read their profiles from it, and leave parent_r alone (the caller recomputes the summaries after the wave).
+// Windows of one wave run in parallel: they pass a snapshot (outgroup_c1, outgroup_c2, outgroup_summary), read their
+// profiles from it, and leave summary.parent alone (the caller recomputes the summary after the wave).
 
 static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t max_iters,
                                            const SearchSettings &settings, const std::vector<int32_t> &outgroup_leaves,
                                            const std::vector<float> &outgroup_weights, Device &dev,
                                            std::vector<int32_t> &curr_c1, std::vector<int32_t> &curr_c2,
-                                           std::vector<int32_t> &parent_r, std::vector<int32_t> &leaf_cnt,
-                                           std::vector<int32_t> &node_rep0, int32_t max_internals,
+                                           TreeSummary &summary, int32_t max_internals,
                                            const uint8_t *stop_at_comp_root = NULL, const int32_t *outgroup_c1 = NULL,
-                                           const int32_t *outgroup_c2 = NULL, const int32_t *outgroup_par = NULL,
-                                           const int32_t *outgroup_rep0 = NULL) {
+                                           const int32_t *outgroup_c2 = NULL,
+                                           const TreeSummary *outgroup_summary = NULL) {
     const int32_t root_r = 2 * N - 2;
     const int32_t max_prof_leaves = settings.profile_cap;
     std::vector<int32_t> super_roots, split_internals, skel_left, skel_right;
     int32_t root_skel_id = -1;
-    extract_active_skeleton(sub_root, curr_c1.data(), curr_c2.data(), N, leaf_cnt, super_roots, split_internals,
+    extract_active_skeleton(sub_root, curr_c1.data(), curr_c2.data(), N, summary, super_roots, split_internals,
                             skel_left, skel_right, &root_skel_id, max_internals, stop_at_comp_root);
 
     // A subtree window also sees the rest of the tree, as one extra taxon (the outgroup).
@@ -1068,7 +1065,7 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
     if (K < p2vbme::WINDOW_MIN_K || K > dev.max_window())
         return 0.0;
 
-    int32_t parent_of_sub_root = parent_r[sub_root];
+    int32_t parent_of_sub_root = summary.parent[sub_root];
     std::vector<int32_t> sk_c1(2 * K - 1, 0), sk_c2(2 * K - 1, 0);
     for (int32_t s = 0; s < K_in - 1; ++s) {
         int32_t l_raw = skel_left[s], r_raw = skel_right[s];
@@ -1082,8 +1079,7 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
 
     const int32_t *oc1 = (outgroup_c1 != NULL) ? outgroup_c1 : curr_c1.data();
     const int32_t *oc2 = (outgroup_c2 != NULL) ? outgroup_c2 : curr_c2.data();
-    const int32_t *opar = (outgroup_par != NULL) ? outgroup_par : parent_r.data();
-    const int32_t *orep = (outgroup_rep0 != NULL) ? outgroup_rep0 : node_rep0.data();
+    const TreeSummary &osum = (outgroup_summary != NULL) ? *outgroup_summary : summary;
 
     std::vector<int32_t> prof_offsets(K + 1, 0), prof_leaves;
     std::vector<float> prof_weights;
@@ -1092,13 +1088,13 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
     bool need_exact_prof = false;
     for (int32_t a = 0; a < K_in; ++a) {
         prof_offsets[a] = (int32_t)prof_leaves.size();
-        compute_clade_dyadic_profile(super_roots[a], N, oc1, oc2, orep, max_prof_leaves, prof_leaves, prof_weights);
-        if (max_prof_leaves > 0 && leaf_cnt[super_roots[a]] > max_prof_leaves) {
+        compute_clade_dyadic_profile(super_roots[a], N, oc1, oc2, osum, max_prof_leaves, prof_leaves, prof_weights);
+        if (max_prof_leaves > 0 && summary.leaf_count[super_roots[a]] > max_prof_leaves) {
             need_exact_prof = true;
         }
     }
     prof_offsets[K_in] = (int32_t)prof_leaves.size();
-    int32_t outgroup_true_leaves = N - leaf_cnt[sub_root];
+    int32_t outgroup_true_leaves = N - summary.leaf_count[sub_root];
     if (has_outgroup) {
         prof_leaves.insert(prof_leaves.end(), outgroup_leaves.begin(), outgroup_leaves.end());
         prof_weights.insert(prof_weights.end(), outgroup_weights.begin(), outgroup_weights.end());
@@ -1118,13 +1114,13 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
         exact_prof_weights.reserve(cap_exact ? (size_t)(K * 256) : (size_t)N);
         for (int32_t a = 0; a < K_in; ++a) {
             exact_prof_offsets[a] = (int32_t)exact_prof_leaves.size();
-            if (max_prof_leaves <= 0 || leaf_cnt[super_roots[a]] <= max_prof_leaves) {
+            if (max_prof_leaves <= 0 || summary.leaf_count[super_roots[a]] <= max_prof_leaves) {
                 exact_prof_leaves.insert(exact_prof_leaves.end(), prof_leaves.begin() + prof_offsets[a],
                                          prof_leaves.begin() + prof_offsets[a + 1]);
                 exact_prof_weights.insert(exact_prof_weights.end(), prof_weights.begin() + prof_offsets[a],
                                           prof_weights.begin() + prof_offsets[a + 1]);
             } else {
-                compute_clade_dyadic_profile(super_roots[a], N, oc1, oc2, orep, exact_cap, exact_prof_leaves,
+                compute_clade_dyadic_profile(super_roots[a], N, oc1, oc2, osum, exact_cap, exact_prof_leaves,
                                              exact_prof_weights);
             }
         }
@@ -1134,7 +1130,7 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
                 exact_prof_leaves.insert(exact_prof_leaves.end(), outgroup_leaves.begin(), outgroup_leaves.end());
                 exact_prof_weights.insert(exact_prof_weights.end(), outgroup_weights.begin(), outgroup_weights.end());
             } else {
-                compute_outgroup_dyadic_profile(sub_root, root_r, N, oc1, oc2, opar, orep, exact_cap, exact_prof_leaves,
+                compute_outgroup_dyadic_profile(sub_root, root_r, N, oc1, oc2, osum, exact_cap, exact_prof_leaves,
                                                 exact_prof_weights);
             }
             exact_prof_offsets[K] = (int32_t)exact_prof_leaves.size();
@@ -1183,7 +1179,7 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
         const int32_t root_u_sk = 2 * K - 3;
         std::vector<int32_t> w_sub(2 * K - 2, 0);
         for (int32_t a = 0; a < K; ++a)
-            w_sub[a] = leaf_cnt[super_roots[perm_mb[a]]];
+            w_sub[a] = summary.leaf_count[super_roots[perm_mb[a]]];
         for (int32_t u = K; u < root_u_sk; ++u)
             w_sub[u] = w_sub[c1_cf[u]] + w_sub[c2_cf[u]];
         u_best = 0;
@@ -1248,15 +1244,16 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
         curr_c1[full_u] = b0;
         curr_c2[full_u] = b1;
         if (outgroup_c1 == NULL) {
-            update_one_node_summary(full_u, b0, b1, parent_r.data(), leaf_cnt.data(), node_rep0.data());
+            update_one_node_summary(full_u, b0, b1, summary);
         } else {
-            leaf_cnt[full_u] = leaf_cnt[b0] + leaf_cnt[b1];
-            node_rep0[full_u] = (leaf_cnt[b0] <= leaf_cnt[b1]) ? node_rep0[b0] : node_rep0[b1];
+            summary.leaf_count[full_u] = summary.leaf_count[b0] + summary.leaf_count[b1];
+            summary.stand_in[full_u] =
+                (summary.leaf_count[b0] <= summary.leaf_count[b1]) ? summary.stand_in[b0] : summary.stand_in[b1];
         }
     }
     if (has_outgroup) {
         if (outgroup_c1 == NULL) {
-            parent_r[sub_root] = parent_of_sub_root;
+            summary.parent[sub_root] = parent_of_sub_root;
         }
     } else {
         int32_t full_u = split_internals[K - 2]; // == root_r
@@ -1264,8 +1261,8 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
         int32_t b1 = sk_to_full[p_best];
         curr_c1[full_u] = b0;
         curr_c2[full_u] = b1;
-        update_one_node_summary(full_u, b0, b1, parent_r.data(), leaf_cnt.data(), node_rep0.data());
-        parent_r[root_r] = -1;
+        update_one_node_summary(full_u, b0, b1, summary);
+        summary.parent[root_r] = -1;
     }
     return dL;
 }
@@ -1284,8 +1281,8 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
     const int32_t n_nodes_r = 2 * N - 1;
     const int32_t root_r = n_nodes_r - 1;
     const int32_t max_prof_leaves = kn.profile_cap;
-    std::vector<int32_t> ord, parent_r, leaf_cnt, node_rep0;
-    compute_tree_summaries_blind(curr_c1.data(), curr_c2.data(), N, ord, parent_r, leaf_cnt, node_rep0);
+    TreeSummary summary; // of the current tree, rebuilt after windows change it
+    compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
 
     double total_mb_delta_L = 0.0;
     std::vector<int32_t> empty_out_leaves;
@@ -1313,9 +1310,9 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
         // Pass 1: Global Backbone (priority-queue bounded to WINDOW_MAX_INTERNALS, so K <= 1,500)
         if (outer_round > 0 && !is_final_leaf_cleanup && N >= p2vbme::BACKBONE_MIN_N) {
             total_mb_delta_L += run_subtree_minibatch_window(root_r, N, p2vbme::WINDOW_MAX_SWEEPS, kn, empty_out_leaves,
-                                                             empty_out_weights, *devices[0], curr_c1, curr_c2, parent_r,
-                                                             leaf_cnt, node_rep0, p2vbme::WINDOW_MAX_INTERNALS, NULL);
-            compute_tree_summaries_blind(curr_c1.data(), curr_c2.data(), N, ord, parent_r, leaf_cnt, node_rep0);
+                                                             empty_out_weights, *devices[0], curr_c1, curr_c2, summary,
+                                                             p2vbme::WINDOW_MAX_INTERNALS, NULL);
+            compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
             emit_stage(kn, level, N, outer_round, "backbone1", 0, total_mb_delta_L);
         }
 
@@ -1323,7 +1320,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
         // internal components, K <= 1056 <= 2048)
         std::vector<uint8_t> is_comp_root;
         std::vector<std::vector<int32_t>> level_waves;
-        build_component_waves(N, ord, curr_c1, curr_c2, p2vbme::WAVE_COMPONENT_CAP, is_comp_root, level_waves);
+        build_component_waves(N, summary, curr_c1, curr_c2, p2vbme::WAVE_COMPONENT_CAP, is_comp_root, level_waves);
 
         for (size_t lvl = 0; lvl < level_waves.size(); ++lvl) {
             const std::vector<int32_t> &wave = level_waves[lvl];
@@ -1331,7 +1328,8 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
             // does not depend on it: every window reads the tree as it was before the wave and writes only its own
             // subtree; the gains are summed in wave order.
             if (wave.size() > 1) {
-                std::vector<int32_t> snap_c1 = curr_c1, snap_c2 = curr_c2, snap_par = parent_r, snap_rep0 = node_rep0;
+                std::vector<int32_t> snap_c1 = curr_c1, snap_c2 = curr_c2;
+                const TreeSummary snap_summary = summary;
                 std::vector<double> window_dL(wave.size(), 0.0);
                 ParallelErrors errors;
 #pragma omp parallel for num_threads(n_gpus) schedule(dynamic, 1)
@@ -1344,14 +1342,13 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                         std::vector<int32_t> out_leaves;
                         std::vector<float> out_weights;
                         if (sr != root_r) {
-                            compute_outgroup_dyadic_profile(sr, root_r, N, snap_c1.data(), snap_c2.data(),
-                                                            snap_par.data(), snap_rep0.data(), max_prof_leaves,
-                                                            out_leaves, out_weights);
+                            compute_outgroup_dyadic_profile(sr, root_r, N, snap_c1.data(), snap_c2.data(), snap_summary,
+                                                            max_prof_leaves, out_leaves, out_weights);
                         }
                         window_dL[idx] = run_subtree_minibatch_window(
                             sr, N, p2vbme::WINDOW_MAX_SWEEPS, kn, out_leaves, out_weights, *devices[g], curr_c1,
-                            curr_c2, parent_r, leaf_cnt, node_rep0, p2vbme::WAVE_WINDOW_MAX_INTERNALS,
-                            is_comp_root.data(), snap_c1.data(), snap_c2.data(), snap_par.data(), snap_rep0.data());
+                            curr_c2, summary, p2vbme::WAVE_WINDOW_MAX_INTERNALS, is_comp_root.data(), snap_c1.data(),
+                            snap_c2.data(), &snap_summary);
                     } catch (...) {
                         errors.capture();
                     }
@@ -1361,7 +1358,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                 for (double dL : window_dL)
                     wave_dL += dL;
                 total_mb_delta_L += wave_dL;
-                compute_tree_summaries_blind(curr_c1.data(), curr_c2.data(), N, ord, parent_r, leaf_cnt, node_rep0);
+                compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
             } else {
                 std::vector<int32_t> out_leaves;
                 std::vector<float> out_weights;
@@ -1370,23 +1367,22 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                     out_leaves.clear();
                     out_weights.clear();
                     if (sr != root_r) {
-                        compute_outgroup_dyadic_profile(sr, root_r, N, curr_c1.data(), curr_c2.data(), parent_r.data(),
-                                                        node_rep0.data(), max_prof_leaves, out_leaves, out_weights);
+                        compute_outgroup_dyadic_profile(sr, root_r, N, curr_c1.data(), curr_c2.data(), summary,
+                                                        max_prof_leaves, out_leaves, out_weights);
                     }
-                    double dL = run_subtree_minibatch_window(
-                        sr, N, p2vbme::WINDOW_MAX_SWEEPS, kn, out_leaves, out_weights, *devices[0], curr_c1, curr_c2,
-                        parent_r, leaf_cnt, node_rep0, p2vbme::WAVE_WINDOW_MAX_INTERNALS, is_comp_root.data());
+                    double dL = run_subtree_minibatch_window(sr, N, p2vbme::WINDOW_MAX_SWEEPS, kn, out_leaves,
+                                                             out_weights, *devices[0], curr_c1, curr_c2, summary,
+                                                             p2vbme::WAVE_WINDOW_MAX_INTERNALS, is_comp_root.data());
                     if (dL != 0.0) {
                         total_mb_delta_L += dL;
-                        for (int32_t p = parent_r[sr]; p != -1; p = parent_r[p]) {
-                            update_one_node_summary(p, curr_c1[p], curr_c2[p], parent_r.data(), leaf_cnt.data(),
-                                                    node_rep0.data());
+                        for (int32_t p = summary.parent[sr]; p != -1; p = summary.parent[p]) {
+                            update_one_node_summary(p, curr_c1[p], curr_c2[p], summary);
                         }
-                        parent_r[root_r] = -1;
+                        summary.parent[root_r] = -1;
                     }
                 }
                 if (lvl + 1 < level_waves.size()) {
-                    compute_tree_summaries_blind(curr_c1.data(), curr_c2.data(), N, ord, parent_r, leaf_cnt, node_rep0);
+                    compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
                 }
             }
         }
@@ -1395,17 +1391,17 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
         // Pass 2B: whole-tree window (from round 1) + full multi-scale V-cycle
         if (N > p2vbme::VCYCLE_MIN_N) {
             {
-                compute_tree_summaries_blind(curr_c1.data(), curr_c2.data(), N, ord, parent_r, leaf_cnt, node_rep0);
+                compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
                 if (outer_round > 0 && !is_final_leaf_cleanup && N >= p2vbme::BACKBONE_MIN_N) {
                     total_mb_delta_L += run_subtree_minibatch_window(
                         root_r, N, p2vbme::WINDOW_MAX_SWEEPS, kn, empty_out_leaves, empty_out_weights, *devices[0],
-                        curr_c1, curr_c2, parent_r, leaf_cnt, node_rep0, p2vbme::WINDOW_MAX_INTERNALS, NULL);
-                    compute_tree_summaries_blind(curr_c1.data(), curr_c2.data(), N, ord, parent_r, leaf_cnt, node_rep0);
+                        curr_c1, curr_c2, summary, p2vbme::WINDOW_MAX_INTERNALS, NULL);
+                    compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
                     emit_stage(kn, level, N, outer_round, "backbone2", 0, total_mb_delta_L);
                 }
             }
             if (is_final_leaf_cleanup) {
-                compute_tree_summaries_blind(curr_c1.data(), curr_c2.data(), N, ord, parent_r, leaf_cnt, node_rep0);
+                compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
                 emit_stage(kn, level, N, outer_round, "round_end", -1, total_mb_delta_L, &curr_c1, &curr_c2);
                 break;
             }
@@ -1426,7 +1422,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                 scale_caps.push_back(
                     p2vbme::VCYCLE_FINEST_SCALE); // for 2,000 <= N <= 3,200 the scale N already selects the root
             for (int32_t sc_cap : scale_caps) {
-                compute_tree_summaries_blind(curr_c1.data(), curr_c2.data(), N, ord, parent_r, leaf_cnt, node_rep0);
+                compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
                 const int32_t min_sc = (sc_cap <= p2vbme::VCYCLE_BASE_SCALE) ? p2vbme::WAVE_COMPONENT_CAP
                                                                              : (sc_cap / p2vbme::VCYCLE_SCALE_FACTOR);
                 std::vector<int32_t> mid_roots;
@@ -1437,8 +1433,8 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                         st.pop_back();
                         if (u < N)
                             continue;
-                        if (leaf_cnt[u] <= sc_cap) {
-                            if (leaf_cnt[u] > min_sc)
+                        if (summary.leaf_count[u] <= sc_cap) {
+                            if (summary.leaf_count[u] > min_sc)
                                 mid_roots.push_back(u);
                         } else {
                             st.push_back(curr_c2[u]);
@@ -1450,8 +1446,8 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                     continue;
                 // several windows at this scale: the snapshot path for any number of devices, as the waves
                 if (mid_roots.size() > 1) {
-                    std::vector<int32_t> snap_c1 = curr_c1, snap_c2 = curr_c2, snap_par = parent_r,
-                                         snap_rep0 = node_rep0;
+                    std::vector<int32_t> snap_c1 = curr_c1, snap_c2 = curr_c2;
+                    const TreeSummary snap_summary = summary;
                     std::vector<double> window_dL(mid_roots.size(), 0.0);
                     ParallelErrors errors;
 #pragma omp parallel for num_threads(n_gpus) schedule(dynamic, 1)
@@ -1465,13 +1461,13 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                             std::vector<float> out_weights_p2b;
                             if (sr != root_r) {
                                 compute_outgroup_dyadic_profile(sr, root_r, N, snap_c1.data(), snap_c2.data(),
-                                                                snap_par.data(), snap_rep0.data(), max_prof_leaves,
-                                                                out_leaves_p2b, out_weights_p2b);
+                                                                snap_summary, max_prof_leaves, out_leaves_p2b,
+                                                                out_weights_p2b);
                             }
                             window_dL[idx] = run_subtree_minibatch_window(
                                 sr, N, p2vbme::WINDOW_MAX_SWEEPS, kn, out_leaves_p2b, out_weights_p2b, *devices[g],
-                                curr_c1, curr_c2, parent_r, leaf_cnt, node_rep0, p2vbme::WINDOW_MAX_INTERNALS, NULL,
-                                snap_c1.data(), snap_c2.data(), snap_par.data(), snap_rep0.data());
+                                curr_c1, curr_c2, summary, p2vbme::WINDOW_MAX_INTERNALS, NULL, snap_c1.data(),
+                                snap_c2.data(), &snap_summary);
                         } catch (...) {
                             errors.capture();
                         }
@@ -1481,7 +1477,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                     for (double dL : window_dL)
                         mid_dL += dL;
                     total_mb_delta_L += mid_dL;
-                    compute_tree_summaries_blind(curr_c1.data(), curr_c2.data(), N, ord, parent_r, leaf_cnt, node_rep0);
+                    compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
                 } else {
                     std::vector<int32_t> out_leaves_p2b;
                     std::vector<float> out_weights_p2b;
@@ -1490,20 +1486,18 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                         out_leaves_p2b.clear();
                         out_weights_p2b.clear();
                         if (sr != root_r) {
-                            compute_outgroup_dyadic_profile(sr, root_r, N, curr_c1.data(), curr_c2.data(),
-                                                            parent_r.data(), node_rep0.data(), max_prof_leaves,
-                                                            out_leaves_p2b, out_weights_p2b);
+                            compute_outgroup_dyadic_profile(sr, root_r, N, curr_c1.data(), curr_c2.data(), summary,
+                                                            max_prof_leaves, out_leaves_p2b, out_weights_p2b);
                         }
-                        double dL = run_subtree_minibatch_window(
-                            sr, N, p2vbme::WINDOW_MAX_SWEEPS, kn, out_leaves_p2b, out_weights_p2b, *devices[0], curr_c1,
-                            curr_c2, parent_r, leaf_cnt, node_rep0, p2vbme::WINDOW_MAX_INTERNALS, NULL);
+                        double dL = run_subtree_minibatch_window(sr, N, p2vbme::WINDOW_MAX_SWEEPS, kn, out_leaves_p2b,
+                                                                 out_weights_p2b, *devices[0], curr_c1, curr_c2,
+                                                                 summary, p2vbme::WINDOW_MAX_INTERNALS, NULL);
                         if (dL != 0.0) {
                             total_mb_delta_L += dL;
-                            for (int32_t p = parent_r[sr]; p != -1; p = parent_r[p]) {
-                                update_one_node_summary(p, curr_c1[p], curr_c2[p], parent_r.data(), leaf_cnt.data(),
-                                                        node_rep0.data());
+                            for (int32_t p = summary.parent[sr]; p != -1; p = summary.parent[p]) {
+                                update_one_node_summary(p, curr_c1[p], curr_c2[p], summary);
                             }
-                            parent_r[root_r] = -1;
+                            summary.parent[root_r] = -1;
                         }
                     }
                 }
@@ -1511,7 +1505,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
             }
         }
 
-        compute_tree_summaries_blind(curr_c1.data(), curr_c2.data(), N, ord, parent_r, leaf_cnt, node_rep0);
+        compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
         emit_stage(kn, level, N, outer_round, "round_end", -1, total_mb_delta_L, &curr_c1, &curr_c2);
         if (!is_final_leaf_cleanup && outer_round < n_outer_rounds) {
             run_stats.rounds_run = outer_round + 1;

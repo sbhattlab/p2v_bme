@@ -123,16 +123,25 @@ std::unique_ptr<WindowKernels> make_cpu_window_kernels(const uint64_t *rows, int
 
 // ---- Tree summaries and windows ----
 
-void compute_tree_summaries_blind(const int32_t *c1_r, const int32_t *c2_r, int32_t N, std::vector<int32_t> &ord_out,
-                                  std::vector<int32_t> &parent_r_out, std::vector<int32_t> &leaf_cnt_out,
-                                  std::vector<int32_t> &node_rep0_out);
+// What the search needs about each node of the current tree, besides its two children (c1, c2).
+// Nodes as in Tree: leaves 0..N-1, internal nodes N..2N-2, root 2N-2.
+struct TreeSummary {
+    std::vector<int32_t> order;      // the N - 1 internal nodes, BFS from the root
+    std::vector<int32_t> parent;     // parent of each node, -1 for the root
+    std::vector<int32_t> leaf_count; // leaves under each node, 1 for a leaf
+    std::vector<int32_t> stand_in;   // the leaf that takes the node's weight when a capped profile collapses it
+};
+
+// The summary of the rooted tree (c1, c2) on N leaves, rebuilt in full.
+// stand_in is each node's closest leaf (the c1 side on ties).
+void compute_tree_summary(const int32_t *c1_r, const int32_t *c2_r, int32_t N, TreeSummary &out);
 void extract_active_skeleton(int32_t root_r, const int32_t *c1_r, const int32_t *c2_r, int32_t N,
-                             const std::vector<int32_t> &leaf_cnt, std::vector<int32_t> &super_roots,
+                             const TreeSummary &summary, std::vector<int32_t> &super_roots,
                              std::vector<int32_t> &split_internals, std::vector<int32_t> &skel_left,
                              std::vector<int32_t> &skel_right, int32_t *out_root_skel_id,
                              int32_t max_internals = WAVE_WINDOW_MAX_INTERNALS,
                              const uint8_t *stop_at_comp_root = nullptr);
-void build_component_waves(int32_t N, const std::vector<int32_t> &ord, const std::vector<int32_t> &curr_c1,
+void build_component_waves(int32_t N, const TreeSummary &summary, const std::vector<int32_t> &curr_c1,
                            const std::vector<int32_t> &curr_c2, int32_t max_cap, std::vector<uint8_t> &is_comp_root,
                            std::vector<std::vector<int32_t>> &level_waves);
 
