@@ -6,15 +6,14 @@
 #ifndef P2VBME_TIMING_HPP
 #define P2VBME_TIMING_HPP
 
-#include <time.h>
+#include <chrono>
 
 namespace p2vbme {
 
-// Monotonic wall clock, seconds.
+// Monotonic wall clock, seconds (std::chrono::steady_clock).
+// Its zero is unspecified, so only differences between readings are meaningful.
 inline double wall_sec() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec + 1e-9 * (double)ts.tv_nsec;
+    return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 } // namespace p2vbme
