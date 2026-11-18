@@ -20,6 +20,7 @@
 
 namespace p2vbme {
 
+// Forward declaration
 struct SearchSettings;
 
 // Progress of a search, reported through SearchSettings::on_event (the core keeps no diagnostic state and prints
@@ -60,7 +61,9 @@ struct SearchSettings {
 
 // What a search did (the main search's values go into the reports).
 struct SearchStats {
-    int32_t rounds_planned = 0, rounds_run = 0, stop_round = -1;
+    int32_t rounds_planned = 0;
+    int32_t rounds_run = 0;
+    int32_t stop_round = -1;
     StopReason stop_reason = StopReason::MaxRounds; // why the rounds ended
 };
 
@@ -84,7 +87,10 @@ void compute_skeleton_leaf_dists(const int64_t *v_cf, const int32_t *perm, int32
 // unrooted tree on 2K - 2 nodes rooted at node 2K - 3 (parent_u, sub_size, tin, adj_u) and the root's children.
 struct SkeletonMeta {
     std::vector<int32_t> c1, c2, v_map, m_lmin, next_k, parent_u, sub_size, tin, adj_u;
-    int32_t other_rc = -1, rc0 = -1, rc1 = -1, rc2 = -1;
+    int32_t other_rc = -1;
+    int32_t rc0 = -1;
+    int32_t rc1 = -1;
+    int32_t rc2 = -1;
 };
 
 // What a device computes for a window solve.
@@ -146,10 +152,10 @@ void build_component_waves(int32_t N, const TreeSummary &summary, const std::vec
 
 // ---- The search ----
 
-// Improves the rooted tree (curr_c1, curr_c2) in place; returns the BME change.
+// Improves the rooted tree (c1, c2) in place; returns the BME change.
 // The devices hold the alignment of this tree's leaves.
 // level: 0 = the main search, k = a search inside the sample-and-place start, k levels down.
-double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr_c1, std::vector<int32_t> &curr_c2,
+double run_minibatch_bme(int32_t n_leaves, Devices &devices, std::vector<int32_t> &c1, std::vector<int32_t> &c2,
                          const SearchSettings &settings, int32_t level = 0, SearchStats *stats = nullptr);
 
 } // namespace p2vbme

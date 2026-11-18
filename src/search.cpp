@@ -6,10 +6,8 @@
  */
 #include "search.hpp"
 
-#include <math.h>
 #include <omp.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 #include <algorithm>
@@ -1266,60 +1264,60 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
     return dL;
 }
 
-double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr_c1, std::vector<int32_t> &curr_c2,
+double run_minibatch_bme(int32_t n_leaves, Devices &devices, std::vector<int32_t> &c1, std::vector<int32_t> &c2,
                          const SearchSettings &settings, int32_t level, SearchStats *stats) {
-    const int n_gpus = (int)devices.size();
-    const SearchSettings &kn = settings;
+    const int n_devices = (int)devices.size();
     SearchStats stats_local;
     SearchStats &run_stats = stats ? *stats : stats_local;
-    if (kn.rounds <= 0) { // no search, not even the final cleanup pass
+    if (settings.rounds <= 0) { // no search, not even the final cleanup pass
         run_stats = SearchStats();
         run_stats.stop_reason = StopReason::None;
         return 0.0;
     }
-    const int32_t n_nodes_r = 2 * N - 1;
+    const int32_t n_nodes_r = 2 * n_leaves - 1;
     const int32_t root_r = n_nodes_r - 1;
-    const int32_t max_prof_leaves = kn.profile_cap;
+    const int32_t max_prof_leaves = settings.profile_cap;
     TreeSummary summary; // of the current tree, rebuilt after windows change it
-    compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
+    compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
 
+    // How much search has changed the tree's BME length so far
     double total_mb_delta_L = 0.0;
     std::vector<int32_t> empty_out_leaves;
     std::vector<float> empty_out_weights;
 
-    int n_outer_rounds = kn.rounds;
+    int n_outer_rounds = settings.rounds;
     double round0_gain = 0.0, round_start_dL = 0.0;
-    if (kn.on_event) {
+    if (settings.on_event) {
         SearchEvent e;
         e.kind = SearchEvent::Start;
         e.level = level;
-        e.n_leaves = N;
-        e.n_devices = n_gpus;
+        e.n_leaves = n_leaves;
+        e.n_devices = n_devices;
         e.rounds_planned = n_outer_rounds;
-        e.settings = &kn;
-        kn.on_event(e);
+        e.settings = &settings;
+        settings.on_event(e);
     }
     run_stats.rounds_planned = n_outer_rounds;
     run_stats.rounds_run = 0;
     run_stats.stop_round = -1;
-    int total_passes = (N > p2vbme::WAVE_COMPONENT_CAP) ? (n_outer_rounds + 1) : n_outer_rounds;
+    int total_passes = (n_leaves > p2vbme::WAVE_COMPONENT_CAP) ? (n_outer_rounds + 1) : n_outer_rounds;
     for (int outer_round = 0; outer_round < total_passes; ++outer_round) {
         const bool is_final_leaf_cleanup = (outer_round == n_outer_rounds);
         round_start_dL = total_mb_delta_L;
         // Pass 1: Global Backbone (priority-queue bounded to WINDOW_MAX_INTERNALS, so K <= 1,500)
-        if (outer_round > 0 && !is_final_leaf_cleanup && N >= p2vbme::BACKBONE_MIN_N) {
+        if (outer_round > 0 && !is_final_leaf_cleanup && n_leaves >= p2vbme::BACKBONE_MIN_N) {
             total_mb_delta_L +=
-                run_subtree_minibatch_window(root_r, N, p2vbme::WINDOW_MAX_SWEEPS, kn, empty_out_leaves,
-                                             empty_out_weights, *devices[0], curr_c1, curr_c2, summary, NULL);
-            compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
-            emit_stage(kn, level, N, outer_round, "backbone1", 0, total_mb_delta_L);
+                run_subtree_minibatch_window(root_r, n_leaves, p2vbme::WINDOW_MAX_SWEEPS, settings, empty_out_leaves,
+                                             empty_out_weights, *devices[0], c1, c2, summary, NULL);
+            compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
+            emit_stage(settings, level, n_leaves, outer_round, "backbone1", 0, total_mb_delta_L);
         }
 
         // Pass 2A: Leaf-Complete Connected Component Waves (100% of all N original leaves across all leaf-bearing
         // internal components, K <= 1056 <= 2048)
         std::vector<uint8_t> is_comp_root;
         std::vector<std::vector<int32_t>> level_waves;
-        build_component_waves(N, summary, curr_c1, curr_c2, p2vbme::WAVE_COMPONENT_CAP, is_comp_root, level_waves);
+        build_component_waves(n_leaves, summary, c1, c2, p2vbme::WAVE_COMPONENT_CAP, is_comp_root, level_waves);
 
         for (size_t lvl = 0; lvl < level_waves.size(); ++lvl) {
             const std::vector<int32_t> &wave = level_waves[lvl];
@@ -1327,26 +1325,26 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
             // does not depend on it: every window reads the tree as it was before the wave and writes only its own
             // subtree; the gains are summed in wave order.
             if (wave.size() > 1) {
-                std::vector<int32_t> snap_c1 = curr_c1, snap_c2 = curr_c2;
+                std::vector<int32_t> snap_c1 = c1, snap_c2 = c2;
                 const TreeSummary snap_summary = summary;
                 std::vector<double> window_dL(wave.size(), 0.0);
                 ParallelErrors errors;
-#pragma omp parallel for num_threads(n_gpus) schedule(dynamic, 1)
+#pragma omp parallel for num_threads(n_devices) schedule(dynamic, 1)
                 for (int32_t idx = 0; idx < (int32_t)wave.size(); ++idx) {
                     if (errors.failed())
                         continue;
                     try {
-                        int g = omp_get_thread_num();
+                        int d = omp_get_thread_num();
                         int32_t sr = wave[idx];
                         std::vector<int32_t> out_leaves;
                         std::vector<float> out_weights;
                         if (sr != root_r) {
-                            compute_outgroup_dyadic_profile(sr, root_r, N, snap_c1.data(), snap_c2.data(), snap_summary,
-                                                            max_prof_leaves, out_leaves, out_weights);
+                            compute_outgroup_dyadic_profile(sr, root_r, n_leaves, snap_c1.data(), snap_c2.data(),
+                                                            snap_summary, max_prof_leaves, out_leaves, out_weights);
                         }
                         window_dL[idx] = run_subtree_minibatch_window(
-                            sr, N, p2vbme::WINDOW_MAX_SWEEPS, kn, out_leaves, out_weights, *devices[g], curr_c1,
-                            curr_c2, summary, is_comp_root.data(), snap_c1.data(), snap_c2.data(), &snap_summary);
+                            sr, n_leaves, p2vbme::WINDOW_MAX_SWEEPS, settings, out_leaves, out_weights, *devices[d], c1,
+                            c2, summary, is_comp_root.data(), snap_c1.data(), snap_c2.data(), &snap_summary);
                     } catch (...) {
                         errors.capture();
                     }
@@ -1356,7 +1354,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                 for (double dL : window_dL)
                     wave_dL += dL;
                 total_mb_delta_L += wave_dL;
-                compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
+                compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
             } else {
                 std::vector<int32_t> out_leaves;
                 std::vector<float> out_weights;
@@ -1365,42 +1363,42 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                     out_leaves.clear();
                     out_weights.clear();
                     if (sr != root_r) {
-                        compute_outgroup_dyadic_profile(sr, root_r, N, curr_c1.data(), curr_c2.data(), summary,
+                        compute_outgroup_dyadic_profile(sr, root_r, n_leaves, c1.data(), c2.data(), summary,
                                                         max_prof_leaves, out_leaves, out_weights);
                     }
                     double dL =
-                        run_subtree_minibatch_window(sr, N, p2vbme::WINDOW_MAX_SWEEPS, kn, out_leaves, out_weights,
-                                                     *devices[0], curr_c1, curr_c2, summary, is_comp_root.data());
+                        run_subtree_minibatch_window(sr, n_leaves, p2vbme::WINDOW_MAX_SWEEPS, settings, out_leaves,
+                                                     out_weights, *devices[0], c1, c2, summary, is_comp_root.data());
                     if (dL != 0.0) {
                         total_mb_delta_L += dL;
                         for (int32_t p = summary.parent[sr]; p != -1; p = summary.parent[p]) {
-                            update_one_node_summary(p, curr_c1[p], curr_c2[p], summary);
+                            update_one_node_summary(p, c1[p], c2[p], summary);
                         }
                         summary.parent[root_r] = -1;
                     }
                 }
                 if (lvl + 1 < level_waves.size()) {
-                    compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
+                    compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
                 }
             }
         }
-        emit_stage(kn, level, N, outer_round, "comp_waves", (int64_t)level_waves.size(), total_mb_delta_L);
+        emit_stage(settings, level, n_leaves, outer_round, "comp_waves", (int64_t)level_waves.size(), total_mb_delta_L);
 
         // Pass 2B: whole-tree window (from round 1) + full multi-scale V-cycle
-        if (N > p2vbme::WAVE_COMPONENT_CAP) {
+        if (n_leaves > p2vbme::WAVE_COMPONENT_CAP) {
             {
-                compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
-                if (outer_round > 0 && !is_final_leaf_cleanup && N >= p2vbme::BACKBONE_MIN_N) {
-                    total_mb_delta_L +=
-                        run_subtree_minibatch_window(root_r, N, p2vbme::WINDOW_MAX_SWEEPS, kn, empty_out_leaves,
-                                                     empty_out_weights, *devices[0], curr_c1, curr_c2, summary, NULL);
-                    compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
-                    emit_stage(kn, level, N, outer_round, "backbone2", 0, total_mb_delta_L);
+                compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
+                if (outer_round > 0 && !is_final_leaf_cleanup && n_leaves >= p2vbme::BACKBONE_MIN_N) {
+                    total_mb_delta_L += run_subtree_minibatch_window(root_r, n_leaves, p2vbme::WINDOW_MAX_SWEEPS,
+                                                                     settings, empty_out_leaves, empty_out_weights,
+                                                                     *devices[0], c1, c2, summary, NULL);
+                    compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
+                    emit_stage(settings, level, n_leaves, outer_round, "backbone2", 0, total_mb_delta_L);
                 }
             }
             if (is_final_leaf_cleanup) {
-                compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
-                emit_stage(kn, level, N, outer_round, "round_end", -1, total_mb_delta_L, &curr_c1, &curr_c2);
+                compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
+                emit_stage(settings, level, n_leaves, outer_round, "round_end", -1, total_mb_delta_L, &c1, &c2);
                 break;
             }
 
@@ -1409,16 +1407,16 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
             // selects the root alone), then down from N / VCYCLE_SCALE_FACTOR while above VCYCLE_FINEST_SCALE, then
             // VCYCLE_FINEST_SCALE.
             std::vector<int32_t> scale_caps;
-            for (int32_t sc = p2vbme::VCYCLE_BASE_SCALE; sc < N; sc *= p2vbme::VCYCLE_SCALE_FACTOR)
+            for (int32_t sc = p2vbme::VCYCLE_BASE_SCALE; sc < n_leaves; sc *= p2vbme::VCYCLE_SCALE_FACTOR)
                 scale_caps.push_back(sc);
-            scale_caps.push_back(N);
-            for (int32_t sc = N / p2vbme::VCYCLE_SCALE_FACTOR; sc > p2vbme::VCYCLE_FINEST_SCALE;
+            scale_caps.push_back(n_leaves);
+            for (int32_t sc = n_leaves / p2vbme::VCYCLE_SCALE_FACTOR; sc > p2vbme::VCYCLE_FINEST_SCALE;
                  sc /= p2vbme::VCYCLE_SCALE_FACTOR)
                 scale_caps.push_back(sc);
-            if (N > p2vbme::VCYCLE_FINEST_SCALE)
+            if (n_leaves > p2vbme::VCYCLE_FINEST_SCALE)
                 scale_caps.push_back(p2vbme::VCYCLE_FINEST_SCALE);
             for (int32_t sc_cap : scale_caps) {
-                compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
+                compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
                 const int32_t min_sc = (sc_cap <= p2vbme::VCYCLE_BASE_SCALE) ? p2vbme::WAVE_COMPONENT_CAP
                                                                              : (sc_cap / p2vbme::VCYCLE_SCALE_FACTOR);
                 std::vector<int32_t> mid_roots;
@@ -1427,14 +1425,14 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                     while (!st.empty()) {
                         int32_t u = st.back();
                         st.pop_back();
-                        if (u < N)
+                        if (u < n_leaves)
                             continue;
                         if (summary.leaf_count[u] <= sc_cap) {
                             if (summary.leaf_count[u] > min_sc)
                                 mid_roots.push_back(u);
                         } else {
-                            st.push_back(curr_c2[u]);
-                            st.push_back(curr_c1[u]);
+                            st.push_back(c2[u]);
+                            st.push_back(c1[u]);
                         }
                     }
                 }
@@ -1442,27 +1440,27 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                     continue;
                 // several windows at this scale: the snapshot path for any number of devices, as the waves
                 if (mid_roots.size() > 1) {
-                    std::vector<int32_t> snap_c1 = curr_c1, snap_c2 = curr_c2;
+                    std::vector<int32_t> snap_c1 = c1, snap_c2 = c2;
                     const TreeSummary snap_summary = summary;
                     std::vector<double> window_dL(mid_roots.size(), 0.0);
                     ParallelErrors errors;
-#pragma omp parallel for num_threads(n_gpus) schedule(dynamic, 1)
+#pragma omp parallel for num_threads(n_devices) schedule(dynamic, 1)
                     for (int32_t idx = 0; idx < (int32_t)mid_roots.size(); ++idx) {
                         if (errors.failed())
                             continue;
                         try {
-                            int g = omp_get_thread_num();
+                            int d = omp_get_thread_num();
                             int32_t sr = mid_roots[idx];
                             std::vector<int32_t> out_leaves_p2b;
                             std::vector<float> out_weights_p2b;
                             if (sr != root_r) {
-                                compute_outgroup_dyadic_profile(sr, root_r, N, snap_c1.data(), snap_c2.data(),
+                                compute_outgroup_dyadic_profile(sr, root_r, n_leaves, snap_c1.data(), snap_c2.data(),
                                                                 snap_summary, max_prof_leaves, out_leaves_p2b,
                                                                 out_weights_p2b);
                             }
                             window_dL[idx] = run_subtree_minibatch_window(
-                                sr, N, p2vbme::WINDOW_MAX_SWEEPS, kn, out_leaves_p2b, out_weights_p2b, *devices[g],
-                                curr_c1, curr_c2, summary, NULL, snap_c1.data(), snap_c2.data(), &snap_summary);
+                                sr, n_leaves, p2vbme::WINDOW_MAX_SWEEPS, settings, out_leaves_p2b, out_weights_p2b,
+                                *devices[d], c1, c2, summary, NULL, snap_c1.data(), snap_c2.data(), &snap_summary);
                         } catch (...) {
                             errors.capture();
                         }
@@ -1472,7 +1470,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                     for (double dL : window_dL)
                         mid_dL += dL;
                     total_mb_delta_L += mid_dL;
-                    compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
+                    compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
                 } else {
                     std::vector<int32_t> out_leaves_p2b;
                     std::vector<float> out_weights_p2b;
@@ -1481,27 +1479,27 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                         out_leaves_p2b.clear();
                         out_weights_p2b.clear();
                         if (sr != root_r) {
-                            compute_outgroup_dyadic_profile(sr, root_r, N, curr_c1.data(), curr_c2.data(), summary,
+                            compute_outgroup_dyadic_profile(sr, root_r, n_leaves, c1.data(), c2.data(), summary,
                                                             max_prof_leaves, out_leaves_p2b, out_weights_p2b);
                         }
-                        double dL =
-                            run_subtree_minibatch_window(sr, N, p2vbme::WINDOW_MAX_SWEEPS, kn, out_leaves_p2b,
-                                                         out_weights_p2b, *devices[0], curr_c1, curr_c2, summary, NULL);
+                        double dL = run_subtree_minibatch_window(sr, n_leaves, p2vbme::WINDOW_MAX_SWEEPS, settings,
+                                                                 out_leaves_p2b, out_weights_p2b, *devices[0], c1, c2,
+                                                                 summary, NULL);
                         if (dL != 0.0) {
                             total_mb_delta_L += dL;
                             for (int32_t p = summary.parent[sr]; p != -1; p = summary.parent[p]) {
-                                update_one_node_summary(p, curr_c1[p], curr_c2[p], summary);
+                                update_one_node_summary(p, c1[p], c2[p], summary);
                             }
                             summary.parent[root_r] = -1;
                         }
                     }
                 }
-                emit_stage(kn, level, N, outer_round, "scale", sc_cap, total_mb_delta_L);
+                emit_stage(settings, level, n_leaves, outer_round, "scale", sc_cap, total_mb_delta_L);
             }
         }
 
-        compute_tree_summary(curr_c1.data(), curr_c2.data(), N, summary);
-        emit_stage(kn, level, N, outer_round, "round_end", -1, total_mb_delta_L, &curr_c1, &curr_c2);
+        compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
+        emit_stage(settings, level, n_leaves, outer_round, "round_end", -1, total_mb_delta_L, &c1, &c2);
         if (!is_final_leaf_cleanup && outer_round < n_outer_rounds) {
             run_stats.rounds_run = outer_round + 1;
             const double round_gain = round_start_dL - total_mb_delta_L; // positive = improvement
@@ -1511,27 +1509,27 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
             // rounds >= 1 are deterministic in the tree, so every later regular round would also change nothing.
             // The <= stops there even when stop_tol = 0.
             std::optional<StopReason> reason; // empty = no reason to stop
-            if (outer_round >= 1 && round_gain <= kn.stop_tol * (-total_mb_delta_L))
+            if (outer_round >= 1 && round_gain <= settings.stop_tol * (-total_mb_delta_L))
                 reason = StopReason::Converged;
-            else if (kn.deadline > 0.0 && wall_sec() > kn.deadline)
+            else if (settings.deadline > 0.0 && wall_sec() > settings.deadline)
                 reason = StopReason::TimeLimit;
             const bool stop = reason.has_value();
             if (stop && outer_round + 1 < n_outer_rounds) {
                 run_stats.stop_reason = *reason;
-                if (kn.on_event) {
+                if (settings.on_event) {
                     SearchEvent e;
                     e.kind = SearchEvent::Stop;
                     e.level = level;
-                    e.n_leaves = N;
+                    e.n_leaves = n_leaves;
                     e.round = outer_round;
                     e.round_gain = round_gain;
                     e.round0_gain = round0_gain;
                     e.total_dL = total_mb_delta_L;
-                    kn.on_event(e);
+                    settings.on_event(e);
                 }
                 run_stats.stop_round = outer_round;
                 n_outer_rounds = outer_round + 1;
-                total_passes = (N > p2vbme::WAVE_COMPONENT_CAP) ? (n_outer_rounds + 1) : n_outer_rounds;
+                total_passes = (n_leaves > p2vbme::WAVE_COMPONENT_CAP) ? (n_outer_rounds + 1) : n_outer_rounds;
             }
         }
     }
