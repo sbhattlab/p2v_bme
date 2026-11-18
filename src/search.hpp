@@ -30,7 +30,7 @@ struct SearchEvent {
     int32_t level = 0;      // 0 = the main search; k >= 1 = a search inside the sample-and-place start, k levels down
     int32_t n_leaves = 0;   // N of this search
     int32_t round = 0;      // Stage: the outer round (the final cleanup pass has round = rounds run)
-    const char *stage = ""; // Stage: backbone1, comp_waves, backbone2, scale, round_end
+    const char *stage = ""; // Stage: backbone, comp_waves, scale, round_end
     int64_t detail = 0;     // Stage: waves (comp_waves), scale cap (scale), -1 (round_end), 0 (backbones)
     double total_dL = 0.0;  // Stage: BME change of this search so far
     const std::vector<int32_t> *c1 = NULL, *c2 = NULL; // Stage round_end: the current tree

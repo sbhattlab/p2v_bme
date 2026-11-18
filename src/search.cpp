@@ -22,23 +22,6 @@
 
 namespace p2vbme {
 
-static void emit_stage(const SearchSettings &s, int32_t level, int32_t N, int round, const char *stage, int64_t detail,
-                       double total_dL, const std::vector<int32_t> *c1 = NULL, const std::vector<int32_t> *c2 = NULL) {
-    if (!s.on_event)
-        return;
-    SearchEvent e;
-    e.kind = SearchEvent::Stage;
-    e.level = level;
-    e.n_leaves = N;
-    e.round = round;
-    e.stage = stage;
-    e.detail = detail;
-    e.total_dL = total_dL;
-    e.c1 = c1;
-    e.c2 = c2;
-    s.on_event(e);
-}
-
 // ---- 4. Host Tree Metadata & Active Skeleton Extraction ----
 
 void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t> &c1_cf, std::vector<int32_t> &c2_cf,
@@ -1264,9 +1247,180 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
     return dL;
 }
 
+namespace {
+// The state of one search (run_minibatch_bme), shared by its passes.
+struct SearchState {
+    int32_t n_leaves;
+    int32_t root_r;
+    int32_t level; // 0 = the main search; k >= 1 = a search inside the sample-and-place start, k levels down
+    const SearchSettings &settings;
+    Devices &devices;
+    std::vector<int32_t> &c1;
+    std::vector<int32_t> &c2;
+    TreeSummary summary;           // of the current tree, rebuilt after windows change it
+    double total_mb_delta_L = 0.0; // how much the search has changed the tree's BME length so far
+};
+} // namespace
+
+// Rebuilds the summary of the current tree.
+static void rebuild_summary(SearchState &s) { compute_tree_summary(s.c1.data(), s.c2.data(), s.n_leaves, s.summary); }
+
+// Progress event of a stage; with_tree: the event carries the current tree (round ends).
+static void emit_stage(const SearchState &s, int32_t round, const char *stage, int64_t detail, bool with_tree = false) {
+    if (!s.settings.on_event)
+        return;
+    SearchEvent e;
+    e.kind = SearchEvent::Stage;
+    e.level = s.level;
+    e.n_leaves = s.n_leaves;
+    e.round = round;
+    e.stage = stage;
+    e.detail = detail;
+    e.total_dL = s.total_mb_delta_L;
+    if (with_tree) {
+        e.c1 = &s.c1;
+        e.c2 = &s.c2;
+    }
+    s.settings.on_event(e);
+}
+
+// One window on each root (disjoint clades); stop_at_comp_root: the component roots of the waves, or NULL.
+// Several windows always take the snapshot path, whatever the number of devices, so the tree does not depend on it:
+// every window reads the tree as it was before them and writes only its own subtree; the gains are summed in root
+// order and the summary is rebuilt.
+// A single window runs on the first device and updates the summary of its ancestors only.
+static void run_windows(SearchState &s, const std::vector<int32_t> &roots, const uint8_t *stop_at_comp_root) {
+    const int32_t max_prof_leaves = s.settings.profile_cap;
+    if (roots.size() > 1) {
+        std::vector<int32_t> snap_c1 = s.c1, snap_c2 = s.c2;
+        const TreeSummary snap_summary = s.summary;
+        std::vector<double> window_dL(roots.size(), 0.0);
+        ParallelErrors errors;
+#pragma omp parallel for num_threads((int)s.devices.size()) schedule(dynamic, 1)
+        for (int32_t idx = 0; idx < (int32_t)roots.size(); ++idx) {
+            if (errors.failed())
+                continue;
+            try {
+                int d = omp_get_thread_num();
+                int32_t sr = roots[idx];
+                std::vector<int32_t> out_leaves;
+                std::vector<float> out_weights;
+                if (sr != s.root_r) {
+                    compute_outgroup_dyadic_profile(sr, s.root_r, s.n_leaves, snap_c1.data(), snap_c2.data(),
+                                                    snap_summary, max_prof_leaves, out_leaves, out_weights);
+                }
+                window_dL[idx] = run_subtree_minibatch_window(
+                    sr, s.n_leaves, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves, out_weights, *s.devices[d], s.c1,
+                    s.c2, s.summary, stop_at_comp_root, snap_c1.data(), snap_c2.data(), &snap_summary);
+            } catch (...) {
+                errors.capture();
+            }
+        }
+        errors.rethrow();
+        double sum_dL = 0.0;
+        for (double dL : window_dL)
+            sum_dL += dL;
+        s.total_mb_delta_L += sum_dL;
+        rebuild_summary(s);
+    } else {
+        std::vector<int32_t> out_leaves;
+        std::vector<float> out_weights;
+        for (int32_t idx = 0; idx < (int32_t)roots.size(); ++idx) {
+            int32_t sr = roots[idx];
+            out_leaves.clear();
+            out_weights.clear();
+            if (sr != s.root_r) {
+                compute_outgroup_dyadic_profile(sr, s.root_r, s.n_leaves, s.c1.data(), s.c2.data(), s.summary,
+                                                max_prof_leaves, out_leaves, out_weights);
+            }
+            double dL =
+                run_subtree_minibatch_window(sr, s.n_leaves, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves,
+                                             out_weights, *s.devices[0], s.c1, s.c2, s.summary, stop_at_comp_root);
+            if (dL != 0.0) {
+                s.total_mb_delta_L += dL;
+                for (int32_t p = s.summary.parent[sr]; p != -1; p = s.summary.parent[p]) {
+                    update_one_node_summary(p, s.c1[p], s.c2[p], s.summary);
+                }
+                s.summary.parent[s.root_r] = -1;
+            }
+        }
+    }
+}
+
+// A backbone window: the top of the whole tree as one window (WINDOW_MAX_INTERNALS splits, so K <= 1,500).
+// Only in rounds >= 1 and from BACKBONE_MIN_N leaves.
+static void run_backbone(SearchState &s, int32_t round) {
+    if (round == 0 || s.n_leaves < p2vbme::BACKBONE_MIN_N)
+        return;
+    const std::vector<int32_t> no_outgroup_leaves;
+    const std::vector<float> no_outgroup_weights;
+    s.total_mb_delta_L +=
+        run_subtree_minibatch_window(s.root_r, s.n_leaves, p2vbme::WINDOW_MAX_SWEEPS, s.settings, no_outgroup_leaves,
+                                     no_outgroup_weights, *s.devices[0], s.c1, s.c2, s.summary, NULL);
+    rebuild_summary(s);
+    emit_stage(s, round, "backbone", 0);
+}
+
+// One pass of the leaf-covering component waves (every leaf is in one window; K <= 1,056).
+// Returns the number of wave levels.
+static int64_t run_wave_pass(SearchState &s) {
+    std::vector<uint8_t> is_comp_root;
+    std::vector<std::vector<int32_t>> level_waves;
+    build_component_waves(s.n_leaves, s.summary, s.c1, s.c2, p2vbme::WAVE_COMPONENT_CAP, is_comp_root, level_waves);
+    for (size_t lvl = 0; lvl < level_waves.size(); ++lvl) {
+        run_windows(s, level_waves[lvl], is_comp_root.data());
+        // after a single window the next level needs a rebuilt summary (several windows rebuild it themselves)
+        if (level_waves[lvl].size() <= 1 && lvl + 1 < level_waves.size())
+            rebuild_summary(s);
+    }
+    return (int64_t)level_waves.size();
+}
+
+// The multi-scale V-cycle: Full Bottom-Up elevator + Global Backbone + Top-Down cascade.
+// Scales, in leaves: up from VCYCLE_BASE_SCALE while below N, then N (the whole tree: a scale >= N selects the root
+// alone), then down from N / VCYCLE_SCALE_FACTOR while above VCYCLE_FINEST_SCALE, then VCYCLE_FINEST_SCALE.
+// At each scale, one window on each of the largest clades with at most that many leaves (if they are not too small).
+static void run_vcycle(SearchState &s, int32_t round) {
+    const int32_t n_leaves = s.n_leaves;
+    std::vector<int32_t> scale_caps;
+    for (int32_t sc = p2vbme::VCYCLE_BASE_SCALE; sc < n_leaves; sc *= p2vbme::VCYCLE_SCALE_FACTOR)
+        scale_caps.push_back(sc);
+    scale_caps.push_back(n_leaves);
+    for (int32_t sc = n_leaves / p2vbme::VCYCLE_SCALE_FACTOR; sc > p2vbme::VCYCLE_FINEST_SCALE;
+         sc /= p2vbme::VCYCLE_SCALE_FACTOR)
+        scale_caps.push_back(sc);
+    if (n_leaves > p2vbme::VCYCLE_FINEST_SCALE)
+        scale_caps.push_back(p2vbme::VCYCLE_FINEST_SCALE);
+    for (int32_t sc_cap : scale_caps) {
+        rebuild_summary(s);
+        const int32_t min_sc =
+            (sc_cap <= p2vbme::VCYCLE_BASE_SCALE) ? p2vbme::WAVE_COMPONENT_CAP : (sc_cap / p2vbme::VCYCLE_SCALE_FACTOR);
+        std::vector<int32_t> mid_roots;
+        {
+            std::vector<int32_t> st = {s.root_r};
+            while (!st.empty()) {
+                int32_t u = st.back();
+                st.pop_back();
+                if (u < n_leaves)
+                    continue;
+                if (s.summary.leaf_count[u] <= sc_cap) {
+                    if (s.summary.leaf_count[u] > min_sc)
+                        mid_roots.push_back(u);
+                } else {
+                    st.push_back(s.c2[u]);
+                    st.push_back(s.c1[u]);
+                }
+            }
+        }
+        if (mid_roots.empty())
+            continue;
+        run_windows(s, mid_roots, NULL);
+        emit_stage(s, round, "scale", sc_cap);
+    }
+}
+
 double run_minibatch_bme(int32_t n_leaves, Devices &devices, std::vector<int32_t> &c1, std::vector<int32_t> &c2,
                          const SearchSettings &settings, int32_t level, SearchStats *stats) {
-    const int n_devices = (int)devices.size();
     SearchStats stats_local;
     SearchStats &run_stats = stats ? *stats : stats_local;
     if (settings.rounds <= 0) { // no search, not even the final cleanup pass
@@ -1274,25 +1428,17 @@ double run_minibatch_bme(int32_t n_leaves, Devices &devices, std::vector<int32_t
         run_stats.stop_reason = StopReason::None;
         return 0.0;
     }
-    const int32_t n_nodes_r = 2 * n_leaves - 1;
-    const int32_t root_r = n_nodes_r - 1;
-    const int32_t max_prof_leaves = settings.profile_cap;
-    TreeSummary summary; // of the current tree, rebuilt after windows change it
-    compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
+    SearchState s{n_leaves, 2 * n_leaves - 2, level, settings, devices, c1, c2, TreeSummary(), 0.0};
+    rebuild_summary(s);
 
-    // How much search has changed the tree's BME length so far
-    double total_mb_delta_L = 0.0;
-    std::vector<int32_t> empty_out_leaves;
-    std::vector<float> empty_out_weights;
-
-    int n_outer_rounds = settings.rounds;
+    const int n_outer_rounds = settings.rounds;
     double round0_gain = 0.0, round_start_dL = 0.0;
     if (settings.on_event) {
         SearchEvent e;
         e.kind = SearchEvent::Start;
         e.level = level;
         e.n_leaves = n_leaves;
-        e.n_devices = n_devices;
+        e.n_devices = (int32_t)devices.size();
         e.rounds_planned = n_outer_rounds;
         e.settings = &settings;
         settings.on_event(e);
@@ -1300,240 +1446,64 @@ double run_minibatch_bme(int32_t n_leaves, Devices &devices, std::vector<int32_t
     run_stats.rounds_planned = n_outer_rounds;
     run_stats.rounds_run = 0;
     run_stats.stop_round = -1;
-    int total_passes = (n_leaves > p2vbme::WAVE_COMPONENT_CAP) ? (n_outer_rounds + 1) : n_outer_rounds;
-    for (int outer_round = 0; outer_round < total_passes; ++outer_round) {
-        const bool is_final_leaf_cleanup = (outer_round == n_outer_rounds);
-        round_start_dL = total_mb_delta_L;
-        // Pass 1: Global Backbone (priority-queue bounded to WINDOW_MAX_INTERNALS, so K <= 1,500)
-        if (outer_round > 0 && !is_final_leaf_cleanup && n_leaves >= p2vbme::BACKBONE_MIN_N) {
-            total_mb_delta_L +=
-                run_subtree_minibatch_window(root_r, n_leaves, p2vbme::WINDOW_MAX_SWEEPS, settings, empty_out_leaves,
-                                             empty_out_weights, *devices[0], c1, c2, summary, NULL);
-            compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
-            emit_stage(settings, level, n_leaves, outer_round, "backbone1", 0, total_mb_delta_L);
-        }
+    for (int outer_round = 0; outer_round < n_outer_rounds; ++outer_round) {
+        round_start_dL = s.total_mb_delta_L;
 
-        // Pass 2A: Leaf-Complete Connected Component Waves (100% of all N original leaves across all leaf-bearing
-        // internal components, K <= 1056 <= 2048)
-        std::vector<uint8_t> is_comp_root;
-        std::vector<std::vector<int32_t>> level_waves;
-        build_component_waves(n_leaves, summary, c1, c2, p2vbme::WAVE_COMPONENT_CAP, is_comp_root, level_waves);
+        // Pass 1: a backbone window
+        run_backbone(s, outer_round);
 
-        for (size_t lvl = 0; lvl < level_waves.size(); ++lvl) {
-            const std::vector<int32_t> &wave = level_waves[lvl];
-            // A wave of several windows always takes the snapshot path, whatever the number of devices, so the tree
-            // does not depend on it: every window reads the tree as it was before the wave and writes only its own
-            // subtree; the gains are summed in wave order.
-            if (wave.size() > 1) {
-                std::vector<int32_t> snap_c1 = c1, snap_c2 = c2;
-                const TreeSummary snap_summary = summary;
-                std::vector<double> window_dL(wave.size(), 0.0);
-                ParallelErrors errors;
-#pragma omp parallel for num_threads(n_devices) schedule(dynamic, 1)
-                for (int32_t idx = 0; idx < (int32_t)wave.size(); ++idx) {
-                    if (errors.failed())
-                        continue;
-                    try {
-                        int d = omp_get_thread_num();
-                        int32_t sr = wave[idx];
-                        std::vector<int32_t> out_leaves;
-                        std::vector<float> out_weights;
-                        if (sr != root_r) {
-                            compute_outgroup_dyadic_profile(sr, root_r, n_leaves, snap_c1.data(), snap_c2.data(),
-                                                            snap_summary, max_prof_leaves, out_leaves, out_weights);
-                        }
-                        window_dL[idx] = run_subtree_minibatch_window(
-                            sr, n_leaves, p2vbme::WINDOW_MAX_SWEEPS, settings, out_leaves, out_weights, *devices[d], c1,
-                            c2, summary, is_comp_root.data(), snap_c1.data(), snap_c2.data(), &snap_summary);
-                    } catch (...) {
-                        errors.capture();
-                    }
-                }
-                errors.rethrow();
-                double wave_dL = 0.0;
-                for (double dL : window_dL)
-                    wave_dL += dL;
-                total_mb_delta_L += wave_dL;
-                compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
-            } else {
-                std::vector<int32_t> out_leaves;
-                std::vector<float> out_weights;
-                for (int32_t idx = 0; idx < (int32_t)wave.size(); ++idx) {
-                    int32_t sr = wave[idx];
-                    out_leaves.clear();
-                    out_weights.clear();
-                    if (sr != root_r) {
-                        compute_outgroup_dyadic_profile(sr, root_r, n_leaves, c1.data(), c2.data(), summary,
-                                                        max_prof_leaves, out_leaves, out_weights);
-                    }
-                    double dL =
-                        run_subtree_minibatch_window(sr, n_leaves, p2vbme::WINDOW_MAX_SWEEPS, settings, out_leaves,
-                                                     out_weights, *devices[0], c1, c2, summary, is_comp_root.data());
-                    if (dL != 0.0) {
-                        total_mb_delta_L += dL;
-                        for (int32_t p = summary.parent[sr]; p != -1; p = summary.parent[p]) {
-                            update_one_node_summary(p, c1[p], c2[p], summary);
-                        }
-                        summary.parent[root_r] = -1;
-                    }
-                }
-                if (lvl + 1 < level_waves.size()) {
-                    compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
-                }
-            }
-        }
-        emit_stage(settings, level, n_leaves, outer_round, "comp_waves", (int64_t)level_waves.size(), total_mb_delta_L);
+        // Pass 2A: the leaf-covering component waves
+        const int64_t n_wave_levels = run_wave_pass(s);
+        emit_stage(s, outer_round, "comp_waves", n_wave_levels);
 
-        // Pass 2B: whole-tree window (from round 1) + full multi-scale V-cycle
+        // Pass 2B: a backbone window again, then the multi-scale V-cycle
         if (n_leaves > p2vbme::WAVE_COMPONENT_CAP) {
-            {
-                compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
-                if (outer_round > 0 && !is_final_leaf_cleanup && n_leaves >= p2vbme::BACKBONE_MIN_N) {
-                    total_mb_delta_L += run_subtree_minibatch_window(root_r, n_leaves, p2vbme::WINDOW_MAX_SWEEPS,
-                                                                     settings, empty_out_leaves, empty_out_weights,
-                                                                     *devices[0], c1, c2, summary, NULL);
-                    compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
-                    emit_stage(settings, level, n_leaves, outer_round, "backbone2", 0, total_mb_delta_L);
-                }
-            }
-            if (is_final_leaf_cleanup) {
-                compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
-                emit_stage(settings, level, n_leaves, outer_round, "round_end", -1, total_mb_delta_L, &c1, &c2);
-                break;
-            }
-
-            // Multi-scale V-cycle: Full Bottom-Up elevator (in every round) + Global Backbone + Top-Down cascade
-            // Scales, in leaves: up from VCYCLE_BASE_SCALE while below N, then N (the whole tree: a scale >= N
-            // selects the root alone), then down from N / VCYCLE_SCALE_FACTOR while above VCYCLE_FINEST_SCALE, then
-            // VCYCLE_FINEST_SCALE.
-            std::vector<int32_t> scale_caps;
-            for (int32_t sc = p2vbme::VCYCLE_BASE_SCALE; sc < n_leaves; sc *= p2vbme::VCYCLE_SCALE_FACTOR)
-                scale_caps.push_back(sc);
-            scale_caps.push_back(n_leaves);
-            for (int32_t sc = n_leaves / p2vbme::VCYCLE_SCALE_FACTOR; sc > p2vbme::VCYCLE_FINEST_SCALE;
-                 sc /= p2vbme::VCYCLE_SCALE_FACTOR)
-                scale_caps.push_back(sc);
-            if (n_leaves > p2vbme::VCYCLE_FINEST_SCALE)
-                scale_caps.push_back(p2vbme::VCYCLE_FINEST_SCALE);
-            for (int32_t sc_cap : scale_caps) {
-                compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
-                const int32_t min_sc = (sc_cap <= p2vbme::VCYCLE_BASE_SCALE) ? p2vbme::WAVE_COMPONENT_CAP
-                                                                             : (sc_cap / p2vbme::VCYCLE_SCALE_FACTOR);
-                std::vector<int32_t> mid_roots;
-                {
-                    std::vector<int32_t> st = {root_r};
-                    while (!st.empty()) {
-                        int32_t u = st.back();
-                        st.pop_back();
-                        if (u < n_leaves)
-                            continue;
-                        if (summary.leaf_count[u] <= sc_cap) {
-                            if (summary.leaf_count[u] > min_sc)
-                                mid_roots.push_back(u);
-                        } else {
-                            st.push_back(c2[u]);
-                            st.push_back(c1[u]);
-                        }
-                    }
-                }
-                if (mid_roots.empty())
-                    continue;
-                // several windows at this scale: the snapshot path for any number of devices, as the waves
-                if (mid_roots.size() > 1) {
-                    std::vector<int32_t> snap_c1 = c1, snap_c2 = c2;
-                    const TreeSummary snap_summary = summary;
-                    std::vector<double> window_dL(mid_roots.size(), 0.0);
-                    ParallelErrors errors;
-#pragma omp parallel for num_threads(n_devices) schedule(dynamic, 1)
-                    for (int32_t idx = 0; idx < (int32_t)mid_roots.size(); ++idx) {
-                        if (errors.failed())
-                            continue;
-                        try {
-                            int d = omp_get_thread_num();
-                            int32_t sr = mid_roots[idx];
-                            std::vector<int32_t> out_leaves_p2b;
-                            std::vector<float> out_weights_p2b;
-                            if (sr != root_r) {
-                                compute_outgroup_dyadic_profile(sr, root_r, n_leaves, snap_c1.data(), snap_c2.data(),
-                                                                snap_summary, max_prof_leaves, out_leaves_p2b,
-                                                                out_weights_p2b);
-                            }
-                            window_dL[idx] = run_subtree_minibatch_window(
-                                sr, n_leaves, p2vbme::WINDOW_MAX_SWEEPS, settings, out_leaves_p2b, out_weights_p2b,
-                                *devices[d], c1, c2, summary, NULL, snap_c1.data(), snap_c2.data(), &snap_summary);
-                        } catch (...) {
-                            errors.capture();
-                        }
-                    }
-                    errors.rethrow();
-                    double mid_dL = 0.0;
-                    for (double dL : window_dL)
-                        mid_dL += dL;
-                    total_mb_delta_L += mid_dL;
-                    compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
-                } else {
-                    std::vector<int32_t> out_leaves_p2b;
-                    std::vector<float> out_weights_p2b;
-                    for (int32_t idx = 0; idx < (int32_t)mid_roots.size(); ++idx) {
-                        int32_t sr = mid_roots[idx];
-                        out_leaves_p2b.clear();
-                        out_weights_p2b.clear();
-                        if (sr != root_r) {
-                            compute_outgroup_dyadic_profile(sr, root_r, n_leaves, c1.data(), c2.data(), summary,
-                                                            max_prof_leaves, out_leaves_p2b, out_weights_p2b);
-                        }
-                        double dL = run_subtree_minibatch_window(sr, n_leaves, p2vbme::WINDOW_MAX_SWEEPS, settings,
-                                                                 out_leaves_p2b, out_weights_p2b, *devices[0], c1, c2,
-                                                                 summary, NULL);
-                        if (dL != 0.0) {
-                            total_mb_delta_L += dL;
-                            for (int32_t p = summary.parent[sr]; p != -1; p = summary.parent[p]) {
-                                update_one_node_summary(p, c1[p], c2[p], summary);
-                            }
-                            summary.parent[root_r] = -1;
-                        }
-                    }
-                }
-                emit_stage(settings, level, n_leaves, outer_round, "scale", sc_cap, total_mb_delta_L);
-            }
+            rebuild_summary(s);
+            run_backbone(s, outer_round);
+            run_vcycle(s, outer_round);
         }
 
-        compute_tree_summary(c1.data(), c2.data(), n_leaves, summary);
-        emit_stage(settings, level, n_leaves, outer_round, "round_end", -1, total_mb_delta_L, &c1, &c2);
-        if (!is_final_leaf_cleanup && outer_round < n_outer_rounds) {
-            run_stats.rounds_run = outer_round + 1;
-            const double round_gain = round_start_dL - total_mb_delta_L; // positive = improvement
-            if (outer_round == 0)
-                round0_gain = round_gain;
-            // Accepted windows always lower L by > WINDOW_MIN_GAIN, so a zero gain means the round changed nothing;
-            // rounds >= 1 are deterministic in the tree, so every later regular round would also change nothing.
-            // The <= stops there even when stop_tol = 0.
-            std::optional<StopReason> reason; // empty = no reason to stop
-            if (outer_round >= 1 && round_gain <= settings.stop_tol * (-total_mb_delta_L))
-                reason = StopReason::Converged;
-            else if (settings.deadline > 0.0 && wall_sec() > settings.deadline)
-                reason = StopReason::TimeLimit;
-            const bool stop = reason.has_value();
-            if (stop && outer_round + 1 < n_outer_rounds) {
-                run_stats.stop_reason = *reason;
-                if (settings.on_event) {
-                    SearchEvent e;
-                    e.kind = SearchEvent::Stop;
-                    e.level = level;
-                    e.n_leaves = n_leaves;
-                    e.round = outer_round;
-                    e.round_gain = round_gain;
-                    e.round0_gain = round0_gain;
-                    e.total_dL = total_mb_delta_L;
-                    settings.on_event(e);
-                }
-                run_stats.stop_round = outer_round;
-                n_outer_rounds = outer_round + 1;
-                total_passes = (n_leaves > p2vbme::WAVE_COMPONENT_CAP) ? (n_outer_rounds + 1) : n_outer_rounds;
+        rebuild_summary(s);
+        emit_stage(s, outer_round, "round_end", -1, true);
+        run_stats.rounds_run = outer_round + 1;
+        const double round_gain = round_start_dL - s.total_mb_delta_L; // positive = improvement
+        if (outer_round == 0)
+            round0_gain = round_gain;
+        // Accepted windows always lower L by > WINDOW_MIN_GAIN, so a zero gain means the round changed nothing;
+        // rounds >= 1 are deterministic in the tree, so every later regular round would also change nothing.
+        // The <= stops there even when stop_tol = 0.
+        std::optional<StopReason> reason; // empty = no reason to stop
+        if (outer_round >= 1 && round_gain <= settings.stop_tol * (-s.total_mb_delta_L))
+            reason = StopReason::Converged;
+        else if (settings.deadline > 0.0 && wall_sec() > settings.deadline)
+            reason = StopReason::TimeLimit;
+        const bool stop = reason.has_value();
+        if (stop && outer_round + 1 < n_outer_rounds) {
+            run_stats.stop_reason = *reason;
+            if (settings.on_event) {
+                SearchEvent e;
+                e.kind = SearchEvent::Stop;
+                e.level = level;
+                e.n_leaves = n_leaves;
+                e.round = outer_round;
+                e.round_gain = round_gain;
+                e.round0_gain = round0_gain;
+                e.total_dL = s.total_mb_delta_L;
+                settings.on_event(e);
             }
+            run_stats.stop_round = outer_round;
+            break;
         }
     }
-    return total_mb_delta_L;
+
+    // Final cleanup pass (N > WAVE_COMPONENT_CAP): the component waves once more, after the last round.
+    if (n_leaves > p2vbme::WAVE_COMPONENT_CAP) {
+        const int32_t round = run_stats.rounds_run;
+        const int64_t n_wave_levels = run_wave_pass(s);
+        emit_stage(s, round, "comp_waves", n_wave_levels);
+        emit_stage(s, round, "round_end", -1, true);
+    }
+    return s.total_mb_delta_L;
 }
 
 } // namespace p2vbme
