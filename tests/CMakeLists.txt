@@ -90,42 +90,10 @@ if(P2VBME_CUDA)
   gtest_discover_tests(test_errors TEST_FILTER "Errors.Gpu*" PROPERTIES LABELS gpu)
 endif()
 
-# The command line: help, version and argument errors (a regex on what p2v-bme prints), then the end-to-end tests.
+# The command line: tests/python/test_cli.py (pytest) runs p2v-bme and checks its exit code, output and files.
+# ctest runs it as cli (CPU tests) and, in CUDA builds, cli_gpu (GPU tests).
 add_executable(make_test_fasta make_test_fasta.cpp)
 target_link_libraries(make_test_fasta PRIVATE p2vbme_io p2vbme_simulations)
-set(CLI_DIR ${CMAKE_CURRENT_BINARY_DIR}/cli)
-add_test(NAME cli_setup COMMAND ${CMAKE_COMMAND} -E make_directory ${CLI_DIR})
-add_test(NAME cli_make_input COMMAND make_test_fasta ${CLI_DIR}/input 300 600 7)
-set_tests_properties(cli_setup PROPERTIES FIXTURES_SETUP cli_dir)
-set_tests_properties(cli_make_input PROPERTIES FIXTURES_SETUP cli_input FIXTURES_REQUIRED cli_dir)
-function(p2vbme_cli_test name regex)
-  add_test(NAME cli_${name} COMMAND p2v-bme ${ARGN})
-  set_tests_properties(cli_${name} PROPERTIES FIXTURES_REQUIRED cli_input PASS_REGULAR_EXPRESSION "${regex}")
-endfunction()
-# no GPU needed
-p2vbme_cli_test(help "-s ALIGNMENT -m MODEL.*All options: --help-all" --help)
-p2vbme_cli_test(help_all "Search options:.*--max-rounds.*Start tree options:.*Branch lengths and output" --help-all)
-p2vbme_cli_test(version "p2v-bme 0.1.0" --version)
-p2vbme_cli_test(version_short "p2v-bme 0.1.0" -v)
-p2vbme_cli_test(missing_args "-s ALIGNMENT and -m MODEL are required" -s ${CLI_DIR}/input.fa)
-p2vbme_cli_test(model_planned "model 'GTR\\+GC' is not available" -s ${CLI_DIR}/input.fa -m GTR+GC)
-p2vbme_cli_test(model_plain_gtr "without gamma" -s ${CLI_DIR}/input.fa -m GTR)
-p2vbme_cli_test(model_plus_g "continuous gamma is written" -s ${CLI_DIR}/input.fa -m GTR+G)
-p2vbme_cli_test(model_unknown "unknown value for model: 'XYZ'" -s ${CLI_DIR}/input.fa -m XYZ)
-p2vbme_cli_test(bad_devices "unknown value for devices: 'x'" -s ${CLI_DIR}/input.fa -m JC69 --devices x)
-p2vbme_cli_test(bad_accelerator "unknown value for accelerator: 'tpu'" -s ${CLI_DIR}/input.fa -m JC69 --accelerator tpu)
-p2vbme_cli_test(duplicate_devices "GPU 0 is listed twice" -s ${CLI_DIR}/input.fa -m JC69 --accelerator gpu
-                --devices 0,0)
-p2vbme_cli_test(bad_precision "unknown value for precision: 'quad'" -s ${CLI_DIR}/input.fa -m JC69 --precision
-                quad)
-p2vbme_cli_test(gpu_double_refused "the GPU computes in single precision" -s ${CLI_DIR}/input.fa -m JC69
-                --accelerator gpu --precision double)
-p2vbme_cli_test(cpu_device_list_refused "unknown value for devices on the CPU: '0,1'" -s
-                ${CLI_DIR}/input.fa -m JC69 --accelerator cpu --devices 0,1)
-p2vbme_cli_test(extra_argument "unexpected argument 'extra'" -s ${CLI_DIR}/input.fa -m JC69 extra)
-p2vbme_cli_test(negative_time_limit "time limit must be >= 0" -s ${CLI_DIR}/input.fa -m JC69 --time-limit -5)
-
-# End-to-end tests of the command (tests/python/test_cli.py, pytest): cli on the CPU and, in CUDA builds, cli_gpu
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(CLI_PYTEST ${Python3_EXECUTABLE} -m pytest -p no:cacheprovider -v ${CMAKE_CURRENT_SOURCE_DIR}/python/test_cli.py)
 set(CLI_PYTEST_ENV P2VBME_BIN=$<TARGET_FILE:p2v-bme> P2VBME_MAKE_TEST_FASTA=$<TARGET_FILE:make_test_fasta>)

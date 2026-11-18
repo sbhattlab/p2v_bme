@@ -1,8 +1,8 @@
 """
 End-to-end tests of the p2v-bme command.
-Each test runs the binary on a simulated alignment and checks its exit code, what it prints and the files it writes
-(<prefix>.nwk, <prefix>.json).
-Option parsing and the library have their own tests (gtest); these check what only the command does.
+Each test runs the binary and checks its exit code, what it prints and the files it writes (<prefix>.nwk,
+<prefix>.json): help and version, errors, and runs on simulated alignments.
+The library has its own tests (gtest); these check what only the command does.
 
 ctest runs them in two parts, cli (-m "not gpu") and cli_gpu (-m gpu), with the paths of the binaries in P2VBME_BIN
 and P2VBME_MAKE_TEST_FASTA.
@@ -186,12 +186,90 @@ def test_maple_gives_the_fasta_tree(data, tmp_path):
     assert (tmp_path / "fa.nwk").read_text() == (tmp_path / "maple.nwk").read_text()
 
 
-@pytest.mark.parametrize("case", ["missing input", "unwritable output"])
-def test_errors_exit_with_a_message(data, tmp_path, case):
-    """An error: exit code 1, nothing on stdout, one line on stderr."""
-    if case == "missing input":
-        args, message = ["-s", tmp_path / "missing.fa", "-p", tmp_path / "out"], f"cannot open {tmp_path}/missing.fa"
-    else:
-        args, message = ["-s", data / "input.fa", "-p", "/nonexistent_dir/x"], "cannot write /nonexistent_dir/x.nwk"
-    p = run(*args, "-m", "JC69", "-a", "cpu")
-    assert (p.returncode, p.stdout, p.stderr) == (1, "", f"p2v-bme: error: {message}\n")
+def test_help():
+    p = run("--help")
+    assert (p.returncode, p.stderr) == (0, "")
+    assert "Usage:\n  p2v-bme -s ALIGNMENT -m MODEL [options]\n" in p.stdout
+    assert p.stdout.endswith("All options: --help-all\n")
+
+
+def test_help_all():
+    p = run("--help-all")
+    assert (p.returncode, p.stderr) == (0, "")
+    headings = [line.strip() for line in p.stdout.splitlines() if line.endswith("options:")]
+    assert headings == ["Search options:", "Start tree options:", "Branch lengths and output options:", "Input options:"]
+    assert "--max-rounds" in p.stdout
+
+
+@pytest.mark.parametrize("flag", ["--version", "-v"])
+def test_version(flag):
+    """The version, then the git revision of a development build in brackets."""
+    p = run(flag)
+    assert (p.returncode, p.stderr) == (0, "")
+    assert re.fullmatch(r"p2v-bme 0\.1\.0( \(.+\))?\n", p.stdout), p.stdout
+
+
+# The errors of the command: its arguments ({data}, {tmp}: the input and output folders), the exit code and the line
+# on stderr.
+# A missing required option is a usage error (exit code 2); every other error exits with 1.
+INPUT = ["-s", "{data}/input.fa", "-p", "{tmp}/out"]
+ERRORS = {
+    "missing -m": ([*INPUT], 2, "p2v-bme: -s ALIGNMENT and -m MODEL are required (see --help)"),
+    "extra argument": ([*INPUT, "-m", "JC69", "extra"], 1, "p2v-bme: error: unexpected argument 'extra' (see --help)"),
+    "unknown model": (
+        [*INPUT, "-m", "XYZ"],
+        1,
+        "p2v-bme: error: unknown value for model: 'XYZ' (JC69, K80, F81, F84, TN93, LogDet or GTR+GC)",
+    ),
+    "GTR+GC": (
+        [*INPUT, "-m", "GTR+GC"],
+        1,
+        "p2v-bme: error: model 'GTR+GC' is not available in this version (models: JC69, K80, F81, F84, TN93, LogDet)",
+    ),
+    "GTR": ([*INPUT, "-m", "GTR"], 1, "p2v-bme: error: model 'GTR' (without gamma) is not available; use GTR+GC"),
+    "GTR+G": (
+        [*INPUT, "-m", "GTR+G"],
+        1,
+        "p2v-bme: error: model 'GTR+G': continuous gamma is written +GC (e.g. GTR+GC); +G is not used",
+    ),
+    "unknown accelerator": (
+        [*INPUT, "-m", "JC69", "-a", "tpu"],
+        1,
+        "p2v-bme: error: unknown value for accelerator: 'tpu' (cpu, gpu or auto)",
+    ),
+    "unknown precision": (
+        [*INPUT, "-m", "JC69", "--precision", "quad"],
+        1,
+        "p2v-bme: error: unknown value for precision: 'quad' (single or double)",
+    ),
+    # the two GPU errors come before any GPU is used, so they need none
+    "GPU listed twice": ([*INPUT, "-m", "JC69", "-a", "gpu", "-d", "0,0"], 1, "p2v-bme: error: GPU 0 is listed twice"),
+    "GPU in double precision": (
+        [*INPUT, "-m", "JC69", "-a", "gpu", "--precision", "double"],
+        1,
+        "p2v-bme: error: the GPU computes in single precision; double precision runs on the CPU (--accelerator cpu)",
+    ),
+    # checked by infer(), after the read: -q and the CPU keep stdout and stderr to the error
+    "negative time limit": (
+        [*INPUT, "-m", "JC69", "-a", "cpu", "-q", "--time-limit", "-5"],
+        1,
+        "p2v-bme: error: time limit must be >= 0 (0 = none)",
+    ),
+    "missing input": (
+        ["-s", "{tmp}/missing.fa", "-p", "{tmp}/out", "-m", "JC69", "-a", "cpu"],
+        1,
+        "p2v-bme: error: cannot open {tmp}/missing.fa",
+    ),
+    "unwritable output": (
+        ["-s", "{data}/input.fa", "-p", "/nonexistent_dir/x", "-m", "JC69", "-a", "cpu"],
+        1,
+        "p2v-bme: error: cannot write /nonexistent_dir/x.nwk",
+    ),
+}
+
+
+@pytest.mark.parametrize("args, returncode, message", ERRORS.values(), ids=list(ERRORS))
+def test_errors(data, tmp_path, args, returncode, message):
+    """An error: nothing on stdout, one line on stderr and a non-zero exit code."""
+    p = run(*(a.format(data=data, tmp=tmp_path) for a in args))
+    assert (p.returncode, p.stdout, p.stderr) == (returncode, "", message.format(data=data, tmp=tmp_path) + "\n")
