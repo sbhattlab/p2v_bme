@@ -20,7 +20,7 @@
 namespace p2vbme {
 
 struct SampleAndPlaceStats {
-    // Sample size, after clamping to [START_SAMPLE_MIN, N/2]
+    // Sample size, after clamping to [START_SAMPLE_MIN, n_leaves/2]
     int32_t n0 = 0;
     // Time for the subsample's own search (subsample + its search)
     double dt_sub = 0.0;
@@ -36,24 +36,24 @@ struct SampleAndPlaceStats {
     int32_t max_bucket = 0;
 };
 
-// Random rooted binary tree on n leaves, post-order (c1[u] < u, c2[u] < u): v_i ~ U{0..i} plus a random leaf
+// Random rooted binary tree on n_leaves leaves, post-order (c1[u] < u, c2[u] < u): v_i ~ U{0..i} plus a random leaf
 // permutation.
 // This is the Yule-Harding (ranked-uniform) distribution, NOT uniform over topologies.
 // Same construction as hx2_parallel_suite.make_uniform_random_tree (different RNG).
-void build_random_tree(int32_t n, uint64_t seed, std::vector<int32_t> &c1, std::vector<int32_t> &c2);
+void build_random_tree(int32_t n_leaves, uint64_t seed, std::vector<int32_t> &c1, std::vector<int32_t> &c2);
 
 // Sample-and-place start tree (branch diag-scaling)
-//   1. pick n0 sequences at random (n0 clamped to [START_SAMPLE_MIN, N / 2])
-//   2. start a tree t0 on them from a random (Yule-Harding) tree, or, if n0 > START_RANDOM_TREE_MAX, from a
+//   1. pick n0_leaves sequences at random (n0_leaves clamped to [START_SAMPLE_MIN, n_leaves / 2])
+//   2. start a tree t0 on them from a random (Yule-Harding) tree, or, if n0_leaves > START_RANDOM_TREE_MAX, from a
 //      sample-and-place tree of its own (this function, one level down)
 //   3. optimise t0 with the minibatch search (the run's settings)
 //   4. assign every other sequence to its nearest sampled sequence by p-distance over shared valid sites, for every
 //      model; a pair with no shared valid site ranks like JC69 = 1.5 (p = 0.6485)
 //   5. replace each sampled leaf by a balanced tree of itself + its assigned sequences (random order)
 // Uses only the sequences: no information from the true tree.
-// Needs N >= START_SAMPLE_MIN_N (below it, infer() uses the random start instead).
-void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devices, std::vector<int32_t> &out_c1,
-                                 std::vector<int32_t> &out_c2, SampleAndPlaceStats &stats,
+// Needs n_leaves >= START_SAMPLE_MIN_N (below it, infer() uses the random start instead).
+void build_sample_and_place_tree(int32_t n_leaves, int32_t n0_leaves, uint64_t seed, Devices &devices,
+                                 std::vector<int32_t> &out_c1, std::vector<int32_t> &out_c2, SampleAndPlaceStats &stats,
                                  const SearchSettings &settings, int32_t level = 0);
 
 } // namespace p2vbme

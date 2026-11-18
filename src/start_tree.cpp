@@ -14,53 +14,55 @@
 
 namespace p2vbme {
 
-void build_random_tree(int32_t n, uint64_t seed, std::vector<int32_t> &c1, std::vector<int32_t> &c2) {
+void build_random_tree(int32_t n_leaves, uint64_t seed, std::vector<int32_t> &c1, std::vector<int32_t> &c2) {
     uint64_t st = seed;
-    std::vector<int32_t> perm(n), uf(n);
-    for (int32_t i = 0; i < n; ++i) {
+    // uf: keeps track of which node currently sits at each slot while tree is built bottom-up
+    // perm: randomly relabels leaves at the end (so a leaf's place in tree is independent of its index)
+    std::vector<int32_t> perm(n_leaves), uf(n_leaves);
+    for (int32_t i = 0; i < n_leaves; ++i) {
         perm[i] = i;
         uf[i] = i;
     }
     p2vbme::shuffle(perm.begin(), perm.end(), st);
-    c1.assign(2 * n - 1, 0);
-    c2.assign(2 * n - 1, 0);
-    for (int32_t k = 0; k < n - 1; ++k) {
-        int32_t i = (n - 2) - k;
-        int32_t m = n + k;
+    c1.assign(2 * n_leaves - 1, 0);
+    c2.assign(2 * n_leaves - 1, 0);
+    for (int32_t k = 0; k < n_leaves - 1; ++k) {
+        int32_t i = (n_leaves - 2) - k;
+        int32_t m = n_leaves + k;
         int32_t x = (int32_t)p2vbme::uniform_below(st, (uint64_t)(i + 1)); // v_i ~ U{0..i}
         c1[m] = uf[i + 1];
         c2[m] = uf[x];
         uf[x] = m;
     }
-    for (int32_t m = n; m < 2 * n - 1; ++m) {
-        if (c1[m] < n)
+    for (int32_t m = n_leaves; m < 2 * n_leaves - 1; ++m) {
+        if (c1[m] < n_leaves)
             c1[m] = perm[c1[m]];
-        if (c2[m] < n)
+        if (c2[m] < n_leaves)
             c2[m] = perm[c2[m]];
     }
 }
 
-void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &devices, std::vector<int32_t> &out_c1,
-                                 std::vector<int32_t> &out_c2, SampleAndPlaceStats &stats,
+void build_sample_and_place_tree(int32_t n_leaves, int32_t n0_leaves, uint64_t seed, Devices &devices,
+                                 std::vector<int32_t> &out_c1, std::vector<int32_t> &out_c2, SampleAndPlaceStats &stats,
                                  const SearchSettings &settings, int32_t level) {
     const int n_devices = (int)devices.size();
     const double t_begin = wall_sec();
-    if (n0 > N / 2)
-        n0 = N / 2;
-    if (n0 < p2vbme::START_SAMPLE_MIN)
-        n0 = p2vbme::START_SAMPLE_MIN;
-    stats.n0 = n0;
+    if (n0_leaves > n_leaves / 2)
+        n0_leaves = n_leaves / 2;
+    if (n0_leaves < p2vbme::START_SAMPLE_MIN)
+        n0_leaves = p2vbme::START_SAMPLE_MIN;
+    stats.n0 = n0_leaves;
 
-    // 1. pick n0 sequences at random (partial Fisher-Yates)
+    // 1. pick n0_leaves sequences at random (partial Fisher-Yates)
     uint64_t st = seed;
-    std::vector<int32_t> order(N);
-    for (int32_t i = 0; i < N; ++i)
+    std::vector<int32_t> order(n_leaves);
+    for (int32_t i = 0; i < n_leaves; ++i)
         order[i] = i;
-    p2vbme::partial_shuffle(order.begin(), order.end(), n0, st);
+    p2vbme::partial_shuffle(order.begin(), order.end(), n0_leaves, st);
     // the sampled sequences, in random order: samp[j] is leaf j of t0
-    std::vector<int32_t> samp(order.begin(), order.begin() + n0);
+    std::vector<int32_t> samp(order.begin(), order.begin() + n0_leaves);
     // the other sequences (the queries of step 4), sorted
-    std::vector<int32_t> qry(order.begin() + n0, order.end());
+    std::vector<int32_t> qry(order.begin() + n0_leaves, order.end());
     std::sort(qry.begin(), qry.end());
     const int32_t n_q = (int32_t)qry.size();
 
@@ -70,21 +72,21 @@ void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &
         devices[d]->push_subset(samp);
     std::vector<int32_t> sub_c1, sub_c2;
     double dL_inner = 0.0;
-    if (n0 > p2vbme::START_RANDOM_TREE_MAX) {
-        int32_t n0_inner = std::max(p2vbme::START_RANDOM_TREE_MAX, n0 / p2vbme::START_SAMPLE_DIVISOR);
+    if (n0_leaves > p2vbme::START_RANDOM_TREE_MAX) {
+        int32_t n0_inner = std::max(p2vbme::START_RANDOM_TREE_MAX, n0_leaves / p2vbme::START_SAMPLE_DIVISOR);
         SampleAndPlaceStats inner_stats;
         // an independent seed per level (an XOR alone would return to the top-level seed two levels down)
         const uint64_t inner_seed = p2vbme::derive_seed(seed, p2vbme::SALT_START_TREE_LEVEL);
-        build_sample_and_place_tree(n0, n0_inner, inner_seed, devices, sub_c1, sub_c2, inner_stats, settings,
+        build_sample_and_place_tree(n0_leaves, n0_inner, inner_seed, devices, sub_c1, sub_c2, inner_stats, settings,
                                     level + 1);
         dL_inner = inner_stats.dL_sub;
     } else {
         // independent stream: seed the random subsample tree with a splitmix64 output, not with a value that
         // splitmix64's own state sequence (step 0x9E3779B97F4A7C15) can reach
-        build_random_tree(n0, p2vbme::derive_seed(seed, p2vbme::SALT_START_TREE_RANDOM), sub_c1, sub_c2);
+        build_random_tree(n0_leaves, p2vbme::derive_seed(seed, p2vbme::SALT_START_TREE_RANDOM), sub_c1, sub_c2);
     }
     // 3. optimise t0 with the same solver and settings (rounds, stop rule) as the main run
-    stats.dL_sub = dL_inner + run_minibatch_bme(n0, devices, sub_c1, sub_c2, settings, level + 1);
+    stats.dL_sub = dL_inner + run_minibatch_bme(n0_leaves, devices, sub_c1, sub_c2, settings, level + 1);
     for (int d = 0; d < n_devices; ++d)
         devices[d]->pop_subset();
     const double t_sub = wall_sec();
@@ -99,7 +101,7 @@ void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &
         int32_t nq_d = hi - lo;
         try {
             if (nq_d > 0)
-                devices[d]->nearest_sampled(qry.data() + lo, nq_d, samp.data(), n0, best_pos.data() + lo);
+                devices[d]->nearest_sampled(qry.data() + lo, nq_d, samp.data(), n0_leaves, best_pos.data() + lo);
         } catch (...) {
             errors.capture();
         }
@@ -110,11 +112,11 @@ void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &
 
     // 5. full tree: a balanced tree per bucket (members in random order, paired two at a time, level by level), then
     // the subsample tree on top.
-    // Ids are assigned children-first, so the result is post-order with root 2N-2.
-    std::vector<int32_t> bucket_off(n0 + 1, 0), bucket_mem(n_q);
+    // Ids are assigned children-first, so the result is post-order with root 2 n_leaves - 2.
+    std::vector<int32_t> bucket_off(n0_leaves + 1, 0), bucket_mem(n_q);
     for (int32_t k = 0; k < n_q; ++k)
         bucket_off[best_pos[k] + 1]++;
-    for (int32_t j = 0; j < n0; ++j) {
+    for (int32_t j = 0; j < n0_leaves; ++j) {
         stats.max_bucket = std::max(stats.max_bucket, bucket_off[j + 1]);
         bucket_off[j + 1] += bucket_off[j];
     }
@@ -123,12 +125,12 @@ void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &
         for (int32_t k = 0; k < n_q; ++k)
             bucket_mem[fill[best_pos[k]]++] = qry[k];
     }
-    out_c1.assign(2 * N - 1, -1);
-    out_c2.assign(2 * N - 1, -1);
-    int32_t next_id = N;
-    std::vector<int32_t> bucket_root(n0);
+    out_c1.assign(2 * n_leaves - 1, -1);
+    out_c2.assign(2 * n_leaves - 1, -1);
+    int32_t next_id = n_leaves;
+    std::vector<int32_t> bucket_root(n0_leaves);
     std::vector<int32_t> q;
-    for (int32_t j = 0; j < n0; ++j) {
+    for (int32_t j = 0; j < n0_leaves; ++j) {
         int32_t lo = bucket_off[j], hi = bucket_off[j + 1];
         p2vbme::shuffle(bucket_mem.begin() + lo, bucket_mem.begin() + hi, st);
         q.clear();
@@ -148,28 +150,28 @@ void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &
         }
         bucket_root[j] = q[head];
     }
-    const int32_t sub_root = 2 * n0 - 2;
+    const int32_t sub_root = 2 * n0_leaves - 2;
     std::vector<int32_t> bfs;
-    bfs.reserve(n0);
+    bfs.reserve(n0_leaves);
     bfs.push_back(sub_root);
     for (size_t i = 0; i < bfs.size(); ++i) {
         int32_t u = bfs[i];
-        if (sub_c1[u] >= n0)
+        if (sub_c1[u] >= n0_leaves)
             bfs.push_back(sub_c1[u]);
-        if (sub_c2[u] >= n0)
+        if (sub_c2[u] >= n0_leaves)
             bfs.push_back(sub_c2[u]);
     }
-    std::vector<int32_t> map_int(2 * n0 - 1, -1);
+    std::vector<int32_t> map_int(2 * n0_leaves - 1, -1);
     for (int32_t i = (int32_t)bfs.size() - 1; i >= 0; --i) {
         int32_t u = bfs[i];
         int32_t a = sub_c1[u], b = sub_c2[u];
-        out_c1[next_id] = (a < n0) ? bucket_root[a] : map_int[a];
-        out_c2[next_id] = (b < n0) ? bucket_root[b] : map_int[b];
+        out_c1[next_id] = (a < n0_leaves) ? bucket_root[a] : map_int[a];
+        out_c2[next_id] = (b < n0_leaves) ? bucket_root[b] : map_int[b];
         map_int[u] = next_id++;
     }
-    if (next_id != 2 * N - 1 || map_int[sub_root] != 2 * N - 2) {
+    if (next_id != 2 * n_leaves - 1 || map_int[sub_root] != 2 * n_leaves - 2) {
         throw std::logic_error("sample-and-place start: the tree has " + std::to_string(next_id) + " nodes, expected " +
-                               std::to_string(2 * N - 1));
+                               std::to_string(2 * n_leaves - 1));
     }
     const double t_end = wall_sec();
     stats.dt_build = t_end - t_nn;
@@ -178,7 +180,7 @@ void build_sample_and_place_tree(int32_t N, int32_t n0, uint64_t seed, Devices &
         SearchEvent e;
         e.kind = SearchEvent::StartTree;
         e.level = level;
-        e.n_leaves = N;
+        e.n_leaves = n_leaves;
         e.init_stats = &stats;
         settings.on_event(e);
     }
