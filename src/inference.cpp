@@ -143,8 +143,8 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
         res.warnings.push_back("fewer than " + std::to_string(START_SAMPLE_MIN_N) +
                                " sequences, using the random start instead of sample-and-place");
     }
-    // Progress lines for the caller's log (the library prints nothing): one per search start, stage and early stop,
-    // and per sample-and-place level (rf: -1 = no reference tree, -2 = not computed at this stage).
+    // Progress lines for the caller's log (the library prints nothing): one per search start, stage and early stop
+    // (rf: -1 = no reference tree, -2 = not computed at this stage).
     double t_start = 0.0, t_last = 0.0, dL_last = 0.0, round_end_dL = 0.0;
     settings.on_event = [&](const SearchEvent &e) {
         if (e.level == 0 && e.kind == SearchEvent::Stage && e.c1) { // a round end of the main search
@@ -163,12 +163,6 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
         } else if (e.kind == SearchEvent::Stop) {
             line << std::fixed << std::setprecision(6) << "[DIAG] stopping after round " << e.round << " (gain "
                  << e.round_gain << ", round-0 gain " << e.round0_gain << "); running final cleanup";
-        } else if (e.kind == SearchEvent::StartTree) {
-            const SampleAndPlaceStats &st = *e.init_stats;
-            line << std::fixed << std::setprecision(2) << "[INIT] sample-and-place: n0=" << st.n0
-                 << " sub=" << st.dt_sub << "s (dL " << std::setprecision(4) << st.dL_sub << std::setprecision(2)
-                 << ") nn=" << st.dt_nn << "s build=" << st.dt_build << "s total=" << st.dt_total
-                 << "s max_bucket=" << st.max_bucket;
         } else {
             const double t = wall_sec();
             line << std::fixed << "[DIAG] round=" << e.round << " stage=" << std::left << std::setw(10) << e.stage
@@ -188,20 +182,16 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     // Set up the start tree (sample-and-place, random, or given) in c1/c2, and time it.
     std::vector<int32_t> c1(n_nodes), c2(n_nodes);
     if (res.tree_init == TreeInit::Sample) {
-        const int32_t n0 =
+        int32_t n0 =
             opt.sample_size > 0 ? opt.sample_size : std::min<int32_t>(START_SAMPLE_MAX, N / START_SAMPLE_DIVISOR);
-        SampleAndPlaceStats stats;
         // the start tree's own searches use the run's settings;
         // with max_rounds = 0 (score the start tree) they keep the default rounds,
         // so the start tree is the one a normal run starts from
         SearchSettings start_settings = settings;
         if (start_settings.rounds == 0)
             start_settings.rounds = DEFAULT_MAX_ROUNDS;
-        build_sample_and_place_tree(N, n0, opt.seed, devices, c1, c2, stats, start_settings);
-        res.sample_size_used = stats.n0;
-        res.time_start_sample = stats.dt_sub;
-        res.time_start_nearest = stats.dt_nn;
-        res.time_start_assembly = stats.dt_build;
+        build_sample_and_place_tree(N, n0, opt.seed, devices, c1, c2, start_settings);
+        res.sample_size_used = n0; // after the clamp
     } else if (res.tree_init == TreeInit::Random) {
         build_random_tree(N, opt.seed, c1, c2);
     } else {

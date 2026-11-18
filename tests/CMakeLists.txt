@@ -185,7 +185,7 @@ if(P2VBME_CUDA)
   endmacro()
   p2vbme_cli_gpu_test(default "read 300 sequences x 600 sites.*BME length" -s ${CLI_DIR}/input.fa -m JC69 --prefix
                       ${CLI_DIR}/default)
-  p2vbme_cli_gpu_test(progress "read 300 sequences x 600 sites.*sample-and-place: n0=30 .*BME length" -s
+  p2vbme_cli_gpu_test(progress "read 300 sequences x 600 sites.*N=30 n_gpus.*N=300 n_gpus.*BME length" -s
                       ${CLI_DIR}/input.fa -m jc --prefix ${CLI_DIR}/progress --accelerator gpu --devices 1
                       --seed 3)
   p2vbme_cli_gpu_test(device_list "BME length" -s ${CLI_DIR}/input.fa -m JC69 --prefix ${CLI_DIR}/list

@@ -50,13 +50,10 @@ struct Settings {
 
 struct Result {
     Tree tree;
-    double bme_length = 0.0;          // sum of the raw BME branch lengths
-    double delta_bme = 0.0;           // BME change made by the search, from its start tree
-    double time_start = 0.0;          // seconds: start tree
-    double time_start_sample = 0.0;   // sample-and-place: the sample's own tree (subsample + its search)
-    double time_start_nearest = 0.0;  //   the nearest sampled sequence of every other sequence
-    double time_start_assembly = 0.0; //   assembling the full tree
-    double time_search = 0.0;         // seconds: minibatch search
+    double bme_length = 0.0;  // sum of the raw BME branch lengths
+    double delta_bme = 0.0;   // BME change made by the search, from its start tree
+    double time_start = 0.0;  // seconds: start tree
+    double time_search = 0.0; // seconds: minibatch search
     double time_branch_lengths = 0.0;
     int32_t sample_size_used = 0;
     int32_t rounds_planned = 0;

@@ -38,8 +38,8 @@ RunResult run(const Alignment &aln, int n_devices, bool sample_start) {
     SearchSettings settings; // the defaults
     RunResult r;
     if (sample_start) {
-        SampleAndPlaceStats stats;
-        build_sample_and_place_tree(N, N / START_SAMPLE_DIVISOR, 1, devices, r.c1, r.c2, stats, settings);
+        int32_t n0 = N / START_SAMPLE_DIVISOR;
+        build_sample_and_place_tree(N, n0, 1, devices, r.c1, r.c2, settings);
     } else {
         build_random_tree(N, 1, r.c1, r.c2);
     }

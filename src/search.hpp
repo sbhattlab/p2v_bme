@@ -19,13 +19,12 @@
 
 namespace p2vbme {
 
-struct SampleAndPlaceStats;
 struct SearchSettings;
 
 // Progress of a search, reported through SearchSettings::on_event (the core keeps no diagnostic state and prints
 // nothing).
 struct SearchEvent {
-    enum Kind { Start, Stage, Stop, StartTree } kind = Stage;
+    enum Kind { Start, Stage, Stop } kind = Stage;
     int32_t level = 0;      // 0 = the main search; k >= 1 = a search inside the sample-and-place start, k levels down
     int32_t n_leaves = 0;   // N of this search
     int32_t round = 0;      // Stage: the outer round (the final cleanup pass has round = rounds run)
@@ -37,7 +36,6 @@ struct SearchEvent {
     const SearchSettings *settings = NULL;             // Start: the settings of this search
     int32_t rounds_planned = 0;                        // Start
     double round_gain = 0.0, round0_gain = 0.0;        // Stop: the round's gain and round 0's; `round` stopped
-    const SampleAndPlaceStats *init_stats = NULL;      // StartTree: the sample-and-place start of this level
 };
 
 // Settings of a search.

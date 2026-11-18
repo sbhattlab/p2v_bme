@@ -94,9 +94,9 @@ TEST(Errors, WindowSolveFailureLeavesTheSearch) {
 TEST(Errors, NearestSampleFailureLeavesTheStartTree) {
     Devices devices = failing_devices(2, "nearest_sampled");
     std::vector<int32_t> c1, c2;
-    SampleAndPlaceStats stats;
+    int32_t n0 = 20;
     const std::string msg =
-        thrown_message([&] { build_sample_and_place_tree(200, 20, 1, devices, c1, c2, stats, SearchSettings()); });
+        thrown_message([&] { build_sample_and_place_tree(200, n0, 1, devices, c1, c2, SearchSettings()); });
     EXPECT_EQ(msg, "injected failure in nearest_sampled");
 }
 

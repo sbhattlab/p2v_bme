@@ -19,23 +19,6 @@
 
 namespace p2vbme {
 
-struct SampleAndPlaceStats {
-    // Sample size, after clamping to [START_SAMPLE_MIN, n_leaves/2]
-    int32_t n0 = 0;
-    // Time for the subsample's own search (subsample + its search)
-    double dt_sub = 0.0;
-    // Time for the nearest-sample step (the nearest sampled sequence of every other sequence)
-    double dt_nn = 0.0;
-    // Time for assembling the full tree (the subsample's tree + the nearest-sample assignments)
-    double dt_build = 0.0;
-    // Total time for the start tree (subsample + nearest-sample + assembly)
-    double dt_total = 0.0;
-    // Total BME change of the subsample's own search (the subsample's tree minus the initial random tree)
-    double dL_sub = 0.0;
-    // The largest bucket of assigned leaves to a sampled leaf (for diagnostics)
-    int32_t max_bucket = 0;
-};
-
 // Random rooted binary tree on n_leaves leaves, post-order (c1[u] < u, c2[u] < u): v_i ~ U{0..i} plus a random leaf
 // permutation.
 // This is the Yule-Harding (ranked-uniform) distribution, NOT uniform over topologies.
@@ -51,9 +34,10 @@ void build_random_tree(int32_t n_leaves, uint64_t seed, std::vector<int32_t> &c1
 //   5. replace each sampled leaf by a balanced tree of itself + its assigned sequences (random order)
 // Uses only the sequences: no information from the true tree.
 // Needs n_leaves >= START_SAMPLE_MIN_N (below it, infer() uses the random start instead).
-void build_sample_and_place_tree(int32_t n_leaves, int32_t n0_leaves, uint64_t seed, Devices &devices,
-                                 std::vector<int32_t> &c1, std::vector<int32_t> &c2, SampleAndPlaceStats &stats,
-                                 const SearchSettings &settings, int32_t level = 0);
+// n0_leaves: in, the sample size asked for; out, the size used (after the clamp of step 1).
+void build_sample_and_place_tree(int32_t n_leaves, int32_t &n0_leaves, uint64_t seed, Devices &devices,
+                                 std::vector<int32_t> &c1, std::vector<int32_t> &c2, const SearchSettings &settings,
+                                 int32_t level = 0);
 
 } // namespace p2vbme
 
