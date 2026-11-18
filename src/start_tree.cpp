@@ -17,28 +17,21 @@ namespace p2vbme {
 void build_random_tree(int32_t n_leaves, uint64_t seed, std::vector<int32_t> &c1, std::vector<int32_t> &c2) {
     uint64_t st = seed;
     // uf: keeps track of which node currently sits at each slot while tree is built bottom-up
-    // perm: randomly relabels leaves at the end (so a leaf's place in tree is independent of its index)
-    std::vector<int32_t> perm(n_leaves), uf(n_leaves);
+    std::vector<int32_t> uf(n_leaves);
     for (int32_t i = 0; i < n_leaves; ++i) {
-        perm[i] = i;
         uf[i] = i;
     }
-    p2vbme::shuffle(perm.begin(), perm.end(), st);
+    p2vbme::shuffle(uf.begin(), uf.end(), st); // random leaf labels
     c1.assign(2 * n_leaves - 1, 0);
     c2.assign(2 * n_leaves - 1, 0);
     for (int32_t k = 0; k < n_leaves - 1; ++k) {
         int32_t i = (n_leaves - 2) - k;
         int32_t m = n_leaves + k;
+        // Draw an ordered phylo2vec entry, decoded into c1/c2.
         int32_t x = (int32_t)p2vbme::uniform_below(st, (uint64_t)(i + 1)); // v_i ~ U{0..i}
         c1[m] = uf[i + 1];
         c2[m] = uf[x];
         uf[x] = m;
-    }
-    for (int32_t m = n_leaves; m < 2 * n_leaves - 1; ++m) {
-        if (c1[m] < n_leaves)
-            c1[m] = perm[c1[m]];
-        if (c2[m] < n_leaves)
-            c2[m] = perm[c2[m]];
     }
 }
 
