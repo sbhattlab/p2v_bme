@@ -13,6 +13,8 @@ cxxopts = "3.2.*"
 gtest = "1.18.*"
 benchmark = ">=1.10.0,<2"
 pre-commit = ">=4.7.0,<5"
+python = ">=3.12.16,<3.16"
+pytest = ">=9.2.0,<10"
 
 [tasks]
 # CMake presets (CMakePresets.json); everything is built into build/
