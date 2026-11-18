@@ -32,7 +32,7 @@ struct Settings {
     int32_t sample_size = DEFAULT_SAMPLE_SIZE;        // sample-and-place start: 0 = min(100000, N / 10)
     uint64_t seed = DEFAULT_SEED;                     // seeds the sample-and-place or random start
     int32_t max_rounds = DEFAULT_MAX_ROUNDS;          // rounds of the search; 0 = no search (score the start)
-    double early_stopping = DEFAULT_EARLY_STOPPING;   // stop once a round gains <= this x the total gain;
+    double tol = DEFAULT_TOL;                         // stop once a round gains <= this x the total gain;
                                                       // 0 = only when a round changes nothing (always on)
     double time_limit = DEFAULT_TIME_LIMIT;           // seconds; no new round after this (0 = none)
     int32_t profile_cap = DEFAULT_PROFILE_CAP;        // leaves kept per clade profile (1..256)

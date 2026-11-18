@@ -45,12 +45,11 @@ struct SearchEvent {
 struct SearchSettings {
     // outer rounds before the final cleanup pass; 0 = no search (the tree is left as it is)
     int32_t rounds = p2vbme::DEFAULT_MAX_ROUNDS;
-    // stop once a whole round (>= 1) accepts no move.
-    // Rounds >= 1 are a deterministic function of the tree, so this stop is lossless (the same tree as running all
+    // stop once a round (>= 1) improves L by <= stop_tol x (total improvement so far).
+    // 0 = only when a round changes nothing.
+    // Rounds >= 1 are a deterministic function of the tree, so that stop is lossless (the same tree as running all
     // rounds).
-    bool stop_zero = p2vbme::DEFAULT_STOP_WHEN_IDLE;
-    // > 0: stop once a round (>= 1) improves L by <= stop_tol x (total improvement so far)
-    double stop_tol = p2vbme::DEFAULT_EARLY_STOPPING;
+    double stop_tol = p2vbme::DEFAULT_TOL;
     double deadline = 0.0;                                    // absolute wall_sec(): no new round after it; 0 = none
     double time_cap = p2vbme::DEFAULT_TIME_LIMIT;             // the time limit behind the deadline, for reporting only
     int32_t profile_cap = p2vbme::DEFAULT_PROFILE_CAP;        // leaves kept per clade profile

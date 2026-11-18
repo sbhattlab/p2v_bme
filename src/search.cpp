@@ -1531,11 +1531,10 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                 round0_gain = round_gain;
             // Accepted windows always lower L by > 1e-7, so a zero gain means the round changed nothing; rounds >= 1
             // are deterministic in the tree, so every later regular round would also change nothing.
+            // The <= stops there even when stop_tol = 0.
             std::optional<StopReason> reason; // empty = no reason to stop
-            if (kn.stop_zero && outer_round >= 1 && round_gain <= 0.0)
-                reason = StopReason::Idle;
-            else if (kn.stop_tol > 0.0 && outer_round >= 1 && round_gain <= kn.stop_tol * (-total_mb_delta_L))
-                reason = StopReason::EarlyStopping;
+            if (outer_round >= 1 && round_gain <= kn.stop_tol * (-total_mb_delta_L))
+                reason = StopReason::Converged;
             else if (kn.deadline > 0.0 && wall_sec() > kn.deadline)
                 reason = StopReason::TimeLimit;
             const bool stop = reason.has_value();

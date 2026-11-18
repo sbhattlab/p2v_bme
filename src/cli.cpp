@@ -101,8 +101,8 @@ CommandLine parse_command_line(int argc, char **argv) {
     cli.add_options("Search")
         ("max-rounds", "rounds of the search; 0 = no search (score the start tree)",
          cxxopts::value(opt.max_rounds), "N")
-        ("early-stopping", "stop once a round gains at most TOL x the total gain; 0 = only when a round changes "
-         "nothing", cxxopts::value(opt.early_stopping), "TOL")
+        ("tol", "stop once a round gains at most TOL x the total gain; 0 = only when a round changes nothing",
+         cxxopts::value(opt.tol), "TOL")
         ("time-limit", "seconds after which no new round starts (0 = none)",
          cxxopts::value(opt.time_limit), "S")
         ("profile-cap", "leaves kept per clade profile in a window (1-256)",

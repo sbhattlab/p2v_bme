@@ -66,7 +66,7 @@ void detail_settings(JsonWriter &w, const Report &run, const Settings &opt, cons
     w.field("sample_size", res.sample_size_used); // 0 without sample-and-place
     w.field("seed", opt.seed);
     w.field("max_rounds", opt.max_rounds);
-    w.field("early_stopping", opt.early_stopping);
+    w.field("tol", opt.tol);
     w.field("time_limit", opt.time_limit);
     w.field("profile_cap", opt.profile_cap);
     w.field("exact_check_eta", opt.exact_check_eta);

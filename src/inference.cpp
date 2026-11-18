@@ -36,8 +36,8 @@ void check_settings(const Settings &opt) {
         throw std::runtime_error("max rounds must be >= 0");
     if (opt.sample_size < 0)
         throw std::runtime_error("sample size must be >= 0 (0 = the default rule)");
-    if (!(opt.early_stopping >= 0.0))
-        throw std::runtime_error("early stopping must be >= 0");
+    if (!(opt.tol >= 0.0))
+        throw std::runtime_error("tol must be >= 0");
     if (!(opt.time_limit >= 0.0))
         throw std::runtime_error("time limit must be >= 0 (0 = none)");
     if (!(opt.exact_check_eta >= 0.0))
@@ -129,8 +129,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
 
     SearchSettings settings;
     settings.rounds = opt.max_rounds;
-    settings.stop_zero = true; // the lossless idle stop is always on
-    settings.stop_tol = opt.early_stopping;
+    settings.stop_tol = opt.tol;
     settings.time_cap = opt.time_limit;
     settings.profile_cap = opt.profile_cap;
     settings.exact_check_eta = opt.exact_check_eta;
@@ -158,8 +157,8 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
             t_start = t_last = wall_sec();
             dL_last = 0.0;
             line << "[DIAG] N=" << e.n_leaves << " n_gpus=" << e.n_devices << " n_outer_rounds=" << e.rounds_planned
-                 << " max_prof_leaves=" << e.settings->profile_cap << " stop_zero=" << e.settings->stop_zero
-                 << " stop_tol=" << e.settings->stop_tol << " time_cap=" << e.settings->time_cap;
+                 << " max_prof_leaves=" << e.settings->profile_cap << " stop_tol=" << e.settings->stop_tol
+                 << " time_cap=" << e.settings->time_cap;
         } else if (e.kind == SearchEvent::Stop) {
             line << std::fixed << std::setprecision(6) << "[DIAG] stopping after round " << e.round << " (gain "
                  << e.round_gain << ", round-0 gain " << e.round0_gain << "); running final cleanup";

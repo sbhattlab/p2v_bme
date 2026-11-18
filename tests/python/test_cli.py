@@ -105,7 +105,7 @@ def test_options_reach_the_run(data, tmp_path):
     p = run(
         *("-s", data / "input.fa", "-m", "TN93", "-p", tmp_path / "out", "--report-full"),
         *("--precision", "double", "--devices", "2", "--seed", "5", "--sample-size", "40"),
-        *("--max-rounds", "3", "--early-stopping", "0", "--time-limit", "100"),
+        *("--max-rounds", "3", "--tol", "0", "--time-limit", "100"),
         *("--profile-cap", "8", "--exact-check-eta", "0.01", "--bl-profile-cap", "8", "--no-neg-as-zero"),
     )
     assert p.returncode == 0, p.stderr
@@ -117,7 +117,7 @@ def test_options_reach_the_run(data, tmp_path):
         "sample_size": 40,
         "seed": 5,
         "max_rounds": 3,
-        "early_stopping": 0,
+        "tol": 0,
         "time_limit": 100,
         "profile_cap": 8,
         "exact_check_eta": 0.01,
