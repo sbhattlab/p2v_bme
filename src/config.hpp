@@ -28,8 +28,7 @@ constexpr int32_t DEFAULT_GTR_REWEIGHT = 2;     // GTR+GC SymWLS: weight updates
 
 // ---- Limits ------------------------------------------------------------------------------------------
 
-constexpr int32_t PROFILE_CAP_MAX = 256;  // the GPU profile buffer holds PROFILE_CAP_MAX x WORKSPACE_MAX_K entries
-constexpr int32_t WORKSPACE_MAX_K = 2048; // components a GPU workspace can hold (windows use K <= 1,500)
+constexpr int32_t PROFILE_CAP_MAX = 256; // the GPU profile buffer holds PROFILE_CAP_MAX x WORKSPACE_MAX_K entries
 
 // GTR+GC: the range where single-precision distances (the GPU's) were checked against double precision.
 // Inside it, 99% of simulated pairs of 1,500 sites were within 0.3% of double precision.
@@ -50,6 +49,9 @@ constexpr int32_t WINDOW_MAX_SWEEPS = 200;
 constexpr int32_t WINDOW_MAX_INTERNALS = 1498;
 // Internal-vertex budget of a window of the leaf-covering waves.
 constexpr int32_t WAVE_WINDOW_MAX_INTERNALS = 1200;
+// Components a device workspace holds (the GPU buffers are allocated for it): the largest window above.
+constexpr int32_t WORKSPACE_MAX_K = WINDOW_MAX_INTERNALS + 2;
+static_assert(WAVE_WINDOW_MAX_INTERNALS + 2 <= WORKSPACE_MAX_K, "wave windows must fit the device workspace");
 // Smallest window: below 4 components there is a single unrooted tree shape, so nothing to move.
 // Also the smallest tree the waves visit.
 constexpr int32_t WINDOW_MIN_K = 4;
