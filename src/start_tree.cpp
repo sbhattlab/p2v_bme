@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "random.hpp"
+#include "timing.hpp"
 
 namespace p2vbme {
 

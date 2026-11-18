@@ -19,6 +19,7 @@
 #include "inference.hpp"
 #include "search.hpp"
 #include "start_tree.hpp"
+#include "timing.hpp"
 
 namespace p2vbme {
 

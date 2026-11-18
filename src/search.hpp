@@ -9,7 +9,6 @@
 #define P2VBME_SEARCH_HPP
 
 #include <stdint.h>
-#include <time.h>
 
 #include <functional>
 #include <memory>
@@ -19,13 +18,6 @@
 #include "device.hpp"
 
 namespace p2vbme {
-
-// Monotonic wall clock, seconds.
-inline double wall_sec() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec + 1e-9 * (double)ts.tv_nsec;
-}
 
 struct SampleAndPlaceStats;
 struct SearchSettings;

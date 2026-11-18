@@ -17,6 +17,8 @@
 #include <utility>
 #include <vector>
 
+#include "timing.hpp"
+
 namespace p2vbme {
 
 void relabel_from_rooted_tree(const int32_t *c1_r, const int32_t *c2_r, int32_t n_leaves, int32_t flip_mode,
