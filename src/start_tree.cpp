@@ -37,14 +37,13 @@ void build_random_tree(int32_t n_leaves, uint64_t seed, std::vector<int32_t> &c1
 }
 
 void build_sample_and_place_tree(int32_t n_leaves, int32_t n0_leaves, uint64_t seed, Devices &devices,
-                                 std::vector<int32_t> &out_c1, std::vector<int32_t> &out_c2, SampleAndPlaceStats &stats,
+                                 std::vector<int32_t> &c1, std::vector<int32_t> &c2, SampleAndPlaceStats &stats,
                                  const SearchSettings &settings, int32_t level) {
     const int n_devices = (int)devices.size();
     const double t_begin = wall_sec();
-    if (n0_leaves > n_leaves / 2)
-        n0_leaves = n_leaves / 2;
-    if (n0_leaves < p2vbme::START_SAMPLE_MIN)
-        n0_leaves = p2vbme::START_SAMPLE_MIN;
+    // clamp the sample size to [START_SAMPLE_MIN, n_leaves / 2]
+    n0_leaves = n0_leaves > n_leaves / 2 ? n_leaves / 2 : n0_leaves;
+    n0_leaves = n0_leaves < p2vbme::START_SAMPLE_MIN ? p2vbme::START_SAMPLE_MIN : n0_leaves;
     stats.n0 = n0_leaves;
 
     // 1. pick n0_leaves sequences at random (partial Fisher-Yates)
@@ -107,20 +106,33 @@ void build_sample_and_place_tree(int32_t n_leaves, int32_t n0_leaves, uint64_t s
     // 5. full tree: a balanced tree per bucket (members in random order, paired two at a time, level by level), then
     // the subsample tree on top.
     // Ids are assigned children-first, so the result is post-order with root 2 n_leaves - 2.
+
+    // 5a. bucket the queries by their nearest sampled leaf (a counting sort)
+    // bucket j: the queries whose nearest sample is samp[j], in bucket_mem[bucket_off[j] .. bucket_off[j + 1])
+    // bucket_off: the buckets' offsets (n0_leaves + 1 entries: first the sizes, then their running sum)
+    // bucket_mem: the members (query row ids), bucket after bucket
     std::vector<int32_t> bucket_off(n0_leaves + 1, 0), bucket_mem(n_q);
-    for (int32_t k = 0; k < n_q; ++k)
+    for (int32_t k = 0; k < n_q; ++k) // count: bucket j's size goes to bucket_off[j + 1]
         bucket_off[best_pos[k] + 1]++;
-    for (int32_t j = 0; j < n0_leaves; ++j) {
-        stats.max_bucket = std::max(stats.max_bucket, bucket_off[j + 1]);
+    for (int32_t j = 0; j < n0_leaves; ++j) { // running sum: bucket j starts at bucket_off[j]
+        stats.max_bucket = std::max(stats.max_bucket, bucket_off[j + 1]); // still bucket j's size here
         bucket_off[j + 1] += bucket_off[j];
     }
     {
+        // fill: the next free slot of each bucket
         std::vector<int32_t> fill(bucket_off.begin(), bucket_off.end() - 1);
         for (int32_t k = 0; k < n_q; ++k)
             bucket_mem[fill[best_pos[k]]++] = qry[k];
     }
-    out_c1.assign(2 * n_leaves - 1, -1);
-    out_c2.assign(2 * n_leaves - 1, -1);
+
+    // 5b. a balanced tree per bucket: the sampled leaf, then its members in random order, paired two at a time,
+    // level by level (an odd node out is paired at the next level)
+    // c1, c2: the full tree (leaves keep -1)
+    // next_id: the next internal node id
+    // bucket_root[j]: the root of bucket j's tree (samp[j] itself when the bucket is empty)
+    // q: the current bucket's nodes; q[head ..] are still to be paired, and each new parent is appended
+    c1.assign(2 * n_leaves - 1, -1);
+    c2.assign(2 * n_leaves - 1, -1);
     int32_t next_id = n_leaves;
     std::vector<int32_t> bucket_root(n0_leaves);
     std::vector<int32_t> q;
@@ -133,17 +145,24 @@ void build_sample_and_place_tree(int32_t n_leaves, int32_t n0_leaves, uint64_t s
             q.push_back(bucket_mem[a]);
         size_t head = 0;
         while (q.size() - head > 1) {
-            size_t level_end = q.size();
+            size_t level_end = q.size(); // this level's nodes: q[head .. level_end)
             while (level_end - head >= 2) {
                 int32_t u1 = q[head++];
                 int32_t u2 = q[head++];
-                out_c1[next_id] = u1;
-                out_c2[next_id] = u2;
+                c1[next_id] = u1;
+                c2[next_id] = u2;
                 q.push_back(next_id++);
             }
         }
         bucket_root[j] = q[head];
     }
+
+    // 5c. the subsample tree t0 on top: leaf j of t0 becomes bucket_root[j], and each internal node of t0 gets a new id
+    // The search reuses t0's internal ids in no particular order (only the root stays 2 n0_leaves - 2), so the internal
+    // nodes are listed from the root and numbered in reverse, children before parents.
+    // sub_root: the root of t0
+    // bfs: t0's internal nodes in breadth-first order from the root (parents before children)
+    // map_int[u]: the full tree's id of t0's internal node u
     const int32_t sub_root = 2 * n0_leaves - 2;
     std::vector<int32_t> bfs;
     bfs.reserve(n0_leaves);
@@ -159,10 +178,11 @@ void build_sample_and_place_tree(int32_t n_leaves, int32_t n0_leaves, uint64_t s
     for (int32_t i = (int32_t)bfs.size() - 1; i >= 0; --i) {
         int32_t u = bfs[i];
         int32_t a = sub_c1[u], b = sub_c2[u];
-        out_c1[next_id] = (a < n0_leaves) ? bucket_root[a] : map_int[a];
-        out_c2[next_id] = (b < n0_leaves) ? bucket_root[b] : map_int[b];
+        c1[next_id] = (a < n0_leaves) ? bucket_root[a] : map_int[a];
+        c2[next_id] = (b < n0_leaves) ? bucket_root[b] : map_int[b];
         map_int[u] = next_id++;
     }
+    // 5d. check: every node numbered once, the root last
     if (next_id != 2 * n_leaves - 1 || map_int[sub_root] != 2 * n_leaves - 2) {
         throw std::logic_error("sample-and-place start: the tree has " + std::to_string(next_id) + " nodes, expected " +
                                std::to_string(2 * n_leaves - 1));

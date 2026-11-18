@@ -39,7 +39,6 @@ struct SampleAndPlaceStats {
 // Random rooted binary tree on n_leaves leaves, post-order (c1[u] < u, c2[u] < u): v_i ~ U{0..i} plus a random leaf
 // permutation.
 // This is the Yule-Harding (ranked-uniform) distribution, NOT uniform over topologies.
-// Same construction as hx2_parallel_suite.make_uniform_random_tree (different RNG).
 void build_random_tree(int32_t n_leaves, uint64_t seed, std::vector<int32_t> &c1, std::vector<int32_t> &c2);
 
 // Sample-and-place start tree (branch diag-scaling)
@@ -53,7 +52,7 @@ void build_random_tree(int32_t n_leaves, uint64_t seed, std::vector<int32_t> &c1
 // Uses only the sequences: no information from the true tree.
 // Needs n_leaves >= START_SAMPLE_MIN_N (below it, infer() uses the random start instead).
 void build_sample_and_place_tree(int32_t n_leaves, int32_t n0_leaves, uint64_t seed, Devices &devices,
-                                 std::vector<int32_t> &out_c1, std::vector<int32_t> &out_c2, SampleAndPlaceStats &stats,
+                                 std::vector<int32_t> &c1, std::vector<int32_t> &c2, SampleAndPlaceStats &stats,
                                  const SearchSettings &settings, int32_t level = 0);
 
 } // namespace p2vbme
