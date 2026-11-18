@@ -157,7 +157,7 @@ Settings cpu_settings(Model model, Precision precision = Precision::Single, int3
 } // namespace
 
 TEST(CpuDevice, BruteForceAtSmallN) {
-    for (int32_t N : {6, 7, 8})
+    for (int32_t N : {4, 5, 6, 7, 8})
         for (uint64_t seed : {1, 2, 3})
             for (Model model : {Model::JC69, Model::TN93, Model::LogDet, Model::GTR_GC}) {
                 const Tree tree = random_tree(N, 0.02, 0.4, 100 * N + seed);

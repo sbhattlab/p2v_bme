@@ -482,7 +482,7 @@ void build_component_waves(int32_t N, const std::vector<int32_t> &ord, const std
     const int32_t root_r = n_nodes_r - 1;
     is_comp_root.assign(n_nodes_r, 0);
     level_waves.clear();
-    if (N < 6)
+    if (N < p2vbme::WINDOW_MIN_K)
         return;
 
     std::vector<int32_t> rem_int(n_nodes_r, 0);
@@ -1069,7 +1069,7 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
         throw std::logic_error("whole-tree window: unexpected snapshot (the root is alone in its wave)");
     const int32_t K_in = (int32_t)super_roots.size();
     const int32_t K = has_outgroup ? K_in + 1 : K_in;
-    if (K < 6 || K > dev.max_window())
+    if (K < p2vbme::WINDOW_MIN_K || K > dev.max_window())
         return 0.0;
 
     int32_t parent_of_sub_root = parent_r[sub_root];

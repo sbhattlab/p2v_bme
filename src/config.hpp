@@ -50,6 +50,9 @@ constexpr int32_t WINDOW_MAX_SWEEPS = 200;
 constexpr int32_t WINDOW_MAX_INTERNALS = 1498;
 // Internal-vertex budget of a window of the leaf-covering waves.
 constexpr int32_t WAVE_WINDOW_MAX_INTERNALS = 1200;
+// Smallest window: below 4 components there is a single unrooted tree shape, so nothing to move.
+// Also the smallest tree the waves visit.
+constexpr int32_t WINDOW_MIN_K = 4;
 // Internal nodes per component of the leaf-covering waves, at most; also the smallest V-cycle window and the tree size
 // above which a round ends with a cleanup pass.
 constexpr int32_t WAVE_COMPONENT_CAP = 1050;
