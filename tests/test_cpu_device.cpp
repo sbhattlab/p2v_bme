@@ -26,6 +26,7 @@
 #include "infer_test_helpers.hpp"
 #include "inference.hpp"
 #include "newick.hpp"
+#include "phylo2vec.hpp"
 #include "search.hpp"
 #include "simulations.hpp"
 #include "substitution_models.hpp"
@@ -185,7 +186,7 @@ TEST(CpuDevice, SprOptimalByTheReferenceLibrary) {
             for (int32_t flip : {0, 1}) {
                 std::vector<int64_t> v(N - 1);
                 std::vector<int32_t> perm(N);
-                relabel_from_rooted_tree(res.tree.c1.data(), res.tree.c2.data(), N, flip, v.data(), perm.data());
+                queue_shuffle_rooted(res.tree.c1.data(), res.tree.c2.data(), N, flip, v.data(), perm.data());
                 std::vector<double> Dp((size_t)N * N);
                 for (int32_t a = 0; a < N; ++a)
                     for (int32_t b = 0; b < N; ++b)
@@ -367,7 +368,7 @@ TEST(CpuDevice, MoveScoresAreExactBmeChanges) {
             const Tree start = random_tree(K, 0.1, 0.1, 1000 + seed);
             std::vector<int64_t> v(K - 1);
             std::vector<int32_t> perm(K);
-            relabel_from_rooted_tree(start.c1.data(), start.c2.data(), K, 0, v.data(), perm.data());
+            queue_shuffle_rooted(start.c1.data(), start.c2.data(), K, 0, v.data(), perm.data());
             auto meta = [&](const std::vector<int64_t> &vv) {
                 SkeletonMeta s;
                 build_skeleton_metadata(vv.data(), K, s.c1, s.c2, s.v_map, s.m_lmin, s.next_k, s.parent_u, s.sub_size,
@@ -448,7 +449,7 @@ TEST(CpuDevice, MoveTiesGoToTheSmallestEdge) {
         const Tree start = random_tree(K, 0.1, 0.1, 113);
         std::vector<int64_t> v(K - 1);
         std::vector<int32_t> perm(K);
-        relabel_from_rooted_tree(start.c1.data(), start.c2.data(), K, 0, v.data(), perm.data());
+        queue_shuffle_rooted(start.c1.data(), start.c2.data(), K, 0, v.data(), perm.data());
         SkeletonMeta s;
         build_skeleton_metadata(v.data(), K, s.c1, s.c2, s.v_map, s.m_lmin, s.next_k, s.parent_u, s.sub_size, s.tin,
                                 s.adj_u, &s.other_rc, &s.rc0, &s.rc1, &s.rc2);

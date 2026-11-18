@@ -830,9 +830,9 @@ void calculate_discrete_gradient_full_c(const int64_t *restrict v, const double 
 /* ============================================================================
  * 3. O(N) Cherry-First Taxon Relabeling (v_new[i] <= i)
  * ============================================================================ */
-static void relabel_from_rooted_tree(const int32_t *restrict child1_r, const int32_t *restrict child2_r,
-                                     const int32_t *restrict min_leaf, int32_t n_leaves, int32_t flip_mode,
-                                     int64_t *restrict v_new, int32_t *restrict perm_inout, int32_t *restrict scratch) {
+static void queue_shuffle_rooted(const int32_t *restrict child1_r, const int32_t *restrict child2_r,
+                                 const int32_t *restrict min_leaf, int32_t n_leaves, int32_t flip_mode,
+                                 int64_t *restrict v_new, int32_t *restrict perm_inout, int32_t *restrict scratch) {
     const int32_t n_nodes_r = 2 * n_leaves - 1;
     int32_t *rep_leaf = scratch;
     int32_t *new_perm = scratch + n_nodes_r;
@@ -917,7 +917,7 @@ void relabel_cherry_first_c(const int64_t *restrict v_in, int32_t n_leaves, int3
 
     for (int32_t i = 0; i < n_leaves; ++i)
         perm_out[i] = i;
-    relabel_from_rooted_tree(child1_r, child2_r, min_leaf, n_leaves, flip_mode, v_out, perm_out, scratch);
+    queue_shuffle_rooted(child1_r, child2_r, min_leaf, n_leaves, flip_mode, v_out, perm_out, scratch);
 }
 
 /* ============================================================================
@@ -1390,7 +1390,7 @@ double optimize_phylo2vec_bme_c(const int64_t *restrict v_init, const double *re
                 parents_uf[p2] = next_parent;
                 next_parent++;
             }
-            relabel_from_rooted_tree(child1_r, child2_r, min_leaf, n_leaves, 0, v_pi, perm, relabel_scratch);
+            queue_shuffle_rooted(child1_r, child2_r, min_leaf, n_leaves, 0, v_pi, perm, relabel_scratch);
             perm_dirty = 1;
         }
 
@@ -1767,7 +1767,7 @@ double optimize_phylo2vec_bme_c(const int64_t *restrict v_init, const double *re
 
         if (!flipped_already) {
             flipped_already = 1;
-            relabel_from_rooted_tree(child1_r, child2_r, min_leaf, n_leaves, 1, v_pi, perm, relabel_scratch);
+            queue_shuffle_rooted(child1_r, child2_r, min_leaf, n_leaves, 1, v_pi, perm, relabel_scratch);
             perm_dirty = 1;
             adj_synced = 0;
             continue;

@@ -17,81 +17,10 @@
 #include <utility>
 #include <vector>
 
+#include "phylo2vec.hpp"
 #include "timing.hpp"
 
 namespace p2vbme {
-
-void relabel_from_rooted_tree(const int32_t *c1_r, const int32_t *c2_r, int32_t n_leaves, int32_t flip_mode,
-                              int64_t *v_cf_out, int32_t *perm_out) {
-    const int32_t n_nodes_r = 2 * n_leaves - 1;
-    const int32_t root_r = n_nodes_r - 1;
-    std::vector<int32_t> ord(n_leaves - 1);
-    int32_t ord_len = 0;
-    ord[ord_len++] = root_r;
-    for (int32_t idx = 0; idx < ord_len; ++idx) {
-        int32_t u = ord[idx];
-        int32_t b0 = c1_r[u], b1 = c2_r[u];
-        if (b0 >= n_leaves)
-            ord[ord_len++] = b0;
-        if (b1 >= n_leaves)
-            ord[ord_len++] = b1;
-    }
-    std::vector<int32_t> min_leaf(n_nodes_r);
-    for (int32_t x = 0; x < n_leaves; ++x)
-        min_leaf[x] = x;
-    for (int32_t idx = ord_len - 1; idx >= 0; --idx) {
-        int32_t u = ord[idx];
-        int32_t b0 = c1_r[u], b1 = c2_r[u];
-        min_leaf[u] = (min_leaf[b0] < min_leaf[b1]) ? min_leaf[b0] : min_leaf[b1];
-    }
-    std::vector<int32_t> rep_leaf(n_nodes_r, 0);
-    int32_t rc1 = c1_r[root_r], rc2 = c2_r[root_r];
-    int32_t r_stay = (min_leaf[rc1] < min_leaf[rc2]) ? rc1 : rc2;
-    int32_t r_move = (min_leaf[rc1] < min_leaf[rc2]) ? rc2 : rc1;
-    if (flip_mode == 1) {
-        int32_t tmp = r_stay;
-        r_stay = r_move;
-        r_move = tmp;
-    }
-    rep_leaf[r_stay] = 0;
-    rep_leaf[r_move] = 1;
-    v_cf_out[0] = 0;
-    int32_t next_label = 2;
-    for (int32_t idx = 1; idx < ord_len; ++idx) {
-        int32_t m = ord[idx];
-        int32_t c1 = c1_r[m], c2 = c2_r[m];
-        int32_t c_stay = (min_leaf[c1] < min_leaf[c2]) ? c1 : c2;
-        int32_t c_move = (min_leaf[c1] < min_leaf[c2]) ? c2 : c1;
-        if (flip_mode == 1) {
-            int32_t tmp = c_stay;
-            c_stay = c_move;
-            c_move = tmp;
-        }
-        int32_t x = rep_leaf[m];
-        int32_t y = next_label++;
-        rep_leaf[c_stay] = x;
-        rep_leaf[c_move] = y;
-        v_cf_out[y - 1] = x;
-    }
-    for (int32_t old_l = 0; old_l < n_leaves; ++old_l) {
-        perm_out[rep_leaf[old_l]] = old_l;
-    }
-}
-
-void decode_cf_to_rooted(const int64_t *v, int32_t N, int32_t *c1_r, int32_t *c2_r, int32_t *scratch_uf) {
-    const int32_t n_pairs = N - 1;
-    for (int32_t x = 0; x < N; ++x)
-        scratch_uf[x] = x;
-    for (int32_t k = 0; k < n_pairs; ++k) {
-        int32_t i = n_pairs - 1 - k;
-        int32_t m = N + k;
-        int32_t x = (int32_t)v[i];
-        int32_t y = i + 1;
-        c1_r[m] = scratch_uf[y];
-        c2_r[m] = scratch_uf[x];
-        scratch_uf[x] = m;
-    }
-}
 
 static void emit_stage(const SearchSettings &s, int32_t level, int32_t N, int round, const char *stage, int64_t detail,
                        double total_dL, const std::vector<int32_t> *c1 = NULL, const std::vector<int32_t> *c2 = NULL) {
@@ -748,7 +677,7 @@ void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, in
     }
 
     std::vector<int32_t> step_perm(K);
-    relabel_from_rooted_tree(c1_r.data(), c2_r.data(), K, flip_mode, v_cf.data(), step_perm.data());
+    queue_shuffle_rooted(c1_r.data(), c2_r.data(), K, flip_mode, v_cf.data(), step_perm.data());
     std::vector<int32_t> new_perm(K);
     for (int32_t a = 0; a < K; ++a)
         new_perm[a] = perm[step_perm[a]];
@@ -1183,7 +1112,7 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
 
         std::vector<int64_t> v_mb(K - 1);
         std::vector<int32_t> perm_mb(K);
-        relabel_from_rooted_tree(sk_c1.data(), sk_c2.data(), K, 0, v_mb.data(), perm_mb.data());
+        queue_shuffle_rooted(sk_c1.data(), sk_c2.data(), K, 0, v_mb.data(), perm_mb.data());
 
         double dL = dev.solve_window(K, max_iters, p2vbme::MOVE_BATCH_CAP, settings.exact_check_eta,
                                      prof_offsets.data(), prof_leaves.data(), prof_weights.data(), v_mb, perm_mb,
@@ -1359,7 +1288,7 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
 
         std::vector<int64_t> v_mb(K - 1);
         std::vector<int32_t> perm_mb(K);
-        relabel_from_rooted_tree(sk_c1.data(), sk_c2.data(), K, 0, v_mb.data(), perm_mb.data());
+        queue_shuffle_rooted(sk_c1.data(), sk_c2.data(), K, 0, v_mb.data(), perm_mb.data());
 
         double dL = dev.solve_window(K, max_iters, p2vbme::MOVE_BATCH_CAP, settings.exact_check_eta,
                                      prof_offsets.data(), prof_leaves.data(), prof_weights.data(), v_mb, perm_mb,

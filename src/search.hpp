@@ -66,15 +66,6 @@ struct SearchStats {
     const char *stop_reason = "max_rounds";
 };
 
-// ---- Phylo2Vec encoding of rooted trees (leaves 0..n-1, internal nodes n..2n-2, root 2n-2) ----
-
-// Cherry-first Phylo2Vec vector of a rooted tree and the leaf permutation it implies (flip_mode 1: the other labelling
-// of each cherry).
-void relabel_from_rooted_tree(const int32_t *c1_r, const int32_t *c2_r, int32_t n_leaves, int32_t flip_mode,
-                              int64_t *v_cf_out, int32_t *perm_out);
-// The rooted tree of a Phylo2Vec vector.
-void decode_cf_to_rooted(const int64_t *v, int32_t N, int32_t *c1_r, int32_t *c2_r, int32_t *scratch_uf);
-
 // ---- Skeleton of a window (shared with the devices' window solve) ----
 
 void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t> &c1_cf, std::vector<int32_t> &c2_cf,

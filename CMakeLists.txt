@@ -77,7 +77,7 @@ find_package(cxxopts CONFIG REQUIRED)
 
 # The method: infer(), start tree, search, branch lengths (host), the CPU device and, with CUDA, the GPU device
 # (all CUDA code is in device_gpu.cu)
-add_library(p2vbme STATIC src/inference.cpp src/start_tree.cpp src/search.cpp src/branch_lengths.cpp
+add_library(p2vbme STATIC src/inference.cpp src/start_tree.cpp src/search.cpp src/phylo2vec.cpp src/branch_lengths.cpp
             src/report.cpp src/version.cpp src/accelerator.cpp src/device.cpp src/device_cpu.cpp)
 set_source_files_properties(src/version.cpp PROPERTIES COMPILE_DEFINITIONS
                             "P2VBME_VERSION=\"${PROJECT_VERSION}\";P2VBME_GIT=\"${P2VBME_GIT}\"")
