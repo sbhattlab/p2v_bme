@@ -127,7 +127,6 @@ void compute_tree_summaries_blind(const int32_t *c1_r, const int32_t *c2_r, int3
                                   std::vector<int32_t> &parent_r_out, std::vector<int32_t> &leaf_cnt_out,
                                   std::vector<int32_t> &node_rep0_out);
 void extract_active_skeleton(int32_t root_r, const int32_t *c1_r, const int32_t *c2_r, int32_t N,
-                             int32_t condense_thresh, const std::vector<uint8_t> &node_has_active,
                              const std::vector<int32_t> &leaf_cnt, std::vector<int32_t> &super_roots,
                              std::vector<int32_t> &split_internals, std::vector<int32_t> &skel_left,
                              std::vector<int32_t> &skel_right, int32_t *out_root_skel_id,
