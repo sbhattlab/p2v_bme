@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 #include <algorithm>
+#include <optional>
 #include <queue>
 #include <stdexcept>
 #include <utility>
@@ -1282,7 +1283,7 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
     SearchStats &run_stats = stats ? *stats : stats_local;
     if (kn.rounds <= 0) { // no search, not even the final cleanup pass
         run_stats = SearchStats();
-        run_stats.stop_reason = "none";
+        run_stats.stop_reason = StopReason::None;
         return 0.0;
     }
     const int32_t n_nodes_r = 2 * N - 1;
@@ -1530,16 +1531,16 @@ double run_minibatch_bme(int32_t N, Devices &devices, std::vector<int32_t> &curr
                 round0_gain = round_gain;
             // Accepted windows always lower L by > 1e-7, so a zero gain means the round changed nothing; rounds >= 1
             // are deterministic in the tree, so every later regular round would also change nothing.
-            const char *reason = NULL;
+            std::optional<StopReason> reason; // empty = no reason to stop
             if (kn.stop_zero && outer_round >= 1 && round_gain <= 0.0)
-                reason = "idle";
+                reason = StopReason::Idle;
             else if (kn.stop_tol > 0.0 && outer_round >= 1 && round_gain <= kn.stop_tol * (-total_mb_delta_L))
-                reason = "early_stopping";
+                reason = StopReason::EarlyStopping;
             else if (kn.deadline > 0.0 && wall_sec() > kn.deadline)
-                reason = "time_limit";
-            const bool stop = reason != NULL;
+                reason = StopReason::TimeLimit;
+            const bool stop = reason.has_value();
             if (stop && outer_round + 1 < n_outer_rounds) {
-                run_stats.stop_reason = reason;
+                run_stats.stop_reason = *reason;
                 if (kn.on_event) {
                     SearchEvent e;
                     e.kind = SearchEvent::Stop;

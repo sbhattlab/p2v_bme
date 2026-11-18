@@ -20,6 +20,7 @@
 #include "core.hpp"
 #include "device.hpp"
 #include "eigen_dist.hpp"
+#include "stop_reason.hpp"
 
 namespace p2vbme {
 
@@ -58,7 +59,8 @@ struct Result {
     int32_t sample_size_used = 0;
     int32_t rounds_planned = 0;
     int32_t rounds_run = 0;
-    std::string stop_reason;               // max_rounds, idle, early_stopping, time_limit, or none (no search)
+    // why the main search's rounds ended
+    StopReason stop_reason = StopReason::None;
     std::vector<double> round_gains;       // BME decrease in each round of the main search
                                            // (positive = shorter tree; the last is the cleanup pass when N > 1,050)
     TreeInit tree_init = TreeInit::Sample; // the start used (Random when Sample falls back)

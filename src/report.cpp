@@ -144,7 +144,7 @@ std::string report_json(const Report &run, const Settings &opt, const Result &re
     else
         w.null();
     w.field("rounds_run", res.rounds_run);
-    w.field("stop_reason", res.stop_reason);
+    w.field("stop_reason", stop_reason_name(res.stop_reason));
     w.field("time", run.time_total);
     w.array_field("warnings", run.warnings);
     if (run.full) {

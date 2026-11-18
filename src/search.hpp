@@ -16,6 +16,7 @@
 
 #include "config.hpp"
 #include "device.hpp"
+#include "stop_reason.hpp"
 
 namespace p2vbme {
 
@@ -61,9 +62,7 @@ struct SearchSettings {
 // What a search did (the main search's values go into the reports).
 struct SearchStats {
     int32_t rounds_planned = 0, rounds_run = 0, stop_round = -1;
-    // why the rounds ended: max_rounds (all ran), idle (a round changed nothing), early_stopping, time_limit, or none
-    // (no rounds: settings.rounds = 0)
-    const char *stop_reason = "max_rounds";
+    StopReason stop_reason = StopReason::MaxRounds; // why the rounds ended
 };
 
 // ---- Skeleton of a window (shared with the devices' window solve) ----
