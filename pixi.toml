@@ -22,6 +22,8 @@ build = "cmake --preset default && cmake --build --preset default -j 8"
 test = { cmd = "ctest --preset default", depends-on = ["build"] }
 # CPU tests under AddressSanitizer and UBSan, in build-asan/
 test-asan = "cmake --preset asan && cmake --build --preset asan -j 8 && ctest --preset asan"
+# Only the Python tests (tests/python, with pytest); extra arguments go to pytest, e.g. -m "not gpu"
+test-python = { cmd = "python -m pytest tests/python", depends-on = ["build"] }
 
 # ---- paper environment ---------------------------------------------------------------------------------
 # Python for the pipeline, plots and Python-side tests, plus the baseline programs the pipeline runs (those
