@@ -139,7 +139,6 @@ void extract_active_skeleton(int32_t root_r, const int32_t *c1_r, const int32_t 
                              const TreeSummary &summary, std::vector<int32_t> &super_roots,
                              std::vector<int32_t> &split_internals, std::vector<int32_t> &skel_left,
                              std::vector<int32_t> &skel_right, int32_t *out_root_skel_id,
-                             int32_t max_internals = WAVE_WINDOW_MAX_INTERNALS,
                              const uint8_t *stop_at_comp_root = nullptr);
 void build_component_waves(int32_t N, const TreeSummary &summary, const std::vector<int32_t> &curr_c1,
                            const std::vector<int32_t> &curr_c2, int32_t max_cap, std::vector<uint8_t> &is_comp_root,

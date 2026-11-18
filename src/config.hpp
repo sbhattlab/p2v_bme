@@ -43,20 +43,22 @@ constexpr double GTR_FLOAT_RATE_RATIO_MAX = 100.0; // largest / smallest exchang
 // Sweeps of the core step per window, at most (each sweep applies a batch of moves); windows usually stop earlier, as
 // soon as no move improves in either labelling.
 constexpr int32_t WINDOW_MAX_SWEEPS = 200;
-// Internal-vertex budget of a backbone, whole-tree or V-cycle window: 1,498 splits give at most 1,499 pieces, plus the
-// outside component, so every window has K <= 1,500 components.
+// A window's new skeleton is kept only if it lowers the BME length by more than this (also in the exact check).
+constexpr double WINDOW_MIN_GAIN = 1e-7;
+// Internal-vertex budget of a window: 1,498 splits give at most 1,499 pieces, plus the outside component, so every
+// window has K <= 1,500 components.
 constexpr int32_t WINDOW_MAX_INTERNALS = 1498;
-// Internal-vertex budget of a window of the leaf-covering waves.
-constexpr int32_t WAVE_WINDOW_MAX_INTERNALS = 1200;
 // Components a device workspace holds (the GPU buffers are allocated for it): the largest window above.
 constexpr int32_t WORKSPACE_MAX_K = WINDOW_MAX_INTERNALS + 2;
-static_assert(WAVE_WINDOW_MAX_INTERNALS + 2 <= WORKSPACE_MAX_K, "wave windows must fit the device workspace");
 // Smallest window: below 4 components there is a single unrooted tree shape, so nothing to move.
 // Also the smallest tree the waves visit.
 constexpr int32_t WINDOW_MIN_K = 4;
 // Internal nodes per component of the leaf-covering waves, at most; also the smallest V-cycle window and the tree size
-// above which a round ends with a cleanup pass.
+// above which rounds run the V-cycle and end with a cleanup pass.
 constexpr int32_t WAVE_COMPONENT_CAP = 1050;
+// A component has at most WAVE_COMPONENT_CAP + 4 internal nodes (the root's part, under 5, takes one child component),
+// so a wave window always covers its whole component.
+static_assert(WAVE_COMPONENT_CAP + 4 <= WINDOW_MAX_INTERNALS, "a wave component must fit one window");
 // Moves applied together in one sweep, at most (the batch cap B of Algorithm S1; halved after a failed batch).
 constexpr int32_t MOVE_BATCH_CAP = 128;
 // Exact check (--exact-check-eta): from this N on, the "complete" profiles are capped at EXACT_PROFILE_CAP.
@@ -66,7 +68,6 @@ constexpr int32_t EXACT_PROFILE_CAP = 2048;
 // ---- Search: rounds ------------------------------------------------------------------------------------
 
 constexpr int32_t BACKBONE_MIN_N = 5000; // from this N on, rounds >= 1 add the whole-tree backbone windows
-constexpr int32_t VCYCLE_MIN_N = 1000;   // above this N, rounds run the multi-scale V-cycle
 // V-cycle window sizes (leaves): VCYCLE_BASE_SCALE x VCYCLE_SCALE_FACTOR^k up to N, then N / 4, N / 16, ... while above
 // VCYCLE_FINEST_SCALE, then VCYCLE_FINEST_SCALE.
 constexpr int32_t VCYCLE_BASE_SCALE = 4096;
@@ -78,7 +79,8 @@ constexpr int32_t VCYCLE_FINEST_SCALE = 3200;
 constexpr int32_t START_SAMPLE_MIN_N = 16;   // fewer sequences: the random start
 constexpr int32_t START_SAMPLE_MAX = 100000; // default sample: min(START_SAMPLE_MAX, N / START_SAMPLE_DIVISOR)
 constexpr int32_t START_SAMPLE_DIVISOR = 10;
-constexpr int32_t START_SAMPLE_MIN = 8;         // the sample is clamped to [START_SAMPLE_MIN, N / 2]
+// The sample is clamped to [START_SAMPLE_MIN, N / 2]; half of START_SAMPLE_MIN_N, so that range is never empty.
+constexpr int32_t START_SAMPLE_MIN = START_SAMPLE_MIN_N / 2;
 constexpr int32_t START_RANDOM_TREE_MAX = 1000; // a sample of at most this size starts from a random tree;
                                                 // larger ones are themselves placed on a sample of
                                                 // max(START_RANDOM_TREE_MAX, n / START_SAMPLE_DIVISOR)
