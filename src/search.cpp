@@ -719,23 +719,117 @@ struct CandidateMove {
 };
 } // namespace
 
-// Exact acceptance check (exact_check_eta).
-// A window's skeleton update is re-scored on complete leaf profiles only when its capped-profile gain is small,
-// dL_capped > -eta; larger gains are accepted as proposed.
+// The exact check (exact_check_eta): a window whose gain on the capped profiles is small, dL_capped > -eta, is
+// re-scored on complete leaf profiles before it is kept; larger gains are kept as they are.
 // eta = inf checks every improving window; eta = 0 (default) none.
+// This is the BME change from the skeleton (init_v_cf, init_perm) to (best_v_cf, best_perm), summed over the pairs of
+// pieces whose distance in the skeleton changed.
+// A pair with a capped piece (its capped profile, profile_offsets, is shorter than its complete one) takes its distance
+// from the complete profiles; the other pairs take the window's distances.
+// std::nullopt if no piece is capped.
+static std::optional<double> exact_window_gain(int32_t K, const int32_t *profile_offsets,
+                                               const ExactProfileBuilder &exact_builder,
+                                               const std::vector<int64_t> &init_v_cf,
+                                               const std::vector<int32_t> &init_perm,
+                                               const std::vector<int64_t> &best_v_cf,
+                                               const std::vector<int32_t> &best_perm, WindowKernels &kernels) {
+    // Step 1: the complete profiles (CSR), and the capped pieces: those whose capped profile is shorter.
+    const int32_t *exact_profile_offsets = NULL; // where each piece's entries start
+    const int32_t *exact_profile_leaves = NULL;  // the entries' leaves
+    const float *exact_profile_weights = NULL;   // the entries' weights
+    exact_builder(&exact_profile_offsets, &exact_profile_leaves, &exact_profile_weights);
+    std::vector<uint8_t> is_capped(K, 0);
+    bool any_capped = false;
+    for (int32_t a = 0; a < K; ++a) {
+        int32_t cap_len = profile_offsets[a + 1] - profile_offsets[a];
+        int32_t ex_len = exact_profile_offsets[a + 1] - exact_profile_offsets[a];
+        if (ex_len != cap_len) {
+            is_capped[a] = 1;
+            any_capped = true;
+        }
+    }
+    if (!any_capped)
+        return std::nullopt;
+
+    // Step 2: the pairs whose distance in the skeleton changed, with a capped piece (pair_a, pair_b) or without
+    // (uncap_a, uncap_b); none means the same unrooted tree, so no change.
+    std::vector<int32_t> dist_init, dist_best;
+    compute_skeleton_leaf_dists(init_v_cf.data(), init_perm.data(), K, dist_init);
+    compute_skeleton_leaf_dists(best_v_cf.data(), best_perm.data(), K, dist_best);
+
+    std::vector<int32_t> pair_a, pair_b;
+    std::vector<int32_t> uncap_a, uncap_b;
+    for (int32_t a = 0; a < K; ++a) {
+        for (int32_t b = a + 1; b < K; ++b) {
+            int32_t db = dist_best[(size_t)a * K + b];
+            int32_t di = dist_init[(size_t)a * K + b];
+            if (db != di) {
+                if (is_capped[a] || is_capped[b]) {
+                    pair_a.push_back(a);
+                    pair_b.push_back(b);
+                } else {
+                    uncap_a.push_back(a);
+                    uncap_b.push_back(b);
+                }
+            }
+        }
+    }
+    if (pair_a.empty() && uncap_a.empty())
+        return 0.0;
+
+    // Step 3: the distances of the pairs with a capped piece, from the complete profiles.
+    // pair_a takes the piece with the shorter complete profile, pair_b the other; the pairs are sorted by pair_b, then
+    // pair_a.
+    if (pair_a.size() > 1) {
+        std::vector<std::pair<int32_t, int32_t>> sorted_pairs(pair_a.size());
+        for (size_t pid = 0; pid < pair_a.size(); ++pid) {
+            int32_t u = pair_a[pid], v = pair_b[pid];
+            int32_t lu = exact_profile_offsets[u + 1] - exact_profile_offsets[u];
+            int32_t lv = exact_profile_offsets[v + 1] - exact_profile_offsets[v];
+            if (lu > lv)
+                std::swap(u, v);
+            sorted_pairs[pid] = std::make_pair(v, u);
+        }
+        std::sort(sorted_pairs.begin(), sorted_pairs.end());
+        for (size_t pid = 0; pid < sorted_pairs.size(); ++pid) {
+            pair_a[pid] = sorted_pairs[pid].second;
+            pair_b[pid] = sorted_pairs[pid].first;
+        }
+    }
+
+    std::vector<double> h_pair_exact_D(pair_a.size(), 0.0);
+    if (!pair_a.empty())
+        kernels.exact_distances(pair_a, pair_b, exact_profile_offsets, exact_profile_leaves, exact_profile_weights,
+                                h_pair_exact_D);
+
+    // Step 4: the distances of the other pairs, from the window's distances.
+    std::vector<double> h_D_cond;
+    if (!uncap_a.empty())
+        kernels.read_distances(h_D_cond);
+
+    // Step 5: the BME change, sum of (2^(1 - tau_best) - 2^(1 - tau_init)) d over the changed pairs.
+    double exact_delta_L = 0.0;
+    for (size_t pid = 0; pid < pair_a.size(); ++pid) {
+        int32_t a = pair_a[pid], b = pair_b[pid];
+        double w_diff = ldexp(1.0, 1 - dist_best[(size_t)a * K + b]) - ldexp(1.0, 1 - dist_init[(size_t)a * K + b]);
+        exact_delta_L += w_diff * h_pair_exact_D[pid];
+    }
+    for (size_t uid = 0; uid < uncap_a.size(); ++uid) {
+        int32_t a = uncap_a[uid], b = uncap_b[uid];
+        double w_diff = ldexp(1.0, 1 - dist_best[(size_t)a * K + b]) - ldexp(1.0, 1 - dist_init[(size_t)a * K + b]);
+        exact_delta_L += w_diff * (double)h_D_cond[(size_t)a * K + b];
+    }
+    return exact_delta_L;
+}
 
 // Optimize one K-leaf skeleton with path-disjoint SPR batching, a monotonic condensed-skeleton BME check, and (when
 // exact_builder is supplied) an exact full-objective acceptance check on all changed piece pairs involving capped
-// clades or capped outside profiles.
+// clades or capped outside profiles (exact_window_gain).
 // The device does the arithmetic.
 double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, double exact_check_eta,
                          const int32_t *profile_offsets, const int32_t *profile_leaves, const float *profile_weights,
                          std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
                          const ExactProfileBuilder *exact_builder, WindowKernels &kernels) {
-    // The complete (uncapped) profiles, in CSR form, filled by exact_builder only if the exact check runs.
-    const int32_t *exact_profile_offsets = NULL; // where each piece's entries start
-    const int32_t *exact_profile_leaves = NULL;  // the entries' leaves
-    const float *exact_profile_weights = NULL;   // the entries' weights
     const int32_t M_sk = 2 * K - 2;              // nodes of the unrooted skeleton (the rooted one without its root)
     const int32_t root_u_sk = M_sk - 1;          // the node the unrooted skeleton hangs from (2K - 3)
     const std::vector<int64_t> init_v_cf = v_cf; // the skeleton before the solve: kept if nothing improves
@@ -890,95 +984,20 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
         return 0.0;
     }
 
-    const bool have_exact = (exact_profile_offsets != NULL) || (exact_builder != NULL && *exact_builder);
-    if (have_exact && best_L - init_L > -exact_check_eta) {
-        if (exact_profile_offsets == NULL)
-            (*exact_builder)(&exact_profile_offsets, &exact_profile_leaves, &exact_profile_weights);
-        std::vector<uint8_t> is_capped(K, 0);
-        bool any_capped = false;
-        for (int32_t a = 0; a < K; ++a) {
-            int32_t cap_len = profile_offsets[a + 1] - profile_offsets[a];
-            int32_t ex_len = exact_profile_offsets[a + 1] - exact_profile_offsets[a];
-            if (ex_len != cap_len) {
-                is_capped[a] = 1;
-                any_capped = true;
-            }
+    // The exact check: a small gain on the capped profiles (> -exact_check_eta) is re-scored on complete ones, and
+    // the window is kept only if that gain is real.
+    if (exact_builder != NULL && *exact_builder && best_L - init_L > -exact_check_eta) {
+        const std::optional<double> exact_dL =
+            exact_window_gain(K, profile_offsets, *exact_builder, init_v_cf, init_perm, best_v_cf, best_perm, kernels);
+        if (exact_dL && *exact_dL >= -p2vbme::WINDOW_MIN_GAIN) {
+            v_cf = init_v_cf;
+            perm = init_perm;
+            return 0.0;
         }
-        if (any_capped) {
-            std::vector<int32_t> dist_init, dist_best;
-            compute_skeleton_leaf_dists(init_v_cf.data(), init_perm.data(), K, dist_init);
-            compute_skeleton_leaf_dists(best_v_cf.data(), best_perm.data(), K, dist_best);
-
-            std::vector<int32_t> pair_a, pair_b;
-            std::vector<int32_t> uncap_a, uncap_b;
-            for (int32_t a = 0; a < K; ++a) {
-                for (int32_t b = a + 1; b < K; ++b) {
-                    int32_t db = dist_best[(size_t)a * K + b];
-                    int32_t di = dist_init[(size_t)a * K + b];
-                    if (db != di) {
-                        if (is_capped[a] || is_capped[b]) {
-                            pair_a.push_back(a);
-                            pair_b.push_back(b);
-                        } else {
-                            uncap_a.push_back(a);
-                            uncap_b.push_back(b);
-                        }
-                    }
-                }
-            }
-            if (pair_a.empty() && uncap_a.empty()) {
-                v_cf = init_v_cf;
-                perm = init_perm;
-                return 0.0;
-            }
-            if (pair_a.size() > 1) {
-                std::vector<std::pair<int32_t, int32_t>> sorted_pairs(pair_a.size());
-                for (size_t pid = 0; pid < pair_a.size(); ++pid) {
-                    int32_t u = pair_a[pid], v = pair_b[pid];
-                    int32_t lu = exact_profile_offsets[u + 1] - exact_profile_offsets[u];
-                    int32_t lv = exact_profile_offsets[v + 1] - exact_profile_offsets[v];
-                    if (lu > lv)
-                        std::swap(u, v);
-                    sorted_pairs[pid] = std::make_pair(v, u);
-                }
-                std::sort(sorted_pairs.begin(), sorted_pairs.end());
-                for (size_t pid = 0; pid < sorted_pairs.size(); ++pid) {
-                    pair_a[pid] = sorted_pairs[pid].second;
-                    pair_b[pid] = sorted_pairs[pid].first;
-                }
-            }
-
-            std::vector<double> h_pair_exact_D(pair_a.size(), 0.0);
-            if (!pair_a.empty())
-                kernels.exact_distances(pair_a, pair_b, exact_profile_offsets, exact_profile_leaves,
-                                        exact_profile_weights, h_pair_exact_D);
-
-            std::vector<double> h_D_cond;
-            if (!uncap_a.empty())
-                kernels.read_distances(h_D_cond);
-
-            double exact_delta_L = 0.0;
-            for (size_t pid = 0; pid < pair_a.size(); ++pid) {
-                int32_t a = pair_a[pid], b = pair_b[pid];
-                double w_diff =
-                    ldexp(1.0, 1 - dist_best[(size_t)a * K + b]) - ldexp(1.0, 1 - dist_init[(size_t)a * K + b]);
-                exact_delta_L += w_diff * h_pair_exact_D[pid];
-            }
-            for (size_t uid = 0; uid < uncap_a.size(); ++uid) {
-                int32_t a = uncap_a[uid], b = uncap_b[uid];
-                double w_diff =
-                    ldexp(1.0, 1 - dist_best[(size_t)a * K + b]) - ldexp(1.0, 1 - dist_init[(size_t)a * K + b]);
-                exact_delta_L += w_diff * (double)h_D_cond[(size_t)a * K + b];
-            }
-
-            if (exact_delta_L >= -p2vbme::WINDOW_MIN_GAIN) {
-                v_cf = init_v_cf;
-                perm = init_perm;
-                return 0.0;
-            }
+        if (exact_dL) {
             v_cf = best_v_cf;
             perm = best_perm;
-            return exact_delta_L;
+            return *exact_dL;
         }
     }
 
@@ -1167,6 +1186,55 @@ static void write_back_skeleton(const std::vector<int64_t> &v_mb, const std::vec
     }
 }
 
+// The complete profiles of a window's pieces, for its exact check, in the CSR layout of the capped ones
+// (profile_offsets, profile_leaves, profile_weights; the outgroup last if has_outgroup).
+// A piece whose capped profile already holds all its leaves keeps it; the others are built again without the cap
+// (from EXACT_PROFILE_CAP_MIN_N leaves on, with the cap EXACT_PROFILE_CAP).
+// The profiles are read from otree and osum, the leaf counts from summary, as for the capped profiles.
+static void build_exact_profiles(const std::vector<int32_t> &piece_roots, int32_t window_root, bool has_outgroup,
+                                 int32_t profile_cap, const std::vector<int32_t> &profile_offsets,
+                                 const std::vector<int32_t> &profile_leaves, const std::vector<float> &profile_weights,
+                                 const Tree &otree, const TreeSummary &osum, const TreeSummary &summary,
+                                 std::vector<int32_t> &exact_profile_offsets,
+                                 std::vector<int32_t> &exact_profile_leaves,
+                                 std::vector<float> &exact_profile_weights) {
+    const int32_t n_leaves = otree.n_leaves();
+    const int32_t K_in = (int32_t)piece_roots.size();
+    const int32_t K = has_outgroup ? K_in + 1 : K_in;
+    const bool cap_exact = n_leaves >= p2vbme::EXACT_PROFILE_CAP_MIN_N;
+    const int32_t exact_cap = cap_exact ? p2vbme::EXACT_PROFILE_CAP : -1;
+    exact_profile_offsets.resize(K + 1, 0);
+    exact_profile_leaves.reserve(cap_exact ? (size_t)(K * 256) : (size_t)n_leaves);
+    exact_profile_weights.reserve(cap_exact ? (size_t)(K * 256) : (size_t)n_leaves);
+    for (int32_t a = 0; a < K_in; ++a) {
+        exact_profile_offsets[a] = (int32_t)exact_profile_leaves.size();
+        if (profile_cap <= 0 || summary.leaf_count[piece_roots[a]] <= profile_cap) {
+            exact_profile_leaves.insert(exact_profile_leaves.end(), profile_leaves.begin() + profile_offsets[a],
+                                        profile_leaves.begin() + profile_offsets[a + 1]);
+            exact_profile_weights.insert(exact_profile_weights.end(), profile_weights.begin() + profile_offsets[a],
+                                         profile_weights.begin() + profile_offsets[a + 1]);
+        } else {
+            compute_clade_dyadic_profile(piece_roots[a], otree, osum, exact_cap, exact_profile_leaves,
+                                         exact_profile_weights);
+        }
+    }
+    exact_profile_offsets[K_in] = (int32_t)exact_profile_leaves.size();
+    if (has_outgroup) {
+        // the outgroup's capped profile is the last part of the capped profiles
+        const int32_t outgroup_true_leaves = n_leaves - summary.leaf_count[window_root];
+        if (outgroup_true_leaves <= profile_offsets[K] - profile_offsets[K_in]) {
+            exact_profile_leaves.insert(exact_profile_leaves.end(), profile_leaves.begin() + profile_offsets[K_in],
+                                        profile_leaves.begin() + profile_offsets[K]);
+            exact_profile_weights.insert(exact_profile_weights.end(), profile_weights.begin() + profile_offsets[K_in],
+                                         profile_weights.begin() + profile_offsets[K]);
+        } else {
+            compute_outgroup_dyadic_profile(window_root, otree, osum, exact_cap, exact_profile_leaves,
+                                            exact_profile_weights);
+        }
+        exact_profile_offsets[K] = (int32_t)exact_profile_leaves.size();
+    }
+}
+
 // Optimize the window below window_root and write the result into tree and summary.
 // The window collapses clades into K pieces, each with a dyadic-weighted leaf profile, and optimizes them as an
 // unrooted BME tree.
@@ -1237,43 +1305,14 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
         }
     }
 
-    // Exact profile builder
+    // The complete profiles for the exact check, built on first use
     std::vector<int32_t> exact_profile_offsets, exact_profile_leaves;
     std::vector<float> exact_profile_weights;
-    auto build_exact_prof = [&]() {
-        const bool cap_exact = n_leaves >= p2vbme::EXACT_PROFILE_CAP_MIN_N;
-        const int32_t exact_cap = cap_exact ? p2vbme::EXACT_PROFILE_CAP : -1;
-        exact_profile_offsets.resize(K + 1, 0);
-        exact_profile_leaves.reserve(cap_exact ? (size_t)(K * 256) : (size_t)n_leaves);
-        exact_profile_weights.reserve(cap_exact ? (size_t)(K * 256) : (size_t)n_leaves);
-        for (int32_t a = 0; a < K_in; ++a) {
-            exact_profile_offsets[a] = (int32_t)exact_profile_leaves.size();
-            if (profile_cap <= 0 || summary.leaf_count[piece_roots[a]] <= profile_cap) {
-                exact_profile_leaves.insert(exact_profile_leaves.end(), profile_leaves.begin() + profile_offsets[a],
-                                            profile_leaves.begin() + profile_offsets[a + 1]);
-                exact_profile_weights.insert(exact_profile_weights.end(), profile_weights.begin() + profile_offsets[a],
-                                             profile_weights.begin() + profile_offsets[a + 1]);
-            } else {
-                compute_clade_dyadic_profile(piece_roots[a], otree, osum, exact_cap, exact_profile_leaves,
-                                             exact_profile_weights);
-            }
-        }
-        exact_profile_offsets[K_in] = (int32_t)exact_profile_leaves.size();
-        if (has_outgroup) {
-            if (outgroup_true_leaves <= (int32_t)outgroup_leaves.size()) {
-                exact_profile_leaves.insert(exact_profile_leaves.end(), outgroup_leaves.begin(), outgroup_leaves.end());
-                exact_profile_weights.insert(exact_profile_weights.end(), outgroup_weights.begin(),
-                                             outgroup_weights.end());
-            } else {
-                compute_outgroup_dyadic_profile(window_root, otree, osum, exact_cap, exact_profile_leaves,
-                                                exact_profile_weights);
-            }
-            exact_profile_offsets[K] = (int32_t)exact_profile_leaves.size();
-        }
-    };
     ExactProfileBuilder exact_builder = [&](const int32_t **o, const int32_t **l, const float **w) {
         if (exact_profile_offsets.empty())
-            build_exact_prof();
+            build_exact_profiles(piece_roots, window_root, has_outgroup, profile_cap, profile_offsets, profile_leaves,
+                                 profile_weights, otree, osum, summary, exact_profile_offsets, exact_profile_leaves,
+                                 exact_profile_weights);
         *o = exact_profile_offsets.data();
         *l = exact_profile_leaves.data();
         *w = exact_profile_weights.data();
