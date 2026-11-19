@@ -11,9 +11,11 @@
 #include <stdlib.h>
 
 #include <algorithm>
+#include <cstring>
 #include <optional>
 #include <queue>
 #include <stdexcept>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -1008,6 +1010,42 @@ static inline void update_one_node_summary(int32_t u, int32_t b0, int32_t b1, Tr
         (summary.leaf_count[b0] <= summary.leaf_count[b1]) ? summary.stand_in[b0] : summary.stand_in[b1];
 }
 
+// splitmix64's finalizer: a bijection on 64 bits that spreads every input bit over the output.
+static inline uint64_t mix64(uint64_t x) {
+    x ^= x >> 30;
+    x *= 0xbf58476d1ce4e5b9ULL;
+    x ^= x >> 27;
+    x *= 0x94d049bb133111ebULL;
+    x ^= x >> 31;
+    return x;
+}
+
+// A 64-bit hash of what a window solve reads: K, max_iters, the skeleton (v, perm) and the profiles (offsets, leaves
+// and the bits of the weights).
+// The rest is fixed within one search: the devices' alignment, distance model and precision, and the solve's
+// constants.
+// Two different inputs share a hash with probability about 2^-64; such a collision would skip a solve that might have
+// improved the tree.
+static uint64_t window_input_hash(int32_t K, int32_t max_iters, const std::vector<int64_t> &v,
+                                  const std::vector<int32_t> &perm, const std::vector<int32_t> &offsets,
+                                  const std::vector<int32_t> &leaves, const std::vector<float> &weights) {
+    uint64_t h = 0;
+    auto add = [&h](uint64_t x) { h = mix64(h ^ (x + 0x9e3779b97f4a7c15ULL)); };
+    add((uint64_t)(uint32_t)K | ((uint64_t)(uint32_t)max_iters << 32));
+    for (int64_t x : v)
+        add((uint64_t)x);
+    for (int32_t x : perm)
+        add((uint32_t)x);
+    for (int32_t x : offsets)
+        add((uint32_t)x);
+    for (size_t i = 0; i < leaves.size(); ++i) {
+        uint32_t weight_bits;
+        std::memcpy(&weight_bits, &weights[i], sizeof weight_bits);
+        add((uint64_t)(uint32_t)leaves[i] | ((uint64_t)weight_bits << 32));
+    }
+    return h;
+}
+
 // Optimize the window below sub_root and write the result into curr_c1, curr_c2 and summary.
 // The window collapses clades into K taxa, each with a dyadic-weighted leaf profile, and optimizes them as an unrooted
 // BME tree.
@@ -1018,13 +1056,19 @@ static inline void update_one_node_summary(int32_t u, int32_t b0, int32_t b1, Tr
 // centroid edge.
 // Windows of one wave run in parallel: they pass a snapshot (outgroup_c1, outgroup_c2, outgroup_summary), read their
 // profiles from it, and leave summary.parent alone (the caller recomputes the summary after the wave).
+// fruitless: the input hashes (window_input_hash) of this search's solves that found no improvement.
+// The solve is deterministic, so a window with one of these inputs would again find none: it is skipped.
+// fruitless_hash: set to the input hash when the solve runs and finds no improvement, for the caller to add to
+// fruitless.
 
 static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t max_iters,
                                            const SearchSettings &settings, const std::vector<int32_t> &outgroup_leaves,
                                            const std::vector<float> &outgroup_weights, Device &dev,
                                            std::vector<int32_t> &curr_c1, std::vector<int32_t> &curr_c2,
-                                           TreeSummary &summary, const uint8_t *stop_at_comp_root = NULL,
-                                           const int32_t *outgroup_c1 = NULL, const int32_t *outgroup_c2 = NULL,
+                                           TreeSummary &summary, const std::unordered_set<uint64_t> &fruitless,
+                                           std::optional<uint64_t> &fruitless_hash,
+                                           const uint8_t *stop_at_comp_root = NULL, const int32_t *outgroup_c1 = NULL,
+                                           const int32_t *outgroup_c2 = NULL,
                                            const TreeSummary *outgroup_summary = NULL) {
     const int32_t root_r = 2 * N - 2;
     const int32_t max_prof_leaves = settings.profile_cap;
@@ -1126,11 +1170,21 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t N, int32_t 
     std::vector<int32_t> perm_mb(K);
     queue_shuffle_rooted(sk_c1.data(), sk_c2.data(), K, 0, v_mb.data(), perm_mb.data());
 
+    // Skip a solve whose input already found no improvement.
+    // Not with the exact check, which also reads the complete profiles.
+    std::optional<uint64_t> input_hash;
+    if (!(need_exact_prof && settings.exact_check_eta > 0.0)) {
+        input_hash = window_input_hash(K, max_iters, v_mb, perm_mb, prof_offsets, prof_leaves, prof_weights);
+        if (fruitless.count(*input_hash) != 0)
+            return 0.0;
+    }
     double dL = dev.solve_window(K, max_iters, p2vbme::MOVE_BATCH_CAP, settings.exact_check_eta, prof_offsets.data(),
                                  prof_leaves.data(), prof_weights.data(), v_mb, perm_mb,
                                  need_exact_prof ? &exact_builder : NULL);
-    if (dL == 0.0)
+    if (dL == 0.0) {
+        fruitless_hash = input_hash;
         return 0.0;
+    }
 
     std::vector<int32_t> c1_cf, c2_cf, v_map_cf, m_lmin_cf, next_k_cf, parent_u_cf, sub_sz_cf, tin_cf, adj_u_cf;
     int32_t other_rc, rc0, rc1, rc2;
@@ -1255,8 +1309,9 @@ struct SearchState {
     Devices &devices;
     std::vector<int32_t> &c1;
     std::vector<int32_t> &c2;
-    TreeSummary summary;           // of the current tree, rebuilt after windows change it
-    double total_mb_delta_L = 0.0; // how much the search has changed the tree's BME length so far
+    TreeSummary summary;                    // of the current tree, rebuilt after windows change it
+    double total_mb_delta_L = 0.0;          // how much the search has changed the tree's BME length so far
+    std::unordered_set<uint64_t> fruitless; // input hashes of the window solves that found no improvement
 };
 } // namespace
 
@@ -1286,6 +1341,7 @@ static void emit_stage(const SearchState &s, int32_t round, const char *stage, i
 // Several windows always take the snapshot path, whatever the number of devices, so the tree does not depend on it:
 // every window reads the tree as it was before them and writes only its own subtree; the gains are summed in root
 // order and the summary is rebuilt.
+// They also only read s.fruitless: their fruitless inputs are added after the loop.
 // A single window runs on the first device and updates the summary of its ancestors only.
 static void run_windows(SearchState &s, const std::vector<int32_t> &roots, const uint8_t *stop_at_comp_root) {
     const int32_t max_prof_leaves = s.settings.profile_cap;
@@ -1293,6 +1349,7 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &roots, const
         std::vector<int32_t> snap_c1 = s.c1, snap_c2 = s.c2;
         const TreeSummary snap_summary = s.summary;
         std::vector<double> window_dL(roots.size(), 0.0);
+        std::vector<std::optional<uint64_t>> window_fruitless(roots.size());
         ParallelErrors errors;
 #pragma omp parallel for num_threads((int)s.devices.size()) schedule(dynamic, 1)
         for (int32_t idx = 0; idx < (int32_t)roots.size(); ++idx) {
@@ -1309,12 +1366,16 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &roots, const
                 }
                 window_dL[idx] = run_subtree_minibatch_window(
                     sr, s.n_leaves, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves, out_weights, *s.devices[d], s.c1,
-                    s.c2, s.summary, stop_at_comp_root, snap_c1.data(), snap_c2.data(), &snap_summary);
+                    s.c2, s.summary, s.fruitless, window_fruitless[idx], stop_at_comp_root, snap_c1.data(),
+                    snap_c2.data(), &snap_summary);
             } catch (...) {
                 errors.capture();
             }
         }
         errors.rethrow();
+        for (const std::optional<uint64_t> &h : window_fruitless)
+            if (h)
+                s.fruitless.insert(*h);
         double sum_dL = 0.0;
         for (double dL : window_dL)
             sum_dL += dL;
@@ -1331,9 +1392,12 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &roots, const
                 compute_outgroup_dyadic_profile(sr, s.root_r, s.n_leaves, s.c1.data(), s.c2.data(), s.summary,
                                                 max_prof_leaves, out_leaves, out_weights);
             }
-            double dL =
-                run_subtree_minibatch_window(sr, s.n_leaves, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves,
-                                             out_weights, *s.devices[0], s.c1, s.c2, s.summary, stop_at_comp_root);
+            std::optional<uint64_t> fruitless_hash;
+            double dL = run_subtree_minibatch_window(sr, s.n_leaves, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves,
+                                                     out_weights, *s.devices[0], s.c1, s.c2, s.summary, s.fruitless,
+                                                     fruitless_hash, stop_at_comp_root);
+            if (fruitless_hash)
+                s.fruitless.insert(*fruitless_hash);
             if (dL != 0.0) {
                 s.total_mb_delta_L += dL;
                 for (int32_t p = s.summary.parent[sr]; p != -1; p = s.summary.parent[p]) {
@@ -1352,9 +1416,12 @@ static void run_backbone(SearchState &s, int32_t round) {
         return;
     const std::vector<int32_t> no_outgroup_leaves;
     const std::vector<float> no_outgroup_weights;
-    s.total_mb_delta_L +=
-        run_subtree_minibatch_window(s.root_r, s.n_leaves, p2vbme::WINDOW_MAX_SWEEPS, s.settings, no_outgroup_leaves,
-                                     no_outgroup_weights, *s.devices[0], s.c1, s.c2, s.summary, NULL);
+    std::optional<uint64_t> fruitless_hash;
+    s.total_mb_delta_L += run_subtree_minibatch_window(s.root_r, s.n_leaves, p2vbme::WINDOW_MAX_SWEEPS, s.settings,
+                                                       no_outgroup_leaves, no_outgroup_weights, *s.devices[0], s.c1,
+                                                       s.c2, s.summary, s.fruitless, fruitless_hash, NULL);
+    if (fruitless_hash)
+        s.fruitless.insert(*fruitless_hash);
     rebuild_summary(s);
     emit_stage(s, round, "backbone", 0);
 }
