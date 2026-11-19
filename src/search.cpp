@@ -1177,6 +1177,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
         return 0.0;
     }
 
+    // Decode the vector back to a skeleton + kernel extras
     std::vector<int32_t> c1_cf, c2_cf, v_map_cf, parent_u_cf, sub_sz_cf, tin_cf, adj_u_cf;
     int32_t other_rc, rc0, rc1, rc2;
     build_skeleton_metadata(v_mb.data(), K, c1_cf, c2_cf, v_map_cf, parent_u_cf, sub_sz_cf, tin_cf, adj_u_cf, &other_rc,
