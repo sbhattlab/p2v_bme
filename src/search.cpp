@@ -1505,7 +1505,6 @@ double run_minibatch_bme(int32_t n_leaves, Devices &devices, std::vector<int32_t
         e.n_leaves = n_leaves;
         e.n_devices = (int32_t)devices.size();
         e.rounds_planned = n_outer_rounds;
-        e.settings = &settings;
         settings.on_event(e);
     }
     run_stats.rounds_planned = n_outer_rounds;

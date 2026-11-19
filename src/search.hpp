@@ -20,9 +20,6 @@
 
 namespace p2vbme {
 
-// Forward declaration
-struct SearchSettings;
-
 // Progress of a search, reported through SearchSettings::on_event (the core keeps no diagnostic state and prints
 // nothing).
 struct SearchEvent {
@@ -35,7 +32,6 @@ struct SearchEvent {
     double total_dL = 0.0;  // Stage: BME change of this search so far
     const std::vector<int32_t> *c1 = NULL, *c2 = NULL; // Stage round_end: the current tree
     int32_t n_devices = 0;                             // Start
-    const SearchSettings *settings = NULL;             // Start: the settings of this search
     int32_t rounds_planned = 0;                        // Start
     double round_gain = 0.0, round0_gain = 0.0;        // Stop: the round's gain and round 0's; `round` stopped
 };

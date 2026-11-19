@@ -157,8 +157,8 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
             t_start = t_last = wall_sec();
             dL_last = 0.0;
             line << "[DIAG] N=" << e.n_leaves << " n_gpus=" << e.n_devices << " n_outer_rounds=" << e.rounds_planned
-                 << " max_prof_leaves=" << e.settings->profile_cap << " stop_tol=" << e.settings->stop_tol
-                 << " time_cap=" << e.settings->time_cap;
+                 << " max_prof_leaves=" << settings.profile_cap << " stop_tol=" << settings.stop_tol
+                 << " time_cap=" << settings.time_cap;
         } else if (e.kind == SearchEvent::Stop) {
             line << std::fixed << std::setprecision(6) << "[DIAG] stopping after round " << e.round << " (gain "
                  << e.round_gain << ", round-0 gain " << e.round0_gain << "); running final cleanup";
