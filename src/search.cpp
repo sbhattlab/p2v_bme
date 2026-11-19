@@ -1079,6 +1079,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
     const int32_t profile_cap = settings.profile_cap;
     // A subtree window also sees the rest of the tree, as one extra piece (the outgroup).
     const bool has_outgroup = window_root != root_r;
+    // Decide what a window contains and return its skeleton
     const WindowSkeleton skel = extract_skeleton(window_root, tree, summary, stop_at_comp_root, has_outgroup);
     const std::vector<int32_t> &piece_roots = skel.piece_roots;
     // The root is alone in its wave, so the whole-tree window never gets a snapshot.
@@ -1086,6 +1087,8 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
         throw std::logic_error("whole-tree window: unexpected snapshot (the root is alone in its wave)");
     const int32_t K_in = (int32_t)piece_roots.size();
     const int32_t K = has_outgroup ? K_in + 1 : K_in;
+    // Fewer than 4 pieces: one possible shape, so nothing to move
+    // > max_window: device cannot handle the window
     if (K < p2vbme::WINDOW_MIN_K || K > dev.max_window())
         return 0.0;
 
@@ -1094,6 +1097,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
     const Tree &otree = (snapshot != NULL) ? *snapshot : tree;
     const TreeSummary &osum = (snapshot_summary != NULL) ? *snapshot_summary : summary;
 
+    // Build the window's K profiles in one CSR layout
     std::vector<int32_t> profile_offsets(K + 1, 0), profile_leaves;
     std::vector<float> profile_weights;
     profile_leaves.reserve(4 * K);
@@ -1117,6 +1121,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
         }
     }
 
+    // Exact profile builder
     std::vector<int32_t> exact_profile_offsets, exact_profile_leaves;
     std::vector<float> exact_profile_weights;
     auto build_exact_prof = [&]() {
@@ -1158,6 +1163,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
         *w = exact_profile_weights.data();
     };
 
+    // Convert skeleton into phylo2vec form
     std::vector<int64_t> v_mb(K - 1);
     std::vector<int32_t> perm_mb(K);
     queue_shuffle_rooted(skel.c1.data(), skel.c2.data(), K, 0, v_mb.data(), perm_mb.data());
@@ -1170,6 +1176,8 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
         if (fruitless.count(*input_hash) != 0)
             return 0.0;
     }
+    // Core device-powered search through the skeleton with SPR sweeps
+    // Returns the gain, and the new new skeleton in v_mb, perm_mb
     double dL = dev.solve_window(K, max_iters, p2vbme::MOVE_BATCH_CAP, settings.exact_check_eta, profile_offsets.data(),
                                  profile_leaves.data(), profile_weights.data(), v_mb, perm_mb,
                                  need_exact_profiles ? &exact_builder : NULL);
@@ -1351,9 +1359,14 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots
                 std::vector<int32_t> out_leaves;
                 std::vector<float> out_weights;
                 if (window_root != s.root_r) {
+                    // Build the profile of everything outside the window's clade
+                    // so the window can include the rest of the trree as one extra piece (the outgroup).
                     compute_outgroup_dyadic_profile(window_root, snapshot, snapshot_summary, profile_cap, out_leaves,
                                                     out_weights);
                 }
+                // Turn the window into a skeleton of pieces with profiles
+                // Optimize it
+                // Write results back into the tree if it got shorter
                 window_dL[idx] = run_subtree_minibatch_window(
                     window_root, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves, out_weights, *s.devices[d], s.tree,
                     s.summary, s.fruitless, window_fruitless[idx], stop_at_comp_root, &snapshot, &snapshot_summary);
@@ -1379,9 +1392,14 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots
             out_leaves.clear();
             out_weights.clear();
             if (window_root != s.root_r) {
+                // Build the profile of everything outside the window's clade
+                // so the window can include the rest of the trree as one extra piece (the outgroup).
                 compute_outgroup_dyadic_profile(window_root, s.tree, s.summary, profile_cap, out_leaves, out_weights);
             }
             std::optional<uint64_t> fruitless_hash;
+            // Turn the window into a skeleton of pieces with profiles
+            // Optimize it
+            // Write results back into the tree if it got shorter
             double dL = run_subtree_minibatch_window(window_root, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves,
                                                      out_weights, *s.devices[0], s.tree, s.summary, s.fruitless,
                                                      fruitless_hash, stop_at_comp_root);
@@ -1443,7 +1461,7 @@ static void run_vcycle(SearchState &s, int32_t round) {
         const int32_t min_clade_size = (max_clade_size <= p2vbme::VCYCLE_BASE_SCALE)
                                            ? p2vbme::WAVE_COMPONENT_CAP
                                            : (max_clade_size / p2vbme::VCYCLE_SCALE_FACTOR);
-        // The window roots: walking down from the root, the largest clades that fit, if above the floor.
+        // Pick the step's window roots: walking down from the root, the largest clades that fit, if above the floor.
         std::vector<int32_t> window_roots;
         std::vector<int32_t> st = {s.root_r};
         while (!st.empty()) {
