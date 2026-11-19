@@ -21,13 +21,16 @@
 
 namespace p2vbme {
 
-// Advances the state and returns the next 64-bit output.
-inline uint64_t splitmix64(uint64_t &state) {
-    uint64_t z = (state += 0x9E3779B97F4A7C15ULL);
+// splitmix64's finalizer: a bijection on 64 bits that spreads every input bit over the output.
+// Also a hash mixer (search.cpp, window_input_hash).
+inline uint64_t splitmix64_mix(uint64_t z) {
     z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
     z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
     return z ^ (z >> 31);
 }
+
+// Advances the state and returns the next 64-bit output.
+inline uint64_t splitmix64(uint64_t &state) { return splitmix64_mix(state += 0x9E3779B97F4A7C15ULL); }
 
 // Uniform integer in [0, n), n >= 1, by reduction modulo n (bias below n / 2^64).
 inline uint64_t uniform_below(uint64_t &state, uint64_t n) { return splitmix64(state) % n; }

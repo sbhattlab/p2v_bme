@@ -29,6 +29,7 @@
 
 #include "parallel_errors.hpp"
 #include "phylo2vec.hpp"
+#include "random.hpp"
 #include "timing.hpp"
 
 namespace p2vbme {
@@ -1014,16 +1015,6 @@ static inline void update_one_node_summary(int32_t u, int32_t b0, int32_t b1, Tr
         (summary.leaf_count[b0] <= summary.leaf_count[b1]) ? summary.stand_in[b0] : summary.stand_in[b1];
 }
 
-// splitmix64's finalizer: a bijection on 64 bits that spreads every input bit over the output.
-static inline uint64_t mix64(uint64_t x) {
-    x ^= x >> 30;
-    x *= 0xbf58476d1ce4e5b9ULL;
-    x ^= x >> 27;
-    x *= 0x94d049bb133111ebULL;
-    x ^= x >> 31;
-    return x;
-}
-
 // A 64-bit hash of what a window solve reads: K, max_iters, the skeleton (v, perm) and the profiles (offsets, leaves
 // and the bits of the weights).
 // The rest is fixed within one search: the devices' alignment, distance model and precision, and the solve's
@@ -1034,7 +1025,7 @@ static uint64_t window_input_hash(int32_t K, int32_t max_iters, const std::vecto
                                   const std::vector<int32_t> &perm, const std::vector<int32_t> &offsets,
                                   const std::vector<int32_t> &leaves, const std::vector<float> &weights) {
     uint64_t h = 0;
-    auto add = [&h](uint64_t x) { h = mix64(h ^ (x + 0x9e3779b97f4a7c15ULL)); };
+    auto add = [&h](uint64_t x) { h = splitmix64_mix(h ^ (x + 0x9e3779b97f4a7c15ULL)); };
     add((uint64_t)(uint32_t)K | ((uint64_t)(uint32_t)max_iters << 32));
     for (int64_t x : v)
         add((uint64_t)x);
