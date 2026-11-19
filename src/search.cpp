@@ -1361,28 +1361,28 @@ static void emit_stage(const SearchState &s, int32_t round, const char *stage, i
     s.settings.on_event(e);
 }
 
-// One window on each root (disjoint clades); stop_at_comp_root: the component roots of the waves, or NULL.
+// One window on each of window_roots (disjoint clades); stop_at_comp_root: the component roots of the waves, or NULL.
 // Several windows always take the snapshot path, whatever the number of devices, so the tree does not depend on it:
 // every window reads the tree as it was before them and writes only its own subtree; the gains are summed in root
 // order.
 // They also only read s.fruitless: their fruitless inputs are added after the loop.
 // A single window runs on the first device.
 // The search changes the tree only here, so the summary is rebuilt here, whenever a window rewrote the tree.
-static void run_windows(SearchState &s, const std::vector<int32_t> &roots, const uint8_t *stop_at_comp_root) {
+static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots, const uint8_t *stop_at_comp_root) {
     const int32_t max_prof_leaves = s.settings.profile_cap;
-    if (roots.size() > 1) {
+    if (window_roots.size() > 1) {
         const Tree snapshot = s.tree;
         const TreeSummary snapshot_summary = s.summary;
-        std::vector<double> window_dL(roots.size(), 0.0);
-        std::vector<std::optional<uint64_t>> window_fruitless(roots.size());
+        std::vector<double> window_dL(window_roots.size(), 0.0);
+        std::vector<std::optional<uint64_t>> window_fruitless(window_roots.size());
         ParallelErrors errors;
 #pragma omp parallel for num_threads((int)s.devices.size()) schedule(dynamic, 1)
-        for (int32_t idx = 0; idx < (int32_t)roots.size(); ++idx) {
+        for (int32_t idx = 0; idx < (int32_t)window_roots.size(); ++idx) {
             if (errors.failed())
                 continue;
             try {
                 int d = omp_get_thread_num();
-                int32_t sr = roots[idx];
+                int32_t sr = window_roots[idx];
                 std::vector<int32_t> out_leaves;
                 std::vector<float> out_weights;
                 if (sr != s.root_r) {
@@ -1409,8 +1409,8 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &roots, const
     } else {
         std::vector<int32_t> out_leaves;
         std::vector<float> out_weights;
-        for (int32_t idx = 0; idx < (int32_t)roots.size(); ++idx) {
-            int32_t sr = roots[idx];
+        for (int32_t idx = 0; idx < (int32_t)window_roots.size(); ++idx) {
+            int32_t sr = window_roots[idx];
             out_leaves.clear();
             out_weights.clear();
             if (sr != s.root_r) {
@@ -1456,39 +1456,41 @@ static void run_wave_pass(SearchState &s, int32_t round) {
 // At each scale, one window on each of the largest clades with at most that many leaves (if they are not too small).
 static void run_vcycle(SearchState &s, int32_t round) {
     const int32_t n_leaves = s.tree.n_leaves();
-    std::vector<int32_t> scale_caps;
+    std::vector<int32_t> max_clade_sizes;
     for (int32_t sc = p2vbme::VCYCLE_BASE_SCALE; sc < n_leaves; sc *= p2vbme::VCYCLE_SCALE_FACTOR)
-        scale_caps.push_back(sc);
-    scale_caps.push_back(n_leaves);
+        max_clade_sizes.push_back(sc);
+    max_clade_sizes.push_back(n_leaves);
     for (int32_t sc = n_leaves / p2vbme::VCYCLE_SCALE_FACTOR; sc > p2vbme::VCYCLE_FINEST_SCALE;
          sc /= p2vbme::VCYCLE_SCALE_FACTOR)
-        scale_caps.push_back(sc);
+        max_clade_sizes.push_back(sc);
     if (n_leaves > p2vbme::VCYCLE_FINEST_SCALE)
-        scale_caps.push_back(p2vbme::VCYCLE_FINEST_SCALE);
-    for (int32_t sc_cap : scale_caps) {
-        const int32_t min_sc =
-            (sc_cap <= p2vbme::VCYCLE_BASE_SCALE) ? p2vbme::WAVE_COMPONENT_CAP : (sc_cap / p2vbme::VCYCLE_SCALE_FACTOR);
-        std::vector<int32_t> mid_roots;
-        {
-            std::vector<int32_t> st = {s.root_r};
-            while (!st.empty()) {
-                int32_t u = st.back();
-                st.pop_back();
-                if (u < n_leaves)
-                    continue;
-                if (s.summary.leaf_count[u] <= sc_cap) {
-                    if (s.summary.leaf_count[u] > min_sc)
-                        mid_roots.push_back(u);
-                } else {
-                    st.push_back(s.tree.c2[u]);
-                    st.push_back(s.tree.c1[u]);
-                }
+        max_clade_sizes.push_back(p2vbme::VCYCLE_FINEST_SCALE);
+    for (int32_t max_clade_size : max_clade_sizes) {
+        // The floor: smaller clades are left to the waves (steps up to 4,096) or to a smaller step.
+        const int32_t min_clade_size = (max_clade_size <= p2vbme::VCYCLE_BASE_SCALE)
+                                           ? p2vbme::WAVE_COMPONENT_CAP
+                                           : (max_clade_size / p2vbme::VCYCLE_SCALE_FACTOR);
+        // The window roots: walking down from the root, the largest clades that fit, if above the floor.
+        std::vector<int32_t> window_roots;
+        std::vector<int32_t> st = {s.root_r};
+        while (!st.empty()) {
+            int32_t u = st.back();
+            st.pop_back();
+            if (u < n_leaves)
+                continue;
+            if (s.summary.leaf_count[u] <= max_clade_size) {
+                if (s.summary.leaf_count[u] > min_clade_size)
+                    window_roots.push_back(u);
+            } else {
+                st.push_back(s.tree.c2[u]);
+                st.push_back(s.tree.c1[u]);
             }
         }
-        if (mid_roots.empty())
+        if (window_roots.empty())
             continue;
-        run_windows(s, mid_roots, NULL);
-        emit_stage(s, round, "scale", sc_cap);
+        // One window on each (disjoint clades, so in parallel), then the step's progress event.
+        run_windows(s, window_roots, NULL);
+        emit_stage(s, round, "scale", max_clade_size);
     }
 }
 
