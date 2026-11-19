@@ -732,15 +732,16 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
                          const int32_t *profile_offsets, const int32_t *profile_leaves, const float *profile_weights,
                          std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
                          const ExactProfileBuilder *exact_builder, WindowKernels &kernels) {
-    // complete profiles, from exact_builder when the check needs them
-    const int32_t *exact_profile_offsets = NULL;
-    const int32_t *exact_profile_leaves = NULL;
-    const float *exact_profile_weights = NULL;
-    const int32_t M_sk = 2 * K - 2;
-    const int32_t root_u_sk = M_sk - 1;
-    const std::vector<int64_t> init_v_cf = v_cf;
-    const std::vector<int32_t> init_perm = perm;
+    // The complete (uncapped) profiles, in CSR form, filled by exact_builder only if the exact check runs.
+    const int32_t *exact_profile_offsets = NULL; // where each piece's entries start
+    const int32_t *exact_profile_leaves = NULL;  // the entries' leaves
+    const float *exact_profile_weights = NULL;   // the entries' weights
+    const int32_t M_sk = 2 * K - 2;              // nodes of the unrooted skeleton (the rooted one without its root)
+    const int32_t root_u_sk = M_sk - 1;          // the node the unrooted skeleton hangs from (2K - 3)
+    const std::vector<int64_t> init_v_cf = v_cf; // the skeleton before the solve: kept if nothing improves
+    const std::vector<int32_t> init_perm = perm; // its leaf permutation
 
+    // The K x K distances between the pieces, from their profiles: computed once per window, kept for every sweep.
     kernels.distances(K, profile_offsets, profile_leaves, profile_weights);
 
     SkeletonMeta sk;
