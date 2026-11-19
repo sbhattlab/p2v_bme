@@ -2,7 +2,7 @@
  * search.hpp
  *
  * The minibatch BME search on the host: rounds of windows (backbone, leaf-covering waves, multi-scale V-cycle),
- * each window a skeleton of K <= 1,500 components summarised by weighted leaf profiles and solved by a Device.
+ * each window a skeleton of K <= 1,500 pieces summarised by weighted leaf profiles and solved by a Device.
  * Also the Phylo2Vec encoding helpers the windows and the devices share. Internal to the package.
  */
 #ifndef P2VBME_SEARCH_HPP
@@ -74,12 +74,12 @@ void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t
 void apply_unrooted_spr_host(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_u, int32_t dest_v);
 void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, int32_t root_edge_v, int32_t flip_mode,
                         std::vector<int64_t> &v_cf, std::vector<int32_t> &perm);
-// All-pairs topological distances between the K super-leaves of a skeleton.
+// All-pairs topological distances between the K pieces of a skeleton.
 void compute_skeleton_leaf_dists(const int64_t *v_cf, const int32_t *perm, int32_t K, std::vector<int32_t> &dist_out);
 
 // ---- The window solve (Device::solve_window), shared by the devices ----
 
-// A skeleton of K super-leaves as build_skeleton_metadata describes it: rooted children c1, c2 (2K - 1 nodes), the
+// A skeleton of K pieces as build_skeleton_metadata describes it: rooted children c1, c2 (2K - 1 nodes), the
 // unrooted tree on 2K - 2 nodes rooted at node 2K - 3 (parent_u, sub_size, tin, adj_u) and the root's children.
 struct SkeletonMeta {
     std::vector<int32_t> c1, c2, v_map, m_lmin, next_k, parent_u, sub_size, tin, adj_u;
@@ -94,9 +94,9 @@ class WindowKernels {
   public:
     virtual ~WindowKernels() = default;
     // The K x K distances between the window's profiles (CSR), kept for the window.
-    virtual void distances(int32_t K, const int32_t *prof_offsets, const int32_t *prof_leaves,
-                           const float *prof_weights) = 0;
-    // The skeleton's average distances between all its node pairs (perm: super-leaf of each skeleton leaf), kept for
+    virtual void distances(int32_t K, const int32_t *profile_offsets, const int32_t *profile_leaves,
+                           const float *profile_weights) = 0;
+    // The skeleton's average distances between all its node pairs (perm: the piece of each skeleton leaf), kept for
     // best_moves; returns its BME length.
     virtual double score(const SkeletonMeta &s, const std::vector<int32_t> &perm) = 0;
     // For rows i = 1 .. K - 2 of the vector: the best regraft edge of the subtree pruned at row i and the BME change of
@@ -114,7 +114,7 @@ class WindowKernels {
 // The window solve of Device::solve_window, with the device's kernels: up to max_iters sweeps of batched moves
 // (Algorithm S1), then the exact check when it applies.
 double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, double exact_check_eta,
-                         const int32_t *prof_offsets, const int32_t *prof_leaves, const float *prof_weights,
+                         const int32_t *profile_offsets, const int32_t *profile_leaves, const float *profile_weights,
                          std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
                          const ExactProfileBuilder *exact_builder, WindowKernels &kernels);
 
@@ -138,7 +138,7 @@ struct TreeSummary {
 // stand_in is each node's closest leaf (the c1 side on ties).
 void compute_tree_summary(const Tree &tree, TreeSummary &out);
 void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary &summary,
-                             std::vector<int32_t> &super_roots, std::vector<int32_t> &split_internals,
+                             std::vector<int32_t> &piece_roots, std::vector<int32_t> &split_internals,
                              std::vector<int32_t> &skel_left, std::vector<int32_t> &skel_right,
                              int32_t *out_root_skel_id, const uint8_t *stop_at_comp_root = nullptr);
 void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t max_cap,

@@ -165,23 +165,23 @@ static inline int32_t up_neighbour(int32_t u, const Tree &tree, const TreeSummar
 
 // The dyadic profile of one side of an edge of the unrooted tree: the part that start reaches without passing through
 // from (a neighbour of start), each leaf x weighted 2^-d(start, x), so the weights sum to 1.
-// max_prof_leaves < 0: every leaf, exact (a plain stack).
-// Otherwise the walk opens the heaviest nodes first (a priority queue); once it holds max_prof_leaves entries (if
+// profile_cap < 0: every leaf, exact (a plain stack).
+// Otherwise the walk opens the heaviest nodes first (a priority queue); once it holds profile_cap entries (if
 // > 0), each part not yet opened collapses onto one stand-in leaf with its whole weight: the node's stand_in, or for a
 // part reached from below, the stand_in of the other child.
 static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tree, const TreeSummary &summary,
-                                    int32_t max_prof_leaves, std::vector<int32_t> &prof_leaves_out,
-                                    std::vector<float> &prof_weights_out) {
+                                    int32_t profile_cap, std::vector<int32_t> &profile_leaves_out,
+                                    std::vector<float> &profile_weights_out) {
     const int32_t n_leaves = tree.n_leaves();
     const int32_t *c1_r = tree.c1.data(), *c2_r = tree.c2.data();
     // A leaf: the side is that leaf alone.
     if (start < n_leaves) {
-        prof_leaves_out.push_back(start);
-        prof_weights_out.push_back(1.0f);
+        profile_leaves_out.push_back(start);
+        profile_weights_out.push_back(1.0f);
         return;
     }
     // Exact: visit every node of the side (a stack) and emit every leaf.
-    if (max_prof_leaves < 0) {
+    if (profile_cap < 0) {
         struct DirectedStackEntry {
             int32_t node;
             int32_t from;
@@ -207,8 +207,8 @@ static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tre
                 if (nb == top.from || nb < 0)
                     continue;
                 if (nb < n_leaves) {
-                    prof_leaves_out.push_back(nb);
-                    prof_weights_out.push_back((float)hw);
+                    profile_leaves_out.push_back(nb);
+                    profile_weights_out.push_back((float)hw);
                 } else {
                     st.push_back({nb, node, hw});
                 }
@@ -217,7 +217,7 @@ static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tre
         return;
     }
     // Capped: open the heaviest node first (ties: the smaller id), while the leaves emitted plus the nodes waiting in
-    // the queue are fewer than max_prof_leaves (each waiting node becomes at least one entry).
+    // the queue are fewer than profile_cap (each waiting node becomes at least one entry).
     struct DirectedWeightedNode {
         double weight;
         int32_t node;
@@ -230,10 +230,10 @@ static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tre
     };
     std::priority_queue<DirectedWeightedNode> pq;
     pq.push({1.0, start, from});
-    int32_t start_leaves = (int32_t)prof_leaves_out.size();
+    int32_t start_leaves = (int32_t)profile_leaves_out.size();
     while (!pq.empty()) {
-        int32_t curr_total = ((int32_t)prof_leaves_out.size() - start_leaves) + (int32_t)pq.size();
-        if (max_prof_leaves > 0 && curr_total >= max_prof_leaves)
+        int32_t curr_total = ((int32_t)profile_leaves_out.size() - start_leaves) + (int32_t)pq.size();
+        if (profile_cap > 0 && curr_total >= profile_cap)
             break;
         DirectedWeightedNode top = pq.top();
         pq.pop();
@@ -251,8 +251,8 @@ static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tre
             if (nb == top.from || nb < 0)
                 continue;
             if (nb < n_leaves) {
-                prof_leaves_out.push_back(nb);
-                prof_weights_out.push_back((float)hw);
+                profile_leaves_out.push_back(nb);
+                profile_weights_out.push_back((float)hw);
             } else {
                 pq.push({hw, nb, node});
             }
@@ -272,41 +272,41 @@ static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tre
             int32_t sib = (top.from == c1_r[node]) ? c2_r[node] : c1_r[node];
             rep_leaf = summary.stand_in[sib];
         }
-        prof_leaves_out.push_back(rep_leaf);
-        prof_weights_out.push_back((float)top.weight);
+        profile_leaves_out.push_back(rep_leaf);
+        profile_weights_out.push_back((float)top.weight);
     }
 }
 
 // The dyadic profile of the clade below u: each leaf x below u weighted 2^-depth_u(x).
 // u is never the root (a window always opens the root).
-static void compute_clade_dyadic_profile(int32_t u, const Tree &tree, const TreeSummary &summary,
-                                         int32_t max_prof_leaves, std::vector<int32_t> &prof_leaves_out,
-                                         std::vector<float> &prof_weights_out) {
+static void compute_clade_dyadic_profile(int32_t u, const Tree &tree, const TreeSummary &summary, int32_t profile_cap,
+                                         std::vector<int32_t> &profile_leaves_out,
+                                         std::vector<float> &profile_weights_out) {
     if (u == (int32_t)tree.c1.size() - 1)
         throw std::logic_error("clade profile of the root: a window always opens the root");
-    directed_dyadic_profile(u, up_neighbour(u, tree, summary), tree, summary, max_prof_leaves, prof_leaves_out,
-                            prof_weights_out);
+    directed_dyadic_profile(u, up_neighbour(u, tree, summary), tree, summary, profile_cap, profile_leaves_out,
+                            profile_weights_out);
 }
 
-// The dyadic profile of everything outside the clade below sub_root (the window's outgroup), seen from the node
-// sub_root hangs from; empty for the root.
-static void compute_outgroup_dyadic_profile(int32_t sub_root, const Tree &tree, const TreeSummary &summary,
-                                            int32_t max_prof_leaves, std::vector<int32_t> &prof_leaves_out,
-                                            std::vector<float> &prof_weights_out) {
-    if (sub_root == (int32_t)tree.c1.size() - 1 || summary.parent[sub_root] == -1)
+// The dyadic profile of everything outside the clade below window_root (the window's outgroup), seen from the node
+// window_root hangs from; empty for the root.
+static void compute_outgroup_dyadic_profile(int32_t window_root, const Tree &tree, const TreeSummary &summary,
+                                            int32_t profile_cap, std::vector<int32_t> &profile_leaves_out,
+                                            std::vector<float> &profile_weights_out) {
+    if (window_root == (int32_t)tree.c1.size() - 1 || summary.parent[window_root] == -1)
         return;
-    directed_dyadic_profile(up_neighbour(sub_root, tree, summary), sub_root, tree, summary, max_prof_leaves,
-                            prof_leaves_out, prof_weights_out);
+    directed_dyadic_profile(up_neighbour(window_root, tree, summary), window_root, tree, summary, profile_cap,
+                            profile_leaves_out, profile_weights_out);
 }
 
 void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary &summary,
-                             std::vector<int32_t> &super_roots, std::vector<int32_t> &split_internals,
+                             std::vector<int32_t> &piece_roots, std::vector<int32_t> &split_internals,
                              std::vector<int32_t> &skel_left, std::vector<int32_t> &skel_right,
                              int32_t *out_root_skel_id, const uint8_t *stop_at_comp_root) {
     const int32_t n_leaves = tree.n_leaves();
     const int32_t *c1_r = tree.c1.data(), *c2_r = tree.c2.data();
     if (root_r < n_leaves) {
-        super_roots.push_back(root_r);
+        piece_roots.push_back(root_r);
         *out_root_skel_id = -1;
         return;
     }
@@ -380,8 +380,8 @@ void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary
         if (f.state == 0) {
             f.state = 1;
             if (en.left_exp == -1) {
-                int32_t sid = (int32_t)super_roots.size();
-                super_roots.push_back(c1_r[en.u]);
+                int32_t sid = (int32_t)piece_roots.size();
+                piece_roots.push_back(c1_r[en.u]);
                 last_ret = sid;
             } else {
                 st.push_back({en.left_exp, 0, -1});
@@ -390,8 +390,8 @@ void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary
             f.left_id = last_ret;
             f.state = 2;
             if (en.right_exp == -1) {
-                int32_t sid = (int32_t)super_roots.size();
-                super_roots.push_back(c2_r[en.u]);
+                int32_t sid = (int32_t)piece_roots.size();
+                piece_roots.push_back(c2_r[en.u]);
                 last_ret = sid;
             } else {
                 st.push_back({en.right_exp, 0, -1});
@@ -643,7 +643,7 @@ void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, in
     perm = new_perm;
 }
 
-// Compute all-pairs unrooted topological edge distances dist_out[a * K + b] between original super-leaves a, b in
+// Compute all-pairs unrooted topological edge distances dist_out[a * K + b] between the pieces a, b in
 // {0, ..., K-1} for skeleton (v_cf, perm) in O(K^2) time by visiting each leaf pair once at its rooted LCA.
 void compute_skeleton_leaf_dists(const int64_t *v_cf, const int32_t *perm, int32_t K, std::vector<int32_t> &dist_out) {
     const int32_t R_sk = 2 * K - 1;
@@ -710,23 +710,23 @@ struct MoveCand {
 // eta = inf checks every improving window; eta = 0 (default) none.
 
 // Optimize one K-leaf skeleton with path-disjoint SPR batching, a monotonic condensed-skeleton BME check, and (when
-// exact_builder is supplied) an exact full-objective acceptance check on all changed super-leaf pairs involving capped
+// exact_builder is supplied) an exact full-objective acceptance check on all changed piece pairs involving capped
 // clades or capped outside profiles.
 // The device does the arithmetic.
 double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, double exact_check_eta,
-                         const int32_t *prof_offsets, const int32_t *prof_leaves, const float *prof_weights,
+                         const int32_t *profile_offsets, const int32_t *profile_leaves, const float *profile_weights,
                          std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
                          const ExactProfileBuilder *exact_builder, WindowKernels &kernels) {
     // complete profiles, from exact_builder when the check needs them
-    const int32_t *exact_prof_offsets = NULL;
-    const int32_t *exact_prof_leaves = NULL;
-    const float *exact_prof_weights = NULL;
+    const int32_t *exact_profile_offsets = NULL;
+    const int32_t *exact_profile_leaves = NULL;
+    const float *exact_profile_weights = NULL;
     const int32_t M_sk = 2 * K - 2;
     const int32_t root_u_sk = M_sk - 1;
     const std::vector<int64_t> init_v_cf = v_cf;
     const std::vector<int32_t> init_perm = perm;
 
-    kernels.distances(K, prof_offsets, prof_leaves, prof_weights);
+    kernels.distances(K, profile_offsets, profile_leaves, profile_weights);
 
     SkeletonMeta sk;
     std::vector<double> h_best_delta(K);
@@ -886,15 +886,15 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
         return 0.0;
     }
 
-    const bool have_exact = (exact_prof_offsets != NULL) || (exact_builder != NULL && *exact_builder);
+    const bool have_exact = (exact_profile_offsets != NULL) || (exact_builder != NULL && *exact_builder);
     if (have_exact && best_L - init_L > -exact_check_eta) {
-        if (exact_prof_offsets == NULL)
-            (*exact_builder)(&exact_prof_offsets, &exact_prof_leaves, &exact_prof_weights);
+        if (exact_profile_offsets == NULL)
+            (*exact_builder)(&exact_profile_offsets, &exact_profile_leaves, &exact_profile_weights);
         std::vector<uint8_t> is_capped(K, 0);
         bool any_capped = false;
         for (int32_t a = 0; a < K; ++a) {
-            int32_t cap_len = prof_offsets[a + 1] - prof_offsets[a];
-            int32_t ex_len = exact_prof_offsets[a + 1] - exact_prof_offsets[a];
+            int32_t cap_len = profile_offsets[a + 1] - profile_offsets[a];
+            int32_t ex_len = exact_profile_offsets[a + 1] - exact_profile_offsets[a];
             if (ex_len != cap_len) {
                 is_capped[a] = 1;
                 any_capped = true;
@@ -931,8 +931,8 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
                 std::vector<std::pair<int32_t, int32_t>> sorted_pairs(pair_a.size());
                 for (size_t pid = 0; pid < pair_a.size(); ++pid) {
                     int32_t u = pair_a[pid], v = pair_b[pid];
-                    int32_t lu = exact_prof_offsets[u + 1] - exact_prof_offsets[u];
-                    int32_t lv = exact_prof_offsets[v + 1] - exact_prof_offsets[v];
+                    int32_t lu = exact_profile_offsets[u + 1] - exact_profile_offsets[u];
+                    int32_t lv = exact_profile_offsets[v + 1] - exact_profile_offsets[v];
                     if (lu > lv)
                         std::swap(u, v);
                     sorted_pairs[pid] = std::make_pair(v, u);
@@ -946,8 +946,8 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
 
             std::vector<double> h_pair_exact_D(pair_a.size(), 0.0);
             if (!pair_a.empty())
-                kernels.exact_distances(pair_a, pair_b, exact_prof_offsets, exact_prof_leaves, exact_prof_weights,
-                                        h_pair_exact_D);
+                kernels.exact_distances(pair_a, pair_b, exact_profile_offsets, exact_profile_leaves,
+                                        exact_profile_weights, h_pair_exact_D);
 
             std::vector<double> h_D_cond;
             if (!uncap_a.empty())
@@ -1027,13 +1027,13 @@ static uint64_t window_input_hash(int32_t K, int32_t max_iters, const std::vecto
     return h;
 }
 
-// Optimize the window below sub_root and write the result into tree and summary.
-// The window collapses clades into K taxa, each with a dyadic-weighted leaf profile, and optimizes them as an unrooted
-// BME tree.
-// A subtree window (sub_root != root_r) also sees the rest of the tree, as one extra taxon, the outgroup, because BME
-// sums over all leaf pairs: moves inside the subtree change its distances to the leaves outside.
+// Optimize the window below window_root and write the result into tree and summary.
+// The window collapses clades into K pieces, each with a dyadic-weighted leaf profile, and optimizes them as an
+// unrooted BME tree.
+// A subtree window (window_root != root_r) also sees the rest of the tree, as one extra piece, the outgroup,
+// because BME sums over all leaf pairs: moves inside the subtree change its distances to the leaves outside.
 // Its result is rooted where the outgroup attaches, so the subtree keeps its place, and the outgroup is dropped.
-// The whole-tree window (sub_root == root_r) has no outgroup and BME does not fix a root, so it re-roots on the
+// The whole-tree window (window_root == root_r) has no outgroup and BME does not fix a root, so it re-roots on the
 // centroid edge.
 // Windows of one wave run in parallel: they pass a snapshot of the tree and its summary (snapshot, snapshot_summary),
 // read their profiles from it, and leave summary.parent alone (the caller recomputes the summary after the wave).
@@ -1042,7 +1042,7 @@ static uint64_t window_input_hash(int32_t K, int32_t max_iters, const std::vecto
 // fruitless_hash: set to the input hash when the solve runs and finds no improvement, for the caller to add to
 // fruitless.
 
-static double run_subtree_minibatch_window(int32_t sub_root, int32_t max_iters, const SearchSettings &settings,
+static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iters, const SearchSettings &settings,
                                            const std::vector<int32_t> &outgroup_leaves,
                                            const std::vector<float> &outgroup_weights, Device &dev, Tree &tree,
                                            TreeSummary &summary, const std::unordered_set<uint64_t> &fruitless,
@@ -1052,23 +1052,23 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t max_iters, 
     const int32_t n_leaves = tree.n_leaves();
     std::vector<int32_t> &curr_c1 = tree.c1, &curr_c2 = tree.c2;
     const int32_t root_r = 2 * n_leaves - 2;
-    const int32_t max_prof_leaves = settings.profile_cap;
-    std::vector<int32_t> super_roots, split_internals, skel_left, skel_right;
+    const int32_t profile_cap = settings.profile_cap;
+    std::vector<int32_t> piece_roots, split_internals, skel_left, skel_right;
     int32_t root_skel_id = -1;
-    extract_active_skeleton(sub_root, tree, summary, super_roots, split_internals, skel_left, skel_right, &root_skel_id,
-                            stop_at_comp_root);
+    extract_active_skeleton(window_root, tree, summary, piece_roots, split_internals, skel_left, skel_right,
+                            &root_skel_id, stop_at_comp_root);
 
-    // A subtree window also sees the rest of the tree, as one extra taxon (the outgroup).
-    const bool has_outgroup = sub_root != root_r;
+    // A subtree window also sees the rest of the tree, as one extra piece (the outgroup).
+    const bool has_outgroup = window_root != root_r;
     // The root is alone in its wave, so the whole-tree window never gets a snapshot.
     if (!has_outgroup && snapshot != NULL)
         throw std::logic_error("whole-tree window: unexpected snapshot (the root is alone in its wave)");
-    const int32_t K_in = (int32_t)super_roots.size();
+    const int32_t K_in = (int32_t)piece_roots.size();
     const int32_t K = has_outgroup ? K_in + 1 : K_in;
     if (K < p2vbme::WINDOW_MIN_K || K > dev.max_window())
         return 0.0;
 
-    int32_t parent_of_sub_root = summary.parent[sub_root];
+    int32_t parent_of_window_root = summary.parent[window_root];
     std::vector<int32_t> sk_c1(2 * K - 1, 0), sk_c2(2 * K - 1, 0);
     for (int32_t s = 0; s < K_in - 1; ++s) {
         int32_t l_raw = skel_left[s], r_raw = skel_right[s];
@@ -1083,67 +1083,68 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t max_iters, 
     const Tree &otree = (snapshot != NULL) ? *snapshot : tree;
     const TreeSummary &osum = (snapshot_summary != NULL) ? *snapshot_summary : summary;
 
-    std::vector<int32_t> prof_offsets(K + 1, 0), prof_leaves;
-    std::vector<float> prof_weights;
-    prof_leaves.reserve(4 * K);
-    prof_weights.reserve(4 * K);
-    bool need_exact_prof = false;
+    std::vector<int32_t> profile_offsets(K + 1, 0), profile_leaves;
+    std::vector<float> profile_weights;
+    profile_leaves.reserve(4 * K);
+    profile_weights.reserve(4 * K);
+    bool need_exact_profiles = false;
     for (int32_t a = 0; a < K_in; ++a) {
-        prof_offsets[a] = (int32_t)prof_leaves.size();
-        compute_clade_dyadic_profile(super_roots[a], otree, osum, max_prof_leaves, prof_leaves, prof_weights);
-        if (max_prof_leaves > 0 && summary.leaf_count[super_roots[a]] > max_prof_leaves) {
-            need_exact_prof = true;
+        profile_offsets[a] = (int32_t)profile_leaves.size();
+        compute_clade_dyadic_profile(piece_roots[a], otree, osum, profile_cap, profile_leaves, profile_weights);
+        if (profile_cap > 0 && summary.leaf_count[piece_roots[a]] > profile_cap) {
+            need_exact_profiles = true;
         }
     }
-    prof_offsets[K_in] = (int32_t)prof_leaves.size();
-    int32_t outgroup_true_leaves = n_leaves - summary.leaf_count[sub_root];
+    profile_offsets[K_in] = (int32_t)profile_leaves.size();
+    int32_t outgroup_true_leaves = n_leaves - summary.leaf_count[window_root];
     if (has_outgroup) {
-        prof_leaves.insert(prof_leaves.end(), outgroup_leaves.begin(), outgroup_leaves.end());
-        prof_weights.insert(prof_weights.end(), outgroup_weights.begin(), outgroup_weights.end());
-        prof_offsets[K] = (int32_t)prof_leaves.size();
-        if (max_prof_leaves > 0 && outgroup_true_leaves > (int32_t)outgroup_leaves.size()) {
-            need_exact_prof = true;
+        profile_leaves.insert(profile_leaves.end(), outgroup_leaves.begin(), outgroup_leaves.end());
+        profile_weights.insert(profile_weights.end(), outgroup_weights.begin(), outgroup_weights.end());
+        profile_offsets[K] = (int32_t)profile_leaves.size();
+        if (profile_cap > 0 && outgroup_true_leaves > (int32_t)outgroup_leaves.size()) {
+            need_exact_profiles = true;
         }
     }
 
-    std::vector<int32_t> exact_prof_offsets, exact_prof_leaves;
-    std::vector<float> exact_prof_weights;
+    std::vector<int32_t> exact_profile_offsets, exact_profile_leaves;
+    std::vector<float> exact_profile_weights;
     auto build_exact_prof = [&]() {
         const bool cap_exact = n_leaves >= p2vbme::EXACT_PROFILE_CAP_MIN_N;
         const int32_t exact_cap = cap_exact ? p2vbme::EXACT_PROFILE_CAP : -1;
-        exact_prof_offsets.resize(K + 1, 0);
-        exact_prof_leaves.reserve(cap_exact ? (size_t)(K * 256) : (size_t)n_leaves);
-        exact_prof_weights.reserve(cap_exact ? (size_t)(K * 256) : (size_t)n_leaves);
+        exact_profile_offsets.resize(K + 1, 0);
+        exact_profile_leaves.reserve(cap_exact ? (size_t)(K * 256) : (size_t)n_leaves);
+        exact_profile_weights.reserve(cap_exact ? (size_t)(K * 256) : (size_t)n_leaves);
         for (int32_t a = 0; a < K_in; ++a) {
-            exact_prof_offsets[a] = (int32_t)exact_prof_leaves.size();
-            if (max_prof_leaves <= 0 || summary.leaf_count[super_roots[a]] <= max_prof_leaves) {
-                exact_prof_leaves.insert(exact_prof_leaves.end(), prof_leaves.begin() + prof_offsets[a],
-                                         prof_leaves.begin() + prof_offsets[a + 1]);
-                exact_prof_weights.insert(exact_prof_weights.end(), prof_weights.begin() + prof_offsets[a],
-                                          prof_weights.begin() + prof_offsets[a + 1]);
+            exact_profile_offsets[a] = (int32_t)exact_profile_leaves.size();
+            if (profile_cap <= 0 || summary.leaf_count[piece_roots[a]] <= profile_cap) {
+                exact_profile_leaves.insert(exact_profile_leaves.end(), profile_leaves.begin() + profile_offsets[a],
+                                            profile_leaves.begin() + profile_offsets[a + 1]);
+                exact_profile_weights.insert(exact_profile_weights.end(), profile_weights.begin() + profile_offsets[a],
+                                             profile_weights.begin() + profile_offsets[a + 1]);
             } else {
-                compute_clade_dyadic_profile(super_roots[a], otree, osum, exact_cap, exact_prof_leaves,
-                                             exact_prof_weights);
+                compute_clade_dyadic_profile(piece_roots[a], otree, osum, exact_cap, exact_profile_leaves,
+                                             exact_profile_weights);
             }
         }
-        exact_prof_offsets[K_in] = (int32_t)exact_prof_leaves.size();
+        exact_profile_offsets[K_in] = (int32_t)exact_profile_leaves.size();
         if (has_outgroup) {
             if (outgroup_true_leaves <= (int32_t)outgroup_leaves.size()) {
-                exact_prof_leaves.insert(exact_prof_leaves.end(), outgroup_leaves.begin(), outgroup_leaves.end());
-                exact_prof_weights.insert(exact_prof_weights.end(), outgroup_weights.begin(), outgroup_weights.end());
+                exact_profile_leaves.insert(exact_profile_leaves.end(), outgroup_leaves.begin(), outgroup_leaves.end());
+                exact_profile_weights.insert(exact_profile_weights.end(), outgroup_weights.begin(),
+                                             outgroup_weights.end());
             } else {
-                compute_outgroup_dyadic_profile(sub_root, otree, osum, exact_cap, exact_prof_leaves,
-                                                exact_prof_weights);
+                compute_outgroup_dyadic_profile(window_root, otree, osum, exact_cap, exact_profile_leaves,
+                                                exact_profile_weights);
             }
-            exact_prof_offsets[K] = (int32_t)exact_prof_leaves.size();
+            exact_profile_offsets[K] = (int32_t)exact_profile_leaves.size();
         }
     };
     ExactProfileBuilder exact_builder = [&](const int32_t **o, const int32_t **l, const float **w) {
-        if (exact_prof_offsets.empty())
+        if (exact_profile_offsets.empty())
             build_exact_prof();
-        *o = exact_prof_offsets.data();
-        *l = exact_prof_leaves.data();
-        *w = exact_prof_weights.data();
+        *o = exact_profile_offsets.data();
+        *l = exact_profile_leaves.data();
+        *w = exact_profile_weights.data();
     };
 
     std::vector<int64_t> v_mb(K - 1);
@@ -1153,14 +1154,14 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t max_iters, 
     // Skip a solve whose input already found no improvement.
     // Not with the exact check, which also reads the complete profiles.
     std::optional<uint64_t> input_hash;
-    if (!(need_exact_prof && settings.exact_check_eta > 0.0)) {
-        input_hash = window_input_hash(K, max_iters, v_mb, perm_mb, prof_offsets, prof_leaves, prof_weights);
+    if (!(need_exact_profiles && settings.exact_check_eta > 0.0)) {
+        input_hash = window_input_hash(K, max_iters, v_mb, perm_mb, profile_offsets, profile_leaves, profile_weights);
         if (fruitless.count(*input_hash) != 0)
             return 0.0;
     }
-    double dL = dev.solve_window(K, max_iters, p2vbme::MOVE_BATCH_CAP, settings.exact_check_eta, prof_offsets.data(),
-                                 prof_leaves.data(), prof_weights.data(), v_mb, perm_mb,
-                                 need_exact_prof ? &exact_builder : NULL);
+    double dL = dev.solve_window(K, max_iters, p2vbme::MOVE_BATCH_CAP, settings.exact_check_eta, profile_offsets.data(),
+                                 profile_leaves.data(), profile_weights.data(), v_mb, perm_mb,
+                                 need_exact_profiles ? &exact_builder : NULL);
     if (dL == 0.0) {
         fruitless_hash = input_hash;
         return 0.0;
@@ -1191,7 +1192,7 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t max_iters, 
         const int32_t root_u_sk = 2 * K - 3;
         std::vector<int32_t> w_sub(2 * K - 2, 0);
         for (int32_t a = 0; a < K; ++a)
-            w_sub[a] = summary.leaf_count[super_roots[perm_mb[a]]];
+            w_sub[a] = summary.leaf_count[piece_roots[perm_mb[a]]];
         for (int32_t u = K; u < root_u_sk; ++u)
             w_sub[u] = w_sub[c1_cf[u]] + w_sub[c2_cf[u]];
         u_best = 0;
@@ -1242,7 +1243,7 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t max_iters, 
     std::vector<int32_t> sk_to_full(2 * K - 2, -1);
     for (int32_t a = 0; a < K; ++a) {
         if (a != a_out)
-            sk_to_full[a] = super_roots[perm_mb[a]];
+            sk_to_full[a] = piece_roots[perm_mb[a]];
     }
     for (int32_t s = 0; s < K - 2; ++s) {
         int32_t u_sk = st_u[K - 3 - s];
@@ -1265,7 +1266,7 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t max_iters, 
     }
     if (has_outgroup) {
         if (snapshot == NULL) {
-            summary.parent[sub_root] = parent_of_sub_root;
+            summary.parent[window_root] = parent_of_window_root;
         }
     } else {
         int32_t full_u = split_internals[K - 2]; // == root_r
@@ -1322,7 +1323,7 @@ static void emit_stage(const SearchState &s, int32_t round, const char *stage, i
 // A single window runs on the first device.
 // The search changes the tree only here, so the summary is rebuilt here, whenever a window rewrote the tree.
 static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots, const uint8_t *stop_at_comp_root) {
-    const int32_t max_prof_leaves = s.settings.profile_cap;
+    const int32_t profile_cap = s.settings.profile_cap;
     if (window_roots.size() > 1) {
         const Tree snapshot = s.tree;
         const TreeSummary snapshot_summary = s.summary;
@@ -1335,15 +1336,15 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots
                 continue;
             try {
                 int d = omp_get_thread_num();
-                int32_t sr = window_roots[idx];
+                int32_t window_root = window_roots[idx];
                 std::vector<int32_t> out_leaves;
                 std::vector<float> out_weights;
-                if (sr != s.root_r) {
-                    compute_outgroup_dyadic_profile(sr, snapshot, snapshot_summary, max_prof_leaves, out_leaves,
+                if (window_root != s.root_r) {
+                    compute_outgroup_dyadic_profile(window_root, snapshot, snapshot_summary, profile_cap, out_leaves,
                                                     out_weights);
                 }
                 window_dL[idx] = run_subtree_minibatch_window(
-                    sr, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves, out_weights, *s.devices[d], s.tree,
+                    window_root, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves, out_weights, *s.devices[d], s.tree,
                     s.summary, s.fruitless, window_fruitless[idx], stop_at_comp_root, &snapshot, &snapshot_summary);
             } catch (...) {
                 errors.capture();
@@ -1363,16 +1364,16 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots
         std::vector<int32_t> out_leaves;
         std::vector<float> out_weights;
         for (int32_t idx = 0; idx < (int32_t)window_roots.size(); ++idx) {
-            int32_t sr = window_roots[idx];
+            int32_t window_root = window_roots[idx];
             out_leaves.clear();
             out_weights.clear();
-            if (sr != s.root_r) {
-                compute_outgroup_dyadic_profile(sr, s.tree, s.summary, max_prof_leaves, out_leaves, out_weights);
+            if (window_root != s.root_r) {
+                compute_outgroup_dyadic_profile(window_root, s.tree, s.summary, profile_cap, out_leaves, out_weights);
             }
             std::optional<uint64_t> fruitless_hash;
-            double dL = run_subtree_minibatch_window(sr, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves, out_weights,
-                                                     *s.devices[0], s.tree, s.summary, s.fruitless, fruitless_hash,
-                                                     stop_at_comp_root);
+            double dL = run_subtree_minibatch_window(window_root, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves,
+                                                     out_weights, *s.devices[0], s.tree, s.summary, s.fruitless,
+                                                     fruitless_hash, stop_at_comp_root);
             if (fruitless_hash)
                 s.fruitless.insert(*fruitless_hash);
             if (dL != 0.0) { // the window rewrote the tree

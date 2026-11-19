@@ -138,11 +138,11 @@ __device__ __forceinline__ float dev_model_dist(int32_t x, int32_t y, const uint
     return pair_distance<float>(dm, c);
 }
 
-// Build K x K condensed distance matrix on the fly from dyadic-weighted super-leaf profiles:
+// Build K x K condensed distance matrix on the fly from dyadic-weighted piece profiles:
 //   D_cond[a, b] = sum_{p in prof(a)} sum_{q in prof(b)} w_p * w_q * D(leaf_p, leaf_q).
-// Each super-leaf profile is stored in CSR format (d_prof_offsets, d_prof_leaves, d_prof_weights)
+// Each piece's profile is stored in CSR format (d_prof_offsets, d_prof_leaves, d_prof_weights)
 // with nonnegative weights w_p summing to 1 (exact dyadic weights w_p = 2^{-depth(leaf_p)} when
-// leaf_cnt <= max_prof_leaves or max_prof_leaves <= 0; approximate frontier-subtree collapse above cap).
+// leaf_cnt <= profile_cap or profile_cap <= 0; approximate frontier-subtree collapse above cap).
 // JC69 (template JC) or the model dm.
 template <bool JC>
 __global__ void k_build_real_seq_condensed_D(int32_t K, int32_t W, const int32_t *__restrict__ d_prof_offsets,
@@ -325,7 +325,7 @@ __global__ __launch_bounds__(256) void k_build_condensed_D_heavy_tiled(
     }
 }
 
-// Block-parallel exact refinement of selected super-leaf pairs (a, b) using uncapped dyadic profiles (d_exact_offsets,
+// Block-parallel exact refinement of selected piece pairs (a, b) using uncapped dyadic profiles (d_exact_offsets,
 // d_exact_leaves, d_exact_weights) and on-the-fly JC69 popcount distances.
 // Uses shared-memory staged, k-sliced, 4x4 register-tiled evaluation with adaptive A-tile heights (16, 32, 48, 64) and
 // multi-pair packing across consecutive pairs sharing the same right-hand profile b, updating d_D_cond[a * K + b],
@@ -1777,18 +1777,18 @@ class GpuWindowKernels final : public WindowKernels {
     GpuWindowKernels(RnaSimGpuWorkspace &ws, const uint64_t *seqs, int32_t n_words, const DeviceDistance &model)
         : gpu_ws(ws), d_packed_seqs(seqs), W(n_words), dm(model), jc69(model.model == Model::JC69) {}
 
-    void distances(int32_t K_window, const int32_t *prof_offsets, const int32_t *prof_leaves,
-                   const float *prof_weights) override {
+    void distances(int32_t K_window, const int32_t *profile_offsets, const int32_t *profile_leaves,
+                   const float *profile_weights) override {
         K = K_window;
         M_sk = 2 * K - 2;
         root_u_sk = M_sk - 1;
         CUDA_CHECK(cudaSetDevice(gpu_ws.dev_id));
-        int32_t total_prof = prof_offsets[K];
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_prof_offsets, prof_offsets, (size_t)(K + 1) * sizeof(int32_t),
+        int32_t total_prof = profile_offsets[K];
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_prof_offsets, profile_offsets, (size_t)(K + 1) * sizeof(int32_t),
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_prof_leaves, prof_leaves, (size_t)total_prof * sizeof(int32_t),
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_prof_leaves, profile_leaves, (size_t)total_prof * sizeof(int32_t),
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_prof_weights, prof_weights, (size_t)total_prof * sizeof(float),
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_prof_weights, profile_weights, (size_t)total_prof * sizeof(float),
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
         dim3 blk2d(16, 16);
         dim3 grd2d((K + 15) / 16, (K + 15) / 16);
@@ -1801,7 +1801,7 @@ class GpuWindowKernels final : public WindowKernels {
         if (heavy_min != INT32_MAX) {
             std::vector<int32_t> heavy_nodes;
             for (int32_t a = 0; a < K; ++a) {
-                if (prof_offsets[a + 1] - prof_offsets[a] >= heavy_min)
+                if (profile_offsets[a + 1] - profile_offsets[a] >= heavy_min)
                     heavy_nodes.push_back(a);
             }
             for (size_t ia = 0; ia < heavy_nodes.size(); ++ia) {
@@ -1911,20 +1911,20 @@ class GpuWindowKernels final : public WindowKernels {
     }
 
     void exact_distances(const std::vector<int32_t> &pair_a, const std::vector<int32_t> &pair_b,
-                         const int32_t *exact_prof_offsets, const int32_t *exact_prof_leaves,
-                         const float *exact_prof_weights, std::vector<double> &h_pair_exact_D) override {
+                         const int32_t *exact_profile_offsets, const int32_t *exact_profile_leaves,
+                         const float *exact_profile_weights, std::vector<double> &h_pair_exact_D) override {
         h_pair_exact_D.assign(pair_a.size(), 0.0);
         if (pair_a.empty())
             return;
         int32_t n_pairs = (int32_t)pair_a.size();
-        int32_t total_exact_prof = exact_prof_offsets[K];
+        int32_t total_exact_prof = exact_profile_offsets[K];
         gpu_ws.ensure_exact_prof_cap((size_t)total_exact_prof);
 
         // Load balancing.
         // The refinement kernel runs one 256-thread block per launch pair, so a capped pair with ~1e9 leaf pairs would
         // occupy one SM while the rest of the GPU idles.
         // Such pairs are split into row chunks of their smaller exact profile.
-        // Each chunk is a virtual super-leaf id >= K + 1 whose CSR range in refine_offsets points into the same exact
+        // Each chunk is a virtual piece id >= K + 1 whose CSR range in refine_offsets points into the same exact
         // leaf and weight arrays.
         // Chunk 0 takes the pair's own launch slot, chunks 1..c-1 are appended after n_pairs, and the chunk sums are
         // added back per pair in a fixed order, so results are deterministic.
@@ -1943,8 +1943,8 @@ class GpuWindowKernels final : public WindowKernels {
             std::vector<int32_t> b_split_profs;
             for (int32_t pid = 0; pid < n_pairs; ++pid) {
                 int32_t u = pair_a[pid], v = pair_b[pid];
-                int64_t lu = exact_prof_offsets[u + 1] - exact_prof_offsets[u];
-                int64_t lv = exact_prof_offsets[v + 1] - exact_prof_offsets[v];
+                int64_t lu = exact_profile_offsets[u + 1] - exact_profile_offsets[u];
+                int64_t lv = exact_profile_offsets[v + 1] - exact_profile_offsets[v];
                 int32_t s = (lu <= lv) ? u : v;
                 int32_t l = (lu <= lv) ? v : u;
                 int64_t ls = std::min(lu, lv), ll = std::max(lu, lv);
@@ -1966,7 +1966,7 @@ class GpuWindowKernels final : public WindowKernels {
             }
             int64_t b_slots = 0, b_extra_pairs = 0;
             for (int32_t l : b_split_profs) {
-                int64_t ll = exact_prof_offsets[l + 1] - exact_prof_offsets[l];
+                int64_t ll = exact_profile_offsets[l + 1] - exact_profile_offsets[l];
                 int64_t b_c = std::min((int64_t)16, (ll + b_chunk_target - 1) / b_chunk_target);
                 int64_t b_rows = (((ll + b_c - 1) / b_c) + 63) & ~(int64_t)63;
                 int64_t c = (ll + b_rows - 1) / b_rows;
@@ -1981,7 +1981,7 @@ class GpuWindowKernels final : public WindowKernels {
                 extra_pairs = b_extra_pairs;
                 for (size_t h = 0; h < heavy_pid.size(); ++h) {
                     int32_t s = heavy_small[h];
-                    int64_t ls = exact_prof_offsets[s + 1] - exact_prof_offsets[s];
+                    int64_t ls = exact_profile_offsets[s + 1] - exact_profile_offsets[s];
                     int64_t c = (ls + heavy_rows[h] - 1) / heavy_rows[h];
                     if (c >= 2) {
                         slots += c + 1;
@@ -1995,10 +1995,10 @@ class GpuWindowKernels final : public WindowKernels {
             }
             if (slots > 0 && slots <= max_virtual &&
                 (size_t)(n_pairs + extra_pairs) <= (size_t)K * (size_t)K / 2 + 16 + (size_t)4 * K) {
-                refine_offsets.assign(exact_prof_offsets, exact_prof_offsets + K + 1);
+                refine_offsets.assign(exact_profile_offsets, exact_profile_offsets + K + 1);
                 for (size_t h = 0; h < heavy_pid.size(); ++h) {
                     int32_t pid = heavy_pid[h], s = heavy_small[h], l = heavy_large[h];
-                    int64_t o0 = exact_prof_offsets[s], o1 = exact_prof_offsets[s + 1];
+                    int64_t o0 = exact_profile_offsets[s], o1 = exact_profile_offsets[s + 1];
                     int64_t rows = heavy_rows[h];
                     int64_t c = (o1 - o0 + rows - 1) / rows;
                     if (c < 2)
@@ -2018,7 +2018,7 @@ class GpuWindowKernels final : public WindowKernels {
                     }
                 }
                 for (int32_t l : b_split_profs) {
-                    int64_t o0 = exact_prof_offsets[l], o1 = exact_prof_offsets[l + 1];
+                    int64_t o0 = exact_profile_offsets[l], o1 = exact_profile_offsets[l + 1];
                     int64_t ll = o1 - o0;
                     int64_t b_c = std::min((int64_t)16, (ll + b_chunk_target - 1) / b_chunk_target);
                     int64_t b_rows = (((ll + b_c - 1) / b_c) + 63) & ~(int64_t)63;
@@ -2047,13 +2047,13 @@ class GpuWindowKernels final : public WindowKernels {
         const int32_t n_launch = (int32_t)launch_a.size();
         const bool split_pairs = !refine_offsets.empty();
 
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_exact_offsets, split_pairs ? refine_offsets.data() : exact_prof_offsets,
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_exact_offsets, split_pairs ? refine_offsets.data() : exact_profile_offsets,
                                    (split_pairs ? refine_offsets.size() : (size_t)(K + 1)) * sizeof(int32_t),
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_exact_leaves, exact_prof_leaves, (size_t)total_exact_prof * sizeof(int32_t),
-                                   cudaMemcpyHostToDevice, gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_exact_weights, exact_prof_weights, (size_t)total_exact_prof * sizeof(float),
-                                   cudaMemcpyHostToDevice, gpu_ws.stream));
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_exact_leaves, exact_profile_leaves,
+                                   (size_t)total_exact_prof * sizeof(int32_t), cudaMemcpyHostToDevice, gpu_ws.stream));
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_exact_weights, exact_profile_weights,
+                                   (size_t)total_exact_prof * sizeof(float), cudaMemcpyHostToDevice, gpu_ws.stream));
         CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_pair_a, launch_a.data(), (size_t)n_launch * sizeof(int32_t),
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
         CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_pair_b, launch_b.data(), (size_t)n_launch * sizeof(int32_t),
@@ -2197,12 +2197,12 @@ class GpuDevice final : public Device {
     }
 
     double solve_window(int32_t K, int32_t max_sweeps, int32_t max_batch_cap, double exact_check_eta,
-                        const int32_t *prof_offsets, const int32_t *prof_leaves, const float *prof_weights,
+                        const int32_t *profile_offsets, const int32_t *profile_leaves, const float *profile_weights,
                         std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
                         const ExactProfileBuilder *exact_builder) override {
         GpuWindowKernels kernels(ws_, packed(), n_words_, dm_);
-        return solve_window_host(K, max_sweeps, max_batch_cap, exact_check_eta, prof_offsets, prof_leaves, prof_weights,
-                                 v_cf, perm, exact_builder, kernels);
+        return solve_window_host(K, max_sweeps, max_batch_cap, exact_check_eta, profile_offsets, profile_leaves,
+                                 profile_weights, v_cf, perm, exact_builder, kernels);
     }
 
     void edge_lengths(int32_t n_leaves, int32_t cap, int32_t count, const int32_t *c1, const int32_t *c2, int32_t n_int,

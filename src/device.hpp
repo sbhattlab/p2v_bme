@@ -58,7 +58,8 @@ class Device {
 
     // 3. Window solve.
     // A window is part of the tree cut into K pieces.
-    // Each piece is summarised as a weighted leaf profile (CSR: prof_offsets[K + 1], prof_leaves, prof_weights).
+    // Each piece is summarised as a weighted leaf profile (CSR: profile_offsets[K + 1], profile_leaves,
+    // profile_weights).
     // Its skeleton, the tree connecting the pieces, is the Phylo2Vec vector v_cf over the leaf permutation perm.
     // Runs up to max_sweeps sweeps of batched moves on the skeleton (batch cap max_batch_cap) to shorten its BME
     // length.
@@ -66,8 +67,8 @@ class Device {
     // The caller writes the new skeleton back into the full tree.
     // With exact_builder, small gains (> -exact_check_eta) are re-checked on complete profiles.
     virtual double solve_window(int32_t K, int32_t max_sweeps, int32_t max_batch_cap, double exact_check_eta,
-                                const int32_t *prof_offsets, const int32_t *prof_leaves, const float *prof_weights,
-                                std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
+                                const int32_t *profile_offsets, const int32_t *profile_leaves,
+                                const float *profile_weights, std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
                                 const ExactProfileBuilder *exact_builder = nullptr) = 0;
 
     // 4. Edge-length pass (branch lengths).
@@ -88,14 +89,14 @@ using Devices = std::vector<std::unique_ptr<Device>>;
 int visible_gpus();
 
 // One device per GPU number in gpu_ids (empty: all visible GPUs), each with a workspace for windows of up to
-// WORKSPACE_MAX_K components.
+// WORKSPACE_MAX_K pieces.
 // Throws std::runtime_error if a GPU does not exist or there is none.
 Devices make_devices(const std::vector<int> &gpu_ids);
 
 // The CUDA runtime and driver versions and the GPU architectures compiled for.
 std::string gpu_build_info();
 
-// One GPU with a workspace for windows of up to max_k components.
+// One GPU with a workspace for windows of up to max_k pieces.
 std::unique_ptr<Device> make_gpu_device(int gpu, int32_t max_k = WORKSPACE_MAX_K);
 
 // The CPU device: n_workers devices (--accelerator cpu --devices N), each using up to n_workers

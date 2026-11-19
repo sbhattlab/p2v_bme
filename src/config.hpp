@@ -46,11 +46,11 @@ constexpr int32_t WINDOW_MAX_SWEEPS = 200;
 // A window's new skeleton is kept only if it lowers the BME length by more than this (also in the exact check).
 constexpr double WINDOW_MIN_GAIN = 1e-7;
 // Internal-vertex budget of a window: 1,498 splits give at most 1,499 pieces, plus the outside component, so every
-// window has K <= 1,500 components.
+// window has K <= 1,500 pieces.
 constexpr int32_t WINDOW_MAX_INTERNALS = 1498;
-// Components a device workspace holds (the GPU buffers are allocated for it): the largest window above.
+// Pieces a device workspace holds (the GPU buffers are allocated for it): the largest window above.
 constexpr int32_t WORKSPACE_MAX_K = WINDOW_MAX_INTERNALS + 2;
-// Smallest window: below 4 components there is a single unrooted tree shape, so nothing to move.
+// Smallest window: below 4 pieces there is a single unrooted tree shape, so nothing to move.
 // Also the smallest tree the waves visit.
 constexpr int32_t WINDOW_MIN_K = 4;
 // Internal nodes per component of the leaf-covering waves, at most; also the smallest V-cycle window and the tree size
