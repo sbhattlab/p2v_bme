@@ -22,6 +22,8 @@
 
 namespace p2vbme {
 
+class WindowKernels; // the window solve's arithmetic (search.hpp)
+
 // Supplies complete (uncapped) leaf profiles to the exact acceptance check of a window, building them on first
 // use (CSR layout as the window's profiles).
 using ExactProfileBuilder = std::function<void(const int32_t **offsets, const int32_t **leaves, const float **weights)>;
@@ -56,20 +58,10 @@ class Device {
     virtual void nearest_sampled(const int32_t *queries, int32_t n_queries, const int32_t *samples, int32_t n_samples,
                                  int32_t *best_pos) = 0;
 
-    // 3. Window solve.
-    // A window is part of the tree cut into K pieces.
-    // Each piece is summarised as a weighted leaf profile (CSR: profile_offsets[K + 1], profile_leaves,
-    // profile_weights).
-    // Its skeleton, the tree connecting the pieces, is the Phylo2Vec vector v_cf over the leaf permutation perm.
-    // Runs up to max_sweeps sweeps of batched moves on the skeleton (batch cap max_batch_cap) to shorten its BME
-    // length.
-    // Updates v_cf and perm and returns the BME change (0 and the input tree if nothing improved).
-    // The caller writes the new skeleton back into the full tree.
-    // With exact_builder, small gains (> -exact_check_eta) are re-checked on complete profiles.
-    virtual double solve_window(int32_t K, int32_t max_sweeps, int32_t max_batch_cap, double exact_check_eta,
-                                const int32_t *profile_offsets, const int32_t *profile_leaves,
-                                const float *profile_weights, std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
-                                const ExactProfileBuilder *exact_builder = nullptr) = 0;
+    // 3. Window solve: the device's arithmetic for solve_window_host (search.hpp), which runs the sweeps.
+    // A new kernels object for each window, on the device's current alignment (its subset while the start tree is
+    // built).
+    virtual std::unique_ptr<WindowKernels> window_kernels() = 0;
 
     // 4. Edge-length pass (branch lengths).
     // For each of `count` internal nodes with children c1[i] and c2[i], computes the profile-weighted distances

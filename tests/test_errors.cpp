@@ -25,6 +25,22 @@ namespace {
 using namespace p2vbme;
 
 // A device that does nothing, except throw from one chosen step.
+// Window kernels that find no move, so a window solve returns 0 (a failing device that is not meant to fail here).
+class NoMoveKernels : public WindowKernels {
+  public:
+    void distances(int32_t, const int32_t *, const int32_t *, const float *) override {}
+    double score(const SkeletonMeta &, const std::vector<int32_t> &) override { return 0.0; }
+    void best_moves(const SkeletonMeta &, std::vector<double> &best_delta, std::vector<int32_t> &best_j) override {
+        std::fill(best_delta.begin(), best_delta.end(), 1e30);
+        std::fill(best_j.begin(), best_j.end(), -1);
+    }
+    void exact_distances(const std::vector<int32_t> &pair_a, const std::vector<int32_t> &, const int32_t *,
+                         const int32_t *, const float *, std::vector<double> &out) override {
+        out.assign(pair_a.size(), 0.0);
+    }
+    void read_distances(std::vector<double> &D) override { D.clear(); }
+};
+
 class FailingDevice : public Device {
   public:
     explicit FailingDevice(const char *step) : step_(step) {}
@@ -41,10 +57,9 @@ class FailingDevice : public Device {
         for (int32_t i = 0; i < n_queries; ++i)
             best_pos[i] = 0;
     }
-    double solve_window(int32_t, int32_t, int32_t, double, const int32_t *, const int32_t *, const float *,
-                        std::vector<int64_t> &, std::vector<int32_t> &, const ExactProfileBuilder *) override {
-        fail("solve_window");
-        return 0.0;
+    std::unique_ptr<WindowKernels> window_kernels() override {
+        fail("window_kernels");
+        return std::make_unique<NoMoveKernels>();
     }
     void edge_lengths(int32_t, int32_t, int32_t count, const int32_t *, const int32_t *, int32_t, const int32_t *,
                       const int32_t *, const float *, const int32_t *, const int32_t *, const float *, double *dAB,
@@ -83,10 +98,10 @@ template <class F> std::string thrown_message(F f) {
 // A window solve that throws on one of several host threads: the search rethrows it after the parallel wave.
 TEST(Errors, WindowSolveFailureLeavesTheSearch) {
     for (int n_devices : {1, 3}) {
-        Devices devices = failing_devices(n_devices, "solve_window");
+        Devices devices = failing_devices(n_devices, "window_kernels");
         Tree tree = build_random_tree(3000, 1);
         const std::string msg = thrown_message([&] { run_minibatch_bme(tree, devices, SearchSettings()); });
-        EXPECT_EQ(msg, "injected failure in solve_window") << n_devices;
+        EXPECT_EQ(msg, "injected failure in window_kernels") << n_devices;
     }
 }
 

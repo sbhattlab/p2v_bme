@@ -399,13 +399,8 @@ template <class T> class CpuDevice final : public Device {
         }
     }
 
-    double solve_window(int32_t K, int32_t max_sweeps, int32_t max_batch_cap, double exact_check_eta,
-                        const int32_t *profile_offsets, const int32_t *profile_leaves, const float *profile_weights,
-                        std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
-                        const ExactProfileBuilder *exact_builder) override {
-        CpuWindowKernels<T> kernels(packed(), n_words_, dm_, step_threads(), ws_);
-        return solve_window_host(K, max_sweeps, max_batch_cap, exact_check_eta, profile_offsets, profile_leaves,
-                                 profile_weights, v_cf, perm, exact_builder, kernels);
+    std::unique_ptr<WindowKernels> window_kernels() override {
+        return std::make_unique<CpuWindowKernels<T>>(packed(), n_words_, dm_, step_threads(), ws_);
     }
 
     // Per internal node and kind (0: the two child subtrees, 1 and 2: each child and the rest of the tree), the

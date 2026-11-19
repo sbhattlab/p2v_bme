@@ -1305,9 +1305,9 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
     }
     // Core device-powered search through the skeleton with SPR sweeps
     // Returns the gain, and the new new skeleton in v_mb, perm_mb
-    double dL = dev.solve_window(K, max_iters, p2vbme::MOVE_BATCH_CAP, settings.exact_check_eta, profile_offsets.data(),
-                                 profile_leaves.data(), profile_weights.data(), v_mb, perm_mb,
-                                 need_exact_profiles ? &exact_builder : NULL);
+    double dL = solve_window_host(K, max_iters, p2vbme::MOVE_BATCH_CAP, settings.exact_check_eta,
+                                  profile_offsets.data(), profile_leaves.data(), profile_weights.data(), v_mb, perm_mb,
+                                  need_exact_profiles ? &exact_builder : NULL, *dev.window_kernels());
     if (dL == 0.0) {
         fruitless_hash = input_hash;
         return 0.0;

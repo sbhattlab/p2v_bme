@@ -306,8 +306,9 @@ TEST(CpuDevice, ExactCheck) {
             for (int32_t a = 0; a < K; ++a)
                 perm[a] = a;
             perm0 = perm;
-            const double dL = dev->solve_window(K, WINDOW_MAX_SWEEPS, MOVE_BATCH_CAP, 1e30, cap_off.data(),
-                                                cap_leaves.data(), cap_w.data(), v, perm, &builder);
+            const double dL =
+                solve_window_host(K, WINDOW_MAX_SWEEPS, MOVE_BATCH_CAP, 1e30, cap_off.data(), cap_leaves.data(),
+                                  cap_w.data(), v, perm, &builder, *dev->window_kernels());
             if (dL == 0.0)
                 continue;
             ++accepted;

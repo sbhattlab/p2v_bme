@@ -76,7 +76,7 @@ void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, in
 // All-pairs topological distances between the K pieces of a skeleton.
 void compute_skeleton_leaf_dists(const int64_t *v_cf, const int32_t *perm, int32_t K, std::vector<int32_t> &dist_out);
 
-// ---- The window solve (Device::solve_window), shared by the devices ----
+// ---- The window solve, shared by the devices (each gives its kernels: Device::window_kernels) ----
 
 // A skeleton of K pieces as build_skeleton_metadata describes it: rooted children c1, c2 (2K - 1 nodes), the
 // unrooted tree on 2K - 2 nodes rooted at node 2K - 3 (parent_u, sub_size, tin, adj_u) and the root's children.
@@ -110,8 +110,16 @@ class WindowKernels {
     virtual void read_distances(std::vector<double> &D) = 0;
 };
 
-// The window solve of Device::solve_window, with the device's kernels: up to max_iters sweeps of batched moves
-// (Algorithm S1), then the exact check when it applies.
+// The window solve, with a device's kernels.
+// A window is part of the tree cut into K pieces.
+// Each piece is summarised as a weighted leaf profile (CSR: profile_offsets[K + 1], profile_leaves,
+// profile_weights).
+// Its skeleton, the tree connecting the pieces, is the Phylo2Vec vector v_cf over the leaf permutation perm.
+// Runs up to max_iters sweeps of batched moves on the skeleton (Algorithm S1, batch cap max_batch_cap) to shorten its
+// BME length.
+// Updates v_cf and perm and returns the BME change (0 and the input tree if nothing improved).
+// The caller writes the new skeleton back into the full tree.
+// With exact_builder, small gains (> -exact_check_eta) are re-checked on complete profiles.
 double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, double exact_check_eta,
                          const int32_t *profile_offsets, const int32_t *profile_leaves, const float *profile_weights,
                          std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,

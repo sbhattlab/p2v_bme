@@ -2186,13 +2186,8 @@ class GpuDevice final : public Device {
         cudaFree(d_best);
     }
 
-    double solve_window(int32_t K, int32_t max_sweeps, int32_t max_batch_cap, double exact_check_eta,
-                        const int32_t *profile_offsets, const int32_t *profile_leaves, const float *profile_weights,
-                        std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
-                        const ExactProfileBuilder *exact_builder) override {
-        GpuWindowKernels kernels(ws_, packed(), n_words_, dm_);
-        return solve_window_host(K, max_sweeps, max_batch_cap, exact_check_eta, profile_offsets, profile_leaves,
-                                 profile_weights, v_cf, perm, exact_builder, kernels);
+    std::unique_ptr<WindowKernels> window_kernels() override {
+        return std::make_unique<GpuWindowKernels>(ws_, packed(), n_words_, dm_);
     }
 
     void edge_lengths(int32_t n_leaves, int32_t cap, int32_t count, const int32_t *c1, const int32_t *c2, int32_t n_int,
