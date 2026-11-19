@@ -15,6 +15,7 @@
 #include <optional>
 #include <queue>
 #include <stdexcept>
+#include <string>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -455,12 +456,37 @@ void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary
     *out_root_skel_id = -1 - last_ret;
 }
 
-// Partition all N - 1 internal nodes into connected components of size <= max_cap and schedule all leaf-bearing
-// components into ancestor-independent level waves (exposing 100% of the N original leaves, while pure internal
-// connector components with zero direct leaves are covered by the whole-tree window and the coarse windows of the
-// V-cycle).
+// Cuts the tree into components and schedules them as waves of windows.
+// A component is a connected set of internal nodes: its root and the nodes below it, down to the roots of the
+// components below.
+// For example (sizes not to scale):
+//
+//              r                A = {r, x, y}: the root's component, level 1
+//            /   \
+//           x     y
+//          / \   / \
+//         b  l1 l2  c           b, c: the roots of components B and C, level 0
+//        / \       / \
+//      ...  ...  ...  ...       B, C: the nodes below b and c, down to the next component roots
+//
+// B and C are holes in A: A's window sees each as one piece (its pieces: B, l1, l2, C).
+// l1 and l2 are A's own leaves, so A gets a window.
+// B's window sees B's nodes, with the rest of the tree as one more piece (the outgroup).
+// Components below the root have COMPONENT_MIN_NODES to max_cap internal nodes; the root's has up to max_cap + 4.
+// is_comp_root marks the component roots.
+// level_waves[k] lists the roots of the components at level k: 0 = no component below, k = one above the highest
+// component below; components of one level are never nested, so their windows can run in parallel.
+// Only components with a leaf of their own get a window; the others (connectors between components) are left to the
+// backbone and V-cycle windows.
 void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t max_cap,
                            std::vector<uint8_t> &is_comp_root, std::vector<std::vector<int32_t>> &level_waves) {
+    // The smallest component below the root, and the smallest root component (heuristics).
+    constexpr int32_t COMPONENT_MIN_NODES = 15;
+    constexpr int32_t ROOT_COMPONENT_MIN_NODES = 5;
+    // With a smaller cap, step 1 could close a component under COMPONENT_MIN_NODES.
+    if (max_cap < 2 * COMPONENT_MIN_NODES)
+        throw std::invalid_argument("build_component_waves: max_cap must be at least " +
+                                    std::to_string(2 * COMPONENT_MIN_NODES));
     const int32_t N = tree.n_leaves();
     const std::vector<int32_t> &curr_c1 = tree.c1, &curr_c2 = tree.c2;
     const int32_t n_nodes_r = 2 * N - 1;
@@ -470,46 +496,36 @@ void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t
     if (N < p2vbme::WINDOW_MIN_K)
         return;
 
-    std::vector<int32_t> rem_int(n_nodes_r, 0);
-
+    // Step 1, bottom up: comp_size[u] is the number of internal nodes in the component u tops so far (0 for a leaf).
+    // A node joins its children's components: comp_size[u] = 1 + their sizes.
+    // If that would exceed max_cap, it first closes the components below it: both children's if each has at least
+    // COMPONENT_MIN_NODES nodes, otherwise only the larger one, and the smaller joins u's component.
+    // A closed component's size stays in comp_size at its root (step 2 reads it).
+    std::vector<int32_t> comp_size(n_nodes_r, 0);
     for (int32_t idx = (int32_t)summary.order.size() - 1; idx >= 0; --idx) {
         int32_t u = summary.order[idx];
         int32_t c1 = curr_c1[u], c2 = curr_c2[u];
-        int32_t r1 = rem_int[c1], r2 = rem_int[c2];
-        const int32_t cap = max_cap;
-
-        if (r1 >= 15 && r2 >= 15 && (1 + r1 + r2 > cap)) {
-            is_comp_root[c1] = 1;
-            is_comp_root[c2] = 1;
-            r1 = 0;
-            r2 = 0;
-        } else if (1 + r1 + r2 > cap) {
-            if (r1 >= r2) {
-                if (r1 >= 5) {
-                    is_comp_root[c1] = 1;
-                    r1 = 0;
-                }
+        int32_t r1 = comp_size[c1], r2 = comp_size[c2];
+        if (1 + r1 + r2 > max_cap) {
+            if (r1 >= COMPONENT_MIN_NODES && r2 >= COMPONENT_MIN_NODES) {
+                is_comp_root[c1] = 1;
+                is_comp_root[c2] = 1;
+                r1 = 0;
+                r2 = 0;
+            } else if (r1 >= r2) {
+                is_comp_root[c1] = 1;
+                r1 = 0;
             } else {
-                if (r2 >= 5) {
-                    is_comp_root[c2] = 1;
-                    r2 = 0;
-                }
-            }
-            if (1 + r1 + r2 > max_cap) {
-                if (r1 >= 5) {
-                    is_comp_root[c1] = 1;
-                    r1 = 0;
-                }
-                if (r2 >= 5) {
-                    is_comp_root[c2] = 1;
-                    r2 = 0;
-                }
+                is_comp_root[c2] = 1;
+                r2 = 0;
             }
         }
-        rem_int[u] = 1 + r1 + r2;
+        comp_size[u] = 1 + r1 + r2;
     }
 
-    if (rem_int[root_r] < 5) {
+    // Step 2: a root component under ROOT_COMPONENT_MIN_NODES nodes absorbs the smallest component just below it
+    // (found by walking down from the root to the first component roots).
+    if (comp_size[root_r] < ROOT_COMPONENT_MIN_NODES) {
         std::vector<int32_t> st = {root_r};
         int32_t best_c = -1;
         while (!st.empty()) {
@@ -520,7 +536,7 @@ void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t
                 int32_t c = ch[k];
                 if (c >= N) {
                     if (is_comp_root[c]) {
-                        if (best_c == -1 || rem_int[c] < rem_int[best_c])
+                        if (best_c == -1 || comp_size[c] < comp_size[best_c])
                             best_c = c;
                     } else {
                         st.push_back(c);
@@ -530,11 +546,14 @@ void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t
         }
         if (best_c != -1) {
             is_comp_root[best_c] = 0;
-            rem_int[root_r] += rem_int[best_c];
+            comp_size[root_r] += comp_size[best_c];
         }
     }
     is_comp_root[root_r] = 1;
 
+    // Step 3, bottom up: the level of each component, and the leaves of its own.
+    // max_ch_lvl[u]: the highest level among the components below u's component, reached from u (-1 = none).
+    // direct_leaves[u]: the leaves below u that are in u's component (not inside a component below).
     std::vector<int32_t> comp_lvl(n_nodes_r, 0);
     std::vector<int32_t> max_ch_lvl(n_nodes_r, -1);
     std::vector<int32_t> direct_leaves(n_nodes_r, 0);
@@ -557,6 +576,7 @@ void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t
         }
     }
 
+    // Step 4: each component with a leaf of its own goes into the wave of its level.
     level_waves.resize(max_lvl + 1);
     for (int32_t idx = (int32_t)summary.order.size() - 1; idx >= 0; --idx) {
         int32_t u = summary.order[idx];
