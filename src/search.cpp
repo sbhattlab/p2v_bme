@@ -1344,9 +1344,10 @@ static void emit_stage(const SearchState &s, int32_t round, const char *stage, i
 // One window on each root (disjoint clades); stop_at_comp_root: the component roots of the waves, or NULL.
 // Several windows always take the snapshot path, whatever the number of devices, so the tree does not depend on it:
 // every window reads the tree as it was before them and writes only its own subtree; the gains are summed in root
-// order and the summary is rebuilt.
+// order.
 // They also only read s.fruitless: their fruitless inputs are added after the loop.
-// A single window runs on the first device and updates the summary of its ancestors only.
+// A single window runs on the first device.
+// The search changes the tree only here, so the summary is rebuilt here, whenever a window rewrote the tree.
 static void run_windows(SearchState &s, const std::vector<int32_t> &roots, const uint8_t *stop_at_comp_root) {
     const int32_t max_prof_leaves = s.settings.profile_cap;
     if (roots.size() > 1) {
@@ -1383,7 +1384,8 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &roots, const
         for (double dL : window_dL)
             sum_dL += dL;
         s.total_mb_delta_L += sum_dL;
-        rebuild_summary(s);
+        if (std::any_of(window_dL.begin(), window_dL.end(), [](double dL) { return dL != 0.0; }))
+            rebuild_summary(s); // a window rewrote the tree
     } else {
         std::vector<int32_t> out_leaves;
         std::vector<float> out_weights;
@@ -1400,12 +1402,9 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &roots, const
                                                      stop_at_comp_root);
             if (fruitless_hash)
                 s.fruitless.insert(*fruitless_hash);
-            if (dL != 0.0) {
+            if (dL != 0.0) { // the window rewrote the tree
                 s.total_mb_delta_L += dL;
-                for (int32_t p = s.summary.parent[sr]; p != -1; p = s.summary.parent[p]) {
-                    update_one_node_summary(p, s.tree.c1[p], s.tree.c2[p], s.summary);
-                }
-                s.summary.parent[s.root_r] = -1;
+                rebuild_summary(s);
             }
         }
     }
@@ -1416,15 +1415,7 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &roots, const
 static void run_backbone(SearchState &s, int32_t round) {
     if (round == 0 || s.tree.n_leaves() < p2vbme::BACKBONE_MIN_N)
         return;
-    const std::vector<int32_t> no_outgroup_leaves;
-    const std::vector<float> no_outgroup_weights;
-    std::optional<uint64_t> fruitless_hash;
-    s.total_mb_delta_L += run_subtree_minibatch_window(s.root_r, p2vbme::WINDOW_MAX_SWEEPS, s.settings,
-                                                       no_outgroup_leaves, no_outgroup_weights, *s.devices[0], s.tree,
-                                                       s.summary, s.fruitless, fruitless_hash, NULL);
-    if (fruitless_hash)
-        s.fruitless.insert(*fruitless_hash);
-    rebuild_summary(s);
+    run_windows(s, {s.root_r}, NULL);
     emit_stage(s, round, "backbone", 0);
 }
 
@@ -1434,12 +1425,8 @@ static void run_wave_pass(SearchState &s, int32_t round) {
     std::vector<uint8_t> is_comp_root;
     std::vector<std::vector<int32_t>> level_waves;
     build_component_waves(s.tree, s.summary, p2vbme::WAVE_COMPONENT_CAP, is_comp_root, level_waves);
-    for (size_t lvl = 0; lvl < level_waves.size(); ++lvl) {
-        run_windows(s, level_waves[lvl], is_comp_root.data());
-        // after a single window the next level needs a rebuilt summary (several windows rebuild it themselves)
-        if (level_waves[lvl].size() <= 1 && lvl + 1 < level_waves.size())
-            rebuild_summary(s);
-    }
+    for (const std::vector<int32_t> &wave : level_waves)
+        run_windows(s, wave, is_comp_root.data());
     emit_stage(s, round, "comp_waves", (int64_t)level_waves.size());
 }
 
@@ -1459,7 +1446,6 @@ static void run_vcycle(SearchState &s, int32_t round) {
     if (n_leaves > p2vbme::VCYCLE_FINEST_SCALE)
         scale_caps.push_back(p2vbme::VCYCLE_FINEST_SCALE);
     for (int32_t sc_cap : scale_caps) {
-        rebuild_summary(s);
         const int32_t min_sc =
             (sc_cap <= p2vbme::VCYCLE_BASE_SCALE) ? p2vbme::WAVE_COMPONENT_CAP : (sc_cap / p2vbme::VCYCLE_SCALE_FACTOR);
         std::vector<int32_t> mid_roots;
@@ -1524,12 +1510,10 @@ double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &set
 
         // Pass 2B: a backbone window again, then the multi-scale V-cycle
         if (n_leaves > p2vbme::WAVE_COMPONENT_CAP) {
-            rebuild_summary(s);
             run_backbone(s, round);
             run_vcycle(s, round);
         }
 
-        rebuild_summary(s);
         emit_stage(s, round, "round_end", -1, true);
         run_stats.rounds_run = round + 1;
         const double round_gain = round_start_dL - s.total_mb_delta_L; // positive = improvement
