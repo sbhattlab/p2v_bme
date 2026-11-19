@@ -906,7 +906,7 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
         for (int32_t i = 1; i < K - 1; ++i) {
             // h_best_delta[i] < eps_move_thresh: the move improves the skeleton's BME score
             // h_best_j[i] >= 0: an edge was found to regraft onto (-1 otherwise)
-            // h_best_j[i] < root_u_sk: the edge exists, i.e., isn't the roto node.
+            // h_best_j[i] < root_u_sk: the edge exists, i.e., isn't the root node.
             if (h_best_delta[i] < eps_move_thresh && h_best_j[i] >= 0 && h_best_j[i] < root_u_sk) {
                 cands.push_back({i, h_best_j[i], h_best_delta[i]});
             }
@@ -1323,7 +1323,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
             return 0.0;
     }
     // Core device-powered search through the skeleton with SPR sweeps
-    // Returns the gain, and the new new skeleton in v_mb, perm_mb
+    // Returns the gain, and the new skeleton in v_mb, perm_mb
     double dL = solve_window_host(K, max_iters, p2vbme::MOVE_BATCH_CAP, settings.exact_check_eta,
                                   profile_offsets.data(), profile_leaves.data(), profile_weights.data(), v_mb, perm_mb,
                                   need_exact_profiles ? &exact_builder : NULL, *dev.window_kernels());
@@ -1398,7 +1398,7 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots
                 std::vector<float> out_weights;
                 if (window_root != s.root_r) {
                     // Build the profile of everything outside the window's clade
-                    // so the window can include the rest of the trree as one extra piece (the outgroup).
+                    // so the window can include the rest of the tree as one extra piece (the outgroup).
                     compute_outgroup_dyadic_profile(window_root, snapshot, snapshot_summary, profile_cap, out_leaves,
                                                     out_weights);
                 }
