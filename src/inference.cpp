@@ -146,8 +146,8 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     // (rf: -1 = no reference tree, -2 = not computed at this stage).
     double t_start = 0.0, t_last = 0.0, dL_last = 0.0, round_end_dL = 0.0;
     settings.on_event = [&](const SearchEvent &e) {
-        if (e.level == 0 && e.kind == SearchEvent::Stage && e.c1) { // a round end of the main search
-            res.round_gains.push_back(round_end_dL - e.total_dL);   // positive = the tree got shorter
+        if (e.level == 0 && e.kind == SearchEvent::Stage && e.tree) { // a round end of the main search
+            res.round_gains.push_back(round_end_dL - e.total_dL);     // positive = the tree got shorter
             round_end_dL = e.total_dL;
         }
         if (!log)
@@ -168,7 +168,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
                  << " sc=" << std::setw(9) << e.detail << std::right << " dL=" << std::showpos << std::setprecision(6)
                  << std::setw(14) << e.total_dL - dL_last << std::noshowpos << std::setprecision(2)
                  << " dt=" << std::setw(8) << t - t_last << "s t=" << std::setw(9) << t - t_start
-                 << "s rf=" << (e.c1 ? -1 : -2);
+                 << "s rf=" << (e.tree ? -1 : -2);
             t_last = t;
             dL_last = e.total_dL;
         }
@@ -178,8 +178,8 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     const double t0 = wall_sec();
     if (settings.time_cap > 0.0)
         settings.deadline = t0 + settings.time_cap; // covers start tree + search
-    // Set up the start tree (sample-and-place, random, or given) in c1/c2, and time it.
-    std::vector<int32_t> c1(n_nodes), c2(n_nodes);
+    // Set up the start tree (sample-and-place, random, or given) in res.tree, and time it.
+    Tree &tree = res.tree;
     if (res.tree_init == TreeInit::Sample) {
         int32_t n0 =
             opt.sample_size > 0 ? opt.sample_size : std::min<int32_t>(START_SAMPLE_MAX, N / START_SAMPLE_DIVISOR);
@@ -189,20 +189,20 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
         SearchSettings start_settings = settings;
         if (start_settings.rounds == 0)
             start_settings.rounds = DEFAULT_MAX_ROUNDS;
-        build_sample_and_place_tree(N, n0, opt.seed, devices, c1, c2, start_settings);
+        tree = build_sample_and_place_tree(N, n0, opt.seed, devices, start_settings);
         res.sample_size_used = n0; // after the clamp
     } else if (res.tree_init == TreeInit::Random) {
-        build_random_tree(N, opt.seed, c1, c2);
+        tree = build_random_tree(N, opt.seed);
     } else {
-        c1 = start_tree->c1;
-        c2 = start_tree->c2;
+        tree.c1 = start_tree->c1; // the topology only
+        tree.c2 = start_tree->c2;
     }
     const double t1 = wall_sec();
     res.time_start = t1 - t0;
 
     SearchStats search_stats;
-    // Core of the method: the minibatch BME search, which edits c1/c2 in place.
-    res.delta_bme = run_minibatch_bme(N, devices, c1, c2, settings, 0, &search_stats);
+    // Core of the method: the minibatch BME search, which edits the tree in place.
+    res.delta_bme = run_minibatch_bme(tree, devices, settings, 0, &search_stats);
     for (auto &dev : devices)
         dev->synchronize();
     res.time_search = wall_sec() - t1;
@@ -213,13 +213,11 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     // Compute the BME branch lengths of the final tree
     if (opt.branch_lengths) {
         double prof_s = 0.0, kern_s = 0.0;
-        res.bme_length = compute_bme_branch_lengths(N, c1.data(), c2.data(), devices, res.tree.branch_lengths,
-                                                    opt.bl_profile_cap, &prof_s, &kern_s, double_precision);
-        res.tree.double_precision_lengths = double_precision;
+        res.bme_length = compute_bme_branch_lengths(tree, devices, tree.branch_lengths, opt.bl_profile_cap, &prof_s,
+                                                    &kern_s, double_precision);
+        tree.double_precision_lengths = double_precision;
         res.time_branch_lengths = prof_s + kern_s;
     }
-    res.tree.c1 = c1;
-    res.tree.c2 = c2;
     return res;
 }
 

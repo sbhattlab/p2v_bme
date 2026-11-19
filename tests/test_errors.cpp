@@ -84,29 +84,25 @@ template <class F> std::string thrown_message(F f) {
 TEST(Errors, WindowSolveFailureLeavesTheSearch) {
     for (int n_devices : {1, 3}) {
         Devices devices = failing_devices(n_devices, "solve_window");
-        std::vector<int32_t> c1, c2;
-        build_random_tree(3000, 1, c1, c2);
-        const std::string msg = thrown_message([&] { run_minibatch_bme(3000, devices, c1, c2, SearchSettings()); });
+        Tree tree = build_random_tree(3000, 1);
+        const std::string msg = thrown_message([&] { run_minibatch_bme(tree, devices, SearchSettings()); });
         EXPECT_EQ(msg, "injected failure in solve_window") << n_devices;
     }
 }
 
 TEST(Errors, NearestSampleFailureLeavesTheStartTree) {
     Devices devices = failing_devices(2, "nearest_sampled");
-    std::vector<int32_t> c1, c2;
     int32_t n0 = 20;
-    const std::string msg =
-        thrown_message([&] { build_sample_and_place_tree(200, n0, 1, devices, c1, c2, SearchSettings()); });
+    const std::string msg = thrown_message([&] { build_sample_and_place_tree(200, n0, 1, devices, SearchSettings()); });
     EXPECT_EQ(msg, "injected failure in nearest_sampled");
 }
 
 TEST(Errors, EdgeLengthFailureLeavesTheBranchLengths) {
     Devices devices = failing_devices(3, "edge_lengths");
-    std::vector<int32_t> c1, c2;
-    build_random_tree(500, 1, c1, c2);
+    const Tree tree = build_random_tree(500, 1);
     std::vector<double> bl;
-    const std::string msg = thrown_message(
-        [&] { compute_bme_branch_lengths(500, c1.data(), c2.data(), devices, bl, DEFAULT_BL_PROFILE_CAP); });
+    const std::string msg =
+        thrown_message([&] { compute_bme_branch_lengths(tree, devices, bl, DEFAULT_BL_PROFILE_CAP); });
     EXPECT_EQ(msg, "injected failure in edge_lengths");
 }
 

@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "config.hpp"
+#include "core.hpp"
 #include "device.hpp"
 #include "stop_reason.hpp"
 
@@ -24,16 +25,16 @@ namespace p2vbme {
 // nothing).
 struct SearchEvent {
     enum Kind { Start, Stage, Stop } kind = Stage;
-    int32_t level = 0;      // 0 = the main search; k >= 1 = a search inside the sample-and-place start, k levels down
-    int32_t n_leaves = 0;   // N of this search
-    int32_t round = 0;      // Stage: the outer round (the final cleanup pass has round = rounds run)
-    const char *stage = ""; // Stage: backbone, comp_waves, scale, round_end
-    int64_t detail = 0;     // Stage: waves (comp_waves), scale cap (scale), -1 (round_end), 0 (backbones)
-    double total_dL = 0.0;  // Stage: BME change of this search so far
-    const std::vector<int32_t> *c1 = NULL, *c2 = NULL; // Stage round_end: the current tree
-    int32_t n_devices = 0;                             // Start
-    int32_t rounds_planned = 0;                        // Start
-    double round_gain = 0.0, round0_gain = 0.0;        // Stop: the round's gain and round 0's; `round` stopped
+    int32_t level = 0;       // 0 = the main search; k >= 1 = a search inside the sample-and-place start, k levels down
+    int32_t n_leaves = 0;    // N of this search
+    int32_t round = 0;       // Stage: the outer round (the final cleanup pass has round = rounds run)
+    const char *stage = "";  // Stage: backbone, comp_waves, scale, round_end
+    int64_t detail = 0;      // Stage: waves (comp_waves), scale cap (scale), -1 (round_end), 0 (backbones)
+    double total_dL = 0.0;   // Stage: BME change of this search so far
+    const Tree *tree = NULL; // Stage round_end: the current tree
+    int32_t n_devices = 0;   // Start
+    int32_t rounds_planned = 0;                 // Start
+    double round_gain = 0.0, round0_gain = 0.0; // Stop: the round's gain and round 0's; `round` stopped
 };
 
 // Settings of a search.
@@ -134,25 +135,24 @@ struct TreeSummary {
     std::vector<int32_t> stand_in;   // the leaf that takes the node's weight when a capped profile collapses it
 };
 
-// The summary of the rooted tree (c1, c2) on N leaves, rebuilt in full.
+// The summary of the tree, rebuilt in full.
 // stand_in is each node's closest leaf (the c1 side on ties).
-void compute_tree_summary(const int32_t *c1_r, const int32_t *c2_r, int32_t N, TreeSummary &out);
-void extract_active_skeleton(int32_t root_r, const int32_t *c1_r, const int32_t *c2_r, int32_t N,
-                             const TreeSummary &summary, std::vector<int32_t> &super_roots,
-                             std::vector<int32_t> &split_internals, std::vector<int32_t> &skel_left,
-                             std::vector<int32_t> &skel_right, int32_t *out_root_skel_id,
-                             const uint8_t *stop_at_comp_root = nullptr);
-void build_component_waves(int32_t N, const TreeSummary &summary, const std::vector<int32_t> &curr_c1,
-                           const std::vector<int32_t> &curr_c2, int32_t max_cap, std::vector<uint8_t> &is_comp_root,
-                           std::vector<std::vector<int32_t>> &level_waves);
+void compute_tree_summary(const Tree &tree, TreeSummary &out);
+void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary &summary,
+                             std::vector<int32_t> &super_roots, std::vector<int32_t> &split_internals,
+                             std::vector<int32_t> &skel_left, std::vector<int32_t> &skel_right,
+                             int32_t *out_root_skel_id, const uint8_t *stop_at_comp_root = nullptr);
+void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t max_cap,
+                           std::vector<uint8_t> &is_comp_root, std::vector<std::vector<int32_t>> &level_waves);
 
 // ---- The search ----
 
-// Improves the rooted tree (c1, c2) in place; returns the BME change.
+// Improves the topology of the rooted tree in place; returns the BME change.
+// Its branch lengths are left as they are.
 // The devices hold the alignment of this tree's leaves.
 // level: 0 = the main search, k = a search inside the sample-and-place start, k levels down.
-double run_minibatch_bme(int32_t n_leaves, Devices &devices, std::vector<int32_t> &c1, std::vector<int32_t> &c2,
-                         const SearchSettings &settings, int32_t level = 0, SearchStats *stats = nullptr);
+double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &settings, int32_t level = 0,
+                         SearchStats *stats = nullptr);
 
 } // namespace p2vbme
 

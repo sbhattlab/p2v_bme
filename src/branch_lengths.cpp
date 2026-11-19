@@ -97,9 +97,10 @@ double assemble_lengths(int32_t N, const int32_t *h_c1, const int32_t *h_c2, con
 
 } // namespace
 
-double compute_bme_branch_lengths(int32_t N, const int32_t *h_c1, const int32_t *h_c2, Devices &devices,
-                                  std::vector<double> &h_branch_lengths, int32_t cap, double *out_profile_sec,
-                                  double *out_kernel_sec, bool double_precision) {
+double compute_bme_branch_lengths(const Tree &tree, Devices &devices, std::vector<double> &h_branch_lengths,
+                                  int32_t cap, double *out_profile_sec, double *out_kernel_sec, bool double_precision) {
+    const int32_t N = tree.n_leaves();
+    const int32_t *h_c1 = tree.c1.data(), *h_c2 = tree.c2.data();
     const int32_t n_gpus = (int32_t)devices.size();
     const double t0 = omp_get_wtime();
     const int32_t root = 2 * N - 2;

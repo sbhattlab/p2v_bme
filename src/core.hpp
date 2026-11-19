@@ -36,6 +36,9 @@ struct Tree {
     std::vector<int32_t> c1, c2;
     std::vector<double> branch_lengths;
     bool double_precision_lengths = false;
+
+    // N, from the 2N - 1 nodes.
+    int32_t n_leaves() const { return ((int32_t)c1.size() + 1) / 2; }
 };
 
 // Packs one aligned sequence into its 5 bitplanes of n_words words each (A, C, G, T or U, observed), from out on;

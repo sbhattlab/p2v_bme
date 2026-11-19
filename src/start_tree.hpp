@@ -2,10 +2,7 @@
  * start_tree.hpp
  *
  * Start trees of the search: sample-and-place (from the sequences) and random.
- * Both functions write the tree into their two output vectors (resized and overwritten), in the layout of Tree::c1
- * and Tree::c2 (core.hpp), with children before parents (c1[u], c2[u] < u).
- * They do not return a Tree: the search (run_minibatch_bme) edits the two vectors in place, so infer() keeps
- * them through the start tree and the search, and puts them into Result::tree at the end.
+ * Both functions return a Tree (core.hpp) without branch lengths, with children before parents (c1[u], c2[u] < u).
  */
 #ifndef P2VBME_START_TREE_HPP
 #define P2VBME_START_TREE_HPP
@@ -22,7 +19,7 @@ namespace p2vbme {
 // Random rooted binary tree on n_leaves leaves, post-order (c1[u] < u, c2[u] < u): v_i ~ U{0..i} plus a random leaf
 // permutation.
 // This is the Yule-Harding (ranked-uniform) distribution, NOT uniform over topologies.
-void build_random_tree(int32_t n_leaves, uint64_t seed, std::vector<int32_t> &c1, std::vector<int32_t> &c2);
+Tree build_random_tree(int32_t n_leaves, uint64_t seed);
 
 // Sample-and-place start tree (branch diag-scaling)
 //   1. pick n0_leaves sequences at random (n0_leaves clamped to [START_SAMPLE_MIN, n_leaves / 2])
@@ -35,9 +32,8 @@ void build_random_tree(int32_t n_leaves, uint64_t seed, std::vector<int32_t> &c1
 // Uses only the sequences: no information from the true tree.
 // Needs n_leaves >= START_SAMPLE_MIN_N (below it, infer() uses the random start instead).
 // n0_leaves: in, the sample size asked for; out, the size used (after the clamp of step 1).
-void build_sample_and_place_tree(int32_t n_leaves, int32_t &n0_leaves, uint64_t seed, Devices &devices,
-                                 std::vector<int32_t> &c1, std::vector<int32_t> &c2, const SearchSettings &settings,
-                                 int32_t level = 0);
+Tree build_sample_and_place_tree(int32_t n_leaves, int32_t &n0_leaves, uint64_t seed, Devices &devices,
+                                 const SearchSettings &settings, int32_t level = 0);
 
 } // namespace p2vbme
 

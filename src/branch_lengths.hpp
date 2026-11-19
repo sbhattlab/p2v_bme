@@ -11,6 +11,7 @@
 
 #include <vector>
 
+#include "core.hpp"
 #include "device.hpp"
 
 namespace p2vbme {
@@ -20,9 +21,9 @@ namespace p2vbme {
 // Returns their sum.
 // The lengths are computed in single precision (float values) or, with double_precision (the CPU device's --precision
 // double), in double.
-double compute_bme_branch_lengths(int32_t N, const int32_t *h_c1, const int32_t *h_c2, Devices &devices,
-                                  std::vector<double> &h_branch_lengths, int32_t cap, double *out_profile_sec = nullptr,
-                                  double *out_kernel_sec = nullptr, bool double_precision = false);
+double compute_bme_branch_lengths(const Tree &tree, Devices &devices, std::vector<double> &h_branch_lengths,
+                                  int32_t cap, double *out_profile_sec = nullptr, double *out_kernel_sec = nullptr,
+                                  bool double_precision = false);
 
 } // namespace p2vbme
 

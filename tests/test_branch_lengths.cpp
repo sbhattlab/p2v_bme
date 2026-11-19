@@ -137,8 +137,8 @@ void run_all(Devices &devices, bool double_precision, const char *what) {
                 double direct = 0.0;
                 const std::vector<double> exact = exact_lengths(c.tree, N, c.D, &direct);
                 std::vector<double> bl;
-                const double total = compute_bme_branch_lengths(N, c.tree.c1.data(), c.tree.c2.data(), devices, bl,
-                                                                PROFILE_CAP_MAX, nullptr, nullptr, double_precision);
+                const double total = compute_bme_branch_lengths(c.tree, devices, bl, PROFILE_CAP_MAX, nullptr, nullptr,
+                                                                double_precision);
                 double sum_exact = 0.0, sum_bl = 0.0;
                 for (double x : exact)
                     sum_exact += x;
@@ -164,8 +164,7 @@ void run_all(Devices &devices, bool double_precision, const char *what) {
                 std::vector<double> bl, exact;
                 double direct = 0.0;
                 exact = exact_lengths(c.tree, N, c.D, &direct);
-                compute_bme_branch_lengths(N, c.tree.c1.data(), c.tree.c2.data(), devices, bl, 32, nullptr, nullptr,
-                                           double_precision);
+                compute_bme_branch_lengths(c.tree, devices, bl, 32, nullptr, nullptr, double_precision);
                 double max_err = 0.0, mean = 0.0;
                 const int32_t r_right = c.tree.c2[2 * N - 2];
                 for (int32_t u = 0; u < 2 * N - 2; ++u)
