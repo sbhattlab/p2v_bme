@@ -193,6 +193,8 @@ static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tre
             DirectedStackEntry top = st.back();
             st.pop_back();
             const int32_t node = top.node;
+            // n0, n1: node's two children
+            // n2: neighbour above
             int32_t n0 = c1_r[node];
             int32_t n1 = c2_r[node];
             int32_t n2 = up_neighbour(node, tree, summary);
@@ -236,6 +238,8 @@ static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tre
         DirectedWeightedNode top = pq.top();
         pq.pop();
         const int32_t node = top.node;
+        // n0, n1: node's two children
+        // n2: neighbour above
         int32_t n0 = c1_r[node];
         int32_t n1 = c2_r[node];
         int32_t n2 = up_neighbour(node, tree, summary);
@@ -1406,14 +1410,22 @@ static void run_wave_pass(SearchState &s, int32_t round) {
 static void run_vcycle(SearchState &s, int32_t round) {
     const int32_t n_leaves = s.tree.n_leaves();
     std::vector<int32_t> max_clade_sizes;
+    // Find the largest clade sizes of the V-cycle's windows at each step
+    // Ex. for N = 100,000: 4,096, 16,384, 65,536, 100,000, 25,000, 6,250, 3,200.
+    // up from VCYCLE_BASE_SCALE by VCYCLE_SCALE_FACTOR while below n_leaves
     for (int32_t sc = p2vbme::VCYCLE_BASE_SCALE; sc < n_leaves; sc *= p2vbme::VCYCLE_SCALE_FACTOR)
         max_clade_sizes.push_back(sc);
+    // Then n_leaves
     max_clade_sizes.push_back(n_leaves);
+    // Down from n_leaves / VCYCLE_SCALE_FACTOR by VCYCLE_SCALE_FACTOR while above VCYCLE_FINEST_SCALE
     for (int32_t sc = n_leaves / p2vbme::VCYCLE_SCALE_FACTOR; sc > p2vbme::VCYCLE_FINEST_SCALE;
          sc /= p2vbme::VCYCLE_SCALE_FACTOR)
         max_clade_sizes.push_back(sc);
+    // Then VCYCLE_FINEST_SCALE, if the tree has more leaves
     if (n_leaves > p2vbme::VCYCLE_FINEST_SCALE)
         max_clade_sizes.push_back(p2vbme::VCYCLE_FINEST_SCALE);
+
+    // Main loop
     for (int32_t max_clade_size : max_clade_sizes) {
         // The floor: smaller clades are left to the waves (steps up to 4,096) or to a smaller step.
         const int32_t min_clade_size = (max_clade_size <= p2vbme::VCYCLE_BASE_SCALE)
@@ -1470,6 +1482,7 @@ double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &set
     }
     run_stats.rounds_planned = n_rounds;
     run_stats.rounds_run = 0;
+    // Main loop
     for (int round = 0; round < n_rounds; ++round) {
         round_start_dL = s.total_mb_delta_L;
 
