@@ -113,12 +113,12 @@ void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t
 }
 
 void compute_tree_summary(const Tree &tree, TreeSummary &out) {
-    const int32_t N = tree.n_leaves();
+    const int32_t n_leaves = tree.n_leaves();
     const int32_t *c1_r = tree.c1.data(), *c2_r = tree.c2.data();
-    const int32_t n_nodes_r = 2 * N - 1;
+    const int32_t n_nodes_r = 2 * n_leaves - 1;
     const int32_t root_r = n_nodes_r - 1;
 
-    out.order.resize(N - 1);
+    out.order.resize(n_leaves - 1);
     out.parent.assign(n_nodes_r, -1);
     int32_t ord_len = 0;
     out.order[ord_len++] = root_r;
@@ -127,16 +127,16 @@ void compute_tree_summary(const Tree &tree, TreeSummary &out) {
         int32_t b0 = c1_r[u], b1 = c2_r[u];
         out.parent[b0] = u;
         out.parent[b1] = u;
-        if (b0 >= N)
+        if (b0 >= n_leaves)
             out.order[ord_len++] = b0;
-        if (b1 >= N)
+        if (b1 >= n_leaves)
             out.order[ord_len++] = b1;
     }
 
     out.leaf_count.assign(n_nodes_r, 1);
     out.stand_in.resize(n_nodes_r);
     std::vector<int32_t> min_depth(n_nodes_r, 0);
-    for (int32_t x = 0; x < N; ++x) {
+    for (int32_t x = 0; x < n_leaves; ++x) {
         out.stand_in[x] = x;
     }
     for (int32_t idx = ord_len - 1; idx >= 0; --idx) {
@@ -299,9 +299,9 @@ void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary
                              std::vector<int32_t> &super_roots, std::vector<int32_t> &split_internals,
                              std::vector<int32_t> &skel_left, std::vector<int32_t> &skel_right,
                              int32_t *out_root_skel_id, const uint8_t *stop_at_comp_root) {
-    const int32_t N = tree.n_leaves();
+    const int32_t n_leaves = tree.n_leaves();
     const int32_t *c1_r = tree.c1.data(), *c2_r = tree.c2.data();
-    if (root_r < N) {
+    if (root_r < n_leaves) {
         super_roots.push_back(root_r);
         *out_root_skel_id = -1;
         return;
@@ -329,7 +329,7 @@ void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary
     exp_nodes.push_back({root_r, -1, -1});
 
     auto is_eligible = [&](int32_t w) -> bool {
-        if (w < N)
+        if (w < n_leaves)
             return false;
         if (stop_at_comp_root && stop_at_comp_root[w])
             return false;
@@ -436,13 +436,13 @@ void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t
     if (max_cap < 2 * COMPONENT_MIN_NODES)
         throw std::invalid_argument("build_component_waves: max_cap must be at least " +
                                     std::to_string(2 * COMPONENT_MIN_NODES));
-    const int32_t N = tree.n_leaves();
+    const int32_t n_leaves = tree.n_leaves();
     const std::vector<int32_t> &curr_c1 = tree.c1, &curr_c2 = tree.c2;
-    const int32_t n_nodes_r = 2 * N - 1;
+    const int32_t n_nodes_r = 2 * n_leaves - 1;
     const int32_t root_r = n_nodes_r - 1;
     is_comp_root.assign(n_nodes_r, 0);
     waves.clear();
-    if (N < p2vbme::WINDOW_MIN_K)
+    if (n_leaves < p2vbme::WINDOW_MIN_K)
         return;
 
     // Step 1, bottom up: comp_size[u] is the number of internal nodes in the component u tops so far (0 for a leaf).
@@ -483,7 +483,7 @@ void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t
             int32_t ch[2] = {curr_c1[u], curr_c2[u]};
             for (int k = 0; k < 2; ++k) {
                 int32_t c = ch[k];
-                if (c >= N) {
+                if (c >= n_leaves) {
                     if (is_comp_root[c]) {
                         if (best_c == -1 || comp_size[c] < comp_size[best_c])
                             best_c = c;
@@ -506,16 +506,16 @@ void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t
     std::vector<int32_t> comp_lvl(n_nodes_r, 0);
     std::vector<int32_t> max_ch_lvl(n_nodes_r, -1);
     std::vector<int32_t> direct_leaves(n_nodes_r, 0);
-    for (int32_t x = 0; x < N; ++x)
+    for (int32_t x = 0; x < n_leaves; ++x)
         direct_leaves[x] = 1;
     int32_t max_lvl = 0;
     for (int32_t idx = (int32_t)summary.order.size() - 1; idx >= 0; --idx) {
         int32_t u = summary.order[idx];
         int32_t c1 = curr_c1[u], c2 = curr_c2[u];
-        int32_t l1 = (c1 >= N && is_comp_root[c1]) ? (comp_lvl[c1] + 1) : max_ch_lvl[c1];
-        int32_t l2 = (c2 >= N && is_comp_root[c2]) ? (comp_lvl[c2] + 1) : max_ch_lvl[c2];
-        int32_t dl1 = (c1 >= N && is_comp_root[c1]) ? 0 : direct_leaves[c1];
-        int32_t dl2 = (c2 >= N && is_comp_root[c2]) ? 0 : direct_leaves[c2];
+        int32_t l1 = (c1 >= n_leaves && is_comp_root[c1]) ? (comp_lvl[c1] + 1) : max_ch_lvl[c1];
+        int32_t l2 = (c2 >= n_leaves && is_comp_root[c2]) ? (comp_lvl[c2] + 1) : max_ch_lvl[c2];
+        int32_t dl1 = (c1 >= n_leaves && is_comp_root[c1]) ? 0 : direct_leaves[c1];
+        int32_t dl2 = (c2 >= n_leaves && is_comp_root[c2]) ? 0 : direct_leaves[c2];
         direct_leaves[u] = dl1 + dl2;
         max_ch_lvl[u] = std::max(l1, l2);
         if (is_comp_root[u]) {
@@ -1045,9 +1045,9 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t max_iters, 
                                            std::optional<uint64_t> &fruitless_hash,
                                            const uint8_t *stop_at_comp_root = NULL, const Tree *snapshot = NULL,
                                            const TreeSummary *snapshot_summary = NULL) {
-    const int32_t N = tree.n_leaves();
+    const int32_t n_leaves = tree.n_leaves();
     std::vector<int32_t> &curr_c1 = tree.c1, &curr_c2 = tree.c2;
-    const int32_t root_r = 2 * N - 2;
+    const int32_t root_r = 2 * n_leaves - 2;
     const int32_t max_prof_leaves = settings.profile_cap;
     std::vector<int32_t> super_roots, split_internals, skel_left, skel_right;
     int32_t root_skel_id = -1;
@@ -1092,7 +1092,7 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t max_iters, 
         }
     }
     prof_offsets[K_in] = (int32_t)prof_leaves.size();
-    int32_t outgroup_true_leaves = N - summary.leaf_count[sub_root];
+    int32_t outgroup_true_leaves = n_leaves - summary.leaf_count[sub_root];
     if (has_outgroup) {
         prof_leaves.insert(prof_leaves.end(), outgroup_leaves.begin(), outgroup_leaves.end());
         prof_weights.insert(prof_weights.end(), outgroup_weights.begin(), outgroup_weights.end());
@@ -1105,11 +1105,11 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t max_iters, 
     std::vector<int32_t> exact_prof_offsets, exact_prof_leaves;
     std::vector<float> exact_prof_weights;
     auto build_exact_prof = [&]() {
-        const bool cap_exact = N >= p2vbme::EXACT_PROFILE_CAP_MIN_N;
+        const bool cap_exact = n_leaves >= p2vbme::EXACT_PROFILE_CAP_MIN_N;
         const int32_t exact_cap = cap_exact ? p2vbme::EXACT_PROFILE_CAP : -1;
         exact_prof_offsets.resize(K + 1, 0);
-        exact_prof_leaves.reserve(cap_exact ? (size_t)(K * 256) : (size_t)N);
-        exact_prof_weights.reserve(cap_exact ? (size_t)(K * 256) : (size_t)N);
+        exact_prof_leaves.reserve(cap_exact ? (size_t)(K * 256) : (size_t)n_leaves);
+        exact_prof_weights.reserve(cap_exact ? (size_t)(K * 256) : (size_t)n_leaves);
         for (int32_t a = 0; a < K_in; ++a) {
             exact_prof_offsets[a] = (int32_t)exact_prof_leaves.size();
             if (max_prof_leaves <= 0 || summary.leaf_count[super_roots[a]] <= max_prof_leaves) {
@@ -1191,9 +1191,9 @@ static double run_subtree_minibatch_window(int32_t sub_root, int32_t max_iters, 
         for (int32_t u = K; u < root_u_sk; ++u)
             w_sub[u] = w_sub[c1_cf[u]] + w_sub[c2_cf[u]];
         u_best = 0;
-        int32_t best_diff = std::abs(2 * w_sub[0] - N);
+        int32_t best_diff = std::abs(2 * w_sub[0] - n_leaves);
         for (int32_t u = 1; u < root_u_sk; ++u) {
-            int32_t diff = std::abs(2 * w_sub[u] - N);
+            int32_t diff = std::abs(2 * w_sub[u] - n_leaves);
             if (diff < best_diff) {
                 best_diff = diff;
                 u_best = u;
