@@ -34,8 +34,7 @@
 namespace p2vbme {
 
 void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t> &c1_cf, std::vector<int32_t> &c2_cf,
-                             std::vector<int32_t> &v_map_cf, std::vector<int32_t> &m_lmin_cf,
-                             std::vector<int32_t> &next_k_cf, std::vector<int32_t> &parent_u_cf,
+                             std::vector<int32_t> &v_map_cf, std::vector<int32_t> &parent_u_cf,
                              std::vector<int32_t> &sub_sz_cf, std::vector<int32_t> &tin_cf,
                              std::vector<int32_t> &adj_u_cf, int32_t *out_other_rc, int32_t *out_rc0, int32_t *out_rc1,
                              int32_t *out_rc2) {
@@ -46,14 +45,12 @@ void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t
     c1_cf.assign(R_sk, 0);
     c2_cf.assign(R_sk, 0);
     v_map_cf.assign(K, 0);
-    m_lmin_cf.assign(K, 0);
-    next_k_cf.assign(K, 0);
     parent_u_cf.assign(M_sk, -1);
     sub_sz_cf.assign(M_sk, 1);
     tin_cf.assign(M_sk, 0);
     adj_u_cf.assign(3 * M_sk, -1);
 
-    std::vector<int32_t> scratch_uf(R_sk), last_seen(K, K);
+    std::vector<int32_t> scratch_uf(R_sk);
     for (int32_t x = 0; x < K; ++x)
         scratch_uf[x] = x;
 
@@ -65,14 +62,8 @@ void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t
         int32_t b0 = scratch_uf[y], b1 = scratch_uf[x];
         c1_cf[m] = b0;
         c2_cf[m] = b1;
-        m_lmin_cf[k] = x;
         v_map_cf[y] = b0;
         scratch_uf[x] = m;
-    }
-    for (int32_t k = K - 3; k >= 0; --k) {
-        int32_t lmin = m_lmin_cf[k];
-        next_k_cf[k] = last_seen[lmin];
-        last_seen[lmin] = k;
     }
     int32_t rc1 = c1_cf[R_sk - 1], rc2 = c2_cf[R_sk - 1];
     int32_t other_rc = (rc1 < rc2) ? rc1 : rc2;
@@ -764,8 +755,8 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
     bool batch_pending = false;            // a batch was applied in the previous sweep and is checked now
 
     for (int32_t iter = 0; iter <= max_iters; ++iter) {
-        build_skeleton_metadata(v_cf.data(), K, sk.c1, sk.c2, sk.v_map, sk.m_lmin, sk.next_k, sk.parent_u, sk.sub_size,
-                                sk.tin, sk.adj_u, &sk.other_rc, &sk.rc0, &sk.rc1, &sk.rc2);
+        build_skeleton_metadata(v_cf.data(), K, sk.c1, sk.c2, sk.v_map, sk.parent_u, sk.sub_size, sk.tin, sk.adj_u,
+                                &sk.other_rc, &sk.rc0, &sk.rc1, &sk.rc2);
         const int32_t other_rc = sk.other_rc;
         std::vector<int32_t> &v_map_cf = sk.v_map, &parent_u_cf = sk.parent_u, &sub_size_cf = sk.sub_size;
         std::vector<int32_t> &tin_cf = sk.tin, &adj_u_cf = sk.adj_u;
@@ -1186,10 +1177,10 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
         return 0.0;
     }
 
-    std::vector<int32_t> c1_cf, c2_cf, v_map_cf, m_lmin_cf, next_k_cf, parent_u_cf, sub_sz_cf, tin_cf, adj_u_cf;
+    std::vector<int32_t> c1_cf, c2_cf, v_map_cf, parent_u_cf, sub_sz_cf, tin_cf, adj_u_cf;
     int32_t other_rc, rc0, rc1, rc2;
-    build_skeleton_metadata(v_mb.data(), K, c1_cf, c2_cf, v_map_cf, m_lmin_cf, next_k_cf, parent_u_cf, sub_sz_cf,
-                            tin_cf, adj_u_cf, &other_rc, &rc0, &rc1, &rc2);
+    build_skeleton_metadata(v_mb.data(), K, c1_cf, c2_cf, v_map_cf, parent_u_cf, sub_sz_cf, tin_cf, adj_u_cf, &other_rc,
+                            &rc0, &rc1, &rc2);
 
     // Root the optimized skeleton and orient it away from the root.
     // A subtree window keeps its place: the root is the node where the outgroup attaches, and the outgroup is dropped.

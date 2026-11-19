@@ -371,8 +371,8 @@ TEST(CpuDevice, MoveScoresAreExactBmeChanges) {
             queue_shuffle_rooted(start.c1.data(), start.c2.data(), K, 0, v.data(), perm.data());
             auto meta = [&](const std::vector<int64_t> &vv) {
                 SkeletonMeta s;
-                build_skeleton_metadata(vv.data(), K, s.c1, s.c2, s.v_map, s.m_lmin, s.next_k, s.parent_u, s.sub_size,
-                                        s.tin, s.adj_u, &s.other_rc, &s.rc0, &s.rc1, &s.rc2);
+                build_skeleton_metadata(vv.data(), K, s.c1, s.c2, s.v_map, s.parent_u, s.sub_size, s.tin, s.adj_u,
+                                        &s.other_rc, &s.rc0, &s.rc1, &s.rc2);
                 return s;
             };
             const SkeletonMeta s = meta(v);
@@ -451,8 +451,8 @@ TEST(CpuDevice, MoveTiesGoToTheSmallestEdge) {
         std::vector<int32_t> perm(K);
         queue_shuffle_rooted(start.c1.data(), start.c2.data(), K, 0, v.data(), perm.data());
         SkeletonMeta s;
-        build_skeleton_metadata(v.data(), K, s.c1, s.c2, s.v_map, s.m_lmin, s.next_k, s.parent_u, s.sub_size, s.tin,
-                                s.adj_u, &s.other_rc, &s.rc0, &s.rc1, &s.rc2);
+        build_skeleton_metadata(v.data(), K, s.c1, s.c2, s.v_map, s.parent_u, s.sub_size, s.tin, s.adj_u, &s.other_rc,
+                                &s.rc0, &s.rc1, &s.rc2);
         kern->score(s, perm);
         std::vector<double> best_delta;
         std::vector<int32_t> best_j;

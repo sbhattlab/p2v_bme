@@ -1189,8 +1189,7 @@ __device__ __forceinline__ void dev_run_parallel_spr_dfs(
 __global__ void k_spr_rows_top1(int32_t r_start, int32_t n_leaves, int32_t n_nodes_u, int32_t other_root_child,
                                 const int64_t *__restrict__ v_curr, const int32_t *__restrict__ v_map,
                                 const int32_t *__restrict__ adj_u, const int32_t *__restrict__ parent_u,
-                                const int32_t *__restrict__ sub_size, const int32_t *__restrict__ m_lmin,
-                                const int32_t *__restrict__ next_k_same_lmin, const float *__restrict__ subdist,
+                                const int32_t *__restrict__ sub_size, const float *__restrict__ subdist,
                                 const float *__restrict__ nd_u, float *__restrict__ row_tmp_pool,
                                 float *__restrict__ best_delta_out, int32_t *__restrict__ best_j_out) {
     extern __shared__ float s_edge_delta_top1_buf[];
@@ -1204,8 +1203,6 @@ __global__ void k_spr_rows_top1(int32_t r_start, int32_t n_leaves, int32_t n_nod
     float *edge_delta = s_edge_delta_top1_buf;
     (void)row_tmp_pool;
     (void)v_curr;
-    (void)m_lmin;
-    (void)next_k_same_lmin;
 
     int32_t tree_root = v_map[v_index];
     int32_t parent = (tree_root == root_u) ? other_root_child : parent_u[tree_root];
@@ -1624,8 +1621,6 @@ struct RnaSimGpuWorkspace {
     int32_t *d_c1_r = NULL;
     int32_t *d_c2_r = NULL;
     int32_t *d_v_map = NULL;
-    int32_t *d_m_lmin = NULL;
-    int32_t *d_next_k = NULL;
     int32_t *d_parent_u = NULL;
     int32_t *d_sub_size = NULL;
     int32_t *d_tin = NULL;
@@ -1674,8 +1669,6 @@ struct RnaSimGpuWorkspace {
         gpu_alloc(&d_c1_r, (size_t)R * sizeof(int32_t));
         gpu_alloc(&d_c2_r, (size_t)R * sizeof(int32_t));
         gpu_alloc(&d_v_map, (size_t)K_cap * sizeof(int32_t));
-        gpu_alloc(&d_m_lmin, (size_t)K_cap * sizeof(int32_t));
-        gpu_alloc(&d_next_k, (size_t)K_cap * sizeof(int32_t));
         gpu_alloc(&d_parent_u, (size_t)M * sizeof(int32_t));
         gpu_alloc(&d_sub_size, (size_t)M * sizeof(int32_t));
         gpu_alloc(&d_tin, (size_t)M * sizeof(int32_t));
@@ -1751,8 +1744,6 @@ struct RnaSimGpuWorkspace {
         cudaFree(d_c1_r);
         cudaFree(d_c2_r);
         cudaFree(d_v_map);
-        cudaFree(d_m_lmin);
-        cudaFree(d_next_k);
         cudaFree(d_parent_u);
         cudaFree(d_sub_size);
         cudaFree(d_tin);
@@ -1896,8 +1887,7 @@ class GpuWindowKernels final : public WindowKernels {
                                                                         K, M_sk, root_u_sk);
         k_spr_rows_top1<<<K - 2, 128, (size_t)M_sk * sizeof(float), gpu_ws.stream>>>(
             2, K, M_sk, other_rc, gpu_ws.d_v_curr, gpu_ws.d_v_map, gpu_ws.d_adj_u, gpu_ws.d_parent_u, gpu_ws.d_sub_size,
-            gpu_ws.d_m_lmin, gpu_ws.d_next_k, gpu_ws.d_subdist, gpu_ws.d_nd_u, gpu_ws.d_row_scratch,
-            gpu_ws.d_best_delta, gpu_ws.d_best_j);
+            gpu_ws.d_subdist, gpu_ws.d_nd_u, gpu_ws.d_row_scratch, gpu_ws.d_best_delta, gpu_ws.d_best_j);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaMemcpyAsync(h_best_delta.data(), gpu_ws.d_best_delta, (size_t)K * sizeof(float),
                                    cudaMemcpyDeviceToHost, gpu_ws.stream));

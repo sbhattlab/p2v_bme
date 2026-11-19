@@ -66,8 +66,7 @@ struct SearchStats {
 // ---- Skeleton of a window (shared with the devices' window solve) ----
 
 void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t> &c1_cf, std::vector<int32_t> &c2_cf,
-                             std::vector<int32_t> &v_map_cf, std::vector<int32_t> &m_lmin_cf,
-                             std::vector<int32_t> &next_k_cf, std::vector<int32_t> &parent_u_cf,
+                             std::vector<int32_t> &v_map_cf, std::vector<int32_t> &parent_u_cf,
                              std::vector<int32_t> &sub_sz_cf, std::vector<int32_t> &tin_cf,
                              std::vector<int32_t> &adj_u_cf, int32_t *out_other_rc, int32_t *out_rc0, int32_t *out_rc1,
                              int32_t *out_rc2);
@@ -82,7 +81,7 @@ void compute_skeleton_leaf_dists(const int64_t *v_cf, const int32_t *perm, int32
 // A skeleton of K pieces as build_skeleton_metadata describes it: rooted children c1, c2 (2K - 1 nodes), the
 // unrooted tree on 2K - 2 nodes rooted at node 2K - 3 (parent_u, sub_size, tin, adj_u) and the root's children.
 struct SkeletonMeta {
-    std::vector<int32_t> c1, c2, v_map, m_lmin, next_k, parent_u, sub_size, tin, adj_u;
+    std::vector<int32_t> c1, c2, v_map, parent_u, sub_size, tin, adj_u;
     int32_t other_rc = -1;
     int32_t rc0 = -1;
     int32_t rc1 = -1;
