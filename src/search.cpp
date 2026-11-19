@@ -1429,8 +1429,8 @@ static void run_backbone(SearchState &s, int32_t round) {
 }
 
 // One pass of the leaf-covering component waves (every leaf is in one window; K <= 1,056).
-// Returns the number of wave levels.
-static int64_t run_wave_pass(SearchState &s) {
+// Its progress event gives the number of wave levels.
+static void run_wave_pass(SearchState &s, int32_t round) {
     std::vector<uint8_t> is_comp_root;
     std::vector<std::vector<int32_t>> level_waves;
     build_component_waves(s.tree, s.summary, p2vbme::WAVE_COMPONENT_CAP, is_comp_root, level_waves);
@@ -1440,7 +1440,7 @@ static int64_t run_wave_pass(SearchState &s) {
         if (level_waves[lvl].size() <= 1 && lvl + 1 < level_waves.size())
             rebuild_summary(s);
     }
-    return (int64_t)level_waves.size();
+    emit_stage(s, round, "comp_waves", (int64_t)level_waves.size());
 }
 
 // The multi-scale V-cycle: Full Bottom-Up elevator + Global Backbone + Top-Down cascade.
@@ -1520,8 +1520,7 @@ double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &set
         run_backbone(s, round);
 
         // Pass 2A: the leaf-covering component waves
-        const int64_t n_wave_levels = run_wave_pass(s);
-        emit_stage(s, round, "comp_waves", n_wave_levels);
+        run_wave_pass(s, round);
 
         // Pass 2B: a backbone window again, then the multi-scale V-cycle
         if (n_leaves > p2vbme::WAVE_COMPONENT_CAP) {
@@ -1565,8 +1564,7 @@ double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &set
     // Final cleanup pass (N > WAVE_COMPONENT_CAP): the component waves once more, after the last round.
     if (n_leaves > p2vbme::WAVE_COMPONENT_CAP) {
         const int32_t round = run_stats.rounds_run;
-        const int64_t n_wave_levels = run_wave_pass(s);
-        emit_stage(s, round, "comp_waves", n_wave_levels);
+        run_wave_pass(s, round);
         emit_stage(s, round, "round_end", -1, true);
     }
     return s.total_mb_delta_L;
