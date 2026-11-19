@@ -830,74 +830,42 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
         std::sort(cands.begin(), cands.end(),
                   [](const CandidateMove &a, const CandidateMove &b) { return a.dL < b.dL; });
 
-        // Step 6: apply a batch of moves to the unrooted skeleton (adj_u).
+        // Step 6: apply a batch of at most cur_batch_cap moves to the unrooted skeleton (adj_u).
         // Going down the candidates, best first, a move joins the batch if its path (from the pruned subtree to the
-        // regraft edge) shares no node with the moves already in it; at most cur_batch_cap moves.
-        std::vector<uint8_t> tin_busy(M_sk, 0);
+        // regraft edge) shares no node with the moves already in it (Algorithm S1, line 10).
+        // The paths are read on the skeleton before the batch (parent_u, tin, sub_size), while the moves rewire adj_u
+        // one after another.
+        // x is under y in the skeleton hung from root_u_sk (or is y)
+        auto under = [&](int32_t x, int32_t y) {
+            return tin_cf[y] <= tin_cf[x] && tin_cf[x] < tin_cf[y] + sub_size_cf[y];
+        };
+        std::vector<uint8_t> in_batch(M_sk, 0); // the nodes on the paths of the moves in the batch
+        std::vector<int32_t> path;              // the nodes on the path of the move considered
         int32_t n_applied = 0;
-        std::vector<int32_t> mark_tins;
-        mark_tins.reserve(256);
-        const int32_t eff_batch_cap = cur_batch_cap;
-
-        for (const auto &mc : cands) {
-            int32_t i = mc.i, dst_u = mc.j;
-            int32_t tr = v_map_cf[i + 1];
-            int32_t pr = (tr == root_u_sk) ? other_rc : parent_u_cf[tr];
-            if (pr == root_u_sk || dst_u < 0 || dst_u >= root_u_sk)
+        for (const CandidateMove &mc : cands) {
+            // The move: prune the subtree under tr together with its attachment node pr, and regraft pr into the edge
+            // between dst_u and its parent dst_v (dst_u < root_u_sk from step 5, so dst_v exists).
+            const int32_t tr = v_map_cf[mc.i + 1];
+            const int32_t pr = (tr == root_u_sk) ? other_rc : parent_u_cf[tr];
+            const int32_t dst_u = mc.j, dst_v = parent_u_cf[dst_u];
+            // Left out: moves next to the hanging root, and regraft edges inside the pruned subtree.
+            if (pr == root_u_sk || dst_v == root_u_sk || under(dst_u, tr))
                 continue;
-            int32_t dst_v = parent_u_cf[dst_u];
-            if (dst_v < 0 || dst_v == root_u_sk)
+            // Its path: tr and dst_v, pr up to the lowest common ancestor with dst_u, and dst_u up to that ancestor.
+            path.assign({tr, dst_v});
+            int32_t lca = pr;
+            for (; !under(dst_u, lca); lca = parent_u_cf[lca])
+                path.push_back(lca);
+            for (int32_t x = dst_u; x != lca; x = parent_u_cf[x])
+                path.push_back(x);
+            path.push_back(lca);
+            // Skip it if its path meets a move already in the batch; otherwise mark the path and apply the move.
+            if (std::any_of(path.begin(), path.end(), [&](int32_t x) { return in_batch[x] != 0; }))
                 continue;
-
-            int32_t t0 = tin_cf[tr], t1 = t0 + sub_size_cf[tr];
-            if (t0 <= tin_cf[dst_u] && tin_cf[dst_u] < t1)
-                continue;
-            if (t0 <= tin_cf[pr] && tin_cf[pr] < t1)
-                continue;
-
-            mark_tins.clear();
-            bool conflict = false;
-            {
-                // the move's prune and regraft paths must be node-disjoint from every move already in the batch
-                // (Algorithm S1, line 10)
-                mark_tins.push_back(tin_cf[tr]);
-                mark_tins.push_back(tin_cf[dst_v]);
-                int32_t u_anc = pr;
-                int32_t t_dst = tin_cf[dst_u];
-                int32_t hops = 0;
-                while (u_anc != -1 && !(tin_cf[u_anc] <= t_dst && t_dst < tin_cf[u_anc] + sub_size_cf[u_anc])) {
-                    mark_tins.push_back(tin_cf[u_anc]);
-                    u_anc = parent_u_cf[u_anc];
-                    if (++hops > M_sk)
-                        break;
-                }
-                if (u_anc == -1 || hops > M_sk)
-                    continue;
-                mark_tins.push_back(tin_cf[u_anc]);
-                int32_t v_anc = dst_u;
-                while (v_anc != u_anc && v_anc != -1) {
-                    mark_tins.push_back(tin_cf[v_anc]);
-                    v_anc = parent_u_cf[v_anc];
-                    if (++hops > M_sk)
-                        break;
-                }
-                if (v_anc != u_anc || hops > M_sk)
-                    continue;
-                for (int32_t tq : mark_tins) {
-                    if (tin_busy[tq]) {
-                        conflict = true;
-                        break;
-                    }
-                }
-                if (conflict)
-                    continue;
-            }
-
-            for (int32_t tq : mark_tins)
-                tin_busy[tq] = 1;
+            for (int32_t x : path)
+                in_batch[x] = 1;
             apply_unrooted_spr_host(adj_u_cf.data(), tr, pr, dst_u, dst_v);
-            n_applied++;
-            if (n_applied >= eff_batch_cap)
+            if (++n_applied >= cur_batch_cap)
                 break;
         }
         // No candidate fit the checks: apply the single best move.
