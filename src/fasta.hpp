@@ -1,7 +1,7 @@
 /*
  * fasta.hpp
  *
- * Aligned DNA FASTA input, packed as in the .bin bundles: 5 bitplanes per sequence (A, C, G, T/U, observed).
+ * Aligned DNA FASTA input, packed as 5 bitplanes per sequence (A, C, G, T/U, observed).
  */
 #ifndef P2VBME_FASTA_HPP
 #define P2VBME_FASTA_HPP

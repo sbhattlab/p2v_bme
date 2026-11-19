@@ -747,7 +747,7 @@ __global__ __launch_bounds__(256, 2) void k_refine_real_seq_condensed_D_pairs(
     }
 }
 
-// ---- 3. Exact Verified GPU Discrete Gradient Kernels (Stage 2 + Stage 3) ----
+// ---- 3. Exact GPU Discrete Gradient Kernels ----
 
 __global__ void k_copy_leaf_rows_perm(const float *__restrict__ D_orig, const int32_t *__restrict__ d_perm,
                                       float *__restrict__ subdist, int32_t N, int32_t M) {
@@ -1367,7 +1367,7 @@ __global__ void __launch_bounds__(256)
     }
 }
 
-// ---- Branch lengths: the edge-length pass (from bme_branch_lengths_gpu.cuh) ----
+// ---- Branch lengths: the edge-length pass ----
 
 __device__ __forceinline__ float dev_jc69_from_nv_nm(int32_t n_valid, int32_t n_match) {
     return jc69_distance<float>(n_valid, n_match);

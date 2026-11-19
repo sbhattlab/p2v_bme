@@ -1,7 +1,7 @@
 /*
  * fasta.cpp
  *
- * Aligned DNA FASTA input, packed as in the .bin bundles.
+ * Aligned DNA FASTA input, packed as bitplanes.
  */
 #include <fstream>
 #include <stdexcept>

@@ -2,7 +2,7 @@
  * config.hpp
  *
  * Every number the method depends on, in one place: the defaults of the user settings (Settings and the
- * command line both read these) and the algorithm's fixed constants. Values are the paper's (GPU suite).
+ * command line both read these) and the algorithm's fixed constants. Values are the paper's.
  * Kernel tile sizes stay next to their kernels.
  */
 #ifndef P2VBME_CONFIG_HPP

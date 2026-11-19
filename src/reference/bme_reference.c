@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 /*
- * Ultra-optimized Matrix-Based O(N^2) Phylo2Vec BME Discrete Gradient & Tree Optimizer in C99 (v3).
+ * Ultra-optimized Matrix-Based O(N^2) Phylo2Vec BME Discrete Gradient & Tree Optimizer in C99.
  *
  * Exports:
  *   - calculate_discrete_gradient_c      : Lower-triangular j < i discrete gradient (N-1 x N-2)
@@ -19,9 +19,6 @@ extern "C" {
  *   - relabel_cherry_first_c             : O(N) cherry-first taxon relabeling (v_pi[i] <= i)
  *   - encode_unrooted_to_v_c             : Exact O(N) inverse bijection from unrooted tree to v
  *   - optimize_phylo2vec_bme_c           : End-to-end Phylo2Vec BME tree optimizer
- *
- * Compile with:
- *   /usr/bin/clang -O3 -march=native -ffast-math -shared -fPIC bme_reference.c -o libbme_reference.dylib
  */
 
 #if !defined(_WIN32)
@@ -2003,7 +2000,7 @@ double optimize_phylo2vec_bme_c(const int64_t *restrict v_init, const double *re
 }
 
 /* ============================================================================
- * 7. Exact Clade-Condensed Minibatch BME Gradient & Optimizer (Theorem 5.5)
+ * 7. Exact Clade-Condensed Minibatch BME Gradient & Optimizer
  * ============================================================================ */
 
 static void decode_v_to_rooted_children(const int64_t *restrict v, int32_t n_leaves, int32_t *restrict child1_r,
@@ -2106,7 +2103,7 @@ void condense_tree_bme_c(const int64_t *restrict v, const double *restrict D, in
         min_node[u] = (m1 < m2) ? m1 : m2;
     }
 
-    /* 3. Top-down cherry-first label assignment on active_int (Theorem 2.1) */
+    /* 3. Top-down cherry-first label assignment on active_int */
     rep_label[root_r] = 0;
     int32_t next_label = 1;
     for (int32_t idx = 0; idx < n_act_int; ++idx) {

@@ -17,7 +17,6 @@ namespace p2vbme {
 // N aligned sequences packed as bitplanes: packed[(i * 5 + plane) * n_words + w], bit k of word w is site 64 w + k;
 // planes A, C, G, T/U, valid (= any of the four).
 // Other characters (gaps, N, IUPAC ambiguity codes) set no bit.
-// Same layout as the .bin bundles.
 struct Alignment {
     int32_t n_taxa = 0;
     int32_t n_sites = 0;

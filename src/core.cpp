@@ -14,7 +14,7 @@ namespace p2vbme {
 namespace {
 
 // The plane of each byte: A 0, C 1, G 2, T and U 3 (either case), -1 for anything else (a missing site).
-// One table read per site instead of toupper and a chain of comparisons: about 3 times faster.
+// One table read per site, faster than toupper and a chain of comparisons.
 constexpr std::array<int8_t, 256> kPlaneOf = [] {
     std::array<int8_t, 256> t{};
     for (int c = 0; c < 256; ++c)
@@ -28,7 +28,7 @@ constexpr std::array<int8_t, 256> kPlaneOf = [] {
 
 } // namespace
 
-// Packs one aligned sequence; mirrors bme/bundles.py pack_sequences_bits.
+// Packs one aligned sequence.
 void pack_sequence(const std::string &seq, int32_t n_words, uint64_t *out) {
     const char *s = seq.data();
     const size_t n = seq.size();

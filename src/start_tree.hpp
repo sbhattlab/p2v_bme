@@ -21,7 +21,7 @@ namespace p2vbme {
 // This is the Yule-Harding (ranked-uniform) distribution, NOT uniform over topologies.
 Tree build_random_tree(int32_t n_leaves, uint64_t seed);
 
-// Sample-and-place start tree (branch diag-scaling)
+// Sample-and-place start tree
 //   1. pick n0_leaves sequences at random (n0_leaves clamped to [START_SAMPLE_MIN, n_leaves / 2])
 //   2. start a tree t0 on them from a random (Yule-Harding) tree, or, if n0_leaves > START_RANDOM_TREE_MAX, from a
 //      sample-and-place tree of its own (this function, one level down)
@@ -29,7 +29,6 @@ Tree build_random_tree(int32_t n_leaves, uint64_t seed);
 //   4. assign every other sequence to its nearest sampled sequence by p-distance over shared valid sites, for every
 //      model; a pair with no shared valid site ranks like JC69 = 1.5 (p = 0.6485)
 //   5. replace each sampled leaf by a balanced tree of itself + its assigned sequences (random order)
-// Uses only the sequences: no information from the true tree.
 // Needs n_leaves >= START_SAMPLE_MIN_N (below it, infer() uses the random start instead).
 // n0_leaves: in, the sample size asked for; out, the size used (after the clamp of step 1).
 Tree build_sample_and_place_tree(int32_t n_leaves, int32_t &n0_leaves, uint64_t seed, Devices &devices,

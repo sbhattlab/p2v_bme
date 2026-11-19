@@ -71,7 +71,7 @@ Alignment read_maple(const std::string &path) {
         aln.packed.insert(aln.packed.end(), ref_row.begin(), ref_row.end());
         uint64_t *r = aln.packed.data() + row;
         // differences: "<char> <position> [<length>]", positions from 1; A, C, G, T (or U) set the base, anything else
-        // (n, -, ambiguity codes) marks the sites missing (as pipeline/rnasim/pack_cmaple.cpp)
+        // (n, -, ambiguity codes) marks the sites missing
         for (++i; i < lines.size() && (lines[i].empty() || lines[i][0] != '>'); ++i) {
             const std::string &ln = lines[i];
             if (ln.empty())

@@ -2,7 +2,7 @@
  * simulations.hpp
  *
  * Sequences along a tree under GTR with continuous gamma rate variation (+GC), JC69 as a special case, and
- * random trees to simulate on. Used by the tests and the pipeline tools; not part of the p2v-bme command.
+ * random trees to simulate on. Used by the tests; not part of the p2v-bme command.
  */
 #ifndef P2VBME_SIMULATIONS_HPP
 #define P2VBME_SIMULATIONS_HPP
