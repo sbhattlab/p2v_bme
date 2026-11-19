@@ -43,6 +43,11 @@ constexpr double GTR_FLOAT_RATE_RATIO_MAX = 100.0; // largest / smallest exchang
 // Sweeps of the core step per window, at most (each sweep applies a batch of moves); windows usually stop earlier, as
 // soon as no move improves in either labelling.
 constexpr int32_t WINDOW_MAX_SWEEPS = 200;
+// The smallest BME gains (decreases of L) that count, by level: a move, a batch of moves, a window.
+// A move is a candidate only if its predicted BME change is below -MOVE_MIN_GAIN (a float, as the scores may be).
+constexpr float MOVE_MIN_GAIN = 1e-6f;
+// A batch of moves is kept only if it lowers the BME length by more than this; otherwise it is undone.
+constexpr double BATCH_MIN_GAIN = 1e-8;
 // A window's new skeleton is kept only if it lowers the BME length by more than this (also in the exact check).
 constexpr double WINDOW_MIN_GAIN = 1e-7;
 // Internal-vertex budget of a window: 1,498 splits give at most 1,499 pieces, plus the outside component, so every
@@ -61,6 +66,8 @@ constexpr int32_t WAVE_COMPONENT_CAP = 1050;
 static_assert(WAVE_COMPONENT_CAP + 4 <= WINDOW_MAX_INTERNALS, "a wave component must fit one window");
 // Moves applied together in one sweep, at most (the batch cap B of Algorithm S1; halved after a failed batch).
 constexpr int32_t MOVE_BATCH_CAP = 128;
+// Added to the batch cap after a batch that lowered L, up to MOVE_BATCH_CAP (it only acts after a halving).
+constexpr int32_t MOVE_BATCH_CAP_GROWTH = 16;
 // Exact check (--exact-check-eta): from this N on, the "complete" profiles are capped at EXACT_PROFILE_CAP.
 constexpr int32_t EXACT_PROFILE_CAP_MIN_N = 1000000;
 constexpr int32_t EXACT_PROFILE_CAP = 2048;

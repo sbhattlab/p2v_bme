@@ -773,7 +773,7 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
             init_L = curr_L;
             best_L = curr_L;
             prev_L = curr_L;
-        } else if (batch_pending && curr_L >= prev_L - 1e-8) {
+        } else if (batch_pending && curr_L >= prev_L - p2vbme::BATCH_MIN_GAIN) {
             // the last batch did not lower L (Algorithm S1, line 4): restore the previous tree and use smaller batches.
             // A single move that fails is below the resolution of the scores, so the window is converged.
             v_cf = prev_v_cf;
@@ -785,7 +785,7 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
             continue;
         } else if (batch_pending) {
             // the last batch lowered L: allow larger batches
-            cur_batch_cap = std::min(max_batch_cap, cur_batch_cap + 16);
+            cur_batch_cap = std::min(max_batch_cap, cur_batch_cap + p2vbme::MOVE_BATCH_CAP_GROWTH);
         }
         // (no batch pending: the skeleton was only relabelled, after a flip or an undo, so there is nothing to judge)
         batch_pending = false;
@@ -807,7 +807,7 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
         // A row's best move is a candidate only if its change is below this numerical zero (the scores may be single
         // precision).
         // A batch that does not lower L is undone in step 3, and max_iters bounds the sweeps.
-        const float eps_move_thresh = -1e-6f;
+        const float eps_move_thresh = -p2vbme::MOVE_MIN_GAIN;
         for (int32_t i = 1; i < K - 1; ++i) {
             // h_best_delta[i] < eps_move_thresh: the move improves the skeleton's BME score
             // h_best_j[i] >= 0: an edge was found to regraft onto (-1 otherwise)
