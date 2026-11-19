@@ -711,11 +711,11 @@ void compute_skeleton_leaf_dists(const int64_t *v_cf, const int32_t *perm, int32
 }
 
 namespace {
-// A candidate move of the window solve: row i regrafted onto edge j, BME change d.
-struct MoveCand {
+// A candidate move of the window solve: row i regrafted onto edge j, BME change dL.
+struct CandidateMove {
     int32_t i;
     int32_t j;
-    double d;
+    double dL;
 };
 } // namespace
 
@@ -803,7 +803,7 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
         kernels.best_moves(sk, h_best_delta, h_best_j);
 
         // Step 5: keep the improving moves, best first.
-        std::vector<MoveCand> cands;
+        std::vector<CandidateMove> cands;
         // A row's best move is a candidate only if its change is below this numerical zero (the scores may be single
         // precision).
         // A batch that does not lower L is undone in step 3, and max_iters bounds the sweeps.
@@ -827,7 +827,8 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
             break;
         }
         flipped_already = 0;
-        std::sort(cands.begin(), cands.end(), [](const MoveCand &a, const MoveCand &b) { return a.d < b.d; });
+        std::sort(cands.begin(), cands.end(),
+                  [](const CandidateMove &a, const CandidateMove &b) { return a.dL < b.dL; });
 
         // Step 6: apply a batch of moves to the unrooted skeleton (adj_u).
         // Going down the candidates, best first, a move joins the batch if its path (from the pruned subtree to the
