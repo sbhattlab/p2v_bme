@@ -156,7 +156,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
         if (e.kind == SearchEvent::Start) {
             t_start = t_last = wall_sec();
             dL_last = 0.0;
-            line << "[DIAG] N=" << e.n_leaves << " n_gpus=" << e.n_devices << " n_outer_rounds=" << e.rounds_planned
+            line << "[DIAG] N=" << e.n_leaves << " n_gpus=" << e.n_devices << " n_rounds=" << e.rounds_planned
                  << " max_prof_leaves=" << settings.profile_cap << " stop_tol=" << settings.stop_tol
                  << " time_cap=" << settings.time_cap;
         } else if (e.kind == SearchEvent::Stop) {

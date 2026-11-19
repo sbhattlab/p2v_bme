@@ -1500,7 +1500,7 @@ double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &set
     SearchState s{tree, 2 * n_leaves - 2, level, settings, devices, TreeSummary(), 0.0};
     rebuild_summary(s);
 
-    const int n_outer_rounds = settings.rounds;
+    const int n_rounds = settings.rounds;
     double round0_gain = 0.0, round_start_dL = 0.0;
     if (settings.on_event) {
         SearchEvent e;
@@ -1508,51 +1508,51 @@ double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &set
         e.level = level;
         e.n_leaves = n_leaves;
         e.n_devices = (int32_t)devices.size();
-        e.rounds_planned = n_outer_rounds;
+        e.rounds_planned = n_rounds;
         settings.on_event(e);
     }
-    run_stats.rounds_planned = n_outer_rounds;
+    run_stats.rounds_planned = n_rounds;
     run_stats.rounds_run = 0;
-    for (int outer_round = 0; outer_round < n_outer_rounds; ++outer_round) {
+    for (int round = 0; round < n_rounds; ++round) {
         round_start_dL = s.total_mb_delta_L;
 
         // Pass 1: a backbone window
-        run_backbone(s, outer_round);
+        run_backbone(s, round);
 
         // Pass 2A: the leaf-covering component waves
         const int64_t n_wave_levels = run_wave_pass(s);
-        emit_stage(s, outer_round, "comp_waves", n_wave_levels);
+        emit_stage(s, round, "comp_waves", n_wave_levels);
 
         // Pass 2B: a backbone window again, then the multi-scale V-cycle
         if (n_leaves > p2vbme::WAVE_COMPONENT_CAP) {
             rebuild_summary(s);
-            run_backbone(s, outer_round);
-            run_vcycle(s, outer_round);
+            run_backbone(s, round);
+            run_vcycle(s, round);
         }
 
         rebuild_summary(s);
-        emit_stage(s, outer_round, "round_end", -1, true);
-        run_stats.rounds_run = outer_round + 1;
+        emit_stage(s, round, "round_end", -1, true);
+        run_stats.rounds_run = round + 1;
         const double round_gain = round_start_dL - s.total_mb_delta_L; // positive = improvement
-        if (outer_round == 0)
+        if (round == 0)
             round0_gain = round_gain;
         // Accepted windows always lower L by > WINDOW_MIN_GAIN, so a zero gain means the round changed nothing;
         // rounds >= 1 are deterministic in the tree, so every later regular round would also change nothing.
         // The <= stops there even when stop_tol = 0.
         std::optional<StopReason> reason; // empty = no reason to stop
-        if (outer_round >= 1 && round_gain <= settings.stop_tol * (-s.total_mb_delta_L))
+        if (round >= 1 && round_gain <= settings.stop_tol * (-s.total_mb_delta_L))
             reason = StopReason::Converged;
         else if (settings.deadline > 0.0 && wall_sec() > settings.deadline)
             reason = StopReason::TimeLimit;
         const bool stop = reason.has_value();
-        if (stop && outer_round + 1 < n_outer_rounds) {
+        if (stop && round + 1 < n_rounds) {
             run_stats.stop_reason = *reason;
             if (settings.on_event) {
                 SearchEvent e;
                 e.kind = SearchEvent::Stop;
                 e.level = level;
                 e.n_leaves = n_leaves;
-                e.round = outer_round;
+                e.round = round;
                 e.round_gain = round_gain;
                 e.round0_gain = round0_gain;
                 e.total_dL = s.total_mb_delta_L;

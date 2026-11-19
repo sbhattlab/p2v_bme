@@ -14,7 +14,7 @@ namespace p2vbme {
 
 // ---- Defaults of the user settings ------------------------------------------------------------------
 
-constexpr int32_t DEFAULT_MAX_ROUNDS = 8;       // outer rounds of the search, then a final cleanup pass
+constexpr int32_t DEFAULT_MAX_ROUNDS = 8;       // rounds of the search, then a final cleanup pass
 constexpr double DEFAULT_TOL = 1e-6;            // stop once a round gains <= this x the total gain (0 = zero gain only)
 constexpr double DEFAULT_TIME_LIMIT = 0.0;      // seconds after which no new round starts (0 = none)
 constexpr int32_t DEFAULT_PROFILE_CAP = 64;     // leaves kept per clade profile in a window (1..PROFILE_CAP_MAX)

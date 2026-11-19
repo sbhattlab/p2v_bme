@@ -27,7 +27,7 @@ struct SearchEvent {
     enum Kind { Start, Stage, Stop } kind = Stage;
     int32_t level = 0;       // 0 = the main search; k >= 1 = a search inside the sample-and-place start, k levels down
     int32_t n_leaves = 0;    // N of this search
-    int32_t round = 0;       // Stage: the outer round (the final cleanup pass has round = rounds run)
+    int32_t round = 0;       // Stage: the round (the final cleanup pass has round = rounds run)
     const char *stage = "";  // Stage: backbone, comp_waves, scale, round_end
     int64_t detail = 0;      // Stage: waves (comp_waves), scale cap (scale), -1 (round_end), 0 (backbones)
     double total_dL = 0.0;   // Stage: BME change of this search so far
@@ -41,7 +41,7 @@ struct SearchEvent {
 // They apply to the main search and to every search inside the sample-and-place start; defaults in config.hpp (the
 // published configuration), filled by infer() from Settings.
 struct SearchSettings {
-    // outer rounds before the final cleanup pass; 0 = no search (the tree is left as it is)
+    // rounds before the final cleanup pass; 0 = no search (the tree is left as it is)
     int32_t rounds = p2vbme::DEFAULT_MAX_ROUNDS;
     // stop once a round (>= 1) improves L by <= stop_tol x (total improvement so far).
     // 0 = only when a round changes nothing.
