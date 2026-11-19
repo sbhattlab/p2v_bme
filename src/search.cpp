@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "parallel_errors.hpp"
 #include "phylo2vec.hpp"
 #include "timing.hpp"
 

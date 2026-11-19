@@ -13,6 +13,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "parallel_errors.hpp"
+
 namespace p2vbme {
 
 namespace {

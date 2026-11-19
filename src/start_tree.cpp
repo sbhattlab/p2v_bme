@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "parallel_errors.hpp"
 #include "random.hpp"
 
 namespace p2vbme {
