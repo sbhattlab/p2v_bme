@@ -142,7 +142,7 @@ void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary
                              std::vector<int32_t> &skel_left, std::vector<int32_t> &skel_right,
                              int32_t *out_root_skel_id, const uint8_t *stop_at_comp_root = nullptr);
 void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t max_cap,
-                           std::vector<uint8_t> &is_comp_root, std::vector<std::vector<int32_t>> &level_waves);
+                           std::vector<uint8_t> &is_comp_root, std::vector<std::vector<int32_t>> &waves);
 
 // ---- The search ----
 

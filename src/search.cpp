@@ -474,12 +474,12 @@ void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary
 // B's window sees B's nodes, with the rest of the tree as one more piece (the outgroup).
 // Components below the root have COMPONENT_MIN_NODES to max_cap internal nodes; the root's has up to max_cap + 4.
 // is_comp_root marks the component roots.
-// level_waves[k] lists the roots of the components at level k: 0 = no component below, k = one above the highest
+// waves[k] lists the roots of the components at level k: 0 = no component below, k = one above the highest
 // component below; components of one level are never nested, so their windows can run in parallel.
 // Only components with a leaf of their own get a window; the others (connectors between components) are left to the
 // backbone and V-cycle windows.
 void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t max_cap,
-                           std::vector<uint8_t> &is_comp_root, std::vector<std::vector<int32_t>> &level_waves) {
+                           std::vector<uint8_t> &is_comp_root, std::vector<std::vector<int32_t>> &waves) {
     // The smallest component below the root, and the smallest root component (heuristics).
     constexpr int32_t COMPONENT_MIN_NODES = 15;
     constexpr int32_t ROOT_COMPONENT_MIN_NODES = 5;
@@ -492,7 +492,7 @@ void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t
     const int32_t n_nodes_r = 2 * N - 1;
     const int32_t root_r = n_nodes_r - 1;
     is_comp_root.assign(n_nodes_r, 0);
-    level_waves.clear();
+    waves.clear();
     if (N < p2vbme::WINDOW_MIN_K)
         return;
 
@@ -577,15 +577,15 @@ void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t
     }
 
     // Step 4: each component with a leaf of its own goes into the wave of its level.
-    level_waves.resize(max_lvl + 1);
+    waves.resize(max_lvl + 1);
     for (int32_t idx = (int32_t)summary.order.size() - 1; idx >= 0; --idx) {
         int32_t u = summary.order[idx];
         if (is_comp_root[u] && direct_leaves[u] > 0) {
-            level_waves[comp_lvl[u]].push_back(u);
+            waves[comp_lvl[u]].push_back(u);
         }
     }
-    while (!level_waves.empty() && level_waves.back().empty()) {
-        level_waves.pop_back();
+    while (!waves.empty() && waves.back().empty()) {
+        waves.pop_back();
     }
 }
 
@@ -1443,11 +1443,11 @@ static void run_backbone(SearchState &s, int32_t round) {
 // Its progress event gives the number of wave levels.
 static void run_wave_pass(SearchState &s, int32_t round) {
     std::vector<uint8_t> is_comp_root;
-    std::vector<std::vector<int32_t>> level_waves;
-    build_component_waves(s.tree, s.summary, p2vbme::WAVE_COMPONENT_CAP, is_comp_root, level_waves);
-    for (const std::vector<int32_t> &wave : level_waves)
+    std::vector<std::vector<int32_t>> waves;
+    build_component_waves(s.tree, s.summary, p2vbme::WAVE_COMPONENT_CAP, is_comp_root, waves);
+    for (const std::vector<int32_t> &wave : waves)
         run_windows(s, wave, is_comp_root.data());
-    emit_stage(s, round, "comp_waves", (int64_t)level_waves.size());
+    emit_stage(s, round, "comp_waves", (int64_t)waves.size());
 }
 
 // The multi-scale V-cycle: Full Bottom-Up elevator + Global Backbone + Top-Down cascade.
