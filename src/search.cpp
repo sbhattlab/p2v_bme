@@ -809,6 +809,9 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
         // A batch that does not lower L is undone in step 3, and max_iters bounds the sweeps.
         const float eps_move_thresh = -1e-6f;
         for (int32_t i = 1; i < K - 1; ++i) {
+            // h_best_delta[i] < eps_move_thresh: the move improves the skeleton's BME score
+            // h_best_j[i] >= 0: an edge was found to regraft onto (-1 otherwise)
+            // h_best_j[i] < root_u_sk: the edge exists, i.e., isn't the roto node.
             if (h_best_delta[i] < eps_move_thresh && h_best_j[i] >= 0 && h_best_j[i] < root_u_sk) {
                 cands.push_back({i, h_best_j[i], h_best_delta[i]});
             }
