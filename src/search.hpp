@@ -137,10 +137,18 @@ struct TreeSummary {
 // The summary of the tree, rebuilt in full.
 // stand_in is each node's closest leaf (the c1 side on ties).
 void compute_tree_summary(const Tree &tree, TreeSummary &out);
-void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary &summary,
-                             std::vector<int32_t> &piece_roots, std::vector<int32_t> &split_internals,
-                             std::vector<int32_t> &skel_left, std::vector<int32_t> &skel_right,
-                             int32_t *out_root_skel_id, const uint8_t *stop_at_comp_root = nullptr);
+// The skeleton of a window, in the layout of Tree: tips 0..K-1 (the clade pieces left to right, then the outgroup if
+// any), internal nodes K..2K-2, root 2K-2.
+struct WindowSkeleton {
+    std::vector<int32_t> c1, c2;      // the skeleton's children (0 for its tips)
+    std::vector<int32_t> piece_roots; // the tree node at the top of each clade piece (a leaf, or a clade not opened)
+    std::vector<int32_t> opened;      // the tree node of skeleton internal node K + s (children before parents)
+};
+// The window under window_root: it opens internal nodes from window_root, largest clades first, up to
+// WINDOW_MAX_INTERNALS, never a node marked in stop_at_comp_root; the clades below them are the pieces.
+// with_outgroup: one more tip (the rest of the tree), joined to window_root under a new root.
+WindowSkeleton extract_skeleton(int32_t window_root, const Tree &tree, const TreeSummary &summary,
+                                const uint8_t *stop_at_comp_root, bool with_outgroup);
 void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t max_cap,
                            std::vector<uint8_t> &is_comp_root, std::vector<std::vector<int32_t>> &waves);
 

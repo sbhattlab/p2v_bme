@@ -306,18 +306,26 @@ static void compute_outgroup_dyadic_profile(int32_t window_root, const Tree &tre
                             profile_leaves_out, profile_weights_out);
 }
 
-void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary &summary,
-                             std::vector<int32_t> &piece_roots, std::vector<int32_t> &split_internals,
-                             std::vector<int32_t> &skel_left, std::vector<int32_t> &skel_right,
-                             int32_t *out_root_skel_id, const uint8_t *stop_at_comp_root) {
+WindowSkeleton extract_skeleton(int32_t window_root, const Tree &tree, const TreeSummary &summary,
+                                const uint8_t *stop_at_comp_root, bool with_outgroup) {
     const int32_t n_leaves = tree.n_leaves();
     const int32_t *c1_r = tree.c1.data(), *c2_r = tree.c2.data();
-    if (root_r < n_leaves) {
-        piece_roots.push_back(root_r);
-        *out_root_skel_id = -1;
-        return;
+    WindowSkeleton skel;
+    if (window_root < n_leaves) {
+        // a leaf: the window is that single piece
+        skel.piece_roots.push_back(window_root);
+        const int32_t K = with_outgroup ? 2 : 1;
+        skel.c1.assign(2 * K - 1, 0);
+        skel.c2.assign(2 * K - 1, 0);
+        if (with_outgroup) {
+            skel.c1[2 * K - 2] = 0;
+            skel.c2[2 * K - 2] = 1;
+        }
+        return skel;
     }
 
+    // Step 1: open internal nodes from the window's root, largest clades first, up to WINDOW_MAX_INTERNALS, never a
+    // leaf or a node marked in stop_at_comp_root.
     struct ExpNode {
         int32_t u;
         int32_t left_exp;
@@ -336,8 +344,8 @@ void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary
     };
 
     std::vector<ExpNode> exp_nodes;
-    exp_nodes.reserve(std::min(p2vbme::WINDOW_MAX_INTERNALS, std::max(16, summary.leaf_count[root_r])));
-    exp_nodes.push_back({root_r, -1, -1});
+    exp_nodes.reserve(std::min(p2vbme::WINDOW_MAX_INTERNALS, std::max(16, summary.leaf_count[window_root])));
+    exp_nodes.push_back({window_root, -1, -1});
 
     auto is_eligible = [&](int32_t w) -> bool {
         if (w < n_leaves)
@@ -348,7 +356,7 @@ void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary
     };
 
     std::priority_queue<PqCand> pq;
-    int32_t b0_root = c1_r[root_r], b1_root = c2_r[root_r];
+    int32_t b0_root = c1_r[window_root], b1_root = c2_r[window_root];
     if (is_eligible(b0_root))
         pq.push({summary.leaf_count[b0_root], b0_root, 0, 0});
     if (is_eligible(b1_root))
@@ -371,49 +379,58 @@ void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary
             pq.push({summary.leaf_count[b1], b1, my_exp, 1});
     }
 
+    // Step 2: the skeleton, by a post-order walk over the opened nodes (left before right, children before parents).
+    // A binary tree has one tip more than internal nodes, so the clade pieces number the opened nodes + 1.
+    const int32_t K_in = (int32_t)exp_nodes.size() + 1;
+    const int32_t K = with_outgroup ? K_in + 1 : K_in;
+    skel.c1.assign(2 * K - 1, 0);
+    skel.c2.assign(2 * K - 1, 0);
+    skel.opened.reserve(K_in - 1);
+    skel.piece_roots.reserve(K_in);
+    // each finished subtree's skeleton node: a piece i (tip i) or opened node s (internal node K + s)
     struct Frame {
         int32_t exp_idx;
         int32_t state;
-        int32_t left_id;
+        int32_t left_node;
     };
     std::vector<Frame> st;
-    st.reserve(256);
     st.push_back({0, 0, -1});
-    int32_t last_ret = -1;
-
+    int32_t last_node = -1;
     while (!st.empty()) {
         Frame &f = st.back();
         const ExpNode &en = exp_nodes[f.exp_idx];
         if (f.state == 0) {
             f.state = 1;
             if (en.left_exp == -1) {
-                int32_t sid = (int32_t)piece_roots.size();
-                piece_roots.push_back(c1_r[en.u]);
-                last_ret = sid;
+                last_node = (int32_t)skel.piece_roots.size();
+                skel.piece_roots.push_back(c1_r[en.u]);
             } else {
                 st.push_back({en.left_exp, 0, -1});
             }
         } else if (f.state == 1) {
-            f.left_id = last_ret;
+            f.left_node = last_node;
             f.state = 2;
             if (en.right_exp == -1) {
-                int32_t sid = (int32_t)piece_roots.size();
-                piece_roots.push_back(c2_r[en.u]);
-                last_ret = sid;
+                last_node = (int32_t)skel.piece_roots.size();
+                skel.piece_roots.push_back(c2_r[en.u]);
             } else {
                 st.push_back({en.right_exp, 0, -1});
             }
         } else {
-            int32_t right_id = last_ret;
-            int32_t my_idx = (int32_t)split_internals.size();
-            split_internals.push_back(en.u);
-            skel_left.push_back(f.left_id);
-            skel_right.push_back(right_id);
-            last_ret = -1 - my_idx;
+            const int32_t node = K + (int32_t)skel.opened.size();
+            skel.opened.push_back(en.u);
+            skel.c1[node] = f.left_node;
+            skel.c2[node] = last_node;
+            last_node = node;
             st.pop_back();
         }
     }
-    *out_root_skel_id = -1 - last_ret;
+    // the outgroup: one more tip, joined to the window's root under a new root
+    if (with_outgroup) {
+        skel.c1[2 * K - 2] = last_node;
+        skel.c2[2 * K - 2] = K_in;
+    }
+    return skel;
 }
 
 // Cuts the tree into components and schedules them as waves of windows.
@@ -1060,13 +1077,10 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
     std::vector<int32_t> &curr_c1 = tree.c1, &curr_c2 = tree.c2;
     const int32_t root_r = 2 * n_leaves - 2;
     const int32_t profile_cap = settings.profile_cap;
-    std::vector<int32_t> piece_roots, split_internals, skel_left, skel_right;
-    int32_t root_skel_id = -1;
-    extract_active_skeleton(window_root, tree, summary, piece_roots, split_internals, skel_left, skel_right,
-                            &root_skel_id, stop_at_comp_root);
-
     // A subtree window also sees the rest of the tree, as one extra piece (the outgroup).
     const bool has_outgroup = window_root != root_r;
+    const WindowSkeleton skel = extract_skeleton(window_root, tree, summary, stop_at_comp_root, has_outgroup);
+    const std::vector<int32_t> &piece_roots = skel.piece_roots;
     // The root is alone in its wave, so the whole-tree window never gets a snapshot.
     if (!has_outgroup && snapshot != NULL)
         throw std::logic_error("whole-tree window: unexpected snapshot (the root is alone in its wave)");
@@ -1076,16 +1090,6 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
         return 0.0;
 
     int32_t parent_of_window_root = summary.parent[window_root];
-    std::vector<int32_t> sk_c1(2 * K - 1, 0), sk_c2(2 * K - 1, 0);
-    for (int32_t s = 0; s < K_in - 1; ++s) {
-        int32_t l_raw = skel_left[s], r_raw = skel_right[s];
-        sk_c1[K + s] = (l_raw >= 0) ? l_raw : (K + (-1 - l_raw));
-        sk_c2[K + s] = (r_raw >= 0) ? r_raw : (K + (-1 - r_raw));
-    }
-    if (has_outgroup) {
-        sk_c1[2 * K - 2] = K + (K_in - 2);
-        sk_c2[2 * K - 2] = K_in;
-    }
 
     const Tree &otree = (snapshot != NULL) ? *snapshot : tree;
     const TreeSummary &osum = (snapshot_summary != NULL) ? *snapshot_summary : summary;
@@ -1156,7 +1160,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
 
     std::vector<int64_t> v_mb(K - 1);
     std::vector<int32_t> perm_mb(K);
-    queue_shuffle_rooted(sk_c1.data(), sk_c2.data(), K, 0, v_mb.data(), perm_mb.data());
+    queue_shuffle_rooted(skel.c1.data(), skel.c2.data(), K, 0, v_mb.data(), perm_mb.data());
 
     // Skip a solve whose input already found no improvement.
     // Not with the exact check, which also reads the complete profiles.
@@ -1254,7 +1258,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
     }
     for (int32_t s = 0; s < K - 2; ++s) {
         int32_t u_sk = st_u[K - 3 - s];
-        sk_to_full[u_sk] = split_internals[s];
+        sk_to_full[u_sk] = skel.opened[s];
     }
     for (int32_t s = 0; s < K - 2; ++s) {
         int32_t u_sk = st_u[K - 3 - s];
@@ -1276,7 +1280,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
             summary.parent[window_root] = parent_of_window_root;
         }
     } else {
-        int32_t full_u = split_internals[K - 2]; // == root_r
+        int32_t full_u = skel.opened[K - 2]; // == root_r
         int32_t b0 = sk_to_full[u_best];
         int32_t b1 = sk_to_full[p_best];
         curr_c1[full_u] = b0;
