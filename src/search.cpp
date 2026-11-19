@@ -1,6 +1,13 @@
 /*
  * search.cpp
  *
+ * In brief: each pass of a round picks window roots.
+ * A window is a connected set of internal nodes under its root.
+ * Its skeleton is a small tree whose tips are pieces (each clade the window does not open, and the outgroup), each
+ * summarised by a profile.
+ * The waves cover the tree with components, one window per component; the V-cycle and the backbone grow their
+ * windows from a root.
+ *
  * The minibatch BME search (host side): Phylo2Vec encoding of skeletons, tree summaries, clade and outside
  * profiles, window extraction, the leaf-covering waves and the rounds. Window solves run on the devices.
  */
