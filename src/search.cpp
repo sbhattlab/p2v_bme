@@ -756,20 +756,25 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
     bool batch_pending = false;            // a batch was applied in the previous sweep and is checked now
 
     for (int32_t iter = 0; iter <= max_iters; ++iter) {
+        // Step 1: decode the skeleton (v_cf) into the arrays the kernels and the moves read.
         build_skeleton_metadata(v_cf.data(), K, sk.c1, sk.c2, sk.v_map, sk.parent_u, sk.sub_size, sk.tin, sk.adj_u,
                                 &sk.other_rc, &sk.rc0, &sk.rc1, &sk.rc2);
         const int32_t other_rc = sk.other_rc;
         std::vector<int32_t> &v_map_cf = sk.v_map, &parent_u_cf = sk.parent_u, &sub_size_cf = sk.sub_size;
         std::vector<int32_t> &tin_cf = sk.tin, &adj_u_cf = sk.adj_u;
 
+        // Step 2: score the skeleton: its BME length (Pauplin's formula), from the K x K distances through the average
+        // distances between subtrees, which the kernels keep for step 4.
         curr_L = kernels.score(sk, perm);
+        // Step 3: judge the last batch: undo it and halve the batch cap if L did not fall, else raise the cap; keep the
+        // best skeleton so far.
         if (iter == 0) {
+            // the first sweep: the window's starting length
             init_L = curr_L;
             best_L = curr_L;
             prev_L = curr_L;
         } else if (batch_pending && curr_L >= prev_L - 1e-8) {
-            // the last batch did not lower the objective: restore the tree before it and use smaller batches (Algorithm
-            // S1, line 4).
+            // the last batch did not lower L (Algorithm S1, line 4): restore the previous tree and use smaller batches.
             // A single move that fails is below the resolution of the scores, so the window is converged.
             v_cf = prev_v_cf;
             perm = prev_perm;
@@ -779,8 +784,10 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
             cur_batch_cap = std::max(1, cur_batch_cap / 2);
             continue;
         } else if (batch_pending) {
-            cur_batch_cap = std::min(max_batch_cap, cur_batch_cap + 16); // it fell: allow larger batches
+            // the last batch lowered L: allow larger batches
+            cur_batch_cap = std::min(max_batch_cap, cur_batch_cap + 16);
         }
+        // (no batch pending: the skeleton was only relabelled, after a flip or an undo, so there is nothing to judge)
         batch_pending = false;
         prev_L = curr_L;
         prev_v_cf = v_cf;
@@ -792,19 +799,22 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
         }
         if (iter == max_iters)
             break;
+        // Step 4: find the best regraft of every pruned subtree, with its BME change.
         kernels.best_moves(sk, h_best_delta, h_best_j);
 
+        // Step 5: keep the improving moves, best first.
         std::vector<MoveCand> cands;
-        // A move is applied only if its single-precision score is below this numerical zero; any larger cutoff leaves
-        // real improvements on the table (checked against double-precision scores and FastME's SPR optimum).
-        // Termination is guaranteed by max_iters and by the double-precision length check that reverts a batch which
-        // does not decrease L.
+        // A row's best move is a candidate only if its change is below this numerical zero (the scores may be single
+        // precision).
+        // A batch that does not lower L is undone in step 3, and max_iters bounds the sweeps.
         const float eps_move_thresh = -1e-6f;
         for (int32_t i = 1; i < K - 1; ++i) {
             if (h_best_delta[i] < eps_move_thresh && h_best_j[i] >= 0 && h_best_j[i] < root_u_sk) {
                 cands.push_back({i, h_best_j[i], h_best_delta[i]});
             }
         }
+        // None: relabel the skeleton once with the other labelling of its cherries (its rows give other moves), then
+        // stop.
         if (cands.empty()) {
             if (flipped_already == 0) {
                 flipped_already = 1;
@@ -816,6 +826,9 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
         flipped_already = 0;
         std::sort(cands.begin(), cands.end(), [](const MoveCand &a, const MoveCand &b) { return a.d < b.d; });
 
+        // Step 6: apply a batch of moves to the unrooted skeleton (adj_u).
+        // Going down the candidates, best first, a move joins the batch if its path (from the pruned subtree to the
+        // regraft edge) shares no node with the moves already in it; at most cur_batch_cap moves.
         std::vector<uint8_t> tin_busy(M_sk, 0);
         int32_t n_applied = 0;
         std::vector<int32_t> mark_tins;
@@ -883,6 +896,7 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
             if (n_applied >= eff_batch_cap)
                 break;
         }
+        // No candidate fit the checks: apply the single best move.
         if (n_applied == 0) {
             int32_t i = cands[0].i, dst_u = cands[0].j;
             int32_t tr = v_map_cf[i + 1];
@@ -892,6 +906,8 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
         }
         batch_pending = true;
 
+        // Step 7: re-encode the moved skeleton as a cherry-first vector (the labelling alternates each sweep); the next
+        // sweep scores it.
         int32_t r_nb = adj_u_cf[3 * root_u_sk + 0];
         relabel_from_adj_u(adj_u_cf.data(), K, root_u_sk, r_nb, iter & 1, v_cf, perm);
     }

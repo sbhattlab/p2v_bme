@@ -96,7 +96,7 @@ class WindowKernels {
     virtual void distances(int32_t K, const int32_t *profile_offsets, const int32_t *profile_leaves,
                            const float *profile_weights) = 0;
     // The skeleton's average distances between all its node pairs (perm: the piece of each skeleton leaf), kept for
-    // best_moves; returns its BME length.
+    // best_moves; returns its BME length (Pauplin's formula, sum of 2^(1 - tau_ij) d_ij over the piece pairs).
     virtual double score(const SkeletonMeta &s, const std::vector<int32_t> &perm) = 0;
     // For rows i = 1 .. K - 2 of the vector: the best regraft edge of the subtree pruned at row i and the BME change of
     // that move (best_delta[i], best_j[i]), from the last score.
