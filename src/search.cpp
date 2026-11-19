@@ -22,8 +22,6 @@
 
 namespace p2vbme {
 
-// ---- 4. Host Tree Metadata & Active Skeleton Extraction ----
-
 void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t> &c1_cf, std::vector<int32_t> &c2_cf,
                              std::vector<int32_t> &v_map_cf, std::vector<int32_t> &m_lmin_cf,
                              std::vector<int32_t> &next_k_cf, std::vector<int32_t> &parent_u_cf,
