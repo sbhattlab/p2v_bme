@@ -60,7 +60,6 @@ struct SearchSettings {
 struct SearchStats {
     int32_t rounds_planned = 0;
     int32_t rounds_run = 0;
-    int32_t stop_round = -1;
     StopReason stop_reason = StopReason::MaxRounds; // why the rounds ended
 };
 

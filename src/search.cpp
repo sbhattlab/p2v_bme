@@ -1513,7 +1513,6 @@ double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &set
     }
     run_stats.rounds_planned = n_outer_rounds;
     run_stats.rounds_run = 0;
-    run_stats.stop_round = -1;
     for (int outer_round = 0; outer_round < n_outer_rounds; ++outer_round) {
         round_start_dL = s.total_mb_delta_L;
 
@@ -1559,7 +1558,6 @@ double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &set
                 e.total_dL = s.total_mb_delta_L;
                 settings.on_event(e);
             }
-            run_stats.stop_round = outer_round;
             break;
         }
     }
