@@ -153,158 +153,81 @@ void compute_tree_summary(const Tree &tree, TreeSummary &out) {
     }
 }
 
-// Compute the dyadic leaf-weight profile w(x) = 2^{-depth_u(x)} for a rooted clade u.
-// Expands internal nodes in best-first order (highest weight w = 2^{-d} first).
-// When max_prof_leaves <= 0 or leaf_count[u] <= max_prof_leaves (for balanced, unbalanced, or caterpillar clades
-// alike), all leaves in u are emitted with their exact dyadic weights.
-// When max_prof_leaves > 0 and leaf_count[u] > max_prof_leaves, expansion stops at max_prof_leaves entries and each
-// remaining frontier subtree in the priority queue collapses its mass onto a single representative leaf
-// stand_in[top.u] (an approximation that can retain substantial collapsed mass on balanced clades of
-// size > max_prof_leaves).
-static void compute_clade_dyadic_profile(int32_t u, const Tree &tree, const TreeSummary &summary,
-                                         int32_t max_prof_leaves, std::vector<int32_t> &prof_leaves_out,
-                                         std::vector<float> &prof_weights_out) {
-    const int32_t N = tree.n_leaves();
-    const int32_t *c1_r = tree.c1.data(), *c2_r = tree.c2.data();
-    if (u < N) {
-        prof_leaves_out.push_back(u);
-        prof_weights_out.push_back(1.0f);
-        return;
-    }
-    if (max_prof_leaves < 0) {
-        struct StackEntry {
-            int32_t u;
-            double weight;
-        };
-        std::vector<StackEntry> st;
-        st.reserve(64);
-        st.push_back({u, 1.0});
-        while (!st.empty()) {
-            StackEntry top = st.back();
-            st.pop_back();
-            int32_t b0 = c1_r[top.u], b1 = c2_r[top.u];
-            double hw = 0.5 * top.weight;
-            if (b1 < N) {
-                prof_leaves_out.push_back(b1);
-                prof_weights_out.push_back((float)hw);
-            } else {
-                st.push_back({b1, hw});
-            }
-            if (b0 < N) {
-                prof_leaves_out.push_back(b0);
-                prof_weights_out.push_back((float)hw);
-            } else {
-                st.push_back({b0, hw});
-            }
-        }
-        return;
-    }
-    struct WeightedNode {
-        double weight;
-        int32_t u;
-        bool operator<(const WeightedNode &o) const {
-            if (weight != o.weight)
-                return weight < o.weight;
-            return u > o.u;
-        }
-    };
-    std::priority_queue<WeightedNode> pq;
-    pq.push({1.0, u});
-    int32_t start_leaves = (int32_t)prof_leaves_out.size();
-    while (!pq.empty()) {
-        int32_t curr_total = ((int32_t)prof_leaves_out.size() - start_leaves) + (int32_t)pq.size();
-        if (max_prof_leaves > 0 && curr_total >= max_prof_leaves)
-            break;
-        WeightedNode top = pq.top();
-        pq.pop();
-        int32_t b0 = c1_r[top.u], b1 = c2_r[top.u];
-        double hw = 0.5 * top.weight;
-        if (b0 < N) {
-            prof_leaves_out.push_back(b0);
-            prof_weights_out.push_back((float)hw);
-        } else {
-            pq.push({hw, b0});
-        }
-        if (b1 < N) {
-            prof_leaves_out.push_back(b1);
-            prof_weights_out.push_back((float)hw);
-        } else {
-            pq.push({hw, b1});
-        }
-    }
-    while (!pq.empty()) {
-        WeightedNode top = pq.top();
-        pq.pop();
-        prof_leaves_out.push_back(summary.stand_in[top.u]);
-        prof_weights_out.push_back((float)top.weight);
-    }
+// The neighbour of u towards the root in the unrooted tree: its parent, or its sibling when the parent is the root
+// (the root has two neighbours, so the unrooted tree suppresses it); -1 for the root.
+static inline int32_t up_neighbour(int32_t u, const Tree &tree, const TreeSummary &summary) {
+    const int32_t root_r = (int32_t)tree.c1.size() - 1;
+    const int32_t p = summary.parent[u];
+    if (p != root_r)
+        return p;
+    return (tree.c1[root_r] == u) ? tree.c2[root_r] : tree.c1[root_r];
 }
 
-// Compute the unrooted dyadic leaf-weight profile w_out(x) = 2^{-d_unrooted(sub_root, x)} for the entire outside
-// component V \ L(sub_root) across the full ancestor path to root_r (suppressing degree-2 root_r).
-// Expands directed subtrees in best-first weight order.
-// Exact when max_prof_leaves <= 0 or N - leaf_count[sub_root] <= max_prof_leaves; above a positive cap
-// max_prof_leaves > 0, unresolved directed frontier subtrees collapse onto their stand_in leaves.
-static void compute_outgroup_dyadic_profile(int32_t sub_root, const Tree &tree, const TreeSummary &summary,
-                                            int32_t max_prof_leaves, std::vector<int32_t> &prof_leaves_out,
-                                            std::vector<float> &prof_weights_out) {
-    const int32_t N = tree.n_leaves();
-    const int32_t root_r = 2 * N - 2;
+// The dyadic profile of one side of an edge of the unrooted tree: the part that start reaches without passing through
+// from (a neighbour of start), each leaf x weighted 2^-d(start, x), so the weights sum to 1.
+// max_prof_leaves < 0: every leaf, exact (a plain stack).
+// Otherwise the walk opens the heaviest nodes first (a priority queue); once it holds max_prof_leaves entries (if
+// > 0), each part not yet opened collapses onto one stand-in leaf with its whole weight: the node's stand_in, or for a
+// part reached from below, the stand_in of the other child.
+static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tree, const TreeSummary &summary,
+                                    int32_t max_prof_leaves, std::vector<int32_t> &prof_leaves_out,
+                                    std::vector<float> &prof_weights_out) {
+    const int32_t n_leaves = tree.n_leaves();
     const int32_t *c1_r = tree.c1.data(), *c2_r = tree.c2.data();
-    if (sub_root == root_r || summary.parent[sub_root] == -1)
-        return;
-    int32_t p0 = summary.parent[sub_root];
-    int32_t start_u = (p0 == root_r) ? ((c1_r[root_r] == sub_root) ? c2_r[root_r] : c1_r[root_r]) : p0;
-    if (start_u < N) {
-        prof_leaves_out.push_back(start_u);
+    // A leaf: the side is that leaf alone.
+    if (start < n_leaves) {
+        prof_leaves_out.push_back(start);
         prof_weights_out.push_back(1.0f);
         return;
     }
+    // Exact: visit every node of the side (a stack) and emit every leaf.
     if (max_prof_leaves < 0) {
         struct DirectedStackEntry {
-            int32_t u;
-            int32_t from_u;
+            int32_t node;
+            int32_t from;
             double weight;
         };
         std::vector<DirectedStackEntry> st;
-        st.reserve(64);
-        st.push_back({start_u, sub_root, 1.0});
+        st.push_back({start, from, 1.0});
         while (!st.empty()) {
             DirectedStackEntry top = st.back();
             st.pop_back();
-            int32_t v = top.u;
-            int32_t n0 = c1_r[v];
-            int32_t n1 = c2_r[v];
-            int32_t pv = summary.parent[v];
-            int32_t n2 = (pv == root_r) ? ((c1_r[root_r] == v) ? c2_r[root_r] : c1_r[root_r]) : pv;
+            const int32_t node = top.node;
+            int32_t n0 = c1_r[node];
+            int32_t n1 = c2_r[node];
+            int32_t n2 = up_neighbour(node, tree, summary);
             int32_t nbs[3] = {n0, n1, n2};
+            // Each node passes half its weight on to each of its neighbours except the one the walk came from.
+            // The order (up, c2, c1) sets the order of the leaves in the profile.
             double hw = 0.5 * top.weight;
             for (int k = 2; k >= 0; --k) {
                 int32_t nb = nbs[k];
-                if (nb == top.from_u || nb < 0)
+                if (nb == top.from || nb < 0)
                     continue;
-                if (nb < N) {
+                if (nb < n_leaves) {
                     prof_leaves_out.push_back(nb);
                     prof_weights_out.push_back((float)hw);
                 } else {
-                    st.push_back({nb, v, hw});
+                    st.push_back({nb, node, hw});
                 }
             }
         }
         return;
     }
+    // Capped: open the heaviest node first (ties: the smaller id), while the leaves emitted plus the nodes waiting in
+    // the queue are fewer than max_prof_leaves (each waiting node becomes at least one entry).
     struct DirectedWeightedNode {
         double weight;
-        int32_t u;
-        int32_t from_u;
+        int32_t node;
+        int32_t from;
         bool operator<(const DirectedWeightedNode &o) const {
             if (weight != o.weight)
                 return weight < o.weight;
-            return u > o.u;
+            return node > o.node;
         }
     };
     std::priority_queue<DirectedWeightedNode> pq;
-    pq.push({1.0, start_u, sub_root});
+    pq.push({1.0, start, from});
     int32_t start_leaves = (int32_t)prof_leaves_out.size();
     while (!pq.empty()) {
         int32_t curr_total = ((int32_t)prof_leaves_out.size() - start_leaves) + (int32_t)pq.size();
@@ -312,39 +235,64 @@ static void compute_outgroup_dyadic_profile(int32_t sub_root, const Tree &tree, 
             break;
         DirectedWeightedNode top = pq.top();
         pq.pop();
-        int32_t v = top.u;
-        int32_t n0 = c1_r[v];
-        int32_t n1 = c2_r[v];
-        int32_t pv = summary.parent[v];
-        int32_t n2 = (pv == root_r) ? ((c1_r[root_r] == v) ? c2_r[root_r] : c1_r[root_r]) : pv;
+        const int32_t node = top.node;
+        int32_t n0 = c1_r[node];
+        int32_t n1 = c2_r[node];
+        int32_t n2 = up_neighbour(node, tree, summary);
         int32_t nbs[3] = {n0, n1, n2};
+        // As above, half the weight to each neighbour except the one the walk came from, here in the order c1, c2, up.
         double hw = 0.5 * top.weight;
         for (int k = 0; k < 3; ++k) {
             int32_t nb = nbs[k];
-            if (nb == top.from_u || nb < 0)
+            if (nb == top.from || nb < 0)
                 continue;
-            if (nb < N) {
+            if (nb < n_leaves) {
                 prof_leaves_out.push_back(nb);
                 prof_weights_out.push_back((float)hw);
             } else {
-                pq.push({hw, nb, v});
+                pq.push({hw, nb, node});
             }
         }
     }
+    // The cap is reached: each part still waiting collapses onto one stand-in leaf that carries its whole weight.
+    // Reached from above, the part is the clade below node: its closest leaf.
+    // Reached from a child, the part is node's other child and everything above node: the other child's closest leaf.
     while (!pq.empty()) {
         DirectedWeightedNode top = pq.top();
         pq.pop();
-        int32_t v = top.u;
+        const int32_t node = top.node;
         int32_t rep_leaf;
-        if (top.from_u != c1_r[v] && top.from_u != c2_r[v]) {
-            rep_leaf = summary.stand_in[v];
+        if (top.from != c1_r[node] && top.from != c2_r[node]) {
+            rep_leaf = summary.stand_in[node];
         } else {
-            int32_t sib = (top.from_u == c1_r[v]) ? c2_r[v] : c1_r[v];
+            int32_t sib = (top.from == c1_r[node]) ? c2_r[node] : c1_r[node];
             rep_leaf = summary.stand_in[sib];
         }
         prof_leaves_out.push_back(rep_leaf);
         prof_weights_out.push_back((float)top.weight);
     }
+}
+
+// The dyadic profile of the clade below u: each leaf x below u weighted 2^-depth_u(x).
+// u is never the root (a window always opens the root).
+static void compute_clade_dyadic_profile(int32_t u, const Tree &tree, const TreeSummary &summary,
+                                         int32_t max_prof_leaves, std::vector<int32_t> &prof_leaves_out,
+                                         std::vector<float> &prof_weights_out) {
+    if (u == (int32_t)tree.c1.size() - 1)
+        throw std::logic_error("clade profile of the root: a window always opens the root");
+    directed_dyadic_profile(u, up_neighbour(u, tree, summary), tree, summary, max_prof_leaves, prof_leaves_out,
+                            prof_weights_out);
+}
+
+// The dyadic profile of everything outside the clade below sub_root (the window's outgroup), seen from the node
+// sub_root hangs from; empty for the root.
+static void compute_outgroup_dyadic_profile(int32_t sub_root, const Tree &tree, const TreeSummary &summary,
+                                            int32_t max_prof_leaves, std::vector<int32_t> &prof_leaves_out,
+                                            std::vector<float> &prof_weights_out) {
+    if (sub_root == (int32_t)tree.c1.size() - 1 || summary.parent[sub_root] == -1)
+        return;
+    directed_dyadic_profile(up_neighbour(sub_root, tree, summary), sub_root, tree, summary, max_prof_leaves,
+                            prof_leaves_out, prof_weights_out);
 }
 
 void extract_active_skeleton(int32_t root_r, const Tree &tree, const TreeSummary &summary,
