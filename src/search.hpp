@@ -70,17 +70,20 @@ struct SearchStats {
 // Numbered as the vector: tip a stands for piece perm[a], internal nodes in decoding order.
 struct SkeletonTables {
     std::vector<int32_t> c1, c2, v_map, parent_u, sub_size, tin, adj_u;
-    int32_t other_rc = -1;
     int32_t rc0 = -1;
     int32_t rc1 = -1;
     int32_t rc2 = -1;
 };
 
-// Decodes the skeleton's vector v (K - 1 entries) into sk.
+// Decodes a skeleton's ordered vector into its tables: v -> sk.
+// v has K - 1 entries.
 void to_skeleton_tables(const std::vector<int64_t> &v, SkeletonTables &sk);
+// Moves the subtree at prune_node, with the node it hangs from (anchor_node), onto the edge between dest_a and dest_b:
+// adj_u -> adj_u (see search.cpp for a drawing).
 void apply_unrooted_spr(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_a, int32_t dest_b);
-// Encodes the unrooted skeleton sk.adj_u, rooted on the edge between root_c1 and root_c2, as an ordered vector v
-// (queue shuffle, labelling flip_mode) and composes perm with the new tip labels.
+// Encodes the unrooted skeleton back into an ordered vector: (sk.adj_u, root edge, flip_mode) -> (v, perm).
+// It roots sk.adj_u on the edge between root_c1 and root_c2, queue-shuffles it (labelling flip_mode) and composes perm
+// with the new tip labels.
 // Reads only sk.adj_u, and K from the size of sk.v_map: after a batch of moves, the other fields of sk still describe
 // the tree before it.
 // The root edge and flip_mode change only which subtrees become rows, i.e. which moves the next sweep tries, never
@@ -94,18 +97,20 @@ void from_skeleton_tables(std::vector<int64_t> &v, const SkeletonTables &sk, int
 class WindowKernels {
   public:
     virtual ~WindowKernels() = default;
-    // The K x K distances between the window's profiles (CSR), kept for the window.
+    // Computes the distances between the window's pieces, kept for the window: profiles (CSR) -> K x K distances.
     virtual void distances(int32_t K, const int32_t *profile_offsets, const int32_t *profile_leaves,
                            const float *profile_weights) = 0;
-    // The skeleton's average distances between all its node pairs (perm: the piece of each skeleton leaf), kept for
-    // best_moves; returns its BME length (Pauplin's formula, sum of 2^(1 - tau_ij) d_ij over the piece pairs).
+    // Scores a skeleton: (s, perm) -> its BME length (Pauplin's formula, sum of 2^(1 - tau_ij) d_ij over the piece
+    // pairs).
+    // Keeps the average distances between all its node pairs for best_moves (perm: the piece of each skeleton leaf).
     virtual double score(const SkeletonTables &s, const std::vector<int32_t> &perm) = 0;
-    // For rows i = 1 .. K - 2 of the vector: the best regraft edge of the subtree pruned at row i and the BME change of
-    // that move (best_delta[i], best_j[i]), from the last score.
+    // Finds each row's best move, from the last score: rows i = 1 .. K - 2 -> (best_delta[i], best_j[i]).
+    // best_j[i]: the best regraft edge of the subtree pruned at row i; best_delta[i]: the BME change of that move.
     virtual void best_moves(const SkeletonTables &s, std::vector<double> &best_delta, std::vector<int32_t> &best_j) = 0;
 };
 
-// The window solve, with a device's kernels.
+// Solves a window with a device's kernels: shortens its skeleton's BME length, (v, perm) -> (v, perm) and the BME
+// change.
 // A window is part of the tree cut into K pieces.
 // Each piece is summarised as a weighted leaf profile (CSR: profile_offsets[K + 1], profile_leaves,
 // profile_weights).
@@ -119,7 +124,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
                     const int32_t *profile_leaves, const float *profile_weights, std::vector<int64_t> &v,
                     std::vector<int32_t> &perm, WindowKernels &kernels);
 
-// The CPU device's window kernels on their own, one thread (tests): alignment rows read in place.
+// Creates the CPU device's window kernels on their own, one thread (tests): alignment rows read in place.
 std::unique_ptr<WindowKernels> make_cpu_window_kernels(const uint64_t *rows, int32_t n_words,
                                                        const SubstitutionModel &model, const EigenSettings &eigen,
                                                        bool double_precision);
@@ -135,7 +140,7 @@ struct TreeSummary {
     std::vector<int32_t> stand_in;   // the leaf that takes the node's weight when a capped profile collapses it
 };
 
-// The summary of the tree, rebuilt in full.
+// Rebuilds the summary of the tree in full: tree -> summary.
 // stand_in is each node's closest leaf (the c1 side on ties).
 void compute_tree_summary(const Tree &tree, TreeSummary &out);
 // A window's skeleton: its K pieces (the clade pieces left to right, then the outgroup if any) and the tree connecting
@@ -146,12 +151,14 @@ struct Skeleton {
     std::vector<int64_t> v;           // the ordered vector (K - 1 entries; empty below WINDOW_MIN_K pieces)
     std::vector<int32_t> perm;        // its label mapping: tip a of the vector stands for piece perm[a]
 };
-// The window under window_root: it opens internal nodes from window_root, largest clades first, up to
-// WINDOW_MAX_INTERNALS, never a node marked in stop_at_comp_root; the clades below them are the pieces.
+// Extracts the window under window_root: (tree, window_root) -> Skeleton.
+// It opens internal nodes from window_root, largest clades first, up to WINDOW_MAX_INTERNALS, never a node marked in
+// stop_at_comp_root; the clades below them are the pieces.
 // with_outgroup: one more tip (the rest of the tree), joined to window_root under a new root.
 // v and perm: the queue shuffle of the skeleton's tree.
 Skeleton extract_skeleton(int32_t window_root, const Tree &tree, const TreeSummary &summary,
                           const uint8_t *stop_at_comp_root, bool with_outgroup);
+// Cuts the tree into components and schedules them as waves of windows: tree -> (is_comp_root, waves) (see search.cpp).
 void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t max_cap,
                            std::vector<uint8_t> &is_comp_root, std::vector<std::vector<int32_t>> &waves);
 

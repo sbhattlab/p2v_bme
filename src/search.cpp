@@ -57,18 +57,15 @@ void to_skeleton_tables(const std::vector<int64_t> &v, SkeletonTables &sk) {
         sk.v_map[y] = sk.c1[2 * K - 1 - y];
     // Step 2: unroot it: drop the root 2K - 2 and join its two children by an edge.
     // One child is node 2K - 3 (made by row 1), which becomes the node the unrooted skeleton hangs from; the other
-    // (other_rc, the smaller id) becomes its third neighbour.
-    // The hanging node's neighbours: its two rooted children (rc0, rc1) and other_rc (rc2).
+    // (the smaller id) becomes its third neighbour.
+    // The hanging node's neighbours: its two rooted children (rc0, rc1) and that third neighbour (rc2).
     const int32_t root_a = sk.c1[R_sk - 1], root_b = sk.c2[R_sk - 1]; // the children of the root 2K - 2
-    sk.other_rc = (root_a < root_b) ? root_a : root_b;
     sk.rc0 = sk.c1[root_u_sk];
     sk.rc1 = sk.c2[root_u_sk];
-    sk.rc2 = sk.other_rc;
+    sk.rc2 = (root_a < root_b) ? root_a : root_b;
 
     // Step 3: set the parents and subtree sizes (in nodes), children before parents, and the internal nodes'
     // adjacency (two children, then the parent).
-    for (int32_t u = 0; u < K; ++u)
-        sk.sub_size[u] = 1;
     for (int32_t u = K; u < root_u_sk; ++u) {
         int32_t b0 = sk.c1[u], b1 = sk.c2[u];
         sk.parent_u[b0] = u;
@@ -82,20 +79,18 @@ void to_skeleton_tables(const std::vector<int64_t> &v, SkeletonTables &sk) {
     sk.parent_u[sk.rc1] = root_u_sk;
     sk.parent_u[sk.rc2] = root_u_sk;
     sk.parent_u[root_u_sk] = -1;
-    // Step 4: the rest of the unrooted adjacency (3 slots per node, -1 if unused): a tip has only its parent, an
-    // internal node gets its parent in the third slot, the hanging node its three neighbours.
-    for (int32_t u = 0; u < K; ++u) {
+    // Step 4: fill in the rest of the unrooted adjacency (3 slots per node, -1 if unused): a tip has only its parent,
+    // an internal node gets its parent in the third slot, the hanging node its three neighbours.
+    for (int32_t u = 0; u < K; ++u)
         sk.adj_u[3 * u + 0] = sk.parent_u[u];
-        sk.adj_u[3 * u + 1] = -1;
-        sk.adj_u[3 * u + 2] = -1;
-    }
     for (int32_t u = K; u < root_u_sk; ++u)
         sk.adj_u[3 * u + 2] = sk.parent_u[u];
     sk.adj_u[3 * root_u_sk + 0] = sk.rc0;
     sk.adj_u[3 * root_u_sk + 1] = sk.rc1;
     sk.adj_u[3 * root_u_sk + 2] = sk.rc2;
 
-    // Step 5: preorder numbers (tin) of a walk from the hanging node, parents before children (ids decreasing).
+    // Step 5: number the nodes in preorder (tin), walking from the hanging node, parents before children (ids
+    // decreasing).
     // With sub_size they make "x is under y" one comparison: tin[y] <= tin[x] < tin[y] + sub_size[y].
     sk.tin[root_u_sk] = 0;
     sk.tin[sk.rc0] = 1;
@@ -432,11 +427,11 @@ Skeleton extract_skeleton(int32_t window_root, const Tree &tree, const TreeSumma
 // For example (sizes not to scale):
 //
 //              r                A = {r, x, y}: the root's component, level 1
-//            /   \
+//            /   \              x, y: A's other nodes
 //           x     y
-//          / \   / \
+//          / \   / \            l1, l2: A's own leaves
 //         b  l1 l2  c           b, c: the roots of components B and C, level 0
-//        / \       / \
+//        / \       / \          b's and c's children: in B and C
 //      ...  ...  ...  ...       B, C: the nodes below b and c, down to the next component roots
 //
 // B and C are holes in A: A's window sees each as one piece (its pieces: B, l1, l2, C).
@@ -720,7 +715,6 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
     for (int32_t iter = 0; iter <= max_iters; ++iter) {
         // Step 1: decode the skeleton (v) into the arrays the kernels and the moves read.
         to_skeleton_tables(v, sk);
-        const int32_t other_rc = sk.other_rc;
         std::vector<int32_t> &v_map = sk.v_map, &parent_u = sk.parent_u, &sub_size = sk.sub_size;
         std::vector<int32_t> &tin = sk.tin, &adj_u = sk.adj_u;
 
@@ -782,7 +776,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
         if (cands.empty()) {
             if (flipped_already == 0) {
                 flipped_already = 1;
-                from_skeleton_tables(v, sk, root_u_sk, other_rc, 1, perm);
+                from_skeleton_tables(v, sk, root_u_sk, sk.rc2, 1, perm);
                 continue;
             }
             break;
@@ -805,7 +799,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
             // The move: prune the subtree under tr together with its attachment node pr, and regraft pr into the edge
             // between dst_child and its parent dst_parent (dst_child < root_u_sk from step 5, so dst_parent exists).
             const int32_t tr = v_map[mc.i + 1];
-            const int32_t pr = (tr == root_u_sk) ? other_rc : parent_u[tr];
+            const int32_t pr = (tr == root_u_sk) ? sk.rc2 : parent_u[tr];
             const int32_t dst_child = mc.j, dst_parent = parent_u[dst_child];
             // Left out: moves next to the hanging root, and regraft edges inside the pruned subtree.
             if (pr == root_u_sk || dst_parent == root_u_sk || under(dst_child, tr))
@@ -832,7 +826,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
         if (n_applied == 0) {
             int32_t i = cands[0].i, dst_child = cands[0].j;
             int32_t tr = v_map[i + 1];
-            int32_t pr = (tr == root_u_sk) ? other_rc : parent_u[tr];
+            int32_t pr = (tr == root_u_sk) ? sk.rc2 : parent_u[tr];
             int32_t dst_parent = parent_u[dst_child];
             apply_unrooted_spr(adj_u.data(), tr, pr, dst_child, dst_parent);
         }
@@ -993,7 +987,6 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
                                            const uint8_t *stop_at_comp_root = NULL, const Tree *snapshot = NULL,
                                            const TreeSummary *snapshot_summary = NULL) {
     const int32_t n_leaves = tree.n_leaves();
-    std::vector<int32_t> &curr_c1 = tree.c1, &curr_c2 = tree.c2;
     const int32_t root_r = 2 * n_leaves - 2;
     const int32_t profile_cap = settings.profile_cap;
     // A subtree window also sees the rest of the tree, as one extra piece (the outgroup).
@@ -1143,7 +1136,7 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots
             out_weights.clear();
             if (window_root != s.root_r) {
                 // Build the profile of everything outside the window's clade
-                // so the window can include the rest of the trree as one extra piece (the outgroup).
+                // so the window can include the rest of the tree as one extra piece (the outgroup).
                 compute_outgroup_dyadic_profile(window_root, s.tree, s.summary, profile_cap, out_leaves, out_weights);
             }
             std::optional<uint64_t> fruitless_hash;

@@ -159,7 +159,7 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
 #pragma omp for schedule(dynamic, 8)
             for (int32_t i = 1; i < K - 1; ++i) {
                 const int32_t tree_root = s.v_map[i + 1];
-                const int32_t parent = (tree_root == root_u) ? s.other_rc : s.parent_u[tree_root];
+                const int32_t parent = (tree_root == root_u) ? s.rc2 : s.parent_u[tree_root];
                 int32_t other0 = -1, other1 = -1;
                 for (int k = 0; k < 3; ++k) {
                     const int32_t nb = s.adj_u[3 * parent + k];

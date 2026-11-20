@@ -314,7 +314,7 @@ TEST(CpuDevice, MoveScoresAreExactBmeChanges) {
             kern->best_moves(s, best_delta, best_j);
             for (int32_t i = 1; i < K - 1; ++i) {
                 const int32_t tr = s.v_map[i + 1];
-                const int32_t pr = (tr == root_u) ? s.other_rc : s.parent_u[tr];
+                const int32_t pr = (tr == root_u) ? s.rc2 : s.parent_u[tr];
                 /* the regraft edges: those of the two half trees beyond the pruning point's other neighbours */
                 std::vector<int32_t> edges; /* by child node */
                 for (int k = 0; k < 3; ++k) {
@@ -390,7 +390,7 @@ TEST(CpuDevice, MoveTiesGoToTheSmallestEdge) {
         kern->best_moves(s, best_delta, best_j);
         for (int32_t i = 1; i < K - 1; ++i) {
             const int32_t tr = s.v_map[i + 1];
-            const int32_t pr = (tr == root_u) ? s.other_rc : s.parent_u[tr];
+            const int32_t pr = (tr == root_u) ? s.rc2 : s.parent_u[tr];
             /* the smallest edge (by child node) beyond the pruning point's other neighbours, not at the pruning point
              */
             int32_t smallest = INT32_MAX;

@@ -381,7 +381,6 @@ TEST(Search, SkeletonTablesAreConsistent) {
             EXPECT_EQ(sk.adj_u[3 * hang + 0], sk.rc0);
             EXPECT_EQ(sk.adj_u[3 * hang + 1], sk.rc1);
             EXPECT_EQ(sk.adj_u[3 * hang + 2], sk.rc2);
-            EXPECT_EQ(sk.other_rc, sk.rc2);
             EXPECT_EQ(sk.sub_size[hang], n_nodes);
             // v_map: the subtree row i merges in, the c1 side of the node it makes
             for (int32_t i = 0; i < k - 1; ++i)

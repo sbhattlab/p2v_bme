@@ -1386,13 +1386,12 @@ class GpuWindowKernels final : public WindowKernels {
     }
 
     void best_moves(const SkeletonTables &s, std::vector<double> &best_delta, std::vector<int32_t> &h_best_j) override {
-        const int32_t other_rc = s.other_rc;
         std::vector<float> h_best_delta(K);
         h_best_j.resize(K);
         k_populate_nd_u<<<(K - 1 + 255) / 256, 256, 0, gpu_ws.stream>>>(gpu_ws.d_subdist, gpu_ws.d_adj_u, gpu_ws.d_nd_u,
                                                                         K, M_sk, root_u_sk);
         k_spr_rows_top1<<<K - 2, 128, (size_t)M_sk * sizeof(float), gpu_ws.stream>>>(
-            2, K, M_sk, other_rc, gpu_ws.d_v_curr, gpu_ws.d_v_map, gpu_ws.d_adj_u, gpu_ws.d_parent_u, gpu_ws.d_sub_size,
+            2, K, M_sk, s.rc2, gpu_ws.d_v_curr, gpu_ws.d_v_map, gpu_ws.d_adj_u, gpu_ws.d_parent_u, gpu_ws.d_sub_size,
             gpu_ws.d_subdist, gpu_ws.d_nd_u, gpu_ws.d_row_scratch, gpu_ws.d_best_delta, gpu_ws.d_best_j);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaMemcpyAsync(h_best_delta.data(), gpu_ws.d_best_delta, (size_t)K * sizeof(float),
