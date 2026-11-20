@@ -14,8 +14,16 @@
 
 namespace p2vbme {
 
-// N aligned sequences packed as bitplanes: packed[(i * 5 + plane) * n_words + w], bit k of word w is site 64 w + k;
-// planes A, C, G, T/U, valid (= any of the four).
+// The DNA alphabet: the bases A, C, G, T/U, and the GTR exchangeabilities of their pairs (AC, AG, AT, CG, CT, GT).
+constexpr int32_t N_BASES = 4;
+constexpr int32_t N_GTR_RATES = 6;
+
+// The bitplanes of a packed sequence: one per base (planes 0..3), then valid (= any of the four).
+constexpr int32_t VALID_PLANE = N_BASES;
+constexpr int32_t N_PLANES = N_BASES + 1;
+
+// N aligned sequences packed as bitplanes: packed[(i * N_PLANES + plane) * n_words + w], bit k of word w is site
+// 64 w + k.
 // Other characters (gaps, N, IUPAC ambiguity codes) set no bit.
 struct Alignment {
     int32_t n_taxa = 0;

@@ -165,9 +165,9 @@ TEST(Errors, GtrGcParameters) {
         s[4] = r;
         EXPECT_TRUE(refused("exchangeabilities must be finite and > 0")) << r;
     }
-    std::fill(s, s + 6, 1e308);
+    std::fill(s, s + N_GTR_RATES, 1e308);
     EXPECT_TRUE(refused("sum of the exchangeabilities"));
-    std::fill(s, s + 6, 1.0);
+    std::fill(s, s + N_GTR_RATES, 1.0);
     opt.eigen.reweight = -1;
     EXPECT_TRUE(refused("reweighting passes must be >= 0"));
     opt.eigen.reweight = 1000;
@@ -186,7 +186,7 @@ TEST(Errors, GtrGcParameters) {
     opt.precision = Precision::Single;
     opt.substitution_model.gtr_alpha = 1.0;
     for (double scale : {1e-30, 1e30}) {
-        std::fill(s, s + 6, scale);
+        std::fill(s, s + N_GTR_RATES, scale);
         EXPECT_TRUE(warnings().empty()) << scale;
     }
 }
@@ -198,8 +198,8 @@ TEST(Errors, BaseFrequenciesMustBeFinite) {
     Settings opt;
     opt.tree_init = TreeInit::Random;
     opt.substitution_model.model = Model::F81;
-    const double freqs[4] = {0.1, 0.2, 0.3, 0.4};
-    std::copy(freqs, freqs + 4, opt.substitution_model.base_freqs);
+    const double freqs[N_BASES] = {0.1, 0.2, 0.3, 0.4};
+    std::copy(freqs, freqs + N_BASES, opt.substitution_model.base_freqs);
     EXPECT_NO_THROW(infer(aln, opt, devices));
     for (double bad : {-0.1, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
         opt.substitution_model.base_freqs[2] = bad;

@@ -4,6 +4,7 @@
  * Model names and the pair counts of two alignment rows (host).
  */
 #include "substitution_models.hpp"
+#include "core.hpp"
 
 #include <ctype.h>
 
@@ -56,29 +57,29 @@ Model parse_model(const std::string &name) {
     throw std::runtime_error("unknown value for model: '" + name + "' (JC69, K80, F81, F84, TN93, LogDet or GTR+GC)");
 }
 
-void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, double freqs[4]) {
-    uint64_t counts[4] = {0, 0, 0, 0};
+void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, double freqs[N_BASES]) {
+    uint64_t counts[N_BASES] = {0, 0, 0, 0};
     for (int32_t x = 0; x < n_taxa; ++x)
-        for (int b = 0; b < 4; ++b) {
-            const uint64_t *plane = packed + ((size_t)x * 5 + b) * n_words;
+        for (int b = 0; b < N_BASES; ++b) {
+            const uint64_t *plane = packed + ((size_t)x * N_PLANES + b) * n_words;
             for (int32_t w = 0; w < n_words; ++w)
                 counts[b] += (uint64_t)__builtin_popcountll(plane[w]);
         }
     const uint64_t total = counts[0] + counts[1] + counts[2] + counts[3];
-    for (int b = 0; b < 4; ++b)
+    for (int b = 0; b < N_BASES; ++b)
         freqs[b] = total > 0 ? (double)counts[b] / (double)total : 0.25;
 }
 
 PairCounts count_pair(const uint64_t *row_a, const uint64_t *row_b, int32_t n_words) {
     PairCounts c;
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < N_BASES; ++i) {
         const uint64_t *pa = row_a + (size_t)i * n_words;
-        for (int j = 0; j < 4; ++j) {
+        for (int j = 0; j < N_BASES; ++j) {
             const uint64_t *pb = row_b + (size_t)j * n_words;
             uint32_t acc = 0;
             for (int32_t w = 0; w < n_words; ++w)
                 acc += (uint32_t)__builtin_popcountll(pa[w] & pb[w]);
-            c.n[4 * i + j] = acc;
+            c.n[N_BASES * i + j] = acc;
         }
     }
     return c;

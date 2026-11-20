@@ -10,6 +10,8 @@
 
 #include <stdint.h>
 
+#include <limits>
+
 namespace p2vbme {
 
 // ---- Defaults of the user settings ------------------------------------------------------------------
@@ -45,6 +47,8 @@ constexpr int32_t WINDOW_MAX_SWEEPS = 200;
 // The smallest BME gains (decreases of L) that count, by level: a move, a batch of moves, a window.
 // A move is a candidate only if its predicted BME change is below -MOVE_MIN_GAIN (a float, as the scores may be).
 constexpr float MOVE_MIN_GAIN = 1e-6f;
+// The score of "no move" (a row or regraft edge the move scores leave out): larger than any BME change.
+constexpr double NO_MOVE = std::numeric_limits<double>::infinity();
 // A batch of moves is kept only if it lowers the BME length by more than this; otherwise it is undone.
 constexpr double BATCH_MIN_GAIN = 1e-8;
 // A window's new skeleton is kept only if it lowers the BME length by more than this.

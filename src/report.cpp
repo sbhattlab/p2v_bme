@@ -120,7 +120,7 @@ void substitution_model(JsonWriter &w, const Settings &opt) {
     w.begin_object();
     w.field("name", model_name(m.model));
     if (m.model == Model::F81 || m.model == Model::F84 || m.model == Model::TN93) {
-        std::vector<double> freqs(m.base_freqs, m.base_freqs + 4);
+        std::vector<double> freqs(m.base_freqs, m.base_freqs + N_BASES);
         w.array_field("base_frequencies", freqs);
     }
     w.end_object();

@@ -14,7 +14,7 @@
 namespace {
 
 bool bit(const p2vbme::Alignment &a, int taxon, int plane, int site) {
-    return (a.packed[((size_t)taxon * 5 + plane) * a.n_words + site / 64] >> (site % 64)) & 1ULL;
+    return (a.packed[((size_t)taxon * p2vbme::N_PLANES + plane) * a.n_words + site / 64] >> (site % 64)) & 1ULL;
 }
 
 } // namespace
@@ -34,7 +34,7 @@ TEST(Fasta, PacksPlanesAsTheBundles) {
     EXPECT_TRUE(bit(aln, 0, 3, 3));
     EXPECT_TRUE(bit(aln, 0, 3, 4)); // U counts as T
     for (int site = 5; site < 10; ++site)
-        for (int plane = 0; plane < 5; ++plane)
+        for (int plane = 0; plane < p2vbme::N_PLANES; ++plane)
             EXPECT_FALSE(bit(aln, 0, plane, site)) << site << " " << plane;
     for (int site = 0; site < 5; ++site)
         EXPECT_TRUE(bit(aln, 0, 4, site));
@@ -83,7 +83,7 @@ TEST(Fasta, RandomSequencesPackAsALetterByLetterLoop) {
     ASSERT_EQ(aln.n_taxa, n);
     ASSERT_EQ(aln.n_sites, length);
     ASSERT_EQ(aln.n_words, n_words);
-    std::vector<uint64_t> expected((size_t)n * 5 * n_words, 0);
+    std::vector<uint64_t> expected((size_t)n * p2vbme::N_PLANES * n_words, 0);
     for (int x = 0; x < n; ++x) {
         EXPECT_EQ(aln.names[x], "seq" + std::to_string(x));
         for (int i = 0; i < length; ++i) {
@@ -99,9 +99,9 @@ TEST(Fasta, RandomSequencesPackAsALetterByLetterLoop) {
                 plane = 3;
             if (plane < 0)
                 continue;
-            uint64_t *row = &expected[(size_t)x * 5 * n_words];
+            uint64_t *row = &expected[(size_t)x * p2vbme::N_PLANES * n_words];
             row[(size_t)plane * n_words + i / 64] |= 1ULL << (i % 64);
-            row[(size_t)4 * n_words + i / 64] |= 1ULL << (i % 64);
+            row[(size_t)p2vbme::VALID_PLANE * n_words + i / 64] |= 1ULL << (i % 64);
         }
     }
     EXPECT_EQ(aln.packed, expected);

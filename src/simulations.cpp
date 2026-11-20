@@ -100,35 +100,35 @@ void jacobi4(double A[4][4], double V[4][4], double d[4]) {
 Eigen4 decompose(const SimulationModel &m) {
     Eigen4 e;
     double total = 0.0;
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < N_BASES; ++i) {
         if (!(m.freqs[i] > 0.0))
             throw std::invalid_argument("simulation: base frequencies must be positive");
         total += m.freqs[i];
     }
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < N_BASES; ++i)
         e.pi[i] = m.freqs[i] / total;
-    for (int k = 0; k < 6; ++k)
+    for (int k = 0; k < N_GTR_RATES; ++k)
         if (!(m.rates[k] > 0.0))
             throw std::invalid_argument("simulation: GTR rates must be positive");
     if (!(m.alpha >= 0.0))
         throw std::invalid_argument("simulation: alpha must be >= 0");
 
     // exchangeabilities r_ij in the order AC, AG, AT, CG, CT, GT
-    double r[4][4] = {};
-    const int pairs[6][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
-    for (int k = 0; k < 6; ++k)
+    double r[N_BASES][N_BASES] = {};
+    const int pairs[N_GTR_RATES][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
+    for (int k = 0; k < N_GTR_RATES; ++k)
         r[pairs[k][0]][pairs[k][1]] = r[pairs[k][1]][pairs[k][0]] = m.rates[k];
     // mean rate mu = sum_i pi_i sum_{j != i} r_ij pi_j; Q = R Pi / mu has one substitution per unit time
     double mu = 0.0;
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (int i = 0; i < N_BASES; ++i)
+        for (int j = 0; j < N_BASES; ++j)
             if (i != j)
                 mu += e.pi[i] * r[i][j] * e.pi[j];
     // S = Pi^(1/2) Q Pi^(-1/2): S_ij = r_ij sqrt(pi_i pi_j) / mu (i != j), S_ii = Q_ii
-    double S[4][4];
-    for (int i = 0; i < 4; ++i) {
+    double S[N_BASES][N_BASES];
+    for (int i = 0; i < N_BASES; ++i) {
         double row = 0.0;
-        for (int j = 0; j < 4; ++j) {
+        for (int j = 0; j < N_BASES; ++j) {
             if (i == j)
                 continue;
             S[i][j] = r[i][j] * sqrt(e.pi[i] * e.pi[j]) / mu;
@@ -136,10 +136,10 @@ Eigen4 decompose(const SimulationModel &m) {
         }
         S[i][i] = -row;
     }
-    double W[4][4];
+    double W[N_BASES][N_BASES];
     jacobi4(S, W, e.lambda);
-    for (int i = 0; i < 4; ++i)
-        for (int k = 0; k < 4; ++k) {
+    for (int i = 0; i < N_BASES; ++i)
+        for (int k = 0; k < N_BASES; ++k) {
             e.U[i][k] = W[i][k] / sqrt(e.pi[i]);
             e.Uinv[k][i] = W[i][k] * sqrt(e.pi[i]);
         }
@@ -147,21 +147,21 @@ Eigen4 decompose(const SimulationModel &m) {
 }
 
 // Cumulative transition probabilities of row `from` at time t: cum[b] = P(from -> 0..b).
-void cumulative_row(const Eigen4 &e, int from, double t, double cum[4]) {
-    double ex[4];
-    for (int k = 0; k < 4; ++k)
+void cumulative_row(const Eigen4 &e, int from, double t, double cum[N_BASES]) {
+    double ex[N_BASES];
+    for (int k = 0; k < N_BASES; ++k)
         ex[k] = exp(e.lambda[k] * t);
     double acc = 0.0;
-    for (int b = 0; b < 4; ++b) {
+    for (int b = 0; b < N_BASES; ++b) {
         double p = 0.0;
-        for (int k = 0; k < 4; ++k)
+        for (int k = 0; k < N_BASES; ++k)
             p += e.U[from][k] * ex[k] * e.Uinv[k][b];
         acc += p > 0.0 ? p : 0.0;
         cum[b] = acc;
     }
 }
 
-int draw_base(const double cum[4], uint64_t &state) {
+int draw_base(const double cum[N_BASES], uint64_t &state) {
     const double u = (1.0 - uniform_open0(state)) * cum[3]; // in [0, total)
     for (int b = 0; b < 3; ++b)
         if (u < cum[b])
@@ -171,12 +171,12 @@ int draw_base(const double cum[4], uint64_t &state) {
 
 } // namespace
 
-void transition_matrix(const SimulationModel &model, double t, double P[4][4]) {
+void transition_matrix(const SimulationModel &model, double t, double P[N_BASES][N_BASES]) {
     const Eigen4 e = decompose(model);
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j) {
+    for (int i = 0; i < N_BASES; ++i)
+        for (int j = 0; j < N_BASES; ++j) {
             double p = 0.0;
-            for (int k = 0; k < 4; ++k)
+            for (int k = 0; k < N_BASES; ++k)
                 p += e.U[i][k] * exp(e.lambda[k] * t) * e.Uinv[k][j];
             P[i][j] = p;
         }
@@ -232,15 +232,15 @@ Alignment simulate_alignment(const Tree &tree, int32_t n_sites, const Simulation
     aln.n_taxa = N;
     aln.n_sites = n_sites;
     aln.n_words = (n_sites + 63) / 64;
-    aln.packed.assign((size_t)N * 5 * aln.n_words, 0);
+    aln.packed.assign((size_t)N * N_PLANES * aln.n_words, 0);
     for (int32_t i = 0; i < N; ++i)
         aln.names.push_back("t" + std::to_string(i));
 
     // Sequences of internal nodes live until their two children are drawn (a depth-first stack).
     std::vector<std::vector<uint8_t>> seq(n_nodes);
     seq[root].resize(n_sites);
-    double cum_pi[4], acc = 0.0;
-    for (int b = 0; b < 4; ++b)
+    double cum_pi[N_BASES], acc = 0.0;
+    for (int b = 0; b < N_BASES; ++b)
         cum_pi[b] = (acc += e.pi[b]);
     for (int32_t s = 0; s < n_sites; ++s)
         seq[root][s] = (uint8_t)draw_base(cum_pi, st);
@@ -248,9 +248,9 @@ Alignment simulate_alignment(const Tree &tree, int32_t n_sites, const Simulation
     auto draw_child = [&](int32_t parent, int32_t child) {
         std::vector<uint8_t> out(n_sites);
         const double len = tree.branch_lengths[child];
-        double cum[4][4];
+        double cum[N_BASES][N_BASES];
         if (model.alpha == 0.0)
-            for (int a = 0; a < 4; ++a)
+            for (int a = 0; a < N_BASES; ++a)
                 cumulative_row(e, a, len, cum[a]);
         for (int32_t s = 0; s < n_sites; ++s) {
             const int a = seq[parent][s];
@@ -259,11 +259,11 @@ Alignment simulate_alignment(const Tree &tree, int32_t n_sites, const Simulation
             out[s] = (uint8_t)draw_base(cum[a], st);
         }
         if (child < N) {
-            uint64_t *row = &aln.packed[(size_t)child * 5 * aln.n_words];
+            uint64_t *row = &aln.packed[(size_t)child * N_PLANES * aln.n_words];
             for (int32_t s = 0; s < n_sites; ++s) {
                 const uint64_t bit = 1ULL << (s % 64);
                 row[(size_t)out[s] * aln.n_words + s / 64] |= bit;
-                row[(size_t)4 * aln.n_words + s / 64] |= bit;
+                row[(size_t)VALID_PLANE * aln.n_words + s / 64] |= bit;
             }
         } else {
             seq[child] = std::move(out);

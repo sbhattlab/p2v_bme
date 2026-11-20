@@ -23,10 +23,10 @@ namespace {
 // The model the alignments are simulated under: GTR rates, unequal base frequencies, gamma alpha 0.5.
 inline p2vbme::SimulationModel truth() {
     p2vbme::SimulationModel m;
-    const double r[6] = {0.5, 2.0, 0.5, 0.5, 2.0, 0.5}, f[4] = {0.3, 0.2, 0.2, 0.3};
-    for (int k = 0; k < 6; ++k)
+    const double r[p2vbme::N_GTR_RATES] = {0.5, 2.0, 0.5, 0.5, 2.0, 0.5}, f[p2vbme::N_BASES] = {0.3, 0.2, 0.2, 0.3};
+    for (int k = 0; k < p2vbme::N_GTR_RATES; ++k)
         m.rates[k] = r[k];
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < p2vbme::N_BASES; ++i)
         m.freqs[i] = f[i];
     m.alpha = 0.5;
     return m;
@@ -37,7 +37,7 @@ inline p2vbme::SubstitutionModel distance_model(p2vbme::Model model) {
     p2vbme::SubstitutionModel dm;
     dm.model = model;
     const p2vbme::SimulationModel t = truth();
-    for (int k = 0; k < 6; ++k)
+    for (int k = 0; k < p2vbme::N_GTR_RATES; ++k)
         dm.gtr_rates[k] = t.rates[k];
     dm.gtr_alpha = t.alpha;
     return dm;
@@ -49,8 +49,8 @@ inline std::vector<double> distance_matrix(const p2vbme::Alignment &aln, const p
     std::vector<double> D((size_t)N * N, 0.0);
     for (int32_t i = 0; i < N; ++i)
         for (int32_t j = i + 1; j < N; ++j) {
-            const p2vbme::PairCounts c =
-                p2vbme::count_pair(&aln.packed[(size_t)i * 5 * W], &aln.packed[(size_t)j * 5 * W], W);
+            const p2vbme::PairCounts c = p2vbme::count_pair(&aln.packed[(size_t)i * p2vbme::N_PLANES * W],
+                                                            &aln.packed[(size_t)j * p2vbme::N_PLANES * W], W);
             D[(size_t)i * N + j] = D[(size_t)j * N + i] =
                 p2vbme::pair_distance<double>(p2vbme::distance_params<double>(dm, p2vbme::EigenSettings()), c.n);
         }

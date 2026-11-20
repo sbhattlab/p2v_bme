@@ -33,10 +33,10 @@ const Model MODELS[] = {Model::JC69, Model::K80, Model::F81, Model::F84, Model::
 
 SimulationModel truth() {
     SimulationModel m;
-    const double r[6] = {0.5, 2.0, 0.5, 0.5, 2.0, 0.5}, f[4] = {0.3, 0.2, 0.2, 0.3};
-    for (int k = 0; k < 6; ++k)
+    const double r[N_GTR_RATES] = {0.5, 2.0, 0.5, 0.5, 2.0, 0.5}, f[N_BASES] = {0.3, 0.2, 0.2, 0.3};
+    for (int k = 0; k < N_GTR_RATES; ++k)
         m.rates[k] = r[k];
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < N_BASES; ++i)
         m.freqs[i] = f[i];
     m.alpha = 0.5;
     return m;
@@ -46,7 +46,7 @@ SubstitutionModel distance_model(Model model) {
     SubstitutionModel dm;
     dm.model = model;
     const SimulationModel t = truth();
-    for (int k = 0; k < 6; ++k)
+    for (int k = 0; k < N_GTR_RATES; ++k)
         dm.gtr_rates[k] = t.rates[k];
     dm.gtr_alpha = t.alpha;
     return dm;
@@ -58,7 +58,7 @@ void punch_holes(Alignment &aln, double rate, uint64_t seed) {
     uint64_t st = seed;
     const int32_t W = aln.n_words;
     for (int32_t i = 0; i < aln.n_taxa; ++i) {
-        uint64_t *row = &aln.packed[(size_t)i * 5 * W];
+        uint64_t *row = &aln.packed[(size_t)i * N_PLANES * W];
         for (int32_t s = 0; s < aln.n_sites; ++s) {
             bool clear = (double)(splitmix64(st) >> 11) * 0x1.0p-53 < rate;
             if (i == 0)
@@ -66,7 +66,7 @@ void punch_holes(Alignment &aln, double rate, uint64_t seed) {
             if (i == 1)
                 clear = clear || s < aln.n_sites / 2;
             if (clear)
-                for (int p = 0; p < 5; ++p)
+                for (int p = 0; p < N_PLANES; ++p)
                     row[(size_t)p * W + s / 64] &= ~(1ULL << (s % 64));
         }
     }
@@ -76,7 +76,7 @@ double cpu_distance(const Alignment &aln, const SubstitutionModel &dm, int32_t a
     if (a == b)
         return 0.0;
     const int32_t W = aln.n_words;
-    const PairCounts c = count_pair(&aln.packed[(size_t)a * 5 * W], &aln.packed[(size_t)b * 5 * W], W);
+    const PairCounts c = count_pair(&aln.packed[(size_t)a * N_PLANES * W], &aln.packed[(size_t)b * N_PLANES * W], W);
     return pair_distance<double>(distance_params<double>(dm, EigenSettings()), c.n);
 }
 

@@ -32,7 +32,7 @@ constexpr std::array<int8_t, 256> kPlaneOf = [] {
 void pack_sequence(const std::string &seq, int32_t n_words, uint64_t *out) {
     const char *s = seq.data();
     const size_t n = seq.size();
-    uint64_t *observed = out + (size_t)4 * n_words;
+    uint64_t *observed = out + (size_t)VALID_PLANE * n_words;
     for (size_t i = 0; i < n; ++i) {
         const int plane = kPlaneOf[(unsigned char)s[i]];
         if (plane < 0)

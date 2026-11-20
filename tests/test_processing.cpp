@@ -46,8 +46,8 @@ TEST(Processing, BaseFrequenciesOfTheWholeInput) {
     p2vbme::prepare_alignment(aln, f81, true, dd);
     EXPECT_EQ(dd.n_removed(), 2);
     EXPECT_EQ(aln.n_taxa, 5);
-    const double expect[4] = {17.0 / 28, 4.0 / 28, 4.0 / 28, 3.0 / 28}; // all 7 sequences, not the 5 kept
-    for (int i = 0; i < 4; ++i)
+    const double expect[p2vbme::N_BASES] = {17.0 / 28, 4.0 / 28, 4.0 / 28, 3.0 / 28}; // all 7 sequences, not the 5 kept
+    for (int i = 0; i < p2vbme::N_BASES; ++i)
         EXPECT_DOUBLE_EQ(f81.base_freqs[i], expect[i]) << i;
 
     p2vbme::SubstitutionModel given = f81;
@@ -74,11 +74,11 @@ TEST(Dedup, KeepsTwoCopiesPerGroup) {
     EXPECT_EQ(dd.n_removed(), 3);
     EXPECT_EQ(red.names, (std::vector<std::string>{"a", "b", "c", "e", "g", "h"}));
     EXPECT_EQ(red.n_taxa, 6);
-    EXPECT_EQ(red.packed.size(), (size_t)6 * 5 * red.n_words);
+    EXPECT_EQ(red.packed.size(), (size_t)6 * p2vbme::N_PLANES * red.n_words);
     for (int k = 0; k < 6; ++k) // each kept row is the input row it came from
-        for (int w = 0; w < 5 * red.n_words; ++w)
-            EXPECT_EQ(red.packed[(size_t)k * 5 * red.n_words + w],
-                      aln.packed[(size_t)dd.kept[k] * 5 * aln.n_words + w]);
+        for (int w = 0; w < p2vbme::N_PLANES * red.n_words; ++w)
+            EXPECT_EQ(red.packed[(size_t)k * p2vbme::N_PLANES * red.n_words + w],
+                      aln.packed[(size_t)dd.kept[k] * p2vbme::N_PLANES * aln.n_words + w]);
     p2vbme::Alignment same = p2vbme::read_fasta(fa); // nothing to remove: unchanged
     write_file(fa, ">a\nACGT\n>b\nACGT\n>c\nTTTT\n");
     same = p2vbme::read_fasta(fa);

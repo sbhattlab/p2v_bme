@@ -25,6 +25,8 @@
 
 #include <string>
 
+#include "core.hpp"
+
 // Marks the per-pair formulas host and device functions under nvcc (plain functions elsewhere).
 #ifndef P2V_HD
 #ifdef __CUDACC__
@@ -50,10 +52,10 @@ Model parse_model(const std::string &name);
 // The substitution model of a run: the model and its parameters.
 struct SubstitutionModel {
     Model model = Model::JC69;
-    double gtr_rates[6] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; // GTR+GC exchangeabilities AC, AG, AT, CG, CT, GT
-    double gtr_alpha = 1.0;                               // GTR+GC gamma shape
-    double base_freqs[4] = {0.0, 0.0, 0.0, 0.0};          // F81, F84, TN93: the alignment's base frequencies (A, C,
-                                                          // G, T); all 0: not given (count_base_frequencies)
+    double gtr_rates[N_GTR_RATES] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; // GTR+GC exchangeabilities AC, AG, AT, CG, CT, GT
+    double gtr_alpha = 1.0;                                         // GTR+GC gamma shape
+    double base_freqs[N_BASES] = {0.0, 0.0, 0.0, 0.0}; // F81, F84, TN93: the alignment's base frequencies (A, C,
+                                                       // G, T); all 0: not given (count_base_frequencies)
 };
 
 // ---- Constants -------------------------------------------------------------------------------------------
@@ -70,7 +72,7 @@ constexpr double MAX_DISTANCE = 10.0;
 // ---- Pair counts -----------------------------------------------------------------------------------------
 
 struct PairCounts {
-    uint32_t n[16];
+    uint32_t n[N_BASES * N_BASES];
 };
 
 // Counts of two rows of the 5-bitplane layout (Alignment::packed: planes A, C, G, T, valid; n_words each).
@@ -79,7 +81,7 @@ PairCounts count_pair(const uint64_t *row_a, const uint64_t *row_b, int32_t n_wo
 // The base frequencies (A, C, G, T) of an alignment in the 5-bitplane layout: each base's share of all valid sites of
 // all sequences (as ape's base.freq and FastME).
 // Uniform if the alignment has no valid site.
-void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, double freqs[4]);
+void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, double freqs[N_BASES]);
 
 // ---- Floating-point helpers (float and double overloads, host and device) ---------------------------------
 
@@ -142,7 +144,7 @@ template <class T> struct Proportions {
     T Q;      // transversions, p - P1 - P2
 };
 
-template <class T> P2V_HD inline Proportions<T> proportions(const uint32_t n[16], uint32_t total) {
+template <class T> P2V_HD inline Proportions<T> proportions(const uint32_t n[N_BASES * N_BASES], uint32_t total) {
     Proportions<T> s;
     const T inv = T(1) / (T)total;
     const uint32_t same = n[0] + n[5] + n[10] + n[15];
@@ -155,9 +157,9 @@ template <class T> P2V_HD inline Proportions<T> proportions(const uint32_t n[16]
     return s;
 }
 
-P2V_HD inline uint32_t total_count(const uint32_t n[16]) {
+P2V_HD inline uint32_t total_count(const uint32_t n[N_BASES * N_BASES]) {
     uint32_t t = 0;
-    for (int k = 0; k < 16; ++k)
+    for (int k = 0; k < N_BASES * N_BASES; ++k)
         t += n[k];
     return t;
 }
@@ -166,7 +168,7 @@ P2V_HD inline uint32_t diagonal_count(const uint32_t n[16]) { return n[0] + n[5]
 
 // F81's d = -E ln(1 - p / E), E = 1 - sum pi_i^2 (floored at 1e-4): also F84's and TN93's when the frequencies make
 // their own form undefined (a base, or both purines or both pyrimidines, absent from the alignment).
-template <class T> P2V_HD inline T f81_form(T p, const T pi[4]) {
+template <class T> P2V_HD inline T f81_form(T p, const T pi[N_BASES]) {
     T E = T(1) - (pi[0] * pi[0] + pi[1] * pi[1] + pi[2] * pi[2] + pi[3] * pi[3]);
     if (E < T(1e-4))
         E = T(1e-4);
@@ -176,7 +178,7 @@ template <class T> P2V_HD inline T f81_form(T p, const T pi[4]) {
 } // namespace detail
 
 // K80 (Kimura 1980): d = -1/2 ln(1 - 2P - Q) - 1/4 ln(1 - 2Q), P = transitions, Q = transversions.
-template <class T> P2V_HD inline T k80_distance(const uint32_t n[16]) {
+template <class T> P2V_HD inline T k80_distance(const uint32_t n[N_BASES * N_BASES]) {
     const uint32_t total = detail::total_count(n);
     if (total == 0)
         return T(NO_OVERLAP_DISTANCE);
@@ -191,7 +193,7 @@ template <class T> P2V_HD inline T k80_distance(const uint32_t n[16]) {
 
 // F81 (Felsenstein 1981; as ape's dist.dna): d = -E ln(1 - p / E), E = 1 - sum pi_i^2, pi the alignment's base
 // frequencies.
-template <class T> P2V_HD inline T f81_distance(const uint32_t n[16], const T pi[4]) {
+template <class T> P2V_HD inline T f81_distance(const uint32_t n[N_BASES * N_BASES], const T pi[N_BASES]) {
     const uint32_t total = detail::total_count(n);
     if (total == 0)
         return T(NO_OVERLAP_DISTANCE);
@@ -205,7 +207,7 @@ template <class T> P2V_HD inline T f81_distance(const uint32_t n[16], const T pi
 //   A = pi_A pi_G / pi_R + pi_C pi_T / pi_Y,  B = pi_A pi_G + pi_C pi_T,  C = pi_R pi_Y,
 //   d = -2A ln(1 - P / (2A) - (A - B) Q / (2AC)) - 2(C + B - A) ln(1 - Q / (2C)).
 // Falls back to F81's form when A or C is below 1e-6.
-template <class T> P2V_HD inline T f84_distance(const uint32_t n[16], const T pi[4]) {
+template <class T> P2V_HD inline T f84_distance(const uint32_t n[N_BASES * N_BASES], const T pi[N_BASES]) {
     const uint32_t total = detail::total_count(n);
     if (total == 0)
         return T(NO_OVERLAP_DISTANCE);
@@ -230,7 +232,7 @@ template <class T> P2V_HD inline T f84_distance(const uint32_t n[16], const T pi
 //   d = -k1 ln(w1) - k2 ln(w2) - (k3 - k1 pi_Y - k2 pi_R) ln(w3),
 //   w1 = 1 - P1 / k1 - Q / (2 pi_R),  w2 = 1 - P2 / k2 - Q / (2 pi_Y),  w3 = 1 - Q / k3.
 // Falls back to F81's form when k1, k2 or k3 is below 1e-6.
-template <class T> P2V_HD inline T tn93_distance(const uint32_t n[16], const T pi[4]) {
+template <class T> P2V_HD inline T tn93_distance(const uint32_t n[N_BASES * N_BASES], const T pi[N_BASES]) {
     const uint32_t total = detail::total_count(n);
     if (total == 0)
         return T(NO_OVERLAP_DISTANCE);
@@ -254,18 +256,18 @@ template <class T> P2V_HD inline T tn93_distance(const uint32_t n[16], const T p
 // pair proportions.
 // Undefined (MAX_DISTANCE here; NaN in the paper's C distance library) when a base has frequency below 1e-3 in either
 // sequence or det J <= 1e-30.
-template <class T> P2V_HD inline T logdet_distance(const uint32_t n[16]) {
+template <class T> P2V_HD inline T logdet_distance(const uint32_t n[N_BASES * N_BASES]) {
     const uint32_t total = detail::total_count(n);
     if (total == 0)
         return T(NO_OVERLAP_DISTANCE);
     if (detail::diagonal_count(n) == total)
         return T(0);
     const T inv = T(1) / (T)total;
-    T J[16];
-    for (int k = 0; k < 16; ++k)
+    T J[N_BASES * N_BASES];
+    for (int k = 0; k < N_BASES * N_BASES; ++k)
         J[k] = (T)n[k] * inv;
     T prod_f = T(1);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < N_BASES; ++i) {
         const T fa = J[4 * i] + J[4 * i + 1] + J[4 * i + 2] + J[4 * i + 3];
         const T fb = J[i] + J[4 + i] + J[8 + i] + J[12 + i];
         if (fa < T(1e-3) || fb < T(1e-3))
@@ -290,30 +292,32 @@ template <class T> P2V_HD inline T logdet_distance(const uint32_t n[16]) {
 // xi_j = 1).
 // R has the eigenvalues of Q.
 // Returns -trace(Q).
-template <class T> P2V_HD inline T gtr_symmetric_rate_matrix(const T s[6], const T xi[4], T R[16]) {
-    const T S[16] = {T(0), s[0], s[1], s[2], s[0], T(0), s[3], s[4], s[1], s[3], T(0), s[5], s[2], s[4], s[5], T(0)};
-    T row_sum[4];
+template <class T>
+P2V_HD inline T gtr_symmetric_rate_matrix(const T s[N_GTR_RATES], const T xi[N_BASES], T R[N_BASES * N_BASES]) {
+    const T S[N_BASES * N_BASES] = {T(0), s[0], s[1], s[2], s[0], T(0), s[3], s[4],
+                                    s[1], s[3], T(0), s[5], s[2], s[4], s[5], T(0)};
+    T row_sum[N_BASES];
     T mu = T(0);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < N_BASES; ++i) {
         T rs = T(0);
-        for (int j = 0; j < 4; ++j)
-            rs += S[i * 4 + j] * xi[j];
+        for (int j = 0; j < N_BASES; ++j)
+            rs += S[i * N_BASES + j] * xi[j];
         row_sum[i] = rs;
         mu += xi[i] * rs;
     }
     const T inv_mu = (mu > T(1e-20)) ? (T(1) / mu) : T(1);
-    T sxi[4];
-    for (int i = 0; i < 4; ++i)
+    T sxi[N_BASES];
+    for (int i = 0; i < N_BASES; ++i)
         sxi[i] = fp::sqrt(xi[i]);
     T neg_tr_Q = T(0);
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
+    for (int i = 0; i < N_BASES; ++i) {
+        for (int j = 0; j < N_BASES; ++j) {
             if (i == j) {
                 const T q_ii = -row_sum[i] * inv_mu;
-                R[i * 4 + i] = q_ii;
+                R[i * N_BASES + i] = q_ii;
                 neg_tr_Q -= q_ii;
             } else {
-                R[i * 4 + j] = S[i * 4 + j] * sxi[i] * sxi[j] * inv_mu;
+                R[i * N_BASES + j] = S[i * N_BASES + j] * sxi[i] * sxi[j] * inv_mu;
             }
         }
     }

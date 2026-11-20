@@ -105,8 +105,8 @@ TEST(CpuDevice, MoveTiesGoToTheSmallestEdge) {
     const int32_t K = 12, M = 2 * K - 2, root_u = M - 1;
     Alignment aln = simulate_alignment(random_tree(K, 0.1, 0.1, 111), 200, truth(), 112);
     for (int32_t x = 1; x < K; ++x) /* every sequence a copy of the first */
-        std::copy(aln.packed.begin(), aln.packed.begin() + 5 * aln.n_words,
-                  aln.packed.begin() + (size_t)x * 5 * aln.n_words);
+        std::copy(aln.packed.begin(), aln.packed.begin() + N_PLANES * aln.n_words,
+                  aln.packed.begin() + (size_t)x * N_PLANES * aln.n_words);
     std::vector<int32_t> off(K + 1), leaves(K);
     std::vector<float> weights(K, 1.0f);
     for (int32_t a = 0; a <= K; ++a)

@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "config.hpp"
+#include "core.hpp"
 #include "device.hpp"
 #include "eigen_dist.hpp"
 #include "search.hpp"
@@ -41,7 +42,7 @@ template <class T> T row_distance(const uint64_t *a, const uint64_t *b, int32_t 
     if (dm.model == Model::JC69) {
         int32_t n_valid = 0, n_match = 0;
         for (int32_t w = 0; w < W; ++w) {
-            n_valid += __builtin_popcountll(a[4 * W + w] & b[4 * W + w]);
+            n_valid += __builtin_popcountll(a[VALID_PLANE * W + w] & b[VALID_PLANE * W + w]);
             n_match += __builtin_popcountll((a[w] & b[w]) | (a[W + w] & b[W + w]) | (a[2 * W + w] & b[2 * W + w]) |
                                             (a[3 * W + w] & b[3 * W + w]));
         }
@@ -72,17 +73,24 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
     CpuWindowKernels(const uint64_t *rows, int32_t W, const DistanceParams<T> &dm, int threads)
         : rows_(rows), W_(W), dm_(dm), threads_(threads), owned_(new CpuWorkspace<T>()), ws_(*owned_) {}
 
-    // K x K profile-weighted distances, summed as on the GPU: row sums over q, then over p.
+    // Computes the distances between the window's pieces: profiles (CSR) -> D (K x K, kept for score).
+    // Piece a's profile holds the leaves leaves[p] with weights weights[p], for p from off[a] to off[a + 1] - 1.
+    // D[a][b] is the sum, over p in a's profile and q in b's, of weights[p] * weights[q] * d(leaves[p], leaves[q]),
+    // summed in the GPU's order (over q first, then over p).
     void distances(int32_t K, const int32_t *off, const int32_t *leaves, const float *weights) override {
+        // Step 1: set the window's sizes for score and best_moves: K pieces, M = 2K - 2 skeleton nodes.
         K_ = K;
         M_ = 2 * K - 2;
+        // Step 2: zero D; the diagonal stays 0.
         std::vector<T> &D = ws_.D;
         D.assign((size_t)K * K, T(0));
+        // Step 3: fill each pair of pieces a < b once, and mirror it to D[b][a].
 #pragma omp parallel for schedule(dynamic, 4) num_threads(threads_for(threads_, K, 16))
         for (int32_t a = 0; a < K; ++a)
             for (int32_t b = a + 1; b < K; ++b) {
                 T d_val = T(0);
                 for (int32_t p = off[a]; p < off[a + 1]; ++p) {
+                    // the row sum: leaf p of piece a against every leaf q of piece b
                     T row_sum = T(0);
                     for (int32_t q = off[b]; q < off[b + 1]; ++q)
                         row_sum += (T)weights[q] * leaf_distance(leaves[p], leaves[q]);
@@ -93,39 +101,55 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
             }
     }
 
+    // Scores a skeleton: (s, perm) -> its BME length, and keeps the average distances best_moves reads.
+    // sd (M x M) holds, for each pair of nodes a and b, the average distance between the part of the tree at a facing
+    // away from b and the part at b facing away from a.
+    // The tree hangs from root_u: a node's part is its subtree, unless the other node is below it; then it is the rest
+    // of the tree beyond its edge towards the other node.
+    // The averages are balanced: each internal node gives its two sides half the weight each.
     double score(const SkeletonTables &s, const std::vector<int32_t> &perm) override {
         const int32_t K = K_, M = M_, root_u = M - 1;
         ws_.subdist.resize((size_t)M * M);
         T *sd = ws_.subdist.data();
         const T *D = ws_.D.data();
-        // bottom up: internal nodes to leaves, then (after the transpose) to internal nodes; then top down, where node
-        // v reads and writes entries no other node touches (as one GPU thread per v)
+        // In each loop, iteration i writes only entries in row or column i that no other iteration reads or writes (as
+        // one GPU thread per i).
 #pragma omp parallel num_threads(threads_for(threads_, M, 64))
         {
 #pragma omp for
+            // Step 1: copy the distances between tips: tip a stands for piece perm[a].
             for (int32_t row = 0; row < K; ++row)
                 for (int32_t col = 0; col < K; ++col)
                     sd[(size_t)row * M + col] = D[(size_t)perm[row] * K + perm[col]];
 #pragma omp for
+            // Step 2: average up from each tip v, children before parents: sd[u][v] for every internal node u.
+            // Where v is below u the value means nothing yet; step 5 replaces it.
             for (int32_t v = 0; v < K; ++v)
                 for (int32_t u = K; u < root_u; ++u)
                     sd[(size_t)u * M + v] = T(0.5) * (sd[(size_t)s.c1[u] * M + v] + sd[(size_t)s.c2[u] * M + v]);
 #pragma omp for
+            // Step 3: mirror step 2 (sd[v][u] = sd[u][v]), so that step 4 can read the tips' rows.
             for (int32_t u = K; u < root_u; ++u)
                 for (int32_t v = 0; v < K; ++v)
                     sd[(size_t)v * M + u] = sd[(size_t)u * M + v];
 #pragma omp for
+            // Step 4: average up the same way between internal nodes: sd[u][v] for internal u and v.
             for (int32_t v = K; v < root_u; ++v)
                 for (int32_t u = K; u < root_u; ++u)
                     sd[(size_t)u * M + v] = T(0.5) * (sd[(size_t)s.c1[u] * M + v] + sd[(size_t)s.c2[u] * M + v]);
 #pragma omp for
+            // Step 5: walk from the root down to each node v and set the entries between v and its ancestors (both
+            // ways), then sd[v][v] = 0.
             for (int32_t v = 0; v < M; ++v)
                 top_down(s, v);
         }
+        // Step 6: sum the BME length by Pauplin's identity: half the sum, over the tips x, of the average distance
+        // between x and the rest of the tree (sd[x][parent of x]).
         double acc = 0.0;
         for (int32_t x = 0; x < K; ++x)
             acc += (double)sd[(size_t)x * M + s.parent_u[x]];
-        // for best_moves (k_populate_nd_u): per internal node, the average distance between its other neighbours
+        // Step 7: for best_moves (k_populate_nd_u): for each internal node u, the average distance between the parts at
+        // two of its neighbours, one entry per neighbour left out (nd[3u + k] leaves out neighbour k).
         ws_.nd_u.resize((size_t)3 * M);
         T *nd = ws_.nd_u.data();
         for (int32_t u = K; u <= root_u; ++u) {
@@ -141,7 +165,7 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
     void best_moves(const SkeletonTables &s, std::vector<double> &best_delta, std::vector<int32_t> &best_j) override {
         const int32_t K = K_, M = M_, root_u = M - 1;
         // Step 1: mark every row "no move" (rows 0 and K - 1 are not scored; a row without regraft edges keeps it).
-        best_delta.assign(K, 1e30);
+        best_delta.assign(K, NO_MOVE);
         best_j.assign(K, -1);
         const T *sd = ws_.subdist.data();
         // Step 2: allocate one edge buffer and one stack per thread, before the parallel region (an exception must not
@@ -177,12 +201,12 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
                 // Step 4: score the regraft edges in the half trees beyond other0 and other1 (an edge by its child
                 // node).
                 // Every edge starts at "no move"; those at the pruning point and in the pruned subtree stay so.
-                std::fill(edge.begin(), edge.end(), T(1e30));
+                std::fill(edge.begin(), edge.end(), T(NO_MOVE));
                 const T *row_root = sd + (size_t)tree_root * M;
                 seed(s, other0, other1, parent, row_root, sd + (size_t)other1 * M, edge.data(), stack);
                 seed(s, other1, other0, parent, row_root, sd + (size_t)other0 * M, edge.data(), stack);
                 // Step 5: keep the smallest change; ties go to the smallest edge (the GPU reduction's rule).
-                T b_val = T(1e30);
+                T b_val = T(NO_MOVE);
                 int32_t b_j = -1;
                 for (int32_t du = 0; du < root_u; ++du)
                     if (edge[du] < b_val) {
@@ -201,10 +225,13 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
         T pow, dkc, dist;
     };
 
+    // Returns the model's distance between two leaves of a profile: (x, y) -> d(x, y), 0 when x == y.
+    // x and y are rows of the current alignment (rows_); each row is N_PLANES bitplanes of W_ words (as in Alignment:
+    // A, C, G, T/U, valid), so row x starts at word x * N_PLANES * W_.
     T leaf_distance(int32_t x, int32_t y) const {
         if (x == y)
             return T(0);
-        return row_distance<T>(rows_ + (size_t)x * 5 * W_, rows_ + (size_t)y * 5 * W_, W_, dm_);
+        return row_distance<T>(rows_ + (size_t)x * N_PLANES * W_, rows_ + (size_t)y * N_PLANES * W_, W_, dm_);
     }
 
     void top_down(const SkeletonTables &s, int32_t v) {
@@ -335,7 +362,7 @@ template <class T> class CpuDevice final : public Device {
                 sub = store_->levels[depth].second.lock();
         }
         if (!sub) {
-            const size_t row_words = (size_t)5 * n_words_;
+            const size_t row_words = (size_t)N_PLANES * n_words_;
             const uint64_t *src = packed();
             auto gathered = std::make_shared<std::vector<uint64_t>>(rows.size() * row_words);
             for (size_t r = 0; r < rows.size(); ++r)
@@ -368,13 +395,13 @@ template <class T> class CpuDevice final : public Device {
         const int32_t W = n_words_;
 #pragma omp parallel for schedule(dynamic, 64) num_threads(threads_for(step_threads(), n_queries, 256))
         for (int32_t qi = 0; qi < n_queries; ++qi) {
-            const uint64_t *q = seqs + (size_t)queries[qi] * 5 * W;
+            const uint64_t *q = seqs + (size_t)queries[qi] * N_PLANES * W;
             uint64_t best_key = ~0ULL;
             for (int32_t si = 0; si < n_samples; ++si) {
-                const uint64_t *sp = seqs + (size_t)samples[si] * 5 * W;
+                const uint64_t *sp = seqs + (size_t)samples[si] * N_PLANES * W;
                 int32_t valid = 0, match = 0;
                 for (int32_t w = 0; w < W; ++w) {
-                    valid += __builtin_popcountll(q[4 * W + w] & sp[4 * W + w]);
+                    valid += __builtin_popcountll(q[VALID_PLANE * W + w] & sp[VALID_PLANE * W + w]);
                     match += __builtin_popcountll((q[w] & sp[w]) | (q[W + w] & sp[W + w]) |
                                                   (q[2 * W + w] & sp[2 * W + w]) | (q[3 * W + w] & sp[3 * W + w]));
                 }
@@ -438,8 +465,9 @@ template <class T> class CpuDevice final : public Device {
                 for (int32_t q = 0; q < len2; ++q) {
                     const int32_t lv = leaf2 >= 0 ? leaf2 : l2[q];
                     const T wv = leaf2 >= 0 ? T(1) : (T)w2[q];
-                    const T d =
-                        lu == lv ? T(0) : row_distance<T>(rows + (size_t)lu * 5 * W, rows + (size_t)lv * 5 * W, W, dm_);
+                    const T d = lu == lv ? T(0)
+                                         : row_distance<T>(rows + (size_t)lu * N_PLANES * W,
+                                                           rows + (size_t)lv * N_PLANES * W, W, dm_);
                     sum += wu * wv * d;
                 }
             }

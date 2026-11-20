@@ -50,7 +50,7 @@ void count_base_frequencies(const Alignment &aln, SubstitutionModel &model) {
 }
 
 void deduplicate(Alignment &aln, Deduplication &dd) {
-    const size_t row_words = (size_t)5 * aln.n_words;
+    const size_t row_words = (size_t)N_PLANES * aln.n_words;
     dd.kept.clear();
     dd.copy_of.assign(aln.n_taxa, -1);
     // rows grouped by a hash of their words, then compared word by word

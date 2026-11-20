@@ -38,10 +38,10 @@ Case make_case(int32_t N, Model model, uint64_t seed) {
     Case c;
     c.tree = random_tree(N, 0.01, 0.2, seed);
     SimulationModel sim;
-    const double r[6] = {0.5, 2.0, 0.5, 0.5, 2.0, 0.5}, f[4] = {0.3, 0.2, 0.2, 0.3};
-    for (int k = 0; k < 6; ++k)
+    const double r[N_GTR_RATES] = {0.5, 2.0, 0.5, 0.5, 2.0, 0.5}, f[N_BASES] = {0.3, 0.2, 0.2, 0.3};
+    for (int k = 0; k < N_GTR_RATES; ++k)
         sim.rates[k] = r[k];
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < N_BASES; ++i)
         sim.freqs[i] = f[i];
     sim.alpha = 0.5;
     c.aln = simulate_alignment(c.tree, 1600, sim, seed + 1);

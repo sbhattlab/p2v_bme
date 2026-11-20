@@ -42,7 +42,7 @@ Alignment read_fasta(const std::string &path) {
         // Appends the sequence's 5 bitplanes (A, C, G, T, observed), n_words 64-bit words each, zeroed.
         // pack_sequence then sets one bit per site.
         const size_t row = aln.packed.size();
-        aln.packed.resize(row + (size_t)5 * aln.n_words, 0);
+        aln.packed.resize(row + (size_t)N_PLANES * aln.n_words, 0);
         pack_sequence(seq, aln.n_words, aln.packed.data() + row);
         aln.names.push_back(name);
         ++aln.n_taxa;

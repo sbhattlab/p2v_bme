@@ -78,7 +78,7 @@ void warn_gtr_precision(const Settings &opt, std::vector<std::string> &warnings)
           << "]" << consequence;
         warnings.push_back(w.str());
     }
-    const auto lo_hi = std::minmax_element(m.gtr_rates, m.gtr_rates + 6);
+    const auto lo_hi = std::minmax_element(m.gtr_rates, m.gtr_rates + N_GTR_RATES);
     const double ratio = *lo_hi.second / *lo_hi.first;
     if (ratio > GTR_FLOAT_RATE_RATIO_MAX) {
         std::ostringstream w;
@@ -98,7 +98,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     const int32_t n_nodes = 2 * N - 1;
     if (N < 4)
         throw std::runtime_error("need at least 4 sequences, got " + std::to_string(N));
-    if ((size_t)N * 5 * (size_t)W != aln.packed.size())
+    if ((size_t)N * N_PLANES * (size_t)W != aln.packed.size())
         throw std::runtime_error("alignment: packed size mismatch");
     if (opt.tree_init == TreeInit::Given) {
         if (!start_tree || (int32_t)start_tree->c1.size() != n_nodes || (int32_t)start_tree->c2.size() != n_nodes)
