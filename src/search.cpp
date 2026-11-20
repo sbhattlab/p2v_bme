@@ -50,26 +50,12 @@ void build_skeleton_metadata(const std::vector<int64_t> &v, SkeletonMeta &sk) {
     tin.assign(M_sk, 0);
     adj_u.assign(3 * M_sk, -1);
 
-    // Step 1: decode the ordered vector into the rooted skeleton (c1, c2), as phylo2vec does.
-    // Read from the last entry: leaf i + 1 joins the subtree named v[i] under the next node K + k, and the merged
-    // subtree keeps the name v[i] (scratch_uf: the top node of the subtree each name stands for).
-    // Children always get smaller ids than their parent.
-    // v_map[i + 1] is the subtree row i merges in: the subtree its moves prune.
-    std::vector<int32_t> scratch_uf(R_sk);
-    for (int32_t x = 0; x < K; ++x)
-        scratch_uf[x] = x;
-
-    for (int32_t k = 0; k < K - 1; ++k) {
-        int32_t i = K - 2 - k;
-        int32_t m = K + k;
-        int32_t x = (int32_t)v[i];
-        int32_t y = i + 1;
-        int32_t b0 = scratch_uf[y], b1 = scratch_uf[x];
-        c1[m] = b0;
-        c2[m] = b1;
-        v_map[y] = b0;
-        scratch_uf[x] = m;
-    }
+    // Step 1: decode the ordered vector into the rooted skeleton (c1, c2).
+    // v_map[i + 1] is the subtree row i merges in, the c1 side of the node it makes (2K - 2 - i): the subtree its
+    // moves prune.
+    to_skeleton(v.data(), K, c1.data(), c2.data());
+    for (int32_t y = 1; y < K; ++y)
+        v_map[y] = c1[2 * K - 1 - y];
     // Step 2: unroot it: drop the root 2K - 2 and join its two children by an edge.
     // One child is node 2K - 3 (made by row 1), which becomes the node the unrooted skeleton hangs from; the other
     // (other_rc, the smaller id) becomes its third neighbour.

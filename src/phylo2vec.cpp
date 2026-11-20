@@ -1,7 +1,7 @@
 /*
  * phylo2vec.cpp
  *
- * Phylo2Vec encoding of rooted trees (see phylo2vec.hpp).
+ * Phylo2Vec encoding and decoding of rooted trees (see phylo2vec.hpp).
  */
 #include "phylo2vec.hpp"
 
@@ -65,6 +65,24 @@ void queue_shuffle_rooted(const int32_t *c1_r, const int32_t *c2_r, int32_t n_le
     }
     for (int32_t old_l = 0; old_l < n_leaves; ++old_l) {
         perm_out[rep_leaf[old_l]] = old_l;
+    }
+}
+
+void to_skeleton(const int64_t *v, int32_t n_leaves, int32_t *c1_out, int32_t *c2_out) {
+    std::vector<int32_t> top(n_leaves); // the top node of the subtree each name (a leaf) stands for
+    for (int32_t x = 0; x < n_leaves; ++x) {
+        top[x] = x;
+        c1_out[x] = 0;
+        c2_out[x] = 0;
+    }
+    for (int32_t k = 0; k < n_leaves - 1; ++k) {
+        const int32_t i = n_leaves - 2 - k;
+        const int32_t m = n_leaves + k;
+        const int32_t x = (int32_t)v[i];
+        const int32_t y = i + 1;
+        c1_out[m] = top[y];
+        c2_out[m] = top[x];
+        top[x] = m;
     }
 }
 
