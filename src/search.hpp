@@ -65,19 +65,6 @@ struct SearchStats {
 
 // ---- Skeleton of a window (shared with the devices' window solve) ----
 
-void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t> &c1_cf, std::vector<int32_t> &c2_cf,
-                             std::vector<int32_t> &v_map_cf, std::vector<int32_t> &parent_u_cf,
-                             std::vector<int32_t> &sub_sz_cf, std::vector<int32_t> &tin_cf,
-                             std::vector<int32_t> &adj_u_cf, int32_t *out_other_rc, int32_t *out_rc0, int32_t *out_rc1,
-                             int32_t *out_rc2);
-void apply_unrooted_spr_host(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_u, int32_t dest_v);
-void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, int32_t root_edge_v, int32_t flip_mode,
-                        std::vector<int64_t> &v_cf, std::vector<int32_t> &perm);
-// All-pairs topological distances between the K pieces of a skeleton.
-void compute_skeleton_leaf_dists(const int64_t *v_cf, const int32_t *perm, int32_t K, std::vector<int32_t> &dist_out);
-
-// ---- The window solve, shared by the devices (each gives its kernels: Device::window_kernels) ----
-
 // A skeleton of K pieces as build_skeleton_metadata describes it: rooted children c1, c2 (2K - 1 nodes), the
 // unrooted tree on 2K - 2 nodes rooted at node 2K - 3 (parent_u, sub_size, tin, adj_u) and the root's children.
 struct SkeletonMeta {
@@ -87,6 +74,16 @@ struct SkeletonMeta {
     int32_t rc1 = -1;
     int32_t rc2 = -1;
 };
+
+// Decodes the skeleton's vector v_cf (K - 1 entries) into sk.
+void build_skeleton_metadata(const std::vector<int64_t> &v_cf, SkeletonMeta &sk);
+void apply_unrooted_spr_host(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_u, int32_t dest_v);
+void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, int32_t root_edge_v, int32_t flip_mode,
+                        std::vector<int64_t> &v_cf, std::vector<int32_t> &perm);
+// All-pairs topological distances between the K pieces of a skeleton.
+void compute_skeleton_leaf_dists(const int64_t *v_cf, const int32_t *perm, int32_t K, std::vector<int32_t> &dist_out);
+
+// ---- The window solve, shared by the devices (each gives its kernels: Device::window_kernels) ----
 
 // What a device computes for a window solve.
 class WindowKernels {

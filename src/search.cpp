@@ -34,11 +34,10 @@
 
 namespace p2vbme {
 
-void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t> &c1_cf, std::vector<int32_t> &c2_cf,
-                             std::vector<int32_t> &v_map_cf, std::vector<int32_t> &parent_u_cf,
-                             std::vector<int32_t> &sub_sz_cf, std::vector<int32_t> &tin_cf,
-                             std::vector<int32_t> &adj_u_cf, int32_t *out_other_rc, int32_t *out_rc0, int32_t *out_rc1,
-                             int32_t *out_rc2) {
+void build_skeleton_metadata(const std::vector<int64_t> &v_cf, SkeletonMeta &sk) {
+    const int32_t K = (int32_t)v_cf.size() + 1;
+    std::vector<int32_t> &c1_cf = sk.c1, &c2_cf = sk.c2, &v_map_cf = sk.v_map, &parent_u_cf = sk.parent_u;
+    std::vector<int32_t> &sub_sz_cf = sk.sub_size, &tin_cf = sk.tin, &adj_u_cf = sk.adj_u;
     const int32_t R_sk = 2 * K - 1;
     const int32_t M_sk = 2 * K - 2;
     const int32_t root_u_sk = M_sk - 1;
@@ -69,10 +68,10 @@ void build_skeleton_metadata(const int64_t *v_cf, int32_t K, std::vector<int32_t
     int32_t rc1 = c1_cf[R_sk - 1], rc2 = c2_cf[R_sk - 1];
     int32_t other_rc = (rc1 < rc2) ? rc1 : rc2;
     int32_t r_c0 = c1_cf[root_u_sk], r_c1 = c2_cf[root_u_sk], r_c2 = other_rc;
-    *out_other_rc = other_rc;
-    *out_rc0 = r_c0;
-    *out_rc1 = r_c1;
-    *out_rc2 = r_c2;
+    sk.other_rc = other_rc;
+    sk.rc0 = r_c0;
+    sk.rc1 = r_c1;
+    sk.rc2 = r_c2;
 
     for (int32_t u = 0; u < K; ++u)
         sub_sz_cf[u] = 1;
@@ -852,8 +851,7 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, do
 
     for (int32_t iter = 0; iter <= max_iters; ++iter) {
         // Step 1: decode the skeleton (v_cf) into the arrays the kernels and the moves read.
-        build_skeleton_metadata(v_cf.data(), K, sk.c1, sk.c2, sk.v_map, sk.parent_u, sk.sub_size, sk.tin, sk.adj_u,
-                                &sk.other_rc, &sk.rc0, &sk.rc1, &sk.rc2);
+        build_skeleton_metadata(v_cf, sk);
         const int32_t other_rc = sk.other_rc;
         std::vector<int32_t> &v_map_cf = sk.v_map, &parent_u_cf = sk.parent_u, &sub_size_cf = sk.sub_size;
         std::vector<int32_t> &tin_cf = sk.tin, &adj_u_cf = sk.adj_u;
@@ -1058,10 +1056,8 @@ static void write_back_skeleton(const std::vector<int64_t> &v_mb, const std::vec
     std::vector<int32_t> &curr_c1 = tree.c1, &curr_c2 = tree.c2;
 
     // Decode the vector back to a skeleton + kernel extras
-    std::vector<int32_t> c1_cf, c2_cf, v_map_cf, parent_u_cf, sub_sz_cf, tin_cf, adj_u_cf;
-    int32_t other_rc, rc0, rc1, rc2;
-    build_skeleton_metadata(v_mb.data(), K, c1_cf, c2_cf, v_map_cf, parent_u_cf, sub_sz_cf, tin_cf, adj_u_cf, &other_rc,
-                            &rc0, &rc1, &rc2);
+    SkeletonMeta sk;
+    build_skeleton_metadata(v_mb, sk);
 
     // Step 1: choose the root.
     // A subtree window: the node its outgroup tip hangs from, so the subtree keeps its place.
@@ -1077,7 +1073,7 @@ static void write_back_skeleton(const std::vector<int64_t> &v_mb, const std::vec
                 break;
             }
         }
-        st_u.push_back(adj_u_cf[3 * a_out + 0]);
+        st_u.push_back(sk.adj_u[3 * a_out + 0]);
         st_p.push_back(a_out);
     } else {
         const int32_t root_u_sk = 2 * K - 3;
@@ -1085,7 +1081,7 @@ static void write_back_skeleton(const std::vector<int64_t> &v_mb, const std::vec
         for (int32_t a = 0; a < K; ++a)
             w_sub[a] = summary.leaf_count[piece_roots[perm_mb[a]]];
         for (int32_t u = K; u < root_u_sk; ++u)
-            w_sub[u] = w_sub[c1_cf[u]] + w_sub[c2_cf[u]];
+            w_sub[u] = w_sub[sk.c1[u]] + w_sub[sk.c2[u]];
         u_best = 0;
         int32_t best_diff = std::abs(2 * w_sub[0] - n_leaves);
         for (int32_t u = 1; u < root_u_sk; ++u) {
@@ -1095,7 +1091,7 @@ static void write_back_skeleton(const std::vector<int64_t> &v_mb, const std::vec
                 u_best = u;
             }
         }
-        p_best = parent_u_cf[u_best];
+        p_best = sk.parent_u[u_best];
         if (u_best >= K) {
             st_u.push_back(u_best);
             st_p.push_back(p_best);
@@ -1112,7 +1108,7 @@ static void write_back_skeleton(const std::vector<int64_t> &v_mb, const std::vec
         int32_t p = st_p[idx];
         int32_t b0 = -1, b1 = -1;
         for (int32_t k = 0; k < 3; ++k) {
-            int32_t nb = adj_u_cf[3 * u + k];
+            int32_t nb = sk.adj_u[3 * u + k];
             if (nb != -1 && nb != p) {
                 if (b0 == -1)
                     b0 = nb;
