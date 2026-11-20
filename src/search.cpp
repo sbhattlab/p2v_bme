@@ -855,15 +855,6 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
     return best_L - init_L;
 }
 
-// Updates the summary after the write-back gave node u the children b0, b1: their parent, u's leaf count and stand-in.
-static inline void update_one_node_summary(int32_t u, int32_t b0, int32_t b1, TreeSummary &summary) {
-    summary.parent[b0] = u;
-    summary.parent[b1] = u;
-    summary.leaf_count[u] = summary.leaf_count[b0] + summary.leaf_count[b1];
-    summary.stand_in[u] =
-        (summary.leaf_count[b0] <= summary.leaf_count[b1]) ? summary.stand_in[b0] : summary.stand_in[b1];
-}
-
 // A 64-bit hash of what a window solve reads: K, max_iters, the skeleton (v, perm) and the profiles (offsets, leaves
 // and the bits of the weights).
 // The rest is fixed within one search: the devices' alignment, distance model and precision, and the solve's
@@ -893,10 +884,8 @@ static uint64_t window_input_hash(int32_t K, int32_t max_iters, const std::vecto
 // Writes a window's solved skeleton (skel.v, skel.perm) back into the tree: decodes it, roots it (a subtree window
 // where its outgroup attaches, the whole-tree window on its centroid edge), and gives the window's opened nodes their
 // new children.
-// It also patches the summary of those nodes (in_snapshot: only leaf_count and stand_in, as parallel windows must
-// leave summary.parent alone).
-static void write_back_skeleton(const Skeleton &skel, int32_t window_root, int32_t parent_of_window_root,
-                                bool in_snapshot, Tree &tree, TreeSummary &summary) {
+// It leaves the summary as it was: run_windows rebuilds it after every window that changed the tree.
+static void write_back_skeleton(const Skeleton &skel, int32_t window_root, Tree &tree, const TreeSummary &summary) {
     const int32_t n_leaves = tree.n_leaves();
     const int32_t root_r = 2 * n_leaves - 2;
     const int32_t K = (int32_t)skel.v.size() + 1;
@@ -960,7 +949,7 @@ static void write_back_skeleton(const Skeleton &skel, int32_t window_root, int32
         int32_t u_sk = order[K - 3 - s];
         sk_to_full[u_sk] = skel.opened[s];
     }
-    // Step 4: give the opened nodes their new children (and patch their summary).
+    // Step 4: give the opened nodes their new children.
     for (int32_t s = 0; s < K - 2; ++s) {
         int32_t u_sk = order[K - 3 - s];
         int32_t full_u = sk_to_full[u_sk];
@@ -968,33 +957,20 @@ static void write_back_skeleton(const Skeleton &skel, int32_t window_root, int32
         int32_t b1 = sk_to_full[child1[u_sk]];
         curr_c1[full_u] = b0;
         curr_c2[full_u] = b1;
-        if (!in_snapshot) {
-            update_one_node_summary(full_u, b0, b1, summary);
-        } else {
-            summary.leaf_count[full_u] = summary.leaf_count[b0] + summary.leaf_count[b1];
-            summary.stand_in[full_u] =
-                (summary.leaf_count[b0] <= summary.leaf_count[b1]) ? summary.stand_in[b0] : summary.stand_in[b1];
-        }
     }
     // Step 5: the top.
-    // A subtree window: window_root gets its old parent back (the outgroup is dropped).
+    // A subtree window: nothing more, as window_root is still its old parent's child (the outgroup is dropped).
     // The whole-tree window: the spare opened node (the tree root) joins the centroid edge's two ends.
-    if (has_outgroup) {
-        if (!in_snapshot) {
-            summary.parent[window_root] = parent_of_window_root;
-        }
-    } else {
+    if (!has_outgroup) {
         int32_t full_u = skel.opened[K - 2]; // == root_r
         int32_t b0 = sk_to_full[u_best];
         int32_t b1 = sk_to_full[p_best];
         curr_c1[full_u] = b0;
         curr_c2[full_u] = b1;
-        update_one_node_summary(full_u, b0, b1, summary);
-        summary.parent[root_r] = -1;
     }
 }
 
-// Optimize the window below window_root and write the result into tree and summary.
+// Optimize the window below window_root and write the result into the tree.
 // The window collapses clades into K pieces, each with a dyadic-weighted leaf profile, and optimizes them as an
 // unrooted BME tree.
 // A subtree window (window_root != root_r) also sees the rest of the tree, as one extra piece, the outgroup,
@@ -1003,7 +979,7 @@ static void write_back_skeleton(const Skeleton &skel, int32_t window_root, int32
 // The whole-tree window (window_root == root_r) has no outgroup and BME does not fix a root, so it re-roots on the
 // centroid edge.
 // Windows of one wave run in parallel: they pass a snapshot of the tree and its summary (snapshot, snapshot_summary),
-// read their profiles from it, and leave summary.parent alone (the caller recomputes the summary after the wave).
+// read their profiles from it; run_windows rebuilds the summary after the wave.
 // fruitless: the input hashes (window_input_hash) of this search's solves that found no improvement.
 // The solve is deterministic, so a window with one of these inputs would again find none: it is skipped.
 // fruitless_hash: set to the input hash when the solve runs and finds no improvement, for the caller to add to
@@ -1012,7 +988,7 @@ static void write_back_skeleton(const Skeleton &skel, int32_t window_root, int32
 static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iters, const SearchSettings &settings,
                                            const std::vector<int32_t> &outgroup_leaves,
                                            const std::vector<float> &outgroup_weights, Device &dev, Tree &tree,
-                                           TreeSummary &summary, const std::unordered_set<uint64_t> &fruitless,
+                                           const TreeSummary &summary, const std::unordered_set<uint64_t> &fruitless,
                                            std::optional<uint64_t> &fruitless_hash,
                                            const uint8_t *stop_at_comp_root = NULL, const Tree *snapshot = NULL,
                                            const TreeSummary *snapshot_summary = NULL) {
@@ -1034,8 +1010,6 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
     // > max_window: device cannot handle the window
     if (K < p2vbme::WINDOW_MIN_K || K > dev.max_window())
         return 0.0;
-
-    int32_t parent_of_window_root = summary.parent[window_root];
 
     const Tree &otree = (snapshot != NULL) ? *snapshot : tree;
     const TreeSummary &osum = (snapshot_summary != NULL) ? *snapshot_summary : summary;
@@ -1071,7 +1045,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
     }
 
     // Write the solved skeleton back into the tree.
-    write_back_skeleton(skel, window_root, parent_of_window_root, snapshot != NULL, tree, summary);
+    write_back_skeleton(skel, window_root, tree, summary);
     return dL;
 }
 
