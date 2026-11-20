@@ -1,10 +1,12 @@
 /*
  * device.hpp
  *
- * The four steps of the method that run on a device (a GPU or a CPU worker), behind one interface.
- * A Device owns its memory: the alignment (a GPU copy; the CPU reads the caller's), the start tree's subsamples
- * and a workspace. The host code (search, start_tree, branch_lengths) hands work to one Device per worker, one host
- * thread each. Only this interface has more than one implementation (device_gpu.cu, device_cpu.cpp).
+ * The parts of the method that run on a device (a GPU or a CPU worker), behind one interface: setup, the
+ * nearest-sample search, the window solve and the edge-length pass.
+ * device_gpu.cu and device_cpu.cpp implement it.
+ * The host code (search, start_tree, branch_lengths) hands work to one Device per worker, one host thread each.
+ * A Device holds what its steps read: the alignment (the GPU copies it, the CPU reads the caller's in place), the
+ * start tree's subsamples and a workspace.
  */
 #ifndef P2VBME_DEVICE_HPP
 #define P2VBME_DEVICE_HPP
@@ -23,46 +25,58 @@ namespace p2vbme {
 
 class WindowKernels; // the window solve's arithmetic (search.hpp)
 
+// One GPU, or one CPU worker.
 class Device {
   public:
     virtual ~Device() = default;
 
-    // 1. Setup: load the alignment, replacing any previous one.
+    // 1. Setup
+
+    // Loads the alignment, replacing any previous one.
     // `packed` is laid out as in Alignment (n_taxa rows of 5 x n_words bitplanes).
     // The GPU device copies it.
     // The CPU device reads it in place, so `packed` must stay valid until the next load() or the device's destruction.
     virtual void load(const uint64_t *packed, int32_t n_taxa, int32_t n_words) = 0;
-    // The distance model of the window solve and the edge-length pass (JC69 until set).
+    // Sets the distance model of the window solve and the edge-length pass (JC69 until set).
+    // The nearest-sample search always uses the p-distance.
     virtual void set_distance(const SubstitutionModel &model, const EigenSettings &eigen) = 0;
-    // The current alignment becomes rows[] of the current one (a start-tree subsample), until pop_subset.
+    // Narrows the current alignment to its rows[] (a start-tree subsample), until pop_subset.
+    // Subsets nest: each push narrows the current alignment again.
     virtual void push_subset(const std::vector<int32_t> &rows) = 0;
+    // Restores the alignment from before the last push_subset.
     virtual void pop_subset() = 0;
-    // Largest window (components K) the workspace holds.
+    // Returns the largest window the workspace holds, in pieces (K).
     virtual int32_t max_window() const = 0;
     // Waits for all work on the device.
     virtual void synchronize() = 0;
-    // e.g. "GPU 0: NVIDIA RTX A6000"
+    // Returns the device's name for the report, e.g. "GPU 0: NVIDIA RTX A6000" or "CPU worker 0 (single precision)".
     virtual std::string name() const = 0;
-    // Memory in use on the device, MiB (for a GPU: GPU-wide, other processes included).
+    // Returns the memory in use on the device, in MiB (GPU: GPU-wide, other processes included; CPU: 0).
     virtual double memory_in_use_mb() const = 0;
 
-    // 2. Nearest sampled sequence (start tree).
-    // For each query row, the position in samples[] of its nearest sample in p-distance over shared valid sites
-    // (no shared site: p = NN_P_NO_OVERLAP).
-    // Ties to the lower position.
+    // 2. Nearest-sample search (start tree)
+
+    // Finds each query's nearest sample: (queries, samples) -> best_pos.
+    // best_pos[i] is the position in samples[] of the sample nearest to queries[i] in p-distance over shared valid
+    // sites (no shared site: p = NN_P_NO_OVERLAP).
+    // Ties go to the lower position.
     virtual void nearest_sampled(const int32_t *queries, int32_t n_queries, const int32_t *samples, int32_t n_samples,
                                  int32_t *best_pos) = 0;
 
-    // 3. Window solve: the device's arithmetic for solve_window (search.hpp), which runs the sweeps.
-    // A new kernels object for each window, on the device's current alignment (its subset while the start tree is
-    // built).
+    // 3. Window solve
+
+    // Creates the kernels of one window solve, on the current alignment (a subset while the start tree is built).
+    // solve_window (search.hpp) runs the sweeps and calls them; a new object for each window.
     virtual std::unique_ptr<WindowKernels> window_kernels() = 0;
 
-    // 4. Edge-length pass (branch lengths).
-    // For each of `count` internal nodes with children c1[i] and c2[i], computes the profile-weighted distances
-    // between the two child subtrees (dAB[i]) and between each child and the rest of the tree (dAO[i], dBO[i]).
-    // The inside profiles cover all n_int internal nodes (node n_leaves + j at position j, cap entries each).
-    // The outside profiles cover the `count` nodes.
+    // 4. Edge-length pass (branch lengths)
+
+    // Computes the edge-length distances of `count` internal nodes: profiles -> (dAB, dAO, dBO).
+    // Node i has children c1[i] (A) and c2[i] (B); O is the rest of the tree, outside node i.
+    // dAB[i], dAO[i], dBO[i]: the profile-weighted distances between A and B, A and O, B and O.
+    // Inside profiles: all n_int internal nodes, node n_leaves + j in row j (in_len[j] entries, rows cap apart).
+    // A leaf child is its own profile (weight 1).
+    // Outside profiles: node i in row i (out_len[i] entries, rows cap apart).
     // The sums are in the device's precision (GPU: float).
     virtual void edge_lengths(int32_t n_leaves, int32_t cap, int32_t count, const int32_t *c1, const int32_t *c2,
                               int32_t n_int, const int32_t *in_len, const int32_t *in_leaves, const float *in_weights,
