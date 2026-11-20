@@ -1020,15 +1020,82 @@ __global__ void k_copy_leaf_rows_perm(const float *__restrict__ D_orig, const in
     }
 }
 
-__global__ void k_bottom_up_leaves(float *__restrict__ subdist, const int32_t *__restrict__ c1_r,
-                                   const int32_t *__restrict__ c2_r, int32_t N, int32_t M, int32_t root_u) {
-    int32_t v = blockIdx.x * blockDim.x + threadIdx.x;
-    if (v >= N)
+constexpr int32_t BU_BATCH = 4; // vertices of one height per step of k_bottom_up_levels
+
+// Bottom-up part of the subtree-average table for the columns [col0, col0 + n_cols), one thread per column: every
+// internal vertex u below the root gets subdist[u][v] = (subdist[c1][v] + subdist[c2][v]) / 2.
+// The vertices are taken level by level, up to BU_BATCH of one height per step (build_bottom_up_steps).
+// No vertex of a step is a child of another, so their children's rows are all read before any is written, which
+// overlaps the memory latency a one-vertex-at-a-time walk waits for at every vertex.
+// Every entry is still half the sum of the same two entries, so the table does not depend on the order.
+// Layout of bu: (u, c1, c2) per vertex in level order, then, from index 3 * n_int, the first vertex of each step and
+// n_int at the end.
+__global__ void k_bottom_up_levels(float *__restrict__ subdist, const int32_t *__restrict__ bu, int32_t n_int,
+                                   int32_t n_steps, int32_t col0, int32_t n_cols, int32_t M) {
+    const int32_t v = col0 + blockIdx.x * blockDim.x + threadIdx.x;
+    if (v >= col0 + n_cols)
         return;
-    for (int32_t u = N; u < root_u; ++u) {
-        int32_t c1 = c1_r[u], c2 = c2_r[u];
-        subdist[(size_t)u * M + v] = 0.5f * (subdist[(size_t)c1 * M + v] + subdist[(size_t)c2 * M + v]);
+    const int32_t *step = bu + 3 * n_int;
+    for (int32_t s = 0; s < n_steps; ++s) {
+        const int32_t k0 = step[s], cnt = step[s + 1] - k0;
+        if (cnt == BU_BATCH) {
+            float a[BU_BATCH], b[BU_BATCH];
+#pragma unroll
+            for (int32_t t = 0; t < BU_BATCH; ++t) {
+                a[t] = subdist[(size_t)bu[3 * (k0 + t) + 1] * M + v];
+                b[t] = subdist[(size_t)bu[3 * (k0 + t) + 2] * M + v];
+            }
+#pragma unroll
+            for (int32_t t = 0; t < BU_BATCH; ++t)
+                subdist[(size_t)bu[3 * (k0 + t)] * M + v] = 0.5f * (a[t] + b[t]);
+        } else {
+            for (int32_t k = k0; k < k0 + cnt; ++k)
+                subdist[(size_t)bu[3 * k] * M + v] =
+                    0.5f * (subdist[(size_t)bu[3 * k + 1] * M + v] + subdist[(size_t)bu[3 * k + 2] * M + v]);
+        }
     }
+}
+
+// Steps of k_bottom_up_levels for a K-leaf skeleton: the internal vertices K .. 2K - 4 sorted by height (one more
+// than the higher child's) and cut into steps of at most BU_BATCH vertices of one height.
+// bu receives the layout k_bottom_up_levels reads.
+// Returns the number of steps.
+int32_t build_bottom_up_steps(const std::vector<int32_t> &c1, const std::vector<int32_t> &c2, int32_t K,
+                              std::vector<int32_t> &bu) {
+    const int32_t root_u = 2 * K - 3;
+    const int32_t n_int = root_u - K;
+    bu.clear();
+    if (n_int <= 0) {
+        bu.push_back(0);
+        return 0;
+    }
+    std::vector<int32_t> height(root_u, 0), first;
+    int32_t h_max = 0;
+    for (int32_t u = K; u < root_u; ++u) {
+        height[u] = 1 + std::max(height[c1[u]], height[c2[u]]);
+        h_max = std::max(h_max, height[u]);
+    }
+    first.assign(h_max + 2, 0); // first[h] = vertices lower than h
+    for (int32_t u = K; u < root_u; ++u)
+        first[height[u] + 1]++;
+    for (int32_t h = 1; h <= h_max + 1; ++h)
+        first[h] += first[h - 1];
+    bu.resize((size_t)3 * n_int);
+    std::vector<int32_t> next(first.begin(), first.end() - 1);
+    for (int32_t u = K; u < root_u; ++u) {
+        const int32_t k = next[height[u]]++;
+        bu[3 * k] = u;
+        bu[3 * k + 1] = c1[u];
+        bu[3 * k + 2] = c2[u];
+    }
+    int32_t n_steps = 0;
+    for (int32_t h = 1; h <= h_max; ++h)
+        for (int32_t k = first[h]; k < first[h + 1]; k += BU_BATCH) {
+            bu.push_back(k);
+            ++n_steps;
+        }
+    bu.push_back(n_int);
+    return n_steps;
 }
 
 __global__ void k_transpose_leaf_block(float *__restrict__ subdist, int32_t N, int32_t M, int32_t root_u) {
@@ -1042,17 +1109,6 @@ __global__ void k_transpose_leaf_block(float *__restrict__ subdist, int32_t N, i
     int32_t u_t = N + blockIdx.y * 16 + threadIdx.x;
     if (v_t < N && u_t < root_u)
         subdist[(size_t)v_t * M + u_t] = tile[threadIdx.x][threadIdx.y];
-}
-
-__global__ void k_bottom_up_internals(float *__restrict__ subdist, const int32_t *__restrict__ c1_r,
-                                      const int32_t *__restrict__ c2_r, int32_t N, int32_t M, int32_t root_u) {
-    int32_t v = N + blockIdx.x * blockDim.x + threadIdx.x;
-    if (v >= root_u)
-        return;
-    for (int32_t u = N; u < root_u; ++u) {
-        int32_t c1 = c1_r[u], c2 = c2_r[u];
-        subdist[(size_t)u * M + v] = 0.5f * (subdist[(size_t)c1 * M + v] + subdist[(size_t)c2 * M + v]);
-    }
 }
 
 __global__ void k_top_down_and_root(float *__restrict__ subdist, const int32_t *__restrict__ c1_r,
@@ -1898,6 +1954,9 @@ struct RnaSimGpuWorkspace {
     // Group boundaries for k_build_condensed_D_packed (pack_groups).
     int32_t *d_grp_first = NULL;
     std::vector<int32_t> h_grp_first;
+    // Steps of k_bottom_up_levels (build_bottom_up_steps).
+    int32_t *d_bu = NULL;
+    std::vector<int32_t> h_bu;
 
     void init(int32_t gpu_id, int32_t K_cap) {
         dev_id = gpu_id;
@@ -1940,6 +1999,7 @@ struct RnaSimGpuWorkspace {
         gpu_alloc(&d_best_j, (size_t)K_cap * sizeof(int32_t));
         gpu_alloc(&d_curr_L, sizeof(double));
         gpu_alloc(&d_grp_first, (size_t)(K_cap + 1) * sizeof(int32_t));
+        gpu_alloc(&d_bu, ((size_t)4 * M + 2) * sizeof(int32_t));
         CUDA_CHECK(cudaFuncSetAttribute(k_spr_rows_top1, cudaFuncAttributeMaxDynamicSharedMemorySize, 90112));
     }
 
@@ -2024,6 +2084,8 @@ struct RnaSimGpuWorkspace {
         heavy_cap = 0;
         cudaFree(d_grp_first);
         d_grp_first = NULL;
+        cudaFree(d_bu);
+        d_bu = NULL;
     }
 };
 
@@ -2140,16 +2202,19 @@ class GpuWindowKernels final : public WindowKernels {
                                    gpu_ws.stream));
         CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_adj_u, adj_u_cf.data(), (size_t)3 * M_sk * sizeof(int32_t),
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
+        const int32_t n_steps = build_bottom_up_steps(s.c1, s.c2, K, gpu_ws.h_bu);
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_bu, gpu_ws.h_bu.data(), gpu_ws.h_bu.size() * sizeof(int32_t),
+                                   cudaMemcpyHostToDevice, gpu_ws.stream));
 
         k_copy_leaf_rows_perm<<<grd2d, blk2d, 0, gpu_ws.stream>>>(gpu_ws.d_D, gpu_ws.d_perm, gpu_ws.d_subdist, K, M_sk);
-        k_bottom_up_leaves<<<(K + 255) / 256, 256, 0, gpu_ws.stream>>>(gpu_ws.d_subdist, gpu_ws.d_c1_r, gpu_ws.d_c2_r,
-                                                                       K, M_sk, root_u_sk);
         int32_t n_int = root_u_sk - K;
+        k_bottom_up_levels<<<(K + 255) / 256, 256, 0, gpu_ws.stream>>>(gpu_ws.d_subdist, gpu_ws.d_bu, n_int, n_steps, 0,
+                                                                       K, M_sk);
         if (n_int > 0) {
             dim3 grd_tr((K + 15) / 16, (n_int + 15) / 16);
             k_transpose_leaf_block<<<grd_tr, blk2d, 0, gpu_ws.stream>>>(gpu_ws.d_subdist, K, M_sk, root_u_sk);
-            k_bottom_up_internals<<<(n_int + 255) / 256, 256, 0, gpu_ws.stream>>>(gpu_ws.d_subdist, gpu_ws.d_c1_r,
-                                                                                  gpu_ws.d_c2_r, K, M_sk, root_u_sk);
+            k_bottom_up_levels<<<(n_int + 255) / 256, 256, 0, gpu_ws.stream>>>(gpu_ws.d_subdist, gpu_ws.d_bu, n_int,
+                                                                               n_steps, K, n_int, M_sk);
         }
         k_top_down_and_root<<<(M_sk + 255) / 256, 256, 0, gpu_ws.stream>>>(
             gpu_ws.d_subdist, gpu_ws.d_c1_r, gpu_ws.d_c2_r, gpu_ws.d_tin, gpu_ws.d_sub_size, K, M_sk, root_u_sk, rc0,
