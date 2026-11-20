@@ -14,12 +14,13 @@ using p2vbme::SimulationModel;
 
 // p-distance between taxa i and j over sites valid in both (bitplanes as in the .bin bundles).
 double p_distance(const p2vbme::Alignment &a, int i, int j, int64_t *n_valid = nullptr) {
-    const uint64_t *x = &a.packed[(size_t)i * 5 * a.n_words], *y = &a.packed[(size_t)j * 5 * a.n_words];
+    const uint64_t *x = &a.packed[(size_t)i * p2vbme::N_PLANES * a.n_words],
+                   *y = &a.packed[(size_t)j * p2vbme::N_PLANES * a.n_words];
     int64_t valid = 0, match = 0;
     for (int w = 0; w < a.n_words; ++w) {
         valid += __builtin_popcountll(x[4 * a.n_words + w] & y[4 * a.n_words + w]);
         uint64_t m = 0;
-        for (int b = 0; b < 4; ++b)
+        for (int b = 0; b < p2vbme::N_BASES; ++b)
             m |= x[b * a.n_words + w] & y[b * a.n_words + w];
         match += __builtin_popcountll(m);
     }
@@ -31,11 +32,11 @@ double p_distance(const p2vbme::Alignment &a, int i, int j, int64_t *n_valid = n
 TEST(TransitionMatrix, Jc69ClosedForm) {
     SimulationModel m;
     for (double t : {0.0, 0.01, 0.1, 0.5, 2.0}) {
-        double P[4][4];
+        double P[p2vbme::N_BASES][p2vbme::N_BASES];
         p2vbme::transition_matrix(m, t, P);
         const double same = 0.25 + 0.75 * exp(-4.0 * t / 3.0), diff = 0.25 - 0.25 * exp(-4.0 * t / 3.0);
-        for (int i = 0; i < 4; ++i)
-            for (int j = 0; j < 4; ++j)
+        for (int i = 0; i < p2vbme::N_BASES; ++i)
+            for (int j = 0; j < p2vbme::N_BASES; ++j)
                 EXPECT_NEAR(P[i][j], i == j ? same : diff, 1e-12) << "t=" << t;
     }
 }
@@ -46,7 +47,7 @@ TEST(TransitionMatrix, K80ClosedForm) {
     m.rates[1] = m.rates[4] = kappa; // AG, CT
     const double alpha = kappa / (kappa + 2.0), beta = 1.0 / (kappa + 2.0);
     for (double t : {0.01, 0.1, 0.5, 2.0}) {
-        double P[4][4];
+        double P[p2vbme::N_BASES][p2vbme::N_BASES];
         p2vbme::transition_matrix(m, t, P);
         const double transversion = 0.25 * (1.0 - exp(-4.0 * beta * t));
         const double transition = 0.25 + 0.25 * exp(-4.0 * beta * t) - 0.5 * exp(-2.0 * (alpha + beta) * t);
@@ -60,43 +61,46 @@ TEST(TransitionMatrix, K80ClosedForm) {
 
 TEST(TransitionMatrix, F81ClosedForm) {
     SimulationModel m;
-    const double pi[4] = {0.1, 0.2, 0.3, 0.4};
-    for (int i = 0; i < 4; ++i)
+    const double pi[p2vbme::N_BASES] = {0.1, 0.2, 0.3, 0.4};
+    for (int i = 0; i < p2vbme::N_BASES; ++i)
         m.freqs[i] = pi[i];
     const double mu = 1.0 - (0.01 + 0.04 + 0.09 + 0.16);
     for (double t : {0.01, 0.3, 1.5}) {
-        double P[4][4];
+        double P[p2vbme::N_BASES][p2vbme::N_BASES];
         p2vbme::transition_matrix(m, t, P);
         const double e = exp(-t / mu);
-        for (int i = 0; i < 4; ++i)
-            for (int j = 0; j < 4; ++j)
+        for (int i = 0; i < p2vbme::N_BASES; ++i)
+            for (int j = 0; j < p2vbme::N_BASES; ++j)
                 EXPECT_NEAR(P[i][j], pi[j] * (1.0 - e) + (i == j ? e : 0.0), 1e-12);
     }
 }
 
 TEST(TransitionMatrix, GtrIsAStochasticReversibleSemigroup) {
     SimulationModel m;
-    const double rates[6] = {0.5, 2.0, 0.3, 0.7, 3.1, 1.0}, pi[4] = {0.35, 0.15, 0.2, 0.3};
-    for (int k = 0; k < 6; ++k)
+    const double rates[p2vbme::N_GTR_RATES] = {0.5, 2.0, 0.3, 0.7, 3.1, 1.0},
+                 pi[p2vbme::N_BASES] = {0.35, 0.15, 0.2, 0.3};
+    for (int k = 0; k < p2vbme::N_GTR_RATES; ++k)
         m.rates[k] = rates[k];
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < p2vbme::N_BASES; ++i)
         m.freqs[i] = pi[i];
-    double P0[4][4], Ps[4][4], Pt[4][4], Pst[4][4], Pinf[4][4];
+    double P0[p2vbme::N_BASES][p2vbme::N_BASES], Ps[p2vbme::N_BASES][p2vbme::N_BASES],
+        Pt[p2vbme::N_BASES][p2vbme::N_BASES], Pst[p2vbme::N_BASES][p2vbme::N_BASES],
+        Pinf[p2vbme::N_BASES][p2vbme::N_BASES];
     p2vbme::transition_matrix(m, 0.0, P0);
     p2vbme::transition_matrix(m, 0.2, Ps);
     p2vbme::transition_matrix(m, 0.7, Pt);
     p2vbme::transition_matrix(m, 0.9, Pst);
     p2vbme::transition_matrix(m, 200.0, Pinf);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < p2vbme::N_BASES; ++i) {
         double row = 0.0;
-        for (int j = 0; j < 4; ++j) {
+        for (int j = 0; j < p2vbme::N_BASES; ++j) {
             EXPECT_NEAR(P0[i][j], i == j ? 1.0 : 0.0, 1e-12);
             EXPECT_GT(Ps[i][j], 0.0);
             row += Ps[i][j];
             EXPECT_NEAR(pi[i] * Ps[i][j], pi[j] * Ps[j][i], 1e-12); // reversibility
             EXPECT_NEAR(Pinf[i][j], pi[j], 1e-9);                   // stationary distribution
             double prod = 0.0;                                      // Chapman-Kolmogorov
-            for (int k = 0; k < 4; ++k)
+            for (int k = 0; k < p2vbme::N_BASES; ++k)
                 prod += Ps[i][k] * Pt[k][j];
             EXPECT_NEAR(prod, Pst[i][j], 1e-12);
         }
@@ -104,9 +108,9 @@ TEST(TransitionMatrix, GtrIsAStochasticReversibleSemigroup) {
     }
     // One expected substitution per unit time: -sum_i pi_i Q_ii = 1, with Q ~ (P(h) - I) / h.
     const double h = 1e-6;
-    double Ph[4][4], rate = 0.0;
+    double Ph[p2vbme::N_BASES][p2vbme::N_BASES], rate = 0.0;
     p2vbme::transition_matrix(m, h, Ph);
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < p2vbme::N_BASES; ++i)
         rate += pi[i] * (1.0 - Ph[i][i]) / h;
     EXPECT_NEAR(rate, 1.0, 1e-5);
 }
@@ -158,16 +162,17 @@ TEST(Simulate, LayoutAndDeterminism) {
     ASSERT_EQ(a.n_taxa, 20);
     ASSERT_EQ(a.n_sites, L);
     ASSERT_EQ(a.n_words, 3);
-    ASSERT_EQ(a.packed.size(), 20u * 5 * 3);
+    ASSERT_EQ(a.packed.size(), 20u * p2vbme::N_PLANES * 3);
     ASSERT_EQ(a.names.size(), 20u);
     EXPECT_EQ(a.names[0], "t0");
     EXPECT_EQ(a.names[19], "t19");
     for (int i = 0; i < a.n_taxa; ++i)
         for (int s = 0; s < 3 * 64; ++s) {
             int n_bases = 0;
-            for (int b = 0; b < 4; ++b)
-                n_bases += (a.packed[((size_t)i * 5 + b) * 3 + s / 64] >> (s % 64)) & 1;
-            const int valid = (a.packed[((size_t)i * 5 + 4) * 3 + s / 64] >> (s % 64)) & 1;
+            for (int b = 0; b < p2vbme::N_BASES; ++b)
+                n_bases += (a.packed[((size_t)i * p2vbme::N_PLANES + b) * 3 + s / 64] >> (s % 64)) & 1;
+            const int valid =
+                (a.packed[((size_t)i * p2vbme::N_PLANES + p2vbme::VALID_PLANE) * 3 + s / 64] >> (s % 64)) & 1;
             EXPECT_EQ(n_bases, s < L ? 1 : 0);
             EXPECT_EQ(valid, s < L ? 1 : 0);
         }
@@ -190,17 +195,17 @@ TEST(Simulate, Jc69DistancesMatchPathLengths) {
 
 TEST(Simulate, BaseFrequencies) {
     SimulationModel m;
-    const double pi[4] = {0.1, 0.2, 0.3, 0.4};
-    for (int i = 0; i < 4; ++i)
+    const double pi[p2vbme::N_BASES] = {0.1, 0.2, 0.3, 0.4};
+    for (int i = 0; i < p2vbme::N_BASES; ++i)
         m.freqs[i] = pi[i];
     m.rates[1] = 3.0;
     const int n = 10, L = 50000;
     const p2vbme::Alignment a = p2vbme::simulate_alignment(p2vbme::random_tree(n, 0.05, 0.5, 2), L, m, 9);
-    for (int b = 0; b < 4; ++b) {
+    for (int b = 0; b < p2vbme::N_BASES; ++b) {
         int64_t count = 0;
         for (int i = 0; i < n; ++i)
             for (int w = 0; w < a.n_words; ++w)
-                count += __builtin_popcountll(a.packed[((size_t)i * 5 + b) * a.n_words + w]);
+                count += __builtin_popcountll(a.packed[((size_t)i * p2vbme::N_PLANES + b) * a.n_words + w]);
         const double f = (double)count / ((double)n * L);
         // leaves are correlated through the tree, so allow a wider band than for independent sites
         EXPECT_NEAR(f, pi[b], 6.0 * sqrt(pi[b] * (1.0 - pi[b]) / L)) << "base " << b;

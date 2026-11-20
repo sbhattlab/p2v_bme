@@ -11,17 +11,14 @@ extern "C" {
 #endif
 
 /*
- * Ultra-optimized Matrix-Based O(N^2) Phylo2Vec BME Discrete Gradient & Tree Optimizer in C99 (v3).
+ * Ultra-optimized Matrix-Based O(N^2) Phylo2Vec BME Discrete Gradient & Tree Optimizer in C99.
  *
  * Exports:
  *   - calculate_discrete_gradient_c      : Lower-triangular j < i discrete gradient (N-1 x N-2)
  *   - calculate_discrete_gradient_full_c : Full 0 <= j <= 2i discrete gradient (N-1 x (2N-3))
- *   - relabel_cherry_first_c             : O(N) cherry-first taxon relabeling (v_pi[i] <= i)
+ *   - queue_shuffle_c                    : O(N) relabeling to an ordered vector (v_pi[i] <= i)
  *   - encode_unrooted_to_v_c             : Exact O(N) inverse bijection from unrooted tree to v
  *   - optimize_phylo2vec_bme_c           : End-to-end Phylo2Vec BME tree optimizer
- *
- * Compile with:
- *   /usr/bin/clang -O3 -march=native -ffast-math -shared -fPIC bme_reference.c -o libbme_reference.dylib
  */
 
 #if !defined(_WIN32)
@@ -352,7 +349,7 @@ static inline void decode_v_to_pairs_fast(const int64_t *restrict v, int32_t n_p
 }
 
 /* ============================================================================
- * 1. Lower-Triangular (j < i) Discrete Gradient (cherry-first 0 <= v[i] <= i)
+ * 1. Lower-Triangular (j < i) Discrete Gradient (ordered 0 <= v[i] <= i)
  * ============================================================================ */
 void calculate_discrete_gradient_c(const int64_t *restrict v, const double *restrict D, int32_t n_leaves,
                                    double *restrict delta_out) {
@@ -583,7 +580,7 @@ void calculate_discrete_gradient_c(const int64_t *restrict v, const double *rest
 }
 
 /* ============================================================================
- * 2. Full 0 <= j <= 2i Discrete Gradient (shape: (N-1) x (2N-3), cherry-first 0 <= v[i] <= i)
+ * 2. Full 0 <= j <= 2i Discrete Gradient (shape: (N-1) x (2N-3), ordered 0 <= v[i] <= i)
  * ============================================================================ */
 void calculate_discrete_gradient_full_c(const int64_t *restrict v, const double *restrict D, int32_t n_leaves,
                                         double *restrict delta_full_out) {
@@ -828,11 +825,11 @@ void calculate_discrete_gradient_full_c(const int64_t *restrict v, const double 
 }
 
 /* ============================================================================
- * 3. O(N) Cherry-First Taxon Relabeling (v_new[i] <= i)
+ * 3. O(N) Queue Shuffle: Relabeling to an Ordered Vector (v_new[i] <= i)
  * ============================================================================ */
-static void relabel_from_rooted_tree(const int32_t *restrict child1_r, const int32_t *restrict child2_r,
-                                     const int32_t *restrict min_leaf, int32_t n_leaves, int32_t flip_mode,
-                                     int64_t *restrict v_new, int32_t *restrict perm_inout, int32_t *restrict scratch) {
+static void queue_shuffle_rooted(const int32_t *restrict child1_r, const int32_t *restrict child2_r,
+                                 const int32_t *restrict min_leaf, int32_t n_leaves, int32_t flip_mode,
+                                 int64_t *restrict v_new, int32_t *restrict perm_inout, int32_t *restrict scratch) {
     const int32_t n_nodes_r = 2 * n_leaves - 1;
     int32_t *rep_leaf = scratch;
     int32_t *new_perm = scratch + n_nodes_r;
@@ -875,8 +872,8 @@ static void relabel_from_rooted_tree(const int32_t *restrict child1_r, const int
     memcpy(perm_inout, new_perm, (size_t)n_leaves * sizeof(int32_t));
 }
 
-void relabel_cherry_first_c(const int64_t *restrict v_in, int32_t n_leaves, int32_t flip_mode, int64_t *restrict v_out,
-                            int32_t *restrict perm_out) {
+void queue_shuffle_c(const int64_t *restrict v_in, int32_t n_leaves, int32_t flip_mode, int64_t *restrict v_out,
+                     int32_t *restrict perm_out) {
     if (ensure_workspace(n_leaves) != 0)
         return;
     const int32_t n_pairs = n_leaves - 1;
@@ -917,7 +914,7 @@ void relabel_cherry_first_c(const int64_t *restrict v_in, int32_t n_leaves, int3
 
     for (int32_t i = 0; i < n_leaves; ++i)
         perm_out[i] = i;
-    relabel_from_rooted_tree(child1_r, child2_r, min_leaf, n_leaves, flip_mode, v_out, perm_out, scratch);
+    queue_shuffle_rooted(child1_r, child2_r, min_leaf, n_leaves, flip_mode, v_out, perm_out, scratch);
 }
 
 /* ============================================================================
@@ -1390,7 +1387,7 @@ double optimize_phylo2vec_bme_c(const int64_t *restrict v_init, const double *re
                 parents_uf[p2] = next_parent;
                 next_parent++;
             }
-            relabel_from_rooted_tree(child1_r, child2_r, min_leaf, n_leaves, 0, v_pi, perm, relabel_scratch);
+            queue_shuffle_rooted(child1_r, child2_r, min_leaf, n_leaves, 0, v_pi, perm, relabel_scratch);
             perm_dirty = 1;
         }
 
@@ -1767,7 +1764,7 @@ double optimize_phylo2vec_bme_c(const int64_t *restrict v_init, const double *re
 
         if (!flipped_already) {
             flipped_already = 1;
-            relabel_from_rooted_tree(child1_r, child2_r, min_leaf, n_leaves, 1, v_pi, perm, relabel_scratch);
+            queue_shuffle_rooted(child1_r, child2_r, min_leaf, n_leaves, 1, v_pi, perm, relabel_scratch);
             perm_dirty = 1;
             adj_synced = 0;
             continue;
@@ -2003,7 +2000,7 @@ double optimize_phylo2vec_bme_c(const int64_t *restrict v_init, const double *re
 }
 
 /* ============================================================================
- * 7. Exact Clade-Condensed Minibatch BME Gradient & Optimizer (Theorem 5.5)
+ * 7. Exact Clade-Condensed Minibatch BME Gradient & Optimizer
  * ============================================================================ */
 
 static void decode_v_to_rooted_children(const int64_t *restrict v, int32_t n_leaves, int32_t *restrict child1_r,
@@ -2013,14 +2010,14 @@ static void decode_v_to_rooted_children(const int64_t *restrict v, int32_t n_lea
     int32_t *pairs = scratch_i;
     int32_t *parents_uf = scratch_i + 2 * n_pairs;
 
-    int32_t is_cf = 1;
+    int32_t is_ordered = 1;
     for (int32_t i = 1; i < n_pairs; ++i) {
         if (v[i] > i) {
-            is_cf = 0;
+            is_ordered = 0;
             break;
         }
     }
-    if (is_cf) {
+    if (is_ordered) {
         for (int32_t x = 0; x < n_leaves; ++x)
             parents_uf[x] = x;
         for (int32_t k = 0; k < n_pairs; ++k) {
@@ -2097,7 +2094,7 @@ void condense_tree_bme_c(const int64_t *restrict v, const double *restrict D, in
     const int32_t n_eff = n_act_int + 1;
     *n_eff_out = n_eff;
 
-    /* 2. Bottom-up min_node for deterministic cherry-first ordering on condensed tree */
+    /* 2. Bottom-up min_node for a deterministic ordered labelling of the condensed tree */
     for (int32_t u = 0; u < n_nodes_r; ++u)
         min_node[u] = u;
     for (int32_t idx = n_act_int - 1; idx >= 0; --idx) {
@@ -2106,7 +2103,7 @@ void condense_tree_bme_c(const int64_t *restrict v, const double *restrict D, in
         min_node[u] = (m1 < m2) ? m1 : m2;
     }
 
-    /* 3. Top-down cherry-first label assignment on active_int (Theorem 2.1) */
+    /* 3. Top-down ordered label assignment on active_int */
     rep_label[root_r] = 0;
     int32_t next_label = 1;
     for (int32_t idx = 0; idx < n_act_int; ++idx) {

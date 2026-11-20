@@ -24,7 +24,8 @@
  * to about 14, 6.9 to 9.8 above. Distances lie in [0, 10]; no shared valid site gives 2.0, identical sequences 0.
  *
  * wls and svd with the default settings are the paper's GPU implementation, ported line by line (bitwise equal when
- * both are compiled without FMA contraction); orig and `pair` follow the paper's C distance library, with the GPU
+ * both are compiled without FMA contraction, for exchangeabilities with mean 1 as the paper's fit returns them; others
+ * are scaled to mean 1 first); orig and `pair` follow the paper's C distance library, with the GPU
  * implementation's pseudocount 1e-5 (library: 1e-8).
  * Not ported: the library's projection onto the bases present when a base is missing (its "reduced alphabet");
  * here a base absent from both sequences gives a pseudocount-only row of K~ (singular value 1/4), which reads as
@@ -45,26 +46,26 @@ enum class Saturation : int32_t { Direction, Pair };
 
 struct EigenSettings {
     GtrEstimator estimator = GtrEstimator::Wls;
-    int32_t reweight = DEFAULT_GTR_REWEIGHT; /* SymWLS weight updates after the first fit (wls only) */
+    int32_t reweight = DEFAULT_GTR_REWEIGHT; // SymWLS weight updates after the first fit (wls only)
     Saturation saturation = Saturation::Direction;
 };
 
-const char *estimator_name(GtrEstimator e);            /* wls, svd, orig */
-const char *saturation_name(Saturation s);             /* direction, pair */
-GtrEstimator parse_estimator(const std::string &name); /* throws std::runtime_error */
+const char *estimator_name(GtrEstimator e);            // wls, svd, orig
+const char *saturation_name(Saturation s);             // direction, pair
+GtrEstimator parse_estimator(const std::string &name); // throws std::runtime_error
 Saturation parse_saturation(const std::string &name);
 
-/* The pseudocount added to each of the 16 counts, and the range of the singular values. */
+// The pseudocount added to each of the 16 counts, and the range of the singular values.
 constexpr double EIGEN_PSEUDOCOUNT = 1e-5;
 constexpr double EIGEN_SIGMA_MIN = 1e-4;
 constexpr double EIGEN_SIGMA_MAX = 0.999999;
 
-/* ---- 4 x 4 symmetric eigenvalues ------------------------------------------------------------------------ */
+// ---- 4 x 4 symmetric eigenvalues ------------------------------------------------------------------------
 
-/* The three eigenvalues of a symmetric 4 x 4 matrix M on the complement of its unit null vector v (M v = 0), in
- * decreasing order, by the trigonometric solution of the deflated cubic (as the paper's GPU
- * implementation). Both callers satisfy M v = 0: K~ sqrt(F^b) = 0 and R sqrt(xi) = 0. */
-/* Constants: the float path keeps the literals of the paper's GPU implementation; the double path the exact values. */
+// The three eigenvalues of a symmetric 4 x 4 matrix M on the complement of its unit null vector v (M v = 0), in
+// decreasing order, by the trigonometric solution of the deflated cubic (as the paper's GPU implementation).
+// Both callers satisfy M v = 0: K~ sqrt(F^b) = 0 and R sqrt(xi) = 0.
+// Constants: the float path keeps the literals of the paper's GPU implementation; the double path the exact values.
 template <class T> P2V_HD inline T two_pi_over_3() {
     return sizeof(T) == 4 ? T(2.09439510239f) : T(2.0943951023931955);
 }
@@ -110,8 +111,8 @@ template <class T> P2V_HD inline void sym4x4_rank3_eigenvalues(const T M[16], co
     evals3[2] = mu + two_sp * fp::cos(theta + two_pi_over_3<T>());
 }
 
-/* All four eigenvalues of a symmetric 4 x 4 matrix (overwritten), in decreasing order, by cyclic Jacobi rotations
- * (as the paper's C distance library, eigenvalues only). */
+// All four eigenvalues of a symmetric 4 x 4 matrix (overwritten), in decreasing order, by cyclic Jacobi rotations (as
+// the paper's C distance library, eigenvalues only).
 template <class T> P2V_HD inline void sym4x4_jacobi_eigenvalues(T A[16], T evals[4]) {
     const int pairs[6][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
     for (int sweep = 0; sweep < 6; ++sweep) {
@@ -160,12 +161,12 @@ template <class T> P2V_HD inline void sym4x4_jacobi_eigenvalues(T A[16], T evals
     }
 }
 
-/* ---- The eigenvalue GTR+GC distance ---------------------------------------------------------------------- */
+// ---- The eigenvalue GTR+GC distance ----------------------------------------------------------------------
 
-/* s_rates: exchangeabilities (AC, AG, AT, CG, CT, GT); alpha > 0 and inv_alpha = 1 / alpha (computed once by the
- * caller, as the paper's GPU implementation does). */
+// s_rates: exchangeabilities (AC, AG, AT, CG, CT, GT); alpha > 0 and inv_alpha = 1 / alpha (computed once by the
+// caller, as the paper's GPU implementation does).
 template <class T>
-P2V_HD inline T eigen_distance(const uint32_t c[16], const T s_rates[6], T alpha, T inv_alpha,
+P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_rates[N_GTR_RATES], T alpha, T inv_alpha,
                                const EigenSettings &opt) {
     uint32_t r0 = c[0] + c[1] + c[2] + c[3];
     uint32_t r1 = c[4] + c[5] + c[6] + c[7];
@@ -179,22 +180,22 @@ P2V_HD inline T eigen_distance(const uint32_t c[16], const T s_rates[6], T alpha
         return T(0);
 
     const T eps = T(EIGEN_PSEUDOCOUNT);
-    T inv_tot = T(1) / ((T)total_valid + T(16) * eps);
-    T K[16];
-    T Fa[4] = {T(0), T(0), T(0), T(0)};
-    T Fb[4] = {T(0), T(0), T(0), T(0)};
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            T kij = ((T)c[i * 4 + j] + eps) * inv_tot;
-            K[i * 4 + j] = kij;
+    T inv_tot = T(1) / ((T)total_valid + T(N_BASES * N_BASES) * eps);
+    T K[N_BASES * N_BASES];
+    T Fa[N_BASES] = {T(0), T(0), T(0), T(0)};
+    T Fb[N_BASES] = {T(0), T(0), T(0), T(0)};
+    for (int i = 0; i < N_BASES; ++i) {
+        for (int j = 0; j < N_BASES; ++j) {
+            T kij = ((T)c[i * N_BASES + j] + eps) * inv_tot;
+            K[i * N_BASES + j] = kij;
             Fa[i] += kij;
             Fb[j] += kij;
         }
     }
 
-    T sfa[4], inv_sfa[4], sfb[4], inv_sfb[4], xi[4];
+    T sfa[N_BASES], inv_sfa[N_BASES], sfb[N_BASES], inv_sfb[N_BASES], xi[N_BASES];
     T xi_sum = T(0);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < N_BASES; ++i) {
         sfa[i] = fp::sqrt(Fa[i]);
         inv_sfa[i] = T(1) / sfa[i];
         sfb[i] = fp::sqrt(Fb[i]);
@@ -203,37 +204,37 @@ P2V_HD inline T eigen_distance(const uint32_t c[16], const T s_rates[6], T alpha
         xi_sum += xi[i];
     }
     T inv_xi_sum = T(1) / xi_sum;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < N_BASES; ++i)
         xi[i] *= inv_xi_sum;
 
-    /* The rate matrix for the pair frequencies xi */
-    T R[16];
+    // The rate matrix for the pair frequencies xi
+    T R[N_BASES * N_BASES];
     const T neg_tr_Q = gtr_symmetric_rate_matrix<T>(s_rates, xi, R);
 
     if (opt.estimator == GtrEstimator::Orig) {
-        /* orig: all four singular values of the (+1/2, -3/2) symmetrised matrix */
-        T G[16];
+        // orig: all four singular values of the (+1/2, -3/2) symmetrised matrix
+        T G[N_BASES * N_BASES];
         {
-            T Lbar[16];
-            for (int i = 0; i < 4; ++i)
-                for (int j = 0; j < 4; ++j) {
-                    const T t1 = sfa[i] * K[i * 4 + j] / (Fa[j] * sfa[j]);
-                    const T t2 = K[i * 4 + j] * sfb[j] / (Fb[i] * sfb[i]);
-                    Lbar[i * 4 + j] = T(0.5) * (t1 + t2);
+            T Lbar[N_BASES * N_BASES];
+            for (int i = 0; i < N_BASES; ++i)
+                for (int j = 0; j < N_BASES; ++j) {
+                    const T t1 = sfa[i] * K[i * N_BASES + j] / (Fa[j] * sfa[j]);
+                    const T t2 = K[i * N_BASES + j] * sfb[j] / (Fb[i] * sfb[i]);
+                    Lbar[i * N_BASES + j] = T(0.5) * (t1 + t2);
                 }
-            for (int i = 0; i < 4; ++i)
-                for (int j = i; j < 4; ++j) {
+            for (int i = 0; i < N_BASES; ++i)
+                for (int j = i; j < N_BASES; ++j) {
                     T s = T(0);
-                    for (int k = 0; k < 4; ++k)
-                        s += Lbar[k * 4 + i] * Lbar[k * 4 + j];
-                    G[i * 4 + j] = s;
-                    G[j * 4 + i] = s;
+                    for (int k = 0; k < N_BASES; ++k)
+                        s += Lbar[k * N_BASES + i] * Lbar[k * N_BASES + j];
+                    G[i * N_BASES + j] = s;
+                    G[j * N_BASES + i] = s;
                 }
         }
-        T ev[4];
+        T ev[N_BASES];
         sym4x4_jacobi_eigenvalues<T>(G, ev);
-        T sig4[4];
-        for (int k = 0; k < 4; ++k)
+        T sig4[N_BASES];
+        for (int k = 0; k < N_BASES; ++k)
             sig4[k] = (ev[k] > T(0)) ? fp::sqrt(ev[k]) : T(0);
         if (opt.saturation == Saturation::Pair) {
             const T s0 = K[0] * K[5] - K[1] * K[4], s1 = K[0] * K[6] - K[2] * K[4], s2 = K[0] * K[7] - K[3] * K[4];
@@ -245,7 +246,7 @@ P2V_HD inline T eigen_distance(const uint32_t c[16], const T s_rates[6], T alpha
                 sig4[1] = sig4[2] = sig4[3] = T(EIGEN_SIGMA_MIN);
         }
         T sum_gamma = T(0);
-        for (int k = 0; k < 4; ++k) {
+        for (int k = 0; k < N_BASES; ++k) {
             T sig = sig4[k];
             if (sig > T(1))
                 sig = T(1);
@@ -264,19 +265,19 @@ P2V_HD inline T eigen_distance(const uint32_t c[16], const T s_rates[6], T alpha
         return d_ab;
     }
 
-    T Ltilde[16];
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
-            Ltilde[i * 4 + j] = inv_sfa[i] * K[i * 4 + j] * inv_sfb[j] - sfa[i] * sfb[j];
+    T Ltilde[N_BASES * N_BASES];
+    for (int i = 0; i < N_BASES; ++i)
+        for (int j = 0; j < N_BASES; ++j)
+            Ltilde[i * N_BASES + j] = inv_sfa[i] * K[i * N_BASES + j] * inv_sfb[j] - sfa[i] * sfb[j];
 
-    T G[16];
-    for (int i = 0; i < 4; ++i) {
-        for (int j = i; j < 4; ++j) {
+    T G[N_BASES * N_BASES];
+    for (int i = 0; i < N_BASES; ++i) {
+        for (int j = i; j < N_BASES; ++j) {
             T s = T(0);
-            for (int k = 0; k < 4; ++k)
-                s += Ltilde[k * 4 + i] * Ltilde[k * 4 + j];
-            G[i * 4 + j] = s;
-            G[j * 4 + i] = s;
+            for (int k = 0; k < N_BASES; ++k)
+                s += Ltilde[k * N_BASES + i] * Ltilde[k * N_BASES + j];
+            G[i * N_BASES + j] = s;
+            G[j * N_BASES + i] = s;
         }
     }
     T g_evals[3];
@@ -292,7 +293,7 @@ P2V_HD inline T eigen_distance(const uint32_t c[16], const T s_rates[6], T alpha
         sigma[k] = sv;
     }
     if (opt.saturation == Saturation::Pair) {
-        /* the rule of the paper's C distance library: det K <= 0 (a mode has crossed zero) saturates the whole pair */
+        // the rule of the paper's C distance library: det K <= 0 (a mode has crossed zero) saturates the whole pair
         const T s0 = K[0] * K[5] - K[1] * K[4], s1 = K[0] * K[6] - K[2] * K[4], s2 = K[0] * K[7] - K[3] * K[4];
         const T s3 = K[1] * K[6] - K[2] * K[5], s4 = K[1] * K[7] - K[3] * K[5], s5 = K[2] * K[7] - K[3] * K[6];
         const T c5 = K[10] * K[15] - K[11] * K[14], c4 = K[9] * K[15] - K[11] * K[13];
@@ -303,7 +304,7 @@ P2V_HD inline T eigen_distance(const uint32_t c[16], const T s_rates[6], T alpha
     }
 
     if (opt.estimator == GtrEstimator::Svd) {
-        /* SymSVD: the sum of the three modes over -trace Q */
+        // SymSVD: the sum of the three modes over -trace Q
         T sum_gamma = T(0);
         for (int k = 0; k < 3; ++k) {
             T u = -fp::log(sigma[k]) * inv_alpha;
@@ -319,9 +320,9 @@ P2V_HD inline T eigen_distance(const uint32_t c[16], const T s_rates[6], T alpha
         return d_ab;
     }
 
-    /* SymWLS */
-    T sxi[4];
-    for (int i = 0; i < 4; ++i)
+    // SymWLS
+    T sxi[N_BASES];
+    for (int i = 0; i < N_BASES; ++i)
         sxi[i] = fp::sqrt(xi[i]);
     T r_evals[3];
     sym4x4_rank3_eigenvalues<T>(R, sxi, r_evals);
@@ -385,43 +386,39 @@ P2V_HD inline T eigen_distance(const uint32_t c[16], const T s_rates[6], T alpha
     return d_ab;
 }
 
-/* ---- One pair's distance under the run's model ----------------------------------------------------------- */
+// ---- One pair's distance under the run's model -----------------------------------------------------------
 
-/* The distance model of a run: the model and, for GTR+GC, its parameters and the estimator's settings. */
-struct DistanceModel {
-    Model model = Model::JC69;
-    double gtr_rates[6] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; /* GTR+GC exchangeabilities AC, AG, AT, CG, CT, GT */
-    double gtr_alpha = 1.0;                               /* GTR+GC gamma shape */
-    EigenSettings eigen;
-    double base_freqs[4] = {0.0, 0.0, 0.0, 0.0}; /* F81, F84, TN93: the alignment's base frequencies (A, C,
-                                                     G, T; base_frequencies); all 0: infer() counts them */
-};
-
-/* The model in the precision of a device (the GPU: float). */
+// The model in the precision of a device (the GPU: float).
 template <class T> struct DistanceParams {
     Model model;
-    T rates[6];
+    T rates[N_GTR_RATES];
     T alpha, inv_alpha;
     EigenSettings eigen;
-    T pi[4]; /* base frequencies, normalised (uniform if not given) */
+    T pi[N_BASES]; // base frequencies, normalised (uniform if not given)
 };
 
-template <class T> inline DistanceParams<T> distance_params(const DistanceModel &m) {
+template <class T> inline DistanceParams<T> distance_params(const SubstitutionModel &m, const EigenSettings &eigen) {
     DistanceParams<T> p;
     p.model = m.model;
-    for (int k = 0; k < 6; ++k)
-        p.rates[k] = (T)m.gtr_rates[k];
+    // The exchangeabilities scaled to mean 1, as the paper's fit returns them.
+    // The distance depends only on their ratios; the scaling keeps the rate matrix's own normalisation in range.
+    double rate_sum = 0.0;
+    for (int k = 0; k < N_GTR_RATES; ++k)
+        rate_sum += m.gtr_rates[k];
+    const double rate_scale = 6.0 / rate_sum;
+    for (int k = 0; k < N_GTR_RATES; ++k)
+        p.rates[k] = (T)(m.gtr_rates[k] * rate_scale);
     p.alpha = (T)m.gtr_alpha;
-    p.inv_alpha = T(1) / p.alpha; /* as the paper's GPU implementation: 1 / alpha in the device's precision */
-    p.eigen = m.eigen;
+    p.inv_alpha = T(1) / p.alpha; // as the paper's GPU implementation: 1 / alpha in the device's precision
+    p.eigen = eigen;
     const double sum = m.base_freqs[0] + m.base_freqs[1] + m.base_freqs[2] + m.base_freqs[3];
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < N_BASES; ++i)
         p.pi[i] = sum > 0.0 ? (T)(m.base_freqs[i] / sum) : T(0.25);
     return p;
 }
 
-/* The distance of a pair with counts n under the model. */
-template <class T> P2V_HD inline T pair_distance(const DistanceParams<T> &p, const uint32_t n[16]) {
+// The distance of a pair with counts n under the model.
+template <class T> P2V_HD inline T pair_distance(const DistanceParams<T> &p, const uint32_t n[N_BASES * N_BASES]) {
     switch (p.model) {
     case Model::JC69:
         return jc69_distance<T>((int32_t)detail::total_count(n), (int32_t)detail::diagonal_count(n));

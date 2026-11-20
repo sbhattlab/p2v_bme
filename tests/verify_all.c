@@ -419,12 +419,12 @@ int main(void) {
             all_passed = 0;
     }
 
-    /* TEST 3: Cherry-First Gauge Relabeling Theorem (flip_mode = 0 and flip_mode = 1, N = 25) */
+    /* TEST 3: Ordered Gauge Relabeling Theorem (flip_mode = 0 and flip_mode = 1, N = 25) */
     {
         const int32_t N = 25;
         const int32_t n_pairs = N - 1;
         double D[625], D_perm[625];
-        int64_t v_gen[32], v_cf[32];
+        int64_t v_gen[32], v_ord[32];
         int32_t perm[32], seen[32];
 
         double max_err_mode0 = 0.0, max_err_mode1 = 0.0;
@@ -446,9 +446,9 @@ int main(void) {
             double L_orig = brute_force_pauplin_bme_length(v_gen, D, N, NULL);
 
             for (int32_t mode = 0; mode <= 1; ++mode) {
-                relabel_cherry_first_c(v_gen, N, mode, v_cf, perm);
+                queue_shuffle_c(v_gen, N, mode, v_ord, perm);
                 for (int32_t i = 0; i < n_pairs; ++i) {
-                    if (v_cf[i] < 0 || v_cf[i] > i)
+                    if (v_ord[i] < 0 || v_ord[i] > i)
                         test3_ok = 0;
                 }
                 memset(seen, 0, sizeof(seen));
@@ -463,10 +463,10 @@ int main(void) {
                         D_perm[a * N + b] = D[perm[a] * N + perm[b]];
                     }
                 }
-                double L_cf = brute_force_pauplin_bme_length(v_cf, D_perm, N, NULL);
-                if (!is_finite_double(L_cf))
+                double L_ord = brute_force_pauplin_bme_length(v_ord, D_perm, N, NULL);
+                if (!is_finite_double(L_ord))
                     test3_ok = 0;
-                double err = fabs(L_cf - L_orig);
+                double err = fabs(L_ord - L_orig);
                 if (mode == 0 && err > max_err_mode0)
                     max_err_mode0 = err;
                 if (mode == 1 && err > max_err_mode1)
@@ -475,9 +475,9 @@ int main(void) {
         }
         if (max_err_mode0 > 1e-9 || max_err_mode1 > 1e-9)
             test3_ok = 0;
-        printf("[%s] Test 3: Cherry-First Taxon Relabeling Theorem (200 general trees, N=%d)\n",
-               test3_ok ? "PASS" : "FAIL", N);
-        printf("       All relabeled vectors satisfy 0 <= v_cf[i] <= i and valid permutation: %s\n",
+        printf("[%s] Test 3: Ordered Taxon Relabeling Theorem (200 general trees, N=%d)\n", test3_ok ? "PASS" : "FAIL",
+               N);
+        printf("       All relabeled vectors satisfy 0 <= v_ord[i] <= i and valid permutation: %s\n",
                test3_ok ? "YES (100%)" : "NO");
         printf("       Max BME length discrepancy (flip_mode = 0): %.3e\n", max_err_mode0);
         printf("       Max BME length discrepancy (flip_mode = 1): %.3e\n\n", max_err_mode1);
@@ -559,7 +559,7 @@ int main(void) {
             int32_t n_nodes_r = 2 * N - 1;
             int32_t n_nodes_u = 2 * N - 2;
             int64_t *v_in = (int64_t *)malloc((size_t)n_pairs * sizeof(int64_t));
-            int64_t *v_cf = (int64_t *)malloc((size_t)n_pairs * sizeof(int64_t));
+            int64_t *v_ord = (int64_t *)malloc((size_t)n_pairs * sizeof(int64_t));
             int64_t *v_rec = (int64_t *)malloc((size_t)n_pairs * sizeof(int64_t));
             int32_t *perm = (int32_t *)malloc((size_t)N * sizeof(int32_t));
             int32_t *c1_r = (int32_t *)malloc((size_t)n_nodes_r * sizeof(int32_t));
@@ -570,9 +570,9 @@ int main(void) {
             for (int32_t i = 1; i < n_pairs; ++i) {
                 v_in[i] = (int64_t)(xorshift32() % (uint32_t)(2 * i + 1));
             }
-            relabel_cherry_first_c(v_in, N, 0, v_cf, perm);
+            queue_shuffle_c(v_in, N, 0, v_ord, perm);
             for (int32_t i = 0; i < n_pairs; ++i) {
-                if (v_cf[i] < 0 || v_cf[i] > i)
+                if (v_ord[i] < 0 || v_ord[i] > i)
                     test5_ok = 0;
             }
             decode_v_to_trees(v_in, N, c1_r, c2_r, adj_u);
@@ -587,7 +587,7 @@ int main(void) {
             }
 
             free(v_in);
-            free(v_cf);
+            free(v_ord);
             free(v_rec);
             free(perm);
             free(c1_r);
@@ -633,8 +633,8 @@ int main(void) {
     /* TEST 6: Exhaustive (2N-3)!! Tree Enumeration for N = 4, 5, 6, 7 (11,460 Trees Total) */
     {
         int32_t total_trees = 0;
-        int32_t total_cf_trees = 0;
-        int32_t total_cf_grad_entries = 0;
+        int32_t total_ordered_trees = 0;
+        int32_t total_ordered_grad_entries = 0;
         double max_exhaustive_grad_err = 0.0;
         double max_exhaustive_relabel_err = 0.0;
         int test6_ok = 1;
@@ -644,7 +644,7 @@ int main(void) {
             int32_t max_cols = 2 * n_pairs - 1;
             int32_t n_int_splits = N - 3;
             double D[64], D_perm[64], delta_full[128], delta_lt[128];
-            int64_t v[8], v_mut[8], v_cf[8], v_rec_r[8], v_rec_u[8];
+            int64_t v[8], v_mut[8], v_ord[8], v_rec_r[8], v_rec_u[8];
             int32_t perm[8], c1_r[16], c2_r[16], adj_u[64], adj_u_rec[64];
             uint64_t splits_orig[8], splits_rec[8];
 
@@ -676,11 +676,11 @@ int main(void) {
                 if (memcmp(splits_orig, splits_rec, (size_t)n_int_splits * sizeof(uint64_t)) != 0)
                     test6_ok = 0;
 
-                /* 2. Cherry-first gauge relabeling (flip_mode = 0 and 1) on every tree */
+                /* 2. Ordered gauge relabeling (flip_mode = 0 and 1) on every tree */
                 for (int32_t mode = 0; mode <= 1; ++mode) {
-                    relabel_cherry_first_c(v, N, mode, v_cf, perm);
+                    queue_shuffle_c(v, N, mode, v_ord, perm);
                     for (int32_t i = 0; i < n_pairs; ++i) {
-                        if (v_cf[i] < 0 || v_cf[i] > i)
+                        if (v_ord[i] < 0 || v_ord[i] > i)
                             test6_ok = 0;
                     }
                     for (int32_t a = 0; a < N; ++a) {
@@ -688,22 +688,22 @@ int main(void) {
                             D_perm[a * N + b] = D[perm[a] * N + perm[b]];
                         }
                     }
-                    double L_cf = brute_force_pauplin_bme_length(v_cf, D_perm, N, NULL);
-                    double r_err = fabs(L_cf - L_base);
+                    double L_ord = brute_force_pauplin_bme_length(v_ord, D_perm, N, NULL);
+                    double r_err = fabs(L_ord - L_base);
                     if (r_err > max_exhaustive_relabel_err)
                         max_exhaustive_relabel_err = r_err;
                 }
 
-                /* 3. If v is cherry-first (v_i <= i), verify full 0 <= j <= 2i and 0 <= j < i gradients */
-                int is_cf = 1;
+                /* 3. If v is ordered (v_i <= i), verify full 0 <= j <= 2i and 0 <= j < i gradients */
+                int is_ordered = 1;
                 for (int32_t i = 0; i < n_pairs; ++i) {
                     if (v[i] > i) {
-                        is_cf = 0;
+                        is_ordered = 0;
                         break;
                     }
                 }
-                if (is_cf) {
-                    total_cf_trees++;
+                if (is_ordered) {
+                    total_ordered_trees++;
                     calculate_discrete_gradient_full_c(v, D, N, delta_full);
                     calculate_discrete_gradient_c(v, D, N, delta_lt);
                     for (int32_t i = 1; i < n_pairs; ++i) {
@@ -722,7 +722,7 @@ int main(void) {
                                 if (err_l > max_exhaustive_grad_err)
                                     max_exhaustive_grad_err = err_l;
                             }
-                            total_cf_grad_entries++;
+                            total_ordered_grad_entries++;
                         }
                     }
                 }
@@ -738,15 +738,15 @@ int main(void) {
                 v[pos]++;
             }
         }
-        if (total_trees != 11460 || total_cf_trees != 870)
+        if (total_trees != 11460 || total_ordered_trees != 870)
             test6_ok = 0;
         if (max_exhaustive_grad_err > 1e-11 || max_exhaustive_relabel_err > 1e-11)
             test6_ok = 0;
 
         printf("[%s] Test 6: Exhaustive (2N-3)!! Tree Enumeration for N = 4, 5, 6, 7\n", test6_ok ? "PASS" : "FAIL");
         printf("       Total rooted trees verified (bijection + relabeling):  %d / 11460\n", total_trees);
-        printf("       Total cherry-first trees verified (full 0<=j<=2i):     %d / 870 (%d entries, max err: %.3e)\n\n",
-               total_cf_trees, total_cf_grad_entries, max_exhaustive_grad_err);
+        printf("       Total ordered trees verified (full 0<=j<=2i):          %d / 870 (%d entries, max err: %.3e)\n\n",
+               total_ordered_trees, total_ordered_grad_entries, max_exhaustive_grad_err);
         if (!test6_ok)
             all_passed = 0;
     }
@@ -763,9 +763,9 @@ int main(void) {
 
         /* 4 extremal topologies:
          *   0: Left caterpillar (v_i = 0)
-         *   1: Right cherry-first caterpillar (v_i = i)
-         *   2: Alternating cherry-first tree (v_i = i / 2)
-         *   3: Balanced binary tree relabeled to cherry-first */
+         *   1: Right ordered caterpillar (v_i = i)
+         *   2: Alternating ordered tree (v_i = i / 2)
+         *   3: Balanced binary tree relabeled to ordered */
         for (int32_t i = 0; i < n_pairs; ++i) {
             v_topos[0][i] = 0;
             v_topos[1][i] = i;
@@ -922,14 +922,14 @@ int main(void) {
             all_passed = 0;
     }
 
-    /* TEST 9: Non-Cherry-First Guard, Multi-Threaded Workspace Isolation, & Optimizer Tree-Score Consistency */
+    /* TEST 9: Unordered-Vector Guard, Multi-Threaded Workspace Isolation, & Optimizer Tree-Score Consistency */
     {
         int test9_ok = 1;
 
-        /* 9a. Non-cherry-first vectors must be cleanly rejected with zeroed output */
+        /* 9a. Unordered vectors must be cleanly rejected with zeroed output */
         {
             const int32_t N = 5;
-            int64_t v_non_cf[4] = {0, 0, 3, 2};
+            int64_t v_unordered[4] = {0, 0, 3, 2};
             double D5[25] = {0};
             for (int32_t i = 0; i < N; ++i)
                 for (int32_t j = 0; j < N; ++j)
@@ -939,8 +939,8 @@ int main(void) {
                 d_lt[k] = 99.0;
             for (int32_t k = 0; k < 28; ++k)
                 d_full[k] = 99.0;
-            calculate_discrete_gradient_c(v_non_cf, D5, N, d_lt);
-            calculate_discrete_gradient_full_c(v_non_cf, D5, N, d_full);
+            calculate_discrete_gradient_c(v_unordered, D5, N, d_lt);
+            calculate_discrete_gradient_full_c(v_unordered, D5, N, d_full);
             for (int32_t k = 0; k < 12; ++k)
                 if (d_lt[k] != 0.0)
                     test9_ok = 0;
@@ -1335,7 +1335,7 @@ int main(void) {
                 test9_ok = 0;
         }
 
-        printf("[%s] Test 9: Non-Cherry-First Guard, 8-Thread Workspace Isolation, & Clade/Wave Exactness\n\n",
+        printf("[%s] Test 9: Unordered-Vector Guard, 8-Thread Workspace Isolation, & Clade/Wave Exactness\n\n",
                test9_ok ? "PASS" : "FAIL");
         if (!test9_ok)
             all_passed = 0;

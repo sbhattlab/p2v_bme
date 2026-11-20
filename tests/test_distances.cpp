@@ -26,37 +26,37 @@ namespace {
 
 /* Expected counts of L sites at distance t under a model without rate variation: n_ij = round(L pi_i P_ij(t)). */
 PairCounts expected_counts(const SimulationModel &m, double t, double L = 1e9) {
-    double P[4][4];
+    double P[N_BASES][N_BASES];
     transition_matrix(m, t, P);
     double fsum = 0.0;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < N_BASES; ++i)
         fsum += m.freqs[i];
     PairCounts c;
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
-            c.n[4 * i + j] = (uint32_t)llround(L * m.freqs[i] / fsum * P[i][j]);
+    for (int i = 0; i < N_BASES; ++i)
+        for (int j = 0; j < N_BASES; ++j)
+            c.n[N_BASES * i + j] = (uint32_t)llround(L * m.freqs[i] / fsum * P[i][j]);
     return c;
 }
 
 /* Rate matrix Q of a GTR model, normalised to one substitution per unit time (written here, not taken from the
  * code under test). */
-void rate_matrix(const SimulationModel &m, double Q[4][4]) {
-    const int pairs[6][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
-    double s[4][4] = {}, pi[4], fsum = 0.0;
-    for (int i = 0; i < 4; ++i)
+void rate_matrix(const SimulationModel &m, double Q[N_BASES][N_BASES]) {
+    const int pairs[N_GTR_RATES][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
+    double s[N_BASES][N_BASES] = {}, pi[N_BASES], fsum = 0.0;
+    for (int i = 0; i < N_BASES; ++i)
         fsum += m.freqs[i];
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < N_BASES; ++i)
         pi[i] = m.freqs[i] / fsum;
-    for (int k = 0; k < 6; ++k)
+    for (int k = 0; k < N_GTR_RATES; ++k)
         s[pairs[k][0]][pairs[k][1]] = s[pairs[k][1]][pairs[k][0]] = m.rates[k];
     double mu = 0.0;
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (int i = 0; i < N_BASES; ++i)
+        for (int j = 0; j < N_BASES; ++j)
             if (i != j)
                 mu += pi[i] * s[i][j] * pi[j];
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < N_BASES; ++i) {
         double row = 0.0;
-        for (int j = 0; j < 4; ++j)
+        for (int j = 0; j < N_BASES; ++j)
             if (i != j) {
                 Q[i][j] = s[i][j] * pi[j] / mu;
                 row += Q[i][j];
@@ -107,37 +107,37 @@ void jacobi(double A[4][4], double V[4][4], double d[4]) {
 /* Expected counts under GTR with continuous gamma rates (shape alpha): P(t) = E_r[exp(Q r t)] =
  * Pi^(-1/2) V diag((1 - lambda_k t / alpha)^(-alpha)) V^T Pi^(1/2), from the symmetric form of Q. */
 PairCounts expected_counts_gamma(const SimulationModel &m, double t, double alpha, double L = 1e9) {
-    double Q[4][4], pi[4], fsum = 0.0;
+    double Q[N_BASES][N_BASES], pi[N_BASES], fsum = 0.0;
     rate_matrix(m, Q);
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < N_BASES; ++i)
         fsum += m.freqs[i];
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < N_BASES; ++i)
         pi[i] = m.freqs[i] / fsum;
-    double S[4][4], V[4][4], lam[4];
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    double S[N_BASES][N_BASES], V[N_BASES][N_BASES], lam[N_BASES];
+    for (int i = 0; i < N_BASES; ++i)
+        for (int j = 0; j < N_BASES; ++j)
             S[i][j] = sqrt(pi[i]) * Q[i][j] / sqrt(pi[j]);
     jacobi(S, V, lam);
     PairCounts c;
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j) {
+    for (int i = 0; i < N_BASES; ++i)
+        for (int j = 0; j < N_BASES; ++j) {
             double p = 0.0;
-            for (int k = 0; k < 4; ++k)
+            for (int k = 0; k < N_BASES; ++k)
                 p += V[i][k] * pow(1.0 - lam[k] * t / alpha, -alpha) * V[j][k];
             p *= sqrt(pi[j] / pi[i]);
-            c.n[4 * i + j] = (uint32_t)llround(L * pi[i] * p);
+            c.n[N_BASES * i + j] = (uint32_t)llround(L * pi[i] * p);
         }
     return c;
 }
 
 /* freqs: the alignment's base frequencies (F81, F84, TN93); uniform if not given */
 template <class T> T distance(Model model, const PairCounts &c, const double *freqs = nullptr) {
-    DistanceModel m;
+    SubstitutionModel m;
     m.model = model;
     if (freqs)
-        for (int i = 0; i < 4; ++i)
+        for (int i = 0; i < N_BASES; ++i)
             m.base_freqs[i] = freqs[i];
-    return pair_distance<T>(distance_params<T>(m), c.n);
+    return pair_distance<T>(distance_params<T>(m, EigenSettings()), c.n);
 }
 
 SimulationModel model_jc() { return SimulationModel(); }
@@ -148,8 +148,8 @@ SimulationModel model_k80() { /* kappa = 4 */
 }
 SimulationModel model_f81() {
     SimulationModel m;
-    const double f[4] = {0.1, 0.2, 0.3, 0.4};
-    for (int i = 0; i < 4; ++i)
+    const double f[N_BASES] = {0.1, 0.2, 0.3, 0.4};
+    for (int i = 0; i < N_BASES; ++i)
         m.freqs[i] = f[i];
     return m;
 }
@@ -167,10 +167,10 @@ SimulationModel model_tn93() {
 }
 SimulationModel model_gtr() {
     SimulationModel m;
-    const double r[6] = {0.5, 2.0, 0.8, 1.2, 3.0, 0.7}, f[4] = {0.35, 0.15, 0.2, 0.3};
-    for (int k = 0; k < 6; ++k)
+    const double r[N_GTR_RATES] = {0.5, 2.0, 0.8, 1.2, 3.0, 0.7}, f[N_BASES] = {0.35, 0.15, 0.2, 0.3};
+    for (int k = 0; k < N_GTR_RATES; ++k)
         m.rates[k] = r[k];
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < N_BASES; ++i)
         m.freqs[i] = f[i];
     return m;
 }
@@ -252,7 +252,7 @@ TEST(Distances, Tn93Consistent) { expect_recovers(Model::TN93, model_tn93(), 1e-
 /* LogDet = t * trace(-Q) / 4 under any GTR model (= t under JC69 and K80). */
 TEST(Distances, LogDetUnderGtr) {
     for (const SimulationModel &m : {model_f81(), model_tn93(), model_gtr()}) {
-        double Q[4][4];
+        double Q[N_BASES][N_BASES];
         rate_matrix(m, Q);
         const double scale = -(Q[0][0] + Q[1][1] + Q[2][2] + Q[3][3]) / 4.0;
         for (double t : TIMES) {
@@ -269,7 +269,7 @@ TEST(Distances, AsymmetricTable) {
     const PairCounts c = {{300, 10, 25, 8, 12, 250, 6, 30, 20, 5, 280, 9, 7, 35, 11, 290}};
     EXPECT_NEAR(distance<double>(Model::JC69, c), 0.15144523277580962, 1e-12);
     EXPECT_NEAR(distance<double>(Model::K80, c), 0.15310763367740979, 1e-12);
-    const double freqs[4] = {0.28, 0.22, 0.26, 0.24};
+    const double freqs[N_BASES] = {0.28, 0.22, 0.26, 0.24};
     EXPECT_NEAR(distance<double>(Model::F81, c, freqs), 0.15148903003135755, 1e-12);
     EXPECT_NEAR(distance<double>(Model::F84, c, freqs), 0.15313574509110148, 1e-12);
     EXPECT_NEAR(distance<double>(Model::TN93, c, freqs), 0.15412841263487045, 1e-12);
@@ -306,13 +306,12 @@ namespace {
 
 template <class T>
 T gtr_distance(const PairCounts &c, const SimulationModel &m, double alpha, EigenSettings settings = EigenSettings()) {
-    DistanceModel dm;
+    SubstitutionModel dm;
     dm.model = Model::GTR_GC;
-    for (int k = 0; k < 6; ++k)
+    for (int k = 0; k < N_GTR_RATES; ++k)
         dm.gtr_rates[k] = m.rates[k];
     dm.gtr_alpha = alpha;
-    dm.eigen = settings;
-    return pair_distance<T>(distance_params<T>(dm), c.n);
+    return pair_distance<T>(distance_params<T>(dm, settings), c.n);
 }
 
 } // namespace
@@ -333,6 +332,24 @@ TEST(EigenDist, GtrGcConsistent) {
                         << estimator_name(e) << " alpha=" << alpha << " t=" << t << " (float)";
                 }
             }
+}
+
+// Only the ratios of the exchangeabilities matter: scaling them all gives the same distance.
+// Before they were scaled to mean 1, a scale of 1e-25 skipped the rate matrix's normalisation (distance about 500x).
+TEST(EigenDist, GtrGcScaleFree) {
+    const SimulationModel m = model_gtr();
+    for (double t : TIMES) {
+        const PairCounts c = expected_counts_gamma(m, t, 1.0);
+        const double d = gtr_distance<double>(c, m, 1.0);
+        const float f = gtr_distance<float>(c, m, 1.0);
+        for (double scale : {1e-25, 1e-6, 1e6, 1e25}) {
+            SimulationModel scaled = m;
+            for (int k = 0; k < N_GTR_RATES; ++k)
+                scaled.rates[k] *= scale;
+            EXPECT_NEAR(gtr_distance<double>(c, scaled, 1.0), d, 1e-12 * d) << "t=" << t << " scale=" << scale;
+            EXPECT_NEAR(gtr_distance<float>(c, scaled, 1.0), f, 1e-6f * f) << "t=" << t << " scale=" << scale;
+        }
+    }
 }
 
 /* The library's mode 0 is consistent with equal base frequencies (its symmetrised matrix has the singular values
@@ -373,20 +390,20 @@ TEST(EigenDist, Settings) {
 
 /* The alignment's base frequencies: each base's share of all valid sites ("AACG" and "T-GA": 3 A, 1 C, 2 G, 1 T). */
 TEST(Distances, BaseFrequencies) {
-    std::vector<uint64_t> packed(2 * 5, 0); /* 2 sequences, 1 word, planes A C G T valid */
+    std::vector<uint64_t> packed(2 * N_PLANES, 0); /* 2 sequences, 1 word, planes A C G T valid */
     auto set = [&](int seq, int site, int base) {
-        packed[seq * 5 + base] |= 1ULL << site;
-        packed[seq * 5 + 4] |= 1ULL << site;
+        packed[seq * N_PLANES + base] |= 1ULL << site;
+        packed[seq * N_PLANES + VALID_PLANE] |= 1ULL << site;
     };
     set(0, 0, 0), set(0, 1, 0), set(0, 2, 1), set(0, 3, 2);
     set(1, 0, 3), set(1, 2, 2), set(1, 3, 0);
-    double f[4];
+    double f[N_BASES];
     base_frequencies(packed.data(), 2, 1, f);
     EXPECT_DOUBLE_EQ(f[0], 3.0 / 7);
     EXPECT_DOUBLE_EQ(f[1], 1.0 / 7);
     EXPECT_DOUBLE_EQ(f[2], 2.0 / 7);
     EXPECT_DOUBLE_EQ(f[3], 1.0 / 7);
-    std::vector<uint64_t> empty(5, 0);
+    std::vector<uint64_t> empty(N_PLANES, 0);
     base_frequencies(empty.data(), 1, 1, f);
     EXPECT_EQ(f[0], 0.25);
 }

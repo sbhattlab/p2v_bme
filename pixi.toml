@@ -13,6 +13,8 @@ cxxopts = "3.2.*"
 gtest = "1.18.*"
 benchmark = ">=1.10.0,<2"
 pre-commit = ">=4.7.0,<5"
+python = ">=3.12.16,<3.16"
+pytest = ">=9.2.0,<10"
 
 [tasks]
 # CMake presets (CMakePresets.json); everything is built into build/
@@ -20,6 +22,8 @@ build = "cmake --preset default && cmake --build --preset default -j 8"
 test = { cmd = "ctest --preset default", depends-on = ["build"] }
 # CPU tests under AddressSanitizer and UBSan, in build-asan/
 test-asan = "cmake --preset asan && cmake --build --preset asan -j 8 && ctest --preset asan"
+# Only the Python tests (tests/python, with pytest); extra arguments go to pytest, e.g. -m "not gpu"
+test-python = { cmd = "python -m pytest tests/python", depends-on = ["build"] }
 
 # ---- paper environment ---------------------------------------------------------------------------------
 # Python for the pipeline, plots and Python-side tests, plus the baseline programs the pipeline runs (those

@@ -6,6 +6,8 @@
 
 #include <string.h>
 
+#include <algorithm>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -23,11 +25,22 @@ namespace {
 using namespace p2vbme;
 
 // A device that does nothing, except throw from one chosen step.
+// Window kernels that find no move, so a window solve returns 0 (a failing device that is not meant to fail here).
+class NoMoveKernels : public WindowKernels {
+  public:
+    void distances(int32_t, const int32_t *, const int32_t *, const float *) override {}
+    double score(const SkeletonTables &, const std::vector<int32_t> &) override { return 0.0; }
+    void best_moves(const SkeletonTables &, std::vector<double> &best_delta, std::vector<int32_t> &best_j) override {
+        std::fill(best_delta.begin(), best_delta.end(), 1e30);
+        std::fill(best_j.begin(), best_j.end(), -1);
+    }
+};
+
 class FailingDevice : public Device {
   public:
     explicit FailingDevice(const char *step) : step_(step) {}
     void load(const uint64_t *, int32_t, int32_t) override {}
-    void set_distance(const DistanceModel &) override {}
+    void set_distance(const SubstitutionModel &, const EigenSettings &) override {}
     void push_subset(const std::vector<int32_t> &) override {}
     void pop_subset() override {}
     int32_t max_window() const override { return WORKSPACE_MAX_K; }
@@ -39,10 +52,9 @@ class FailingDevice : public Device {
         for (int32_t i = 0; i < n_queries; ++i)
             best_pos[i] = 0;
     }
-    double solve_window(int32_t, int32_t, int32_t, double, const int32_t *, const int32_t *, const float *,
-                        std::vector<int64_t> &, std::vector<int32_t> &, const ExactProfileBuilder *) override {
-        fail("solve_window");
-        return 0.0;
+    std::unique_ptr<WindowKernels> window_kernels() override {
+        fail("window_kernels");
+        return std::make_unique<NoMoveKernels>();
     }
     void edge_lengths(int32_t, int32_t, int32_t count, const int32_t *, const int32_t *, int32_t, const int32_t *,
                       const int32_t *, const float *, const int32_t *, const int32_t *, const float *, double *dAB,
@@ -81,54 +93,118 @@ template <class F> std::string thrown_message(F f) {
 // A window solve that throws on one of several host threads: the search rethrows it after the parallel wave.
 TEST(Errors, WindowSolveFailureLeavesTheSearch) {
     for (int n_devices : {1, 3}) {
-        Devices devices = failing_devices(n_devices, "solve_window");
-        std::vector<int32_t> c1, c2;
-        make_uniform_random_tree_host(3000, 1, c1, c2);
-        const std::string msg =
-            thrown_message([&] { run_multi_gpu_minibatch_bme(3000, devices, c1, c2, SearchSettings()); });
-        EXPECT_EQ(msg, "injected failure in solve_window") << n_devices;
+        Devices devices = failing_devices(n_devices, "window_kernels");
+        Tree tree = build_random_tree(3000, 1);
+        const std::string msg = thrown_message([&] { run_minibatch_bme(tree, devices, SearchSettings()); });
+        EXPECT_EQ(msg, "injected failure in window_kernels") << n_devices;
     }
 }
 
 TEST(Errors, NearestSampleFailureLeavesTheStartTree) {
     Devices devices = failing_devices(2, "nearest_sampled");
-    std::vector<int32_t> c1, c2;
-    SampleInitStats stats;
-    const std::string msg =
-        thrown_message([&] { build_sample_init_tree(200, 20, 1, devices, c1, c2, stats, SearchSettings()); });
+    int32_t n0 = 20;
+    const std::string msg = thrown_message([&] { build_sample_and_place_tree(200, n0, 1, devices, SearchSettings()); });
     EXPECT_EQ(msg, "injected failure in nearest_sampled");
 }
 
 TEST(Errors, EdgeLengthFailureLeavesTheBranchLengths) {
     Devices devices = failing_devices(3, "edge_lengths");
-    std::vector<int32_t> c1, c2;
-    make_uniform_random_tree_host(500, 1, c1, c2);
+    const Tree tree = build_random_tree(500, 1);
     std::vector<double> bl;
-    const std::string msg = thrown_message(
-        [&] { compute_bme_branch_lengths(500, c1.data(), c2.data(), devices, bl, DEFAULT_BL_PROFILE_CAP); });
+    const std::string msg =
+        thrown_message([&] { compute_bme_branch_lengths(tree, devices, bl, DEFAULT_BL_PROFILE_CAP); });
     EXPECT_EQ(msg, "injected failure in edge_lengths");
 }
 
-TEST(Errors, SampleStartNeedsSixteenSequences) {
-    Devices devices = failing_devices(1, "none");
-    std::vector<int32_t> c1, c2;
-    SampleInitStats stats;
-    EXPECT_THROW(build_sample_init_tree(10, 8, 1, devices, c1, c2, stats, SearchSettings()), std::invalid_argument);
-}
-
-// infer() checks its input before it looks for a GPU.
+// infer() checks its input before it uses the devices.
 TEST(Errors, InferRejectsBadInput) {
     const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
+    Devices devices = failing_devices(1, "none");
     Settings opt;
-    EXPECT_NE(thrown_message([&] { infer(aln, opt); }).find("at least 16 sequences"), std::string::npos);
-    opt.start = Start::Random;
     opt.profile_cap = 0;
-    EXPECT_NE(thrown_message([&] { infer(aln, opt); }).find("profile cap"), std::string::npos);
+    EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("profile cap"), std::string::npos);
     opt.profile_cap = DEFAULT_PROFILE_CAP;
-    opt.start = Start::Given;
-    EXPECT_NE(thrown_message([&] { infer(aln, opt); }).find("start tree"), std::string::npos);
+    opt.tree_init = TreeInit::Given;
+    EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("start tree"), std::string::npos);
     const Alignment three = simulate_alignment(random_tree(3, 0.1, 0.1, 1), 50, SimulationModel(), 2);
-    EXPECT_NE(thrown_message([&] { infer(three, Settings()); }).find("at least 4 sequences"), std::string::npos);
+    EXPECT_NE(thrown_message([&] { infer(three, Settings(), devices); }).find("at least 4 sequences"),
+              std::string::npos);
+}
+
+// Below START_SAMPLE_MIN_N sequences, the sample-and-place start falls back to the random start, with a warning.
+TEST(Errors, SampleStartFallsBackToRandom) {
+    const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
+    Devices devices = failing_devices(1, "none");
+    const Result res = infer(aln, Settings(), devices);
+    EXPECT_EQ(res.tree_init, TreeInit::Random);
+    ASSERT_EQ(res.warnings.size(), 1u);
+    EXPECT_NE(res.warnings[0].find("using the random start"), std::string::npos);
+}
+
+// GTR+GC needs alpha > 0 (a normal float), exchangeabilities > 0 with a finite sum, and reweighting passes >= 0.
+// Values outside the range checked in single precision run, with a warning (none in double precision).
+TEST(Errors, GtrGcParameters) {
+    const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
+    Devices devices = failing_devices(1, "none");
+    Settings opt;
+    opt.tree_init = TreeInit::Random;
+    opt.substitution_model.model = Model::GTR_GC;
+    auto refused = [&](const char *what) {
+        return thrown_message([&] { infer(aln, opt, devices); }).find(what) != std::string::npos;
+    };
+    auto warnings = [&] { return infer(aln, opt, devices).warnings; };
+    const double inf = std::numeric_limits<double>::infinity(), nan = std::numeric_limits<double>::quiet_NaN();
+
+    for (double a : {0.0, -1.0, 1e-40, 1e39, inf, nan}) {
+        opt.substitution_model.gtr_alpha = a;
+        EXPECT_TRUE(refused("alpha must be > 0")) << a;
+    }
+    opt.substitution_model.gtr_alpha = 1.0;
+    double *s = opt.substitution_model.gtr_rates;
+    for (double r : {0.0, -1.0, inf, nan}) {
+        s[4] = r;
+        EXPECT_TRUE(refused("exchangeabilities must be finite and > 0")) << r;
+    }
+    std::fill(s, s + N_GTR_RATES, 1e308);
+    EXPECT_TRUE(refused("sum of the exchangeabilities"));
+    std::fill(s, s + N_GTR_RATES, 1.0);
+    opt.eigen.reweight = -1;
+    EXPECT_TRUE(refused("reweighting passes must be >= 0"));
+    opt.eigen.reweight = 1000;
+    EXPECT_TRUE(warnings().empty());
+
+    // outside the checked range: a warning per parameter in single precision, none in double
+    opt.substitution_model.gtr_alpha = 2.0 * GTR_FLOAT_ALPHA_MAX;
+    s[1] = 2.0 * GTR_FLOAT_RATE_RATIO_MAX;
+    const std::vector<std::string> w = warnings();
+    ASSERT_EQ(w.size(), 2u);
+    EXPECT_NE(w[0].find("alpha = 2000 is outside [0.05, 1000]"), std::string::npos) << w[0];
+    EXPECT_NE(w[1].find("200 times the smallest, above 100"), std::string::npos) << w[1];
+    opt.precision = Precision::Double;
+    EXPECT_TRUE(warnings().empty());
+    // only the ratios matter: tiny or large exchangeabilities of ratio 1 are fine
+    opt.precision = Precision::Single;
+    opt.substitution_model.gtr_alpha = 1.0;
+    for (double scale : {1e-30, 1e30}) {
+        std::fill(s, s + N_GTR_RATES, scale);
+        EXPECT_TRUE(warnings().empty()) << scale;
+    }
+}
+
+// Base frequencies must be finite and >= 0: NaN, inf and negative values are refused.
+TEST(Errors, BaseFrequenciesMustBeFinite) {
+    const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
+    Devices devices = failing_devices(1, "none");
+    Settings opt;
+    opt.tree_init = TreeInit::Random;
+    opt.substitution_model.model = Model::F81;
+    const double freqs[N_BASES] = {0.1, 0.2, 0.3, 0.4};
+    std::copy(freqs, freqs + N_BASES, opt.substitution_model.base_freqs);
+    EXPECT_NO_THROW(infer(aln, opt, devices));
+    for (double bad : {-0.1, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
+        opt.substitution_model.base_freqs[2] = bad;
+        EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("base frequencies"), std::string::npos) << bad;
+    }
 }
 
 size_t gpu_free_bytes() {

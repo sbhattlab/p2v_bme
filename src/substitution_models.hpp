@@ -25,7 +25,9 @@
 
 #include <string>
 
-/* Marks the per-pair formulas host and device functions under nvcc (plain functions elsewhere). */
+#include "core.hpp"
+
+// Marks the per-pair formulas host and device functions under nvcc (plain functions elsewhere).
 #ifndef P2V_HD
 #ifdef __CUDACC__
 #define P2V_HD __host__ __device__
@@ -36,43 +38,52 @@
 
 namespace p2vbme {
 
-/* ---- Models ---------------------------------------------------------------------------------------------- */
+// ---- Models ----------------------------------------------------------------------------------------------
 
 enum class Model : int32_t { JC69, K80, F81, F84, TN93, LogDet, GTR_GC };
 
-/* Canonical name: JC69, K80, F81, F84, TN93, LogDet, GTR+GC. */
+// Canonical name: JC69, K80, F81, F84, TN93, LogDet, GTR+GC.
 const char *model_name(Model model);
 
-/* IQ-TREE-style names, case-insensitive: JC69 (JC), K80 (K2P), F81, F84, TN93 (TN), LogDet,
- * GTR+GC. Throws std::runtime_error for an unknown name, for +G (continuous gamma is +GC) and for GTR without
- * +GC. */
+// IQ-TREE-style names, case-insensitive: JC69 (JC), K80 (K2P), F81, F84, TN93 (TN), LogDet, GTR+GC.
+// Throws std::runtime_error for an unknown name, for +G (continuous gamma is +GC) and for GTR without +GC.
 Model parse_model(const std::string &name);
 
-/* ---- Constants ------------------------------------------------------------------------------------------- */
-
-/* JC69 (the search's values): p is capped at JC69_P_MAX, so the largest distance is about 3.24; a pair with no
- * shared valid site gets JC69_NO_OVERLAP_DISTANCE. */
-constexpr double JC69_P_MAX = 0.74;
-constexpr double JC69_NO_OVERLAP_DISTANCE = 1.5;
-/* Every other model: a pair with no shared valid site (the value of the paper's GPU implementation) */
-constexpr double NO_OVERLAP_DISTANCE = 2.0;
-/* and the largest distance (the cap of the paper's C distance library) */
-constexpr double MAX_DISTANCE = 10.0;
-
-/* ---- Pair counts ----------------------------------------------------------------------------------------- */
-
-struct PairCounts {
-    uint32_t n[16];
+// The substitution model of a run: the model and its parameters.
+struct SubstitutionModel {
+    Model model = Model::JC69;
+    double gtr_rates[N_GTR_RATES] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; // GTR+GC exchangeabilities AC, AG, AT, CG, CT, GT
+    double gtr_alpha = 1.0;                                         // GTR+GC gamma shape
+    double base_freqs[N_BASES] = {0.0, 0.0, 0.0, 0.0}; // F81, F84, TN93: the alignment's base frequencies (A, C,
+                                                       // G, T); all 0: not given (count_base_frequencies)
 };
 
-/* Counts of two rows of the 5-bitplane layout (Alignment::packed: planes A, C, G, T, valid; n_words each). */
+// ---- Constants -------------------------------------------------------------------------------------------
+
+// JC69 (the search's values): p is capped at JC69_P_MAX, so the largest distance is about 3.24; a pair with no shared
+// valid site gets JC69_NO_OVERLAP_DISTANCE.
+constexpr double JC69_P_MAX = 0.74;
+constexpr double JC69_NO_OVERLAP_DISTANCE = 1.5;
+// Every other model: a pair with no shared valid site (the value of the paper's GPU implementation)
+constexpr double NO_OVERLAP_DISTANCE = 2.0;
+// and the largest distance (the cap of the paper's C distance library)
+constexpr double MAX_DISTANCE = 10.0;
+
+// ---- Pair counts -----------------------------------------------------------------------------------------
+
+struct PairCounts {
+    uint32_t n[N_BASES * N_BASES];
+};
+
+// Counts of two rows of the 5-bitplane layout (Alignment::packed: planes A, C, G, T, valid; n_words each).
 PairCounts count_pair(const uint64_t *row_a, const uint64_t *row_b, int32_t n_words);
 
-/* The base frequencies (A, C, G, T) of an alignment in the 5-bitplane layout: each base's share of all valid sites of
- * all sequences (as ape's base.freq and FastME). Uniform if the alignment has no valid site. */
-void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, double freqs[4]);
+// The base frequencies (A, C, G, T) of an alignment in the 5-bitplane layout: each base's share of all valid sites of
+// all sequences (as ape's base.freq and FastME).
+// Uniform if the alignment has no valid site.
+void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, double freqs[N_BASES]);
 
-/* ---- Floating-point helpers (float and double overloads, host and device) --------------------------------- */
+// ---- Floating-point helpers (float and double overloads, host and device) ---------------------------------
 
 namespace fp {
 P2V_HD inline float log(float x) { return ::logf(x); }
@@ -89,10 +100,10 @@ P2V_HD inline float cos(float x) { return ::cosf(x); }
 P2V_HD inline double cos(double x) { return ::cos(x); }
 } // namespace fp
 
-/* ---- Closed-form distances ------------------------------------------------------------------------------- */
+// ---- Closed-form distances -------------------------------------------------------------------------------
 
-/* JC69 from the number of shared valid sites and of matching sites (the search core's formula):
- * d = -3/4 ln(1 - 4/3 p), p = mismatches / valid, capped at JC69_P_MAX. */
+// JC69 from the number of shared valid sites and of matching sites (the search core's formula): d = -3/4 ln(1 - 4/3 p),
+// p = mismatches / valid, capped at JC69_P_MAX.
 template <class T> P2V_HD inline T jc69_distance(int32_t n_valid, int32_t n_match) {
     if (n_valid <= 0)
         return T(JC69_NO_OVERLAP_DISTANCE);
@@ -105,8 +116,9 @@ template <class T> P2V_HD inline T jc69_distance(int32_t n_valid, int32_t n_matc
 
 namespace detail {
 
-/* -ln(w) with w clamped to [1e-4, 1], and 0 when w >= 1 - 1e-12 (the homogeneous link of the paper's C
- * distance library, its alpha = 0 case). The floor 1e-4 bounds each term at ln(1e4) = 9.21. */
+// -ln(w) with w clamped to [1e-4, 1], and 0 when w >= 1 - 1e-12 (the homogeneous link of the paper's C distance
+// library, its alpha = 0 case).
+// The floor 1e-4 bounds each term at ln(1e4) = 9.21.
 template <class T> P2V_HD inline T neg_log_link(T w) {
     if (w > T(1))
         w = T(1);
@@ -125,14 +137,14 @@ template <class T> P2V_HD inline T clamp_distance(T d) {
     return d;
 }
 
-/* What the closed forms share: proportions of a pair's sites. */
+// What the closed forms share: proportions of a pair's sites.
 template <class T> struct Proportions {
-    T p;      /* mismatches */
-    T P1, P2; /* A <-> G and C <-> T differences (transitions) */
-    T Q;      /* transversions, p - P1 - P2 */
+    T p;      // mismatches
+    T P1, P2; // A <-> G and C <-> T differences (transitions)
+    T Q;      // transversions, p - P1 - P2
 };
 
-template <class T> P2V_HD inline Proportions<T> proportions(const uint32_t n[16], uint32_t total) {
+template <class T> P2V_HD inline Proportions<T> proportions(const uint32_t n[N_BASES * N_BASES], uint32_t total) {
     Proportions<T> s;
     const T inv = T(1) / (T)total;
     const uint32_t same = n[0] + n[5] + n[10] + n[15];
@@ -145,18 +157,18 @@ template <class T> P2V_HD inline Proportions<T> proportions(const uint32_t n[16]
     return s;
 }
 
-P2V_HD inline uint32_t total_count(const uint32_t n[16]) {
+P2V_HD inline uint32_t total_count(const uint32_t n[N_BASES * N_BASES]) {
     uint32_t t = 0;
-    for (int k = 0; k < 16; ++k)
+    for (int k = 0; k < N_BASES * N_BASES; ++k)
         t += n[k];
     return t;
 }
 
 P2V_HD inline uint32_t diagonal_count(const uint32_t n[16]) { return n[0] + n[5] + n[10] + n[15]; }
 
-/* F81's d = -E ln(1 - p / E), E = 1 - sum pi_i^2 (floored at 1e-4): also F84's and TN93's when the frequencies make
- * their own form undefined (a base, or both purines or both pyrimidines, absent from the alignment). */
-template <class T> P2V_HD inline T f81_form(T p, const T pi[4]) {
+// F81's d = -E ln(1 - p / E), E = 1 - sum pi_i^2 (floored at 1e-4): also F84's and TN93's when the frequencies make
+// their own form undefined (a base, or both purines or both pyrimidines, absent from the alignment).
+template <class T> P2V_HD inline T f81_form(T p, const T pi[N_BASES]) {
     T E = T(1) - (pi[0] * pi[0] + pi[1] * pi[1] + pi[2] * pi[2] + pi[3] * pi[3]);
     if (E < T(1e-4))
         E = T(1e-4);
@@ -165,8 +177,8 @@ template <class T> P2V_HD inline T f81_form(T p, const T pi[4]) {
 
 } // namespace detail
 
-/* K80 (Kimura 1980): d = -1/2 ln(1 - 2P - Q) - 1/4 ln(1 - 2Q), P = transitions, Q = transversions. */
-template <class T> P2V_HD inline T k80_distance(const uint32_t n[16]) {
+// K80 (Kimura 1980): d = -1/2 ln(1 - 2P - Q) - 1/4 ln(1 - 2Q), P = transitions, Q = transversions.
+template <class T> P2V_HD inline T k80_distance(const uint32_t n[N_BASES * N_BASES]) {
     const uint32_t total = detail::total_count(n);
     if (total == 0)
         return T(NO_OVERLAP_DISTANCE);
@@ -179,9 +191,9 @@ template <class T> P2V_HD inline T k80_distance(const uint32_t n[16]) {
     return detail::clamp_distance(d);
 }
 
-/* F81 (Felsenstein 1981; as ape's dist.dna): d = -E ln(1 - p / E), E = 1 - sum pi_i^2, pi the alignment's base
- * frequencies. */
-template <class T> P2V_HD inline T f81_distance(const uint32_t n[16], const T pi[4]) {
+// F81 (Felsenstein 1981; as ape's dist.dna): d = -E ln(1 - p / E), E = 1 - sum pi_i^2, pi the alignment's base
+// frequencies.
+template <class T> P2V_HD inline T f81_distance(const uint32_t n[N_BASES * N_BASES], const T pi[N_BASES]) {
     const uint32_t total = detail::total_count(n);
     if (total == 0)
         return T(NO_OVERLAP_DISTANCE);
@@ -191,11 +203,11 @@ template <class T> P2V_HD inline T f81_distance(const uint32_t n[16], const T pi
     return detail::clamp_distance(detail::f81_form(s.p, pi));
 }
 
-/* F84 (Felsenstein & Churchill 1996; as ape's dist.dna): with the alignment's base frequencies pi,
- *   A = pi_A pi_G / pi_R + pi_C pi_T / pi_Y,  B = pi_A pi_G + pi_C pi_T,  C = pi_R pi_Y,
- *   d = -2A ln(1 - P / (2A) - (A - B) Q / (2AC)) - 2(C + B - A) ln(1 - Q / (2C)).
- * Falls back to F81's form when A or C is below 1e-6. */
-template <class T> P2V_HD inline T f84_distance(const uint32_t n[16], const T pi[4]) {
+// F84 (Felsenstein & Churchill 1996; as ape's dist.dna): with the alignment's base frequencies pi,
+//   A = pi_A pi_G / pi_R + pi_C pi_T / pi_Y,  B = pi_A pi_G + pi_C pi_T,  C = pi_R pi_Y,
+//   d = -2A ln(1 - P / (2A) - (A - B) Q / (2AC)) - 2(C + B - A) ln(1 - Q / (2C)).
+// Falls back to F81's form when A or C is below 1e-6.
+template <class T> P2V_HD inline T f84_distance(const uint32_t n[N_BASES * N_BASES], const T pi[N_BASES]) {
     const uint32_t total = detail::total_count(n);
     if (total == 0)
         return T(NO_OVERLAP_DISTANCE);
@@ -215,12 +227,12 @@ template <class T> P2V_HD inline T f84_distance(const uint32_t n[16], const T pi
     return detail::clamp_distance(T(2) * A * g1 + T(2) * (C + B - A) * g2);
 }
 
-/* TN93 (Tamura & Nei 1993; as ape's dist.dna): with the alignment's base frequencies pi, P1 = A <-> G, P2 = C <-> T,
- *   k1 = 2 pi_A pi_G / pi_R,  k2 = 2 pi_C pi_T / pi_Y,  k3 = 2 pi_R pi_Y,
- *   d = -k1 ln(w1) - k2 ln(w2) - (k3 - k1 pi_Y - k2 pi_R) ln(w3),
- *   w1 = 1 - P1 / k1 - Q / (2 pi_R),  w2 = 1 - P2 / k2 - Q / (2 pi_Y),  w3 = 1 - Q / k3.
- * Falls back to F81's form when k1, k2 or k3 is below 1e-6. */
-template <class T> P2V_HD inline T tn93_distance(const uint32_t n[16], const T pi[4]) {
+// TN93 (Tamura & Nei 1993; as ape's dist.dna): with the alignment's base frequencies pi, P1 = A <-> G, P2 = C <-> T,
+//   k1 = 2 pi_A pi_G / pi_R,  k2 = 2 pi_C pi_T / pi_Y,  k3 = 2 pi_R pi_Y,
+//   d = -k1 ln(w1) - k2 ln(w2) - (k3 - k1 pi_Y - k2 pi_R) ln(w3),
+//   w1 = 1 - P1 / k1 - Q / (2 pi_R),  w2 = 1 - P2 / k2 - Q / (2 pi_Y),  w3 = 1 - Q / k3.
+// Falls back to F81's form when k1, k2 or k3 is below 1e-6.
+template <class T> P2V_HD inline T tn93_distance(const uint32_t n[N_BASES * N_BASES], const T pi[N_BASES]) {
     const uint32_t total = detail::total_count(n);
     if (total == 0)
         return T(NO_OVERLAP_DISTANCE);
@@ -240,28 +252,29 @@ template <class T> P2V_HD inline T tn93_distance(const uint32_t n[16], const T p
     return detail::clamp_distance(k1 * g1 + k2 * g2 + (k3 - k1 * piY - k2 * piR) * g3);
 }
 
-/* LogDet / paralinear (Lockhart et al. 1994): d = -1/4 (ln det J - 1/2 ln prod_i F^a_i F^b_i), J the 4 x 4 matrix
- * of pair proportions. Undefined (MAX_DISTANCE here; NaN in the paper's C distance library) when a base has frequency
- * below 1e-3 in either sequence or det J <= 1e-30. */
-template <class T> P2V_HD inline T logdet_distance(const uint32_t n[16]) {
+// LogDet / paralinear (Lockhart et al. 1994): d = -1/4 (ln det J - 1/2 ln prod_i F^a_i F^b_i), J the 4 x 4 matrix of
+// pair proportions.
+// Undefined (MAX_DISTANCE here; NaN in the paper's C distance library) when a base has frequency below 1e-3 in either
+// sequence or det J <= 1e-30.
+template <class T> P2V_HD inline T logdet_distance(const uint32_t n[N_BASES * N_BASES]) {
     const uint32_t total = detail::total_count(n);
     if (total == 0)
         return T(NO_OVERLAP_DISTANCE);
     if (detail::diagonal_count(n) == total)
         return T(0);
     const T inv = T(1) / (T)total;
-    T J[16];
-    for (int k = 0; k < 16; ++k)
+    T J[N_BASES * N_BASES];
+    for (int k = 0; k < N_BASES * N_BASES; ++k)
         J[k] = (T)n[k] * inv;
     T prod_f = T(1);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < N_BASES; ++i) {
         const T fa = J[4 * i] + J[4 * i + 1] + J[4 * i + 2] + J[4 * i + 3];
         const T fb = J[i] + J[4 + i] + J[8 + i] + J[12 + i];
         if (fa < T(1e-3) || fb < T(1e-3))
             return T(MAX_DISTANCE);
         prod_f *= fa * fb;
     }
-    /* determinant by 2 x 2 minors of the top and bottom row pairs (Laplace expansion) */
+    // determinant by 2 x 2 minors of the top and bottom row pairs (Laplace expansion)
     const T s0 = J[0] * J[5] - J[1] * J[4], s1 = J[0] * J[6] - J[2] * J[4], s2 = J[0] * J[7] - J[3] * J[4];
     const T s3 = J[1] * J[6] - J[2] * J[5], s4 = J[1] * J[7] - J[3] * J[5], s5 = J[2] * J[7] - J[3] * J[6];
     const T c5 = J[10] * J[15] - J[11] * J[14], c4 = J[9] * J[15] - J[11] * J[13], c3 = J[9] * J[14] - J[10] * J[13];
@@ -272,35 +285,39 @@ template <class T> P2V_HD inline T logdet_distance(const uint32_t n[16]) {
     return detail::clamp_distance(T(-0.25) * (fp::log(det) - T(0.5) * fp::log(prod_f)));
 }
 
-/* ---- GTR rate matrix ------------------------------------------------------------------------------------- */
+// ---- GTR rate matrix -------------------------------------------------------------------------------------
 
-/* Symmetric form R = Pi^(1/2) Q Pi^(-1/2) of the GTR rate matrix Q with exchangeabilities s (AC, AG, AT, CG, CT,
- * GT) and stationary frequencies xi, normalised to one expected substitution per unit time (mean rate
- * sum_i xi_i sum_j s_ij xi_j = 1). R has the eigenvalues of Q. Returns -trace(Q). */
-template <class T> P2V_HD inline T gtr_symmetric_rate_matrix(const T s[6], const T xi[4], T R[16]) {
-    const T S[16] = {T(0), s[0], s[1], s[2], s[0], T(0), s[3], s[4], s[1], s[3], T(0), s[5], s[2], s[4], s[5], T(0)};
-    T row_sum[4];
+// Symmetric form R = Pi^(1/2) Q Pi^(-1/2) of the GTR rate matrix Q with exchangeabilities s (AC, AG, AT, CG, CT, GT)
+// and stationary frequencies xi, normalised to one expected substitution per unit time (mean rate sum_i xi_i sum_j s_ij
+// xi_j = 1).
+// R has the eigenvalues of Q.
+// Returns -trace(Q).
+template <class T>
+P2V_HD inline T gtr_symmetric_rate_matrix(const T s[N_GTR_RATES], const T xi[N_BASES], T R[N_BASES * N_BASES]) {
+    const T S[N_BASES * N_BASES] = {T(0), s[0], s[1], s[2], s[0], T(0), s[3], s[4],
+                                    s[1], s[3], T(0), s[5], s[2], s[4], s[5], T(0)};
+    T row_sum[N_BASES];
     T mu = T(0);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < N_BASES; ++i) {
         T rs = T(0);
-        for (int j = 0; j < 4; ++j)
-            rs += S[i * 4 + j] * xi[j];
+        for (int j = 0; j < N_BASES; ++j)
+            rs += S[i * N_BASES + j] * xi[j];
         row_sum[i] = rs;
         mu += xi[i] * rs;
     }
     const T inv_mu = (mu > T(1e-20)) ? (T(1) / mu) : T(1);
-    T sxi[4];
-    for (int i = 0; i < 4; ++i)
+    T sxi[N_BASES];
+    for (int i = 0; i < N_BASES; ++i)
         sxi[i] = fp::sqrt(xi[i]);
     T neg_tr_Q = T(0);
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
+    for (int i = 0; i < N_BASES; ++i) {
+        for (int j = 0; j < N_BASES; ++j) {
             if (i == j) {
                 const T q_ii = -row_sum[i] * inv_mu;
-                R[i * 4 + i] = q_ii;
+                R[i * N_BASES + i] = q_ii;
                 neg_tr_Q -= q_ii;
             } else {
-                R[i * 4 + j] = S[i * 4 + j] * sxi[i] * sxi[j] * inv_mu;
+                R[i * N_BASES + j] = S[i * N_BASES + j] * sxi[i] * sxi[j] * inv_mu;
             }
         }
     }

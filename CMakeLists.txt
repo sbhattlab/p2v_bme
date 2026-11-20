@@ -40,20 +40,33 @@ execute_process(
   ERROR_QUIET)
 
 # ---- package ---------------------------------------------------------------------------------------
-# I/O: FASTA, Newick (plain C++, no CUDA)
-add_library(p2vbme_io STATIC src/io.cpp)
+# Core types: the alignment and the tree, and the packing of a sequence (plain C++, no CUDA)
+add_library(p2vbme_core STATIC src/core.cpp)
+target_include_directories(p2vbme_core PUBLIC src)
+target_compile_options(p2vbme_core PRIVATE -O3)
+
+# I/O: FASTA, .maple, Newick (plain C++, no CUDA)
+add_library(p2vbme_io STATIC src/fasta.cpp src/maple.cpp src/newick.cpp src/io.cpp)
 target_include_directories(p2vbme_io PUBLIC src)
 target_compile_options(p2vbme_io PRIVATE -O3)
+target_link_libraries(p2vbme_io PUBLIC p2vbme_core)
 
 # Sequence simulation along a tree (tests, pipeline tools)
 add_library(p2vbme_simulations STATIC src/simulations.cpp)
 target_include_directories(p2vbme_simulations PUBLIC src)
 target_compile_options(p2vbme_simulations PRIVATE -O3 -Wall -Wextra)
+target_link_libraries(p2vbme_simulations PUBLIC p2vbme_core)
 
 # Distance models: names, pair counts; the per-pair formulas are inline in the headers (plain C++, no CUDA)
 add_library(p2vbme_distances STATIC src/substitution_models.cpp src/eigen_dist.cpp)
 target_include_directories(p2vbme_distances PUBLIC src)
 target_compile_options(p2vbme_distances PRIVATE -O3 -Wall -Wextra)
+
+# Before and after inference: base frequencies, identical sequences, the start tree (plain C++, no CUDA)
+add_library(p2vbme_processing STATIC src/processing.cpp)
+target_include_directories(p2vbme_processing PUBLIC src)
+target_compile_options(p2vbme_processing PRIVATE -O3)
+target_link_libraries(p2vbme_processing PUBLIC p2vbme_core p2vbme_distances)
 
 # JSON writer for the run report (plain C++, no CUDA)
 add_library(p2vbme_json STATIC src/json_writer.cpp)
@@ -64,14 +77,14 @@ find_package(cxxopts CONFIG REQUIRED)
 
 # The method: infer(), start tree, search, branch lengths (host), the CPU device and, with CUDA, the GPU device
 # (all CUDA code is in device_gpu.cu)
-add_library(p2vbme STATIC src/inference.cpp src/start_tree.cpp src/search.cpp src/branch_lengths.cpp
-            src/report.cpp src/version.cpp src/device_cpu.cpp)
+add_library(p2vbme STATIC src/inference.cpp src/start_tree.cpp src/search.cpp src/phylo2vec.cpp src/branch_lengths.cpp
+            src/report.cpp src/version.cpp src/accelerator.cpp src/device.cpp src/device_cpu.cpp)
 set_source_files_properties(src/version.cpp PROPERTIES COMPILE_DEFINITIONS
                             "P2VBME_VERSION=\"${PROJECT_VERSION}\";P2VBME_GIT=\"${P2VBME_GIT}\"")
 target_include_directories(p2vbme PUBLIC src)
 target_compile_options(p2vbme PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-O3 -Xcompiler=-fopenmp>
                                       $<$<COMPILE_LANGUAGE:CXX>:-O3>)
-target_link_libraries(p2vbme PUBLIC p2vbme_distances OpenMP::OpenMP_CXX)
+target_link_libraries(p2vbme PUBLIC p2vbme_core p2vbme_distances OpenMP::OpenMP_CXX)
 target_link_libraries(p2vbme PRIVATE p2vbme_json)
 if(P2VBME_CUDA)
   target_sources(p2vbme PRIVATE src/device_gpu.cu)
@@ -79,10 +92,23 @@ if(P2VBME_CUDA)
   target_link_libraries(p2vbme PUBLIC CUDA::cudart)
 endif()
 
+# The CPU code counts bits with __builtin_popcountll (the CPU device, the pair counts). On x86-64, -mpopcnt makes it the
+# popcnt instruction (every x86-64 CPU since about 2008) instead of a libgcc call: CPU runs 1.3x (JC69) to 2.5x (TN93)
+# faster on 10,000 x 1,000 sites, same trees.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+  target_compile_options(p2vbme_distances PRIVATE -mpopcnt)
+  target_compile_options(p2vbme PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-mpopcnt>)
+endif()
+
+# The command line (cxxopts): the arguments into Settings and the Report's command-line part
+add_library(p2vbme_cli STATIC src/cli.cpp)
+target_compile_options(p2vbme_cli PRIVATE -O3)
+target_link_libraries(p2vbme_cli PUBLIC p2vbme PRIVATE cxxopts::cxxopts)
+
 # Command-line tool (GPU and CPU, or CPU only without CUDA)
-add_executable(p2v-bme src/cli.cpp)
+add_executable(p2v-bme src/main.cpp)
 target_compile_options(p2v-bme PRIVATE -O3)
-target_link_libraries(p2v-bme PRIVATE p2vbme p2vbme_io cxxopts::cxxopts OpenMP::OpenMP_CXX)
+target_link_libraries(p2v-bme PRIVATE p2vbme_cli p2vbme p2vbme_io p2vbme_processing OpenMP::OpenMP_CXX)
 install(TARGETS p2v-bme)
 
 # ---- reference library (C99), as a shared library for the Python helpers --------------------------------

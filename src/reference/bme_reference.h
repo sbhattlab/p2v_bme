@@ -32,7 +32,7 @@ extern "C" {
 /**
  * @brief Computes all (N-1)^2 exact BME coordinate differences Delta_{i,j} in O(N^2) time.
  *
- * For an ordered ("cherry-first") Phylo2Vec vector v of length N-1 satisfying
+ * For an ordered Phylo2Vec vector v of length N-1 satisfying
  * 0 <= v[i] <= i, evaluates the exact change in the unrooted Pauplin BME objective:
  *
  *   Delta_{i,j} = L(T(v^(i <- j)); D) - L(T(v); D),   for 0 <= i <= N-2, 0 <= j <= 2i,
@@ -68,12 +68,12 @@ void calculate_discrete_gradient_c(const int64_t *P2V_RESTRICT v, const double *
                                    double *P2V_RESTRICT delta_out);
 
 /* ============================================================================
- * 2. O(N) Tree Bijections & Ordered ("Cherry-First") Relabelling (Section S5)
+ * 2. O(N) Tree Bijections & Ordered Relabelling (Section S5)
  * ============================================================================ */
 
 /**
- * @brief Relabels any general Phylo2Vec vector (0 <= v_in[i] <= 2i) into an ordered
- *        Phylo2Vec vector (0 <= v_out[i] <= i) and leaf permutation in O(N) time.
+ * @brief Queue shuffle, as phylo2vec's queue_shuffle: relabels any general Phylo2Vec vector (0 <= v_in[i] <= 2i)
+ *        into an ordered Phylo2Vec vector (0 <= v_out[i] <= i) and leaf permutation in O(N) time.
  *
  * Every binary tree admits an ordered Phylo2Vec encoding under a suitable permutation
  * of leaf indices (Penn et al., 2023). In the standard orientation (flip_mode = 0),
@@ -86,12 +86,12 @@ void calculate_discrete_gradient_c(const int64_t *P2V_RESTRICT v, const double *
  * @param[in]  flip_mode 0 for standard orientation (gauge 0); 1 for reversed orientation (gauge 1).
  * @param[out] v_out     Output ordered Phylo2Vec vector of length N-1 (0 <= v_out[i] <= i).
  * @param[out] perm_out  Output leaf permutation of length N: computational leaf a in {0..N-1}
- *                       corresponds to original leaf perm_out[a] in {0..N-1}.
+ *                       corresponds to original leaf perm_out[a] in {0..N-1} (phylo2vec's label mapping).
  *
  * @note Complexity: O(N) time and O(N) space.
  */
-void relabel_cherry_first_c(const int64_t *P2V_RESTRICT v_in, int32_t n_leaves, int32_t flip_mode,
-                            int64_t *P2V_RESTRICT v_out, int32_t *P2V_RESTRICT perm_out);
+void queue_shuffle_c(const int64_t *P2V_RESTRICT v_in, int32_t n_leaves, int32_t flip_mode, int64_t *P2V_RESTRICT v_out,
+                     int32_t *P2V_RESTRICT perm_out);
 
 /**
  * @brief Encodes a rooted binary tree (given as child arrays) into its unique general
