@@ -36,6 +36,18 @@ target_link_libraries(test_cpu_device PRIVATE p2vbme p2vbme_io p2vbme_processing
                                               m)
 gtest_discover_tests(test_cpu_device DISCOVERY_TIMEOUT 60)
 
+# Phylo2Vec encoding and decoding (src/phylo2vec): reference rows from the phylo2vec crate, round trips
+add_executable(test_phylo2vec test_phylo2vec.cpp)
+target_compile_options(test_phylo2vec PRIVATE -Wall -Wextra)
+target_link_libraries(test_phylo2vec PRIVATE p2vbme GTest::gtest_main)
+gtest_discover_tests(test_phylo2vec)
+
+# The search's building blocks (src/search.hpp) on random trees: summary, components, skeletons and their tables
+add_executable(test_search test_search.cpp)
+target_compile_options(test_search PRIVATE -O2 -Wall -Wextra)
+target_link_libraries(test_search PRIVATE p2vbme GTest::gtest_main)
+gtest_discover_tests(test_search DISCOVERY_TIMEOUT 60)
+
 # O(N) branch lengths against the exact O(N^2) ones: CPU device; BranchLengthsGpu.* on the GPU
 add_executable(test_branch_lengths test_branch_lengths.cpp)
 target_compile_options(test_branch_lengths PRIVATE -O2 -Wall -Wextra)
