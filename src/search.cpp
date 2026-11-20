@@ -554,7 +554,28 @@ void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t
     }
 }
 
-void apply_unrooted_spr_host(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_u, int32_t dest_v) {
+// Replaces node u's neighbour old_nb by new_nb in adj_u (3 slots per node).
+static void replace_neighbour(int32_t *adj_u, int32_t u, int32_t old_nb, int32_t new_nb) {
+    for (int32_t k = 0; k < 3; ++k) {
+        if (adj_u[3 * u + k] == old_nb) {
+            adj_u[3 * u + k] = new_nb;
+            return;
+        }
+    }
+}
+
+// One SPR move on the unrooted adjacency adj_u: cut the subtree at prune_node off together with the node it hangs from
+// (anchor_node), and regraft it into the edge between dest_a and dest_b; anchor_node becomes the new node on that edge.
+//
+//          n0                                 n0
+//          |                                  |
+//     anchor_node -- prune_node      ->       n1        dest_b
+//          |                                            |
+//          n1        dest_b                        anchor_node -- prune_node
+//                    |                                  |
+//                    dest_a                             dest_a
+void apply_unrooted_spr(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_a, int32_t dest_b) {
+    // Step 1: prune: join the anchor's two other neighbours (n0, n1) directly, which takes the anchor out of the tree.
     int32_t n0 = -1, n1 = -1;
     for (int32_t k = 0; k < 3; ++k) {
         int32_t nb = adj_u[3 * anchor_node + k];
@@ -565,38 +586,23 @@ void apply_unrooted_spr_host(int32_t *adj_u, int32_t prune_node, int32_t anchor_
                 n1 = nb;
         }
     }
-    for (int32_t k = 0; k < 3; ++k) {
-        if (adj_u[3 * n0 + k] == anchor_node) {
-            adj_u[3 * n0 + k] = n1;
-            break;
-        }
-    }
-    for (int32_t k = 0; k < 3; ++k) {
-        if (adj_u[3 * n1 + k] == anchor_node) {
-            adj_u[3 * n1 + k] = n0;
-            break;
-        }
-    }
-    if (dest_u == anchor_node)
-        dest_u = n0;
-    if (dest_v == anchor_node)
-        dest_v = n0;
+    // n0's slot that held the anchor now holds n1, and n1's holds n0
+    replace_neighbour(adj_u, n0, anchor_node, n1);
+    replace_neighbour(adj_u, n1, anchor_node, n0);
+    // A regraft edge that ended at the anchor is taken to end at n0 instead (never in the window solve: the kernels
+    // leave out the edges at the pruning point).
+    if (dest_a == anchor_node)
+        dest_a = n0;
+    if (dest_b == anchor_node)
+        dest_b = n0;
 
-    for (int32_t k = 0; k < 3; ++k) {
-        if (adj_u[3 * dest_u + k] == dest_v) {
-            adj_u[3 * dest_u + k] = anchor_node;
-            break;
-        }
-    }
-    for (int32_t k = 0; k < 3; ++k) {
-        if (adj_u[3 * dest_v + k] == dest_u) {
-            adj_u[3 * dest_v + k] = anchor_node;
-            break;
-        }
-    }
+    // Step 2: regraft: put the anchor into the edge between dest_a and dest_b (each end's slot that held the other end
+    // now holds the anchor), and give the anchor its three neighbours: the pruned subtree, dest_a and dest_b.
+    replace_neighbour(adj_u, dest_a, dest_b, anchor_node);
+    replace_neighbour(adj_u, dest_b, dest_a, anchor_node);
     adj_u[3 * anchor_node + 0] = prune_node;
-    adj_u[3 * anchor_node + 1] = dest_u;
-    adj_u[3 * anchor_node + 2] = dest_v;
+    adj_u[3 * anchor_node + 1] = dest_a;
+    adj_u[3 * anchor_node + 2] = dest_b;
 }
 
 void from_skeleton_meta(std::vector<int64_t> &v, const SkeletonMeta &sk, int32_t root_c1, int32_t root_c2,
@@ -611,48 +617,48 @@ void from_skeleton_meta(std::vector<int64_t> &v, const SkeletonMeta &sk, int32_t
     c2_r[root_r] = root_c2;
 
     // Step 2: walk outward from that edge, breadth first.
-    // An internal node u reached from pr gets its two other neighbours as rooted children, in sk.adj_u's slot order;
-    // tips (ids < K) end the walk.
-    std::vector<int32_t> q_u; // the internal nodes to visit
-    std::vector<int32_t> q_p; // the neighbour each was reached from
-    q_u.reserve(R_sk);
-    q_p.reserve(R_sk);
+    // An internal node gets its two neighbours other than the one it was reached from as rooted children, in sk.adj_u's
+    // slot order; tips (ids < K) end the walk.
+    std::vector<int32_t> to_visit;     // the internal nodes to visit
+    std::vector<int32_t> reached_from; // the neighbour each was reached from
+    to_visit.reserve(R_sk);
+    reached_from.reserve(R_sk);
     if (root_c1 >= K) {
-        q_u.push_back(root_c1);
-        q_p.push_back(root_c2);
+        to_visit.push_back(root_c1);
+        reached_from.push_back(root_c2);
     }
     if (root_c2 >= K) {
-        q_u.push_back(root_c2);
-        q_p.push_back(root_c1);
+        to_visit.push_back(root_c2);
+        reached_from.push_back(root_c1);
     }
 
     // Take the queue in order (head: the next node), so parents come before their children.
     // Each node's children are its neighbours other than the one it was reached from; the internal ones join the queue.
     size_t head = 0;
-    while (head < q_u.size()) {
-        int32_t u = q_u[head];
-        int32_t pr = q_p[head];
+    while (head < to_visit.size()) {
+        int32_t node = to_visit[head];
+        int32_t from = reached_from[head];
         head++;
-        // its two neighbours other than pr
+        // its two neighbours other than from
         int32_t b0 = -1, b1 = -1;
         for (int32_t k = 0; k < 3; ++k) {
-            int32_t nb = sk.adj_u[3 * u + k];
-            if (nb != -1 && nb != pr) {
+            int32_t nb = sk.adj_u[3 * node + k];
+            if (nb != -1 && nb != from) {
                 if (b0 == -1)
                     b0 = nb;
                 else
                     b1 = nb;
             }
         }
-        c1_r[u] = b0;
-        c2_r[u] = b1;
+        c1_r[node] = b0;
+        c2_r[node] = b1;
         if (b0 >= K) {
-            q_u.push_back(b0);
-            q_p.push_back(u);
+            to_visit.push_back(b0);
+            reached_from.push_back(node);
         }
         if (b1 >= K) {
-            q_u.push_back(b1);
-            q_p.push_back(u);
+            to_visit.push_back(b1);
+            reached_from.push_back(node);
         }
     }
 
@@ -677,9 +683,9 @@ struct CandidateMove {
 
 // Optimize one K-leaf skeleton with path-disjoint SPR batching and a monotonic condensed-skeleton BME check.
 // The device does the arithmetic.
-double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, const int32_t *profile_offsets,
-                         const int32_t *profile_leaves, const float *profile_weights, std::vector<int64_t> &v,
-                         std::vector<int32_t> &perm, WindowKernels &kernels) {
+double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const int32_t *profile_offsets,
+                    const int32_t *profile_leaves, const float *profile_weights, std::vector<int64_t> &v,
+                    std::vector<int32_t> &perm, WindowKernels &kernels) {
     const int32_t M_sk = 2 * K - 2;              // nodes of the unrooted skeleton (the rooted one without its root)
     const int32_t root_u_sk = M_sk - 1;          // the node the unrooted skeleton hangs from (2K - 3)
     const std::vector<int64_t> init_v = v;       // the skeleton before the solve: kept if nothing improves
@@ -785,19 +791,20 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, co
         int32_t n_applied = 0;
         for (const CandidateMove &mc : cands) {
             // The move: prune the subtree under tr together with its attachment node pr, and regraft pr into the edge
-            // between dst_u and its parent dst_v (dst_u < root_u_sk from step 5, so dst_v exists).
+            // between dst_child and its parent dst_parent (dst_child < root_u_sk from step 5, so dst_parent exists).
             const int32_t tr = v_map[mc.i + 1];
             const int32_t pr = (tr == root_u_sk) ? other_rc : parent_u[tr];
-            const int32_t dst_u = mc.j, dst_v = parent_u[dst_u];
+            const int32_t dst_child = mc.j, dst_parent = parent_u[dst_child];
             // Left out: moves next to the hanging root, and regraft edges inside the pruned subtree.
-            if (pr == root_u_sk || dst_v == root_u_sk || under(dst_u, tr))
+            if (pr == root_u_sk || dst_parent == root_u_sk || under(dst_child, tr))
                 continue;
-            // Its path: tr and dst_v, pr up to the lowest common ancestor with dst_u, and dst_u up to that ancestor.
-            path.assign({tr, dst_v});
+            // Its path: tr and dst_parent, pr up to the lowest common ancestor with dst_child, and dst_child up to that
+            // ancestor.
+            path.assign({tr, dst_parent});
             int32_t lca = pr;
-            for (; !under(dst_u, lca); lca = parent_u[lca])
+            for (; !under(dst_child, lca); lca = parent_u[lca])
                 path.push_back(lca);
-            for (int32_t x = dst_u; x != lca; x = parent_u[x])
+            for (int32_t x = dst_child; x != lca; x = parent_u[x])
                 path.push_back(x);
             path.push_back(lca);
             // Skip it if its path meets a move already in the batch; otherwise mark the path and apply the move.
@@ -805,17 +812,17 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, co
                 continue;
             for (int32_t x : path)
                 in_batch[x] = 1;
-            apply_unrooted_spr_host(adj_u.data(), tr, pr, dst_u, dst_v);
+            apply_unrooted_spr(adj_u.data(), tr, pr, dst_child, dst_parent);
             if (++n_applied >= cur_batch_cap)
                 break;
         }
         // No candidate fit the checks: apply the single best move.
         if (n_applied == 0) {
-            int32_t i = cands[0].i, dst_u = cands[0].j;
+            int32_t i = cands[0].i, dst_child = cands[0].j;
             int32_t tr = v_map[i + 1];
             int32_t pr = (tr == root_u_sk) ? other_rc : parent_u[tr];
-            int32_t dst_v = parent_u[dst_u];
-            apply_unrooted_spr_host(adj_u.data(), tr, pr, dst_u, dst_v);
+            int32_t dst_parent = parent_u[dst_child];
+            apply_unrooted_spr(adj_u.data(), tr, pr, dst_child, dst_parent);
         }
         batch_pending = true;
 
@@ -1078,8 +1085,8 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
         return 0.0;
     // Core device-powered search through the skeleton with SPR sweeps
     // Returns the gain, and the new skeleton in v_mb, perm_mb
-    double dL = solve_window_host(K, max_iters, p2vbme::MOVE_BATCH_CAP, profile_offsets.data(), profile_leaves.data(),
-                                  profile_weights.data(), v_mb, perm_mb, *dev.window_kernels());
+    double dL = solve_window(K, max_iters, p2vbme::MOVE_BATCH_CAP, profile_offsets.data(), profile_leaves.data(),
+                             profile_weights.data(), v_mb, perm_mb, *dev.window_kernels());
     if (dL == 0.0) {
         fruitless_hash = input_hash;
         return 0.0;

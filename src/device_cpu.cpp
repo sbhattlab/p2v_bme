@@ -6,7 +6,7 @@
  * --precision double. One CpuDevice per worker (--devices N: N workers); a step uses the run's threads when it
  * runs alone and one thread when several devices work in parallel (inside the search's parallel region).
  *
- * The window solve's sweeps are search.cpp's solve_window_host; here are its kernels, ported
+ * The window solve's sweeps are search.cpp's solve_window; here are its kernels, ported
  * from the GPU kernels value for value (up to floating-point contraction and summation order): the window
  * distances (k_build_real_seq_condensed_D's summation order), the subtree averages and BME length of a
  * skeleton (k_copy_leaf_rows_perm ... k_compute_bme_length), each row's best move (k_spr_rows_top1: the seeds

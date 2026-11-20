@@ -76,7 +76,7 @@ struct SkeletonMeta {
 
 // Decodes the skeleton's vector v (K - 1 entries) into sk.
 void to_skeleton_meta(const std::vector<int64_t> &v, SkeletonMeta &sk);
-void apply_unrooted_spr_host(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_u, int32_t dest_v);
+void apply_unrooted_spr(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_a, int32_t dest_b);
 // Encodes the unrooted skeleton sk.adj_u, rooted on the edge between root_c1 and root_c2, as an ordered vector v
 // (queue shuffle, labelling flip_mode) and composes perm with the new tip labels.
 // Reads only sk.adj_u, and K from the size of sk.v_map: after a batch of moves, the other fields of sk still describe
@@ -111,9 +111,9 @@ class WindowKernels {
 // BME length.
 // Updates v and perm and returns the BME change (0 and the input tree if nothing improved).
 // The caller writes the new skeleton back into the full tree.
-double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, const int32_t *profile_offsets,
-                         const int32_t *profile_leaves, const float *profile_weights, std::vector<int64_t> &v,
-                         std::vector<int32_t> &perm, WindowKernels &kernels);
+double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const int32_t *profile_offsets,
+                    const int32_t *profile_leaves, const float *profile_weights, std::vector<int64_t> &v,
+                    std::vector<int32_t> &perm, WindowKernels &kernels);
 
 // The CPU device's window kernels on their own, one thread (tests): alignment rows read in place.
 std::unique_ptr<WindowKernels> make_cpu_window_kernels(const uint64_t *rows, int32_t n_words,

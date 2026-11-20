@@ -1269,7 +1269,7 @@ struct RnaSimGpuWorkspace {
     }
 };
 
-// The GPU parts of a window solve; the sweeps of batched moves are solve_window_host's (search.cpp), shared with the
+// The GPU parts of a window solve; the sweeps of batched moves are solve_window's (search.cpp), shared with the
 // CPU device.
 class GpuWindowKernels final : public WindowKernels {
   public:

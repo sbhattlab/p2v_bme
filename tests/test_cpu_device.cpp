@@ -338,7 +338,7 @@ TEST(CpuDevice, MoveScoresAreExactBmeChanges) {
                 int32_t best_edge = -1;
                 for (int32_t e : edges) {
                     SkeletonMeta moved = s;
-                    apply_unrooted_spr_host(moved.adj_u.data(), tr, pr, e, s.parent_u[e]);
+                    apply_unrooted_spr(moved.adj_u.data(), tr, pr, e, s.parent_u[e]);
                     std::vector<int64_t> v2 = v;
                     std::vector<int32_t> perm2 = perm;
                     from_skeleton_meta(v2, moved, root_u, moved.adj_u[3 * root_u + 0], 0, perm2);

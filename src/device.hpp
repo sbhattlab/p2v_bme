@@ -53,7 +53,7 @@ class Device {
     virtual void nearest_sampled(const int32_t *queries, int32_t n_queries, const int32_t *samples, int32_t n_samples,
                                  int32_t *best_pos) = 0;
 
-    // 3. Window solve: the device's arithmetic for solve_window_host (search.hpp), which runs the sweeps.
+    // 3. Window solve: the device's arithmetic for solve_window (search.hpp), which runs the sweeps.
     // A new kernels object for each window, on the device's current alignment (its subset while the start tree is
     // built).
     virtual std::unique_ptr<WindowKernels> window_kernels() = 0;
