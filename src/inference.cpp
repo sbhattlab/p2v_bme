@@ -40,8 +40,6 @@ void check_settings(const Settings &opt) {
         throw std::runtime_error("tol must be >= 0");
     if (!(opt.time_limit >= 0.0))
         throw std::runtime_error("time limit must be >= 0 (0 = none)");
-    if (!(opt.exact_check_eta >= 0.0))
-        throw std::runtime_error("exact-check eta must be >= 0");
     for (double f : opt.substitution_model.base_freqs)
         if (!(std::isfinite(f) && f >= 0.0))
             throw std::runtime_error("base frequencies must be finite and >= 0");
@@ -132,7 +130,6 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     settings.stop_tol = opt.tol;
     settings.time_cap = opt.time_limit;
     settings.profile_cap = opt.profile_cap;
-    settings.exact_check_eta = opt.exact_check_eta;
 
     Result res;
     warn_gtr_precision(opt, res.warnings);

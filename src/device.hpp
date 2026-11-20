@@ -11,7 +11,6 @@
 
 #include <stdint.h>
 
-#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -23,10 +22,6 @@
 namespace p2vbme {
 
 class WindowKernels; // the window solve's arithmetic (search.hpp)
-
-// Supplies complete (uncapped) leaf profiles to the exact acceptance check of a window, building them on first
-// use (CSR layout as the window's profiles).
-using ExactProfileBuilder = std::function<void(const int32_t **offsets, const int32_t **leaves, const float **weights)>;
 
 class Device {
   public:

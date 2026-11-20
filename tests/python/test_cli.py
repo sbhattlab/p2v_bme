@@ -106,7 +106,7 @@ def test_options_reach_the_run(data, tmp_path):
         *("-s", data / "input.fa", "-m", "TN93", "-p", tmp_path / "out", "--report-full"),
         *("--precision", "double", "--devices", "2", "--seed", "5", "--sample-size", "40"),
         *("--max-rounds", "3", "--tol", "0", "--time-limit", "100"),
-        *("--profile-cap", "8", "--exact-check-eta", "0.01", "--bl-profile-cap", "8", "--no-neg-as-zero"),
+        *("--profile-cap", "8", "--bl-profile-cap", "8", "--no-neg-as-zero"),
     )
     assert p.returncode == 0, p.stderr
     # double precision without --accelerator: the CPU, with a warning
@@ -120,7 +120,6 @@ def test_options_reach_the_run(data, tmp_path):
         "tol": 0,
         "time_limit": 100,
         "profile_cap": 8,
-        "exact_check_eta": 0.01,
         "branch_lengths": True,
         "bl_profile_cap": 8,
         "neg_as_zero": False,

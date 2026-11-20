@@ -69,7 +69,6 @@ void detail_settings(JsonWriter &w, const Report &run, const Settings &opt, cons
     w.field("tol", opt.tol);
     w.field("time_limit", opt.time_limit);
     w.field("profile_cap", opt.profile_cap);
-    w.field("exact_check_eta", opt.exact_check_eta);
     w.field("branch_lengths", opt.branch_lengths);
     w.field("bl_profile_cap", opt.bl_profile_cap);
     w.field("neg_as_zero", run.neg_as_zero);

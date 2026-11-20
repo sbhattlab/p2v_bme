@@ -48,10 +48,9 @@ struct SearchSettings {
     // Rounds >= 1 are a deterministic function of the tree, so that stop is lossless (the same tree as running all
     // rounds).
     double stop_tol = p2vbme::DEFAULT_TOL;
-    double deadline = 0.0;                                    // absolute wall_sec(): no new round after it; 0 = none
-    double time_cap = p2vbme::DEFAULT_TIME_LIMIT;             // the time limit behind the deadline, for reporting only
-    int32_t profile_cap = p2vbme::DEFAULT_PROFILE_CAP;        // leaves kept per clade profile
-    double exact_check_eta = p2vbme::DEFAULT_EXACT_CHECK_ETA; // exact acceptance check, see optimize_skeleton_on_gpu
+    double deadline = 0.0;                             // absolute wall_sec(): no new round after it; 0 = none
+    double time_cap = p2vbme::DEFAULT_TIME_LIMIT;      // the time limit behind the deadline, for reporting only
+    int32_t profile_cap = p2vbme::DEFAULT_PROFILE_CAP; // leaves kept per clade profile
     // progress of every search (main and start tree), for printing and diagnostics; empty = none
     std::function<void(const SearchEvent &)> on_event;
 };
@@ -80,8 +79,6 @@ void build_skeleton_metadata(const std::vector<int64_t> &v, SkeletonMeta &sk);
 void apply_unrooted_spr_host(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_u, int32_t dest_v);
 void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, int32_t root_edge_v, int32_t flip_mode,
                         std::vector<int64_t> &v, std::vector<int32_t> &perm);
-// All-pairs topological distances between the K pieces of a skeleton.
-void compute_skeleton_leaf_dists(const int64_t *v, const int32_t *perm, int32_t K, std::vector<int32_t> &dist_out);
 
 // ---- The window solve, shared by the devices (each gives its kernels: Device::window_kernels) ----
 
@@ -117,11 +114,9 @@ class WindowKernels {
 // BME length.
 // Updates v and perm and returns the BME change (0 and the input tree if nothing improved).
 // The caller writes the new skeleton back into the full tree.
-// With exact_builder, small gains (> -exact_check_eta) are re-checked on complete profiles.
-double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, double exact_check_eta,
-                         const int32_t *profile_offsets, const int32_t *profile_leaves, const float *profile_weights,
-                         std::vector<int64_t> &v, std::vector<int32_t> &perm, const ExactProfileBuilder *exact_builder,
-                         WindowKernels &kernels);
+double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, const int32_t *profile_offsets,
+                         const int32_t *profile_leaves, const float *profile_weights, std::vector<int64_t> &v,
+                         std::vector<int32_t> &perm, WindowKernels &kernels);
 
 // The CPU device's window kernels on their own, one thread (tests): alignment rows read in place.
 std::unique_ptr<WindowKernels> make_cpu_window_kernels(const uint64_t *rows, int32_t n_words,

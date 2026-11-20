@@ -5,7 +5,7 @@
 //     distance matrix (no coordinate move of either Phylo2Vec gauge lowers the BME length);
 //   - its BME length of a fixed tree (complete profiles) equals Pauplin's formula, to float precision in single
 //     and to 1e-9 in double precision, and the Newick output keeps double digits;
-//   - the same tree for 1, 2 or 3 CPU workers (the snapshot rule), and the exact check's gain.
+//   - the same tree for 1, 2 or 3 CPU workers (the snapshot rule).
 #include <gtest/gtest.h>
 
 #include <math.h>
@@ -266,74 +266,6 @@ TEST(CpuDevice, SameTreeForAnyWorkerCount) {
         EXPECT_EQ(res.delta_bme, one.delta_bme) << workers << " workers";
         EXPECT_EQ(res.rounds_run, one.rounds_run) << workers << " workers";
     }
-}
-
-// The exact check on the CPU: the returned gain is the gain on complete profiles (as the GPU test).
-TEST(CpuDevice, ExactCheck) {
-    const int32_t N = 400, K = 40, G = 10, CAPPED = 3;
-    const Tree tree = random_tree(N, 0.01, 0.2, 71);
-    const Alignment aln = simulate_alignment(tree, 1000, truth(), 72);
-    std::vector<int32_t> cap_off(K + 1), cap_leaves, ex_off(K + 1), ex_leaves;
-    std::vector<float> cap_w, ex_w;
-    for (int32_t a = 0; a < K; ++a) {
-        cap_off[a] = (int32_t)cap_leaves.size();
-        ex_off[a] = (int32_t)ex_leaves.size();
-        for (int32_t k = 0; k < G; ++k) {
-            ex_leaves.push_back(G * a + k);
-            ex_w.push_back((k + 1) / 55.0f);
-            if (k < CAPPED) {
-                cap_leaves.push_back(G * a + k);
-                cap_w.push_back(1.0f / CAPPED);
-            }
-        }
-    }
-    cap_off[K] = (int32_t)cap_leaves.size();
-    ex_off[K] = (int32_t)ex_leaves.size();
-    const ExactProfileBuilder builder = [&](const int32_t **o, const int32_t **l, const float **w) {
-        *o = ex_off.data();
-        *l = ex_leaves.data();
-        *w = ex_w.data();
-    };
-    int accepted = 0;
-    for (Precision precision : {Precision::Single, Precision::Double})
-        for (Model model : {Model::JC69, Model::TN93, Model::GTR_GC}) {
-            auto dev = make_cpu_device(0, 2, precision == Precision::Double);
-            dev->load(aln.packed.data(), N, aln.n_words);
-            const SubstitutionModel dm = distance_model(model);
-            dev->set_distance(dm, EigenSettings());
-            std::vector<int64_t> v(K - 1, 0), v0 = v;
-            std::vector<int32_t> perm(K), perm0;
-            for (int32_t a = 0; a < K; ++a)
-                perm[a] = a;
-            perm0 = perm;
-            const double dL =
-                solve_window_host(K, WINDOW_MAX_SWEEPS, MOVE_BATCH_CAP, 1e30, cap_off.data(), cap_leaves.data(),
-                                  cap_w.data(), v, perm, &builder, *dev->window_kernels());
-            if (dL == 0.0)
-                continue;
-            ++accepted;
-            const std::vector<double> Dl = distance_matrix(aln, dm);
-            std::vector<int32_t> before, after;
-            compute_skeleton_leaf_dists(v0.data(), perm0.data(), K, before);
-            compute_skeleton_leaf_dists(v.data(), perm.data(), K, after);
-            double expected = 0.0, scale = 0.0;
-            for (int32_t a = 0; a < K; ++a)
-                for (int32_t b = a + 1; b < K; ++b) {
-                    const double wd =
-                        ldexp(1.0, 1 - after[(size_t)a * K + b]) - ldexp(1.0, 1 - before[(size_t)a * K + b]);
-                    if (wd == 0.0)
-                        continue;
-                    double Dab = 0.0;
-                    for (int32_t p = ex_off[a]; p < ex_off[a + 1]; ++p)
-                        for (int32_t q = ex_off[b]; q < ex_off[b + 1]; ++q)
-                            Dab += (double)ex_w[p] * ex_w[q] * Dl[(size_t)ex_leaves[p] * N + ex_leaves[q]];
-                    expected += wd * Dab;
-                    scale += fabs(wd * Dab);
-                }
-            const double tol = (precision == Precision::Double ? 1e-12 : model == Model::GTR_GC ? 1e-5 : 1e-6) * scale;
-            EXPECT_NEAR(dL, expected, tol) << model_name(model);
-        }
-    EXPECT_GE(accepted, 4);
 }
 
 // Settings the CPU refuses.

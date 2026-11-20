@@ -14,16 +14,15 @@ namespace p2vbme {
 
 // ---- Defaults of the user settings ------------------------------------------------------------------
 
-constexpr int32_t DEFAULT_MAX_ROUNDS = 8;       // rounds of the search, then a final cleanup pass
-constexpr double DEFAULT_TOL = 1e-6;            // stop once a round gains <= this x the total gain (0 = zero gain only)
-constexpr double DEFAULT_TIME_LIMIT = 0.0;      // seconds after which no new round starts (0 = none)
-constexpr int32_t DEFAULT_PROFILE_CAP = 64;     // leaves kept per clade profile in a window (1..PROFILE_CAP_MAX)
-constexpr double DEFAULT_EXACT_CHECK_ETA = 0.0; // exact re-check of windows gaining less than eta (0 = never)
-constexpr int32_t DEFAULT_SAMPLE_SIZE = 0;      // sample-and-place start: 0 = min(START_SAMPLE_MAX, N / 10)
-constexpr uint64_t DEFAULT_SEED = 1;            // seeds the start tree
-constexpr bool DEFAULT_BRANCH_LENGTHS = true;   // estimate BME branch lengths
-constexpr int32_t DEFAULT_BL_PROFILE_CAP = 32;  // leaves kept per subtree profile for branch lengths
-constexpr int32_t DEFAULT_GTR_REWEIGHT = 2;     // GTR+GC SymWLS: weight updates after the first fit (supplement)
+constexpr int32_t DEFAULT_MAX_ROUNDS = 8;      // rounds of the search, then a final cleanup pass
+constexpr double DEFAULT_TOL = 1e-6;           // stop once a round gains <= this x the total gain (0 = zero gain only)
+constexpr double DEFAULT_TIME_LIMIT = 0.0;     // seconds after which no new round starts (0 = none)
+constexpr int32_t DEFAULT_PROFILE_CAP = 64;    // leaves kept per clade profile in a window (1..PROFILE_CAP_MAX)
+constexpr int32_t DEFAULT_SAMPLE_SIZE = 0;     // sample-and-place start: 0 = min(START_SAMPLE_MAX, N / 10)
+constexpr uint64_t DEFAULT_SEED = 1;           // seeds the start tree
+constexpr bool DEFAULT_BRANCH_LENGTHS = true;  // estimate BME branch lengths
+constexpr int32_t DEFAULT_BL_PROFILE_CAP = 32; // leaves kept per subtree profile for branch lengths
+constexpr int32_t DEFAULT_GTR_REWEIGHT = 2;    // GTR+GC SymWLS: weight updates after the first fit (supplement)
 
 // ---- Limits ------------------------------------------------------------------------------------------
 
@@ -48,7 +47,7 @@ constexpr int32_t WINDOW_MAX_SWEEPS = 200;
 constexpr float MOVE_MIN_GAIN = 1e-6f;
 // A batch of moves is kept only if it lowers the BME length by more than this; otherwise it is undone.
 constexpr double BATCH_MIN_GAIN = 1e-8;
-// A window's new skeleton is kept only if it lowers the BME length by more than this (also in the exact check).
+// A window's new skeleton is kept only if it lowers the BME length by more than this.
 constexpr double WINDOW_MIN_GAIN = 1e-7;
 // Internal-vertex budget of a window: 1,498 splits give at most 1,499 pieces, plus the outside component, so every
 // window has K <= 1,500 pieces.
@@ -68,9 +67,6 @@ static_assert(WAVE_COMPONENT_CAP + 4 <= WINDOW_MAX_INTERNALS, "a wave component 
 constexpr int32_t MOVE_BATCH_CAP = 128;
 // Added to the batch cap after a batch that lowered L, up to MOVE_BATCH_CAP (it only acts after a halving).
 constexpr int32_t MOVE_BATCH_CAP_GROWTH = 16;
-// Exact check (--exact-check-eta): from this N on, the "complete" profiles are capped at EXACT_PROFILE_CAP.
-constexpr int32_t EXACT_PROFILE_CAP_MIN_N = 1000000;
-constexpr int32_t EXACT_PROFILE_CAP = 2048;
 
 // ---- Search: rounds ------------------------------------------------------------------------------------
 

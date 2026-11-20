@@ -5,8 +5,7 @@
 //   - the BME length of a fixed tree (no search, complete profiles) against Pauplin's formula on the CPU;
 //   - a search from a random start ends at a tree no longer than the true tree (both scored by the same branch-
 //     length pass, profile cap 32) and near it in RF; the true model recovers it best (the window distances;
-//     N = 3,000 gives multi-leaf profiles), also with the exact check on every window;
-//   - the exact check's refinement kernel against a CPU sum on complete profiles (per-pair and JC69 tiled paths).
+//     N = 3,000 gives multi-leaf profiles).
 #include <gtest/gtest.h>
 
 #include <math.h>
@@ -264,114 +263,28 @@ TEST(DeviceDistances, SearchUnderEachModel) {
     const Tree tree = random_tree(N, 0.005, 0.08, 31);
     const Alignment aln = simulate_alignment(tree, 2000, truth(), 32);
     for (Model model : MODELS) {
-        for (double eta : {0.0, 1e30}) {
-            if (eta > 0.0 && model != Model::TN93 && model != Model::GTR_GC)
-                continue; /* the exact check's per-pair path: two models are enough */
-            Settings opt;
-            opt.tree_init = TreeInit::Random;
-            opt.devices = {0};
-            opt.exact_check_eta = eta;
-            if (eta > 0.0)
-                opt.profile_cap = 8; /* capped profiles, so the check runs (on complete profiles) */
-            opt.substitution_model = distance_model(model);
-            const Result res = run_infer(aln, opt);
-            EXPECT_LT(res.delta_bme, 0.0) << model_name(model); /* the tree got shorter */
-            // the true tree, scored by the same pass
-            Settings score = opt;
-            score.tree_init = TreeInit::Given;
-            score.max_rounds = 0;
-            const Result true_score = run_infer(aln, score, &tree);
-            EXPECT_LE(res.bme_length, true_score.bme_length * (1.0 + 1e-4))
-                << model_name(model) << " eta=" << eta << ": found " << res.bme_length << ", true tree "
-                << true_score.bme_length;
-            const int32_t rf = rf_distance(res.tree, tree, N);
-            EXPECT_LT(rf, N / 5) << model_name(model) << " eta=" << eta << " RF " << rf;
-            /* the true model (GTR+GC with the true parameters) recovers the tree far better than the others (RF
-             * about 160): this fails if the window solve does not use the model */
-            if (model == Model::GTR_GC) {
-                EXPECT_LT(rf, N / 30) << "GTR+GC eta=" << eta << " RF " << rf;
-            }
-            printf("%-7s eta=%g: BME %.6f (true tree %.6f), RF %d of %d, rounds %d\n", model_name(model), eta,
-                   res.bme_length, true_score.bme_length, rf, 2 * (N - 3), res.rounds_run);
+        Settings opt;
+        opt.tree_init = TreeInit::Random;
+        opt.devices = {0};
+        opt.substitution_model = distance_model(model);
+        const Result res = run_infer(aln, opt);
+        EXPECT_LT(res.delta_bme, 0.0) << model_name(model); /* the tree got shorter */
+        // the true tree, scored by the same pass
+        Settings score = opt;
+        score.tree_init = TreeInit::Given;
+        score.max_rounds = 0;
+        const Result true_score = run_infer(aln, score, &tree);
+        EXPECT_LE(res.bme_length, true_score.bme_length * (1.0 + 1e-4))
+            << model_name(model) << ": found " << res.bme_length << ", true tree " << true_score.bme_length;
+        const int32_t rf = rf_distance(res.tree, tree, N);
+        EXPECT_LT(rf, N / 5) << model_name(model) << " RF " << rf;
+        /* the true model (GTR+GC with the true parameters) recovers the tree far better than the others (RF
+         * about 160): this fails if the window solve does not use the model */
+        if (model == Model::GTR_GC) {
+            EXPECT_LT(rf, N / 30) << "GTR+GC RF " << rf;
         }
-    }
-}
-
-// The exact check's refinement kernel: a window whose profiles are capped (3 of each component's 10 leaves), solved
-// with the check on every window, returns the gain on the complete profiles, sum over component pairs of
-// (2^(1 - edges after) - 2^(1 - edges before)) x D_ab, D_ab the profile-weighted distance. Recomputed here on
-// the CPU. n_words 16 takes the kernel's per-pair path (every model); 20 (a multiple of 5) JC69's tiled path.
-TEST(DeviceDistances, ExactCheckRefinement) {
-    const int32_t N = 400, K = 40, G = 10, CAPPED = 3;
-    for (int32_t n_sites : {1000, 1280}) {
-        const Tree tree = random_tree(N, 0.01, 0.2, 41);
-        Alignment aln = simulate_alignment(tree, n_sites, truth(), 42);
-        punch_holes(aln, 0.05, 43);
-        auto dev = make_gpu_device(0);
-        dev->load(aln.packed.data(), N, aln.n_words);
-        std::vector<int32_t> cap_off(K + 1), cap_leaves, ex_off(K + 1), ex_leaves;
-        std::vector<float> cap_w, ex_w;
-        for (int32_t a = 0; a < K; ++a) {
-            cap_off[a] = (int32_t)cap_leaves.size();
-            ex_off[a] = (int32_t)ex_leaves.size();
-            for (int32_t k = 0; k < G; ++k) {
-                ex_leaves.push_back(G * a + k);
-                ex_w.push_back((k + 1) / 55.0f); /* unequal weights (sum 1), so a wrong leaf shows */
-                if (k < CAPPED) {
-                    cap_leaves.push_back(G * a + k);
-                    cap_w.push_back(1.0f / CAPPED);
-                }
-            }
-        }
-        cap_off[K] = (int32_t)cap_leaves.size();
-        ex_off[K] = (int32_t)ex_leaves.size();
-        const ExactProfileBuilder builder = [&](const int32_t **o, const int32_t **l, const float **w) {
-            *o = ex_off.data();
-            *l = ex_leaves.data();
-            *w = ex_w.data();
-        };
-        int accepted = 0;
-        bool jc69_seen = false;
-        for (Model model : MODELS) {
-            const SubstitutionModel dm = distance_model(model);
-            dev->set_distance(dm, EigenSettings());
-            std::vector<int64_t> v(K - 1, 0), v0 = v;
-            std::vector<int32_t> perm(K), perm0;
-            for (int32_t a = 0; a < K; ++a)
-                perm[a] = a;
-            perm0 = perm;
-            const double dL =
-                solve_window_host(K, WINDOW_MAX_SWEEPS, MOVE_BATCH_CAP, 1e30, cap_off.data(), cap_leaves.data(),
-                                  cap_w.data(), v, perm, &builder, *dev->window_kernels());
-            if (dL == 0.0)
-                continue; /* rejected or nothing found: no exact gain to compare */
-            ++accepted;
-            if (model == Model::JC69)
-                jc69_seen = true;
-            std::vector<int32_t> before, after;
-            compute_skeleton_leaf_dists(v0.data(), perm0.data(), K, before);
-            compute_skeleton_leaf_dists(v.data(), perm.data(), K, after);
-            double expected = 0.0, scale = 0.0;
-            for (int32_t a = 0; a < K; ++a)
-                for (int32_t b = a + 1; b < K; ++b) {
-                    const double wd =
-                        ldexp(1.0, 1 - after[(size_t)a * K + b]) - ldexp(1.0, 1 - before[(size_t)a * K + b]);
-                    if (wd == 0.0)
-                        continue;
-                    double D = 0.0;
-                    for (int32_t p = ex_off[a]; p < ex_off[a + 1]; ++p)
-                        for (int32_t q = ex_off[b]; q < ex_off[b + 1]; ++q)
-                            D += (double)ex_w[p] * ex_w[q] * cpu_distance(aln, dm, ex_leaves[p], ex_leaves[q]);
-                    expected += wd * D;
-                    scale += fabs(wd * D);
-                }
-            const double tol = (model == Model::GTR_GC ? 1e-5 : 1e-6) * scale; /* seen: 3e-7 and 1e-8 at scale 20-70 */
-            EXPECT_NEAR(dL, expected, tol) << model_name(model) << " n_sites=" << n_sites;
-            printf("%-7s n_sites=%d: exact gain %.9g, CPU %.9g (scale %.4g)\n", model_name(model), n_sites, dL,
-                   expected, scale);
-        }
-        EXPECT_GE(accepted, 5) << "n_sites=" << n_sites << ": too few windows to compare";
-        EXPECT_TRUE(jc69_seen) << "n_sites=" << n_sites << ": the JC69 path was not compared";
+        printf("%-7s: BME %.6f (true tree %.6f), RF %d of %d, rounds %d\n", model_name(model), res.bme_length,
+               true_score.bme_length, rf, 2 * (N - 3), res.rounds_run);
     }
 }
 

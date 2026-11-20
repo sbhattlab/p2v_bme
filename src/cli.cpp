@@ -107,8 +107,6 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value(opt.time_limit), "S")
         ("profile-cap", "leaves kept per clade profile in a window (1-256)",
          cxxopts::value(opt.profile_cap), "N")
-        ("exact-check-eta", "re-check windows whose capped gain is above -ETA on complete profiles (0 = never)",
-         cxxopts::value(opt.exact_check_eta), "ETA")
         ("precision", "single or double; double runs on the CPU only (the GPU computes in single precision)",
          cxxopts::value<std::string>()->default_value("single"));
     cli.add_options("Start tree")
