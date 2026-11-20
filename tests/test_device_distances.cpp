@@ -6,11 +6,13 @@
 //   - a search from a random start ends at a tree no longer than the true tree (both scored by the same branch-
 //     length pass, profile cap 32) and near it in RF; the true model recovers it best (the window distances;
 //     N = 3,000 gives multi-leaf profiles), also with the exact check on every window;
-//   - the exact check's refinement kernel against a CPU sum on complete profiles (per-pair and JC69 tiled paths).
+//   - the exact check's refinement kernel against a CPU sum on complete profiles (per-pair and JC69 tiled paths);
+//   - the window matrix's packed kernel against the earlier kernels, bit for bit.
 #include <gtest/gtest.h>
 
 #include <math.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <algorithm>
 #include <queue>
@@ -372,6 +374,66 @@ TEST(DeviceDistances, ExactCheckRefinement) {
         }
         EXPECT_GE(accepted, 5) << "n_sites=" << n_sites << ": too few windows to compare";
         EXPECT_TRUE(jc69_seen) << "n_sites=" << n_sites << ": the JC69 path was not compared";
+    }
+}
+
+// The window matrix's packed kernel against the earlier kernels, entry by entry, under every model.
+// A profile of more than 64 leaves sends a window to the earlier kernels, so the same K components are built twice:
+// alone (packed), then with a profile of 65 leaves after them (earlier kernels); the K x K entries must be equal to
+// the bit.
+// Profiles of 1 to 64 leaves (JC69: short ones on the per-pair path, from 8 leaves on the tiled path), leaves shared
+// within and across profiles, unequal weights, a pair of leaves without shared sites, and 1 to 27 words (the JC69
+// kernels stage 5 words at a time, the 16-count path 25).
+TEST(DeviceDistances, PackedWindowMatrixMatchesTheEarlierKernels) {
+    const int32_t N = 500, K = 150, LONG = 65;
+    for (int32_t n_sites : {40, 300, 1000, 1700}) {
+        const Tree tree = random_tree(N, 0.01, 0.2, 51);
+        Alignment aln = simulate_alignment(tree, n_sites, truth(), 52);
+        punch_holes(aln, 0.05, 53);
+        auto dev = make_gpu_device(0, K + 1);
+        dev->load(aln.packed.data(), N, aln.n_words);
+        uint64_t st = 54;
+        std::vector<int32_t> off = {0}, leaves;
+        std::vector<float> weights;
+        for (int32_t a = 0; a < K; ++a) {
+            const uint64_t r = uniform_below(st, 10);
+            const int32_t len = r < 5   ? 1
+                                : r < 7 ? 2 + (int32_t)uniform_below(st, 6)
+                                : r < 9 ? 8 + (int32_t)uniform_below(st, 56)
+                                        : 64;
+            for (int32_t k = 0; k < len; ++k) {
+                leaves.push_back(a < 2 && k == 0 ? a : (int32_t)uniform_below(st, N)); // leaves 0 and 1 share no site
+                weights.push_back((float)(1 + uniform_below(st, 1000)) / (1000.0f * len));
+            }
+            off.push_back((int32_t)leaves.size());
+        }
+        std::vector<int32_t> off_long = off, leaves_long = leaves;
+        std::vector<float> weights_long = weights;
+        for (int32_t k = 0; k < LONG; ++k) {
+            leaves_long.push_back(k);
+            weights_long.push_back(1.0f / LONG);
+        }
+        off_long.push_back((int32_t)leaves_long.size());
+        for (Model model : MODELS) {
+            dev->set_distance(distance_model(model), EigenSettings());
+            std::vector<double> packed, earlier;
+            {
+                auto kern = dev->window_kernels();
+                kern->distances(K, off.data(), leaves.data(), weights.data());
+                kern->read_distances(packed);
+            }
+            {
+                auto kern = dev->window_kernels();
+                kern->distances(K + 1, off_long.data(), leaves_long.data(), weights_long.data());
+                kern->read_distances(earlier);
+            }
+            int32_t n_diff = 0;
+            for (int32_t a = 0; a < K; ++a)
+                for (int32_t b = 0; b < K; ++b)
+                    n_diff +=
+                        memcmp(&packed[(size_t)a * K + b], &earlier[(size_t)a * (K + 1) + b], sizeof(double)) != 0;
+            EXPECT_EQ(n_diff, 0) << model_name(model) << " n_sites=" << n_sites;
+        }
     }
 }
 
