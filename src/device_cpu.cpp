@@ -218,6 +218,8 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
         }
     }
 
+    void read_distances(std::vector<double> &D) override { D.assign(ws_.D.begin(), ws_.D.end()); }
+
   private:
     struct Frame {
         int32_t u, c;
