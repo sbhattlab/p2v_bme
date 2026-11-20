@@ -64,7 +64,7 @@ struct SearchStats {
 
 // ---- Skeleton of a window (shared with the devices' window solve) ----
 
-// A skeleton of K pieces as build_skeleton_metadata describes it: rooted children c1, c2 (2K - 1 nodes), the
+// A skeleton of K pieces as to_skeleton_meta describes it: rooted children c1, c2 (2K - 1 nodes), the
 // unrooted tree on 2K - 2 nodes rooted at node 2K - 3 (parent_u, sub_size, tin, adj_u) and the root's children.
 struct SkeletonMeta {
     std::vector<int32_t> c1, c2, v_map, parent_u, sub_size, tin, adj_u;
@@ -75,10 +75,14 @@ struct SkeletonMeta {
 };
 
 // Decodes the skeleton's vector v (K - 1 entries) into sk.
-void build_skeleton_metadata(const std::vector<int64_t> &v, SkeletonMeta &sk);
+void to_skeleton_meta(const std::vector<int64_t> &v, SkeletonMeta &sk);
 void apply_unrooted_spr_host(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_u, int32_t dest_v);
-void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, int32_t root_edge_v, int32_t flip_mode,
-                        std::vector<int64_t> &v, std::vector<int32_t> &perm);
+// Encodes the unrooted skeleton sk.adj_u, rooted on the edge between root_c1 and root_c2, as an ordered vector v
+// (queue shuffle, labelling flip_mode) and composes perm with the new tip labels.
+// Reads only sk.adj_u, and K from the size of sk.v_map: after a batch of moves, the other fields of sk still describe
+// the tree before it.
+void from_skeleton_meta(std::vector<int64_t> &v, const SkeletonMeta &sk, int32_t root_c1, int32_t root_c2,
+                        int32_t flip_mode, std::vector<int32_t> &perm);
 
 // ---- The window solve, shared by the devices (each gives its kernels: Device::window_kernels) ----
 

@@ -34,7 +34,7 @@
 
 namespace p2vbme {
 
-void build_skeleton_metadata(const std::vector<int64_t> &v, SkeletonMeta &sk) {
+void to_skeleton_meta(const std::vector<int64_t> &v, SkeletonMeta &sk) {
     const int32_t K = (int32_t)v.size() + 1; // pieces = tips of the skeleton
     const int32_t R_sk = 2 * K - 1;          // nodes of the rooted skeleton (root 2K - 2)
     const int32_t M_sk = 2 * K - 2;          // nodes of the unrooted skeleton (the rooted one without its root)
@@ -599,29 +599,31 @@ void apply_unrooted_spr_host(int32_t *adj_u, int32_t prune_node, int32_t anchor_
     adj_u[3 * anchor_node + 2] = dest_v;
 }
 
-void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, int32_t root_edge_v, int32_t flip_mode,
-                        std::vector<int64_t> &v, std::vector<int32_t> &perm) {
-    const int32_t R_sk = 2 * K - 1;  // nodes of the rooted skeleton
-    const int32_t root_r = R_sk - 1; // its root (2K - 2)
-    // Step 1: root the unrooted skeleton on the edge root_edge_u - root_edge_v: a new root with those two as children.
+void from_skeleton_meta(std::vector<int64_t> &v, const SkeletonMeta &sk, int32_t root_c1, int32_t root_c2,
+                        int32_t flip_mode, std::vector<int32_t> &perm) {
+    const int32_t K = (int32_t)sk.v_map.size(); // pieces = tips of the skeleton
+    const int32_t R_sk = 2 * K - 1;             // nodes of the rooted skeleton
+    const int32_t root_r = R_sk - 1;            // its root (2K - 2)
+    // Step 1: root the unrooted skeleton on the edge between root_c1 and root_c2: a new root with those two as its
+    // children.
     std::vector<int32_t> c1_r(R_sk, 0), c2_r(R_sk, 0);
-    c1_r[root_r] = root_edge_u;
-    c2_r[root_r] = root_edge_v;
+    c1_r[root_r] = root_c1;
+    c2_r[root_r] = root_c2;
 
     // Step 2: walk outward from that edge, breadth first.
-    // An internal node u reached from pr gets its two other neighbours as rooted children, in adj_u's slot order; tips
-    // (ids < K) end the walk.
+    // An internal node u reached from pr gets its two other neighbours as rooted children, in sk.adj_u's slot order;
+    // tips (ids < K) end the walk.
     std::vector<int32_t> q_u; // the internal nodes to visit
     std::vector<int32_t> q_p; // the neighbour each was reached from
     q_u.reserve(R_sk);
     q_p.reserve(R_sk);
-    if (root_edge_u >= K) {
-        q_u.push_back(root_edge_u);
-        q_p.push_back(root_edge_v);
+    if (root_c1 >= K) {
+        q_u.push_back(root_c1);
+        q_p.push_back(root_c2);
     }
-    if (root_edge_v >= K) {
-        q_u.push_back(root_edge_v);
-        q_p.push_back(root_edge_u);
+    if (root_c2 >= K) {
+        q_u.push_back(root_c2);
+        q_p.push_back(root_c1);
     }
 
     // Take the queue in order (head: the next node), so parents come before their children.
@@ -634,7 +636,7 @@ void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, in
         // its two neighbours other than pr
         int32_t b0 = -1, b1 = -1;
         for (int32_t k = 0; k < 3; ++k) {
-            int32_t nb = adj_u[3 * u + k];
+            int32_t nb = sk.adj_u[3 * u + k];
             if (nb != -1 && nb != pr) {
                 if (b0 == -1)
                     b0 = nb;
@@ -699,7 +701,7 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, co
 
     for (int32_t iter = 0; iter <= max_iters; ++iter) {
         // Step 1: decode the skeleton (v) into the arrays the kernels and the moves read.
-        build_skeleton_metadata(v, sk);
+        to_skeleton_meta(v, sk);
         const int32_t other_rc = sk.other_rc;
         std::vector<int32_t> &v_map = sk.v_map, &parent_u = sk.parent_u, &sub_size = sk.sub_size;
         std::vector<int32_t> &tin = sk.tin, &adj_u = sk.adj_u;
@@ -762,7 +764,7 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, co
         if (cands.empty()) {
             if (flipped_already == 0) {
                 flipped_already = 1;
-                relabel_from_adj_u(adj_u.data(), K, root_u_sk, other_rc, 1, v, perm);
+                from_skeleton_meta(v, sk, root_u_sk, other_rc, 1, perm);
                 continue;
             }
             break;
@@ -820,7 +822,7 @@ double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, co
         // Step 7: re-encode the moved skeleton as an ordered vector (the labelling alternates each sweep); the next
         // sweep scores it.
         int32_t r_nb = adj_u[3 * root_u_sk + 0];
-        relabel_from_adj_u(adj_u.data(), K, root_u_sk, r_nb, iter & 1, v, perm);
+        from_skeleton_meta(v, sk, root_u_sk, r_nb, iter & 1, perm);
     }
 
     if (best_L >= init_L - p2vbme::WINDOW_MIN_GAIN) {
@@ -886,7 +888,7 @@ static void write_back_skeleton(const std::vector<int64_t> &v_mb, const std::vec
 
     // Decode the vector back to a skeleton + kernel extras
     SkeletonMeta sk;
-    build_skeleton_metadata(v_mb, sk);
+    to_skeleton_meta(v_mb, sk);
 
     // Step 1: choose the root.
     // A subtree window: the node its outgroup tip hangs from, so the subtree keeps its place.

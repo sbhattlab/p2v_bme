@@ -304,7 +304,7 @@ TEST(CpuDevice, MoveScoresAreExactBmeChanges) {
             queue_shuffle_rooted(start.c1.data(), start.c2.data(), K, 0, v.data(), perm.data());
             auto meta = [&](const std::vector<int64_t> &vv) {
                 SkeletonMeta s;
-                build_skeleton_metadata(vv, s);
+                to_skeleton_meta(vv, s);
                 return s;
             };
             const SkeletonMeta s = meta(v);
@@ -337,11 +337,11 @@ TEST(CpuDevice, MoveScoresAreExactBmeChanges) {
                 double best = 1e300;
                 int32_t best_edge = -1;
                 for (int32_t e : edges) {
-                    std::vector<int32_t> adj = s.adj_u;
-                    apply_unrooted_spr_host(adj.data(), tr, pr, e, s.parent_u[e]);
+                    SkeletonMeta moved = s;
+                    apply_unrooted_spr_host(moved.adj_u.data(), tr, pr, e, s.parent_u[e]);
                     std::vector<int64_t> v2 = v;
                     std::vector<int32_t> perm2 = perm;
-                    relabel_from_adj_u(adj.data(), K, root_u, adj[3 * root_u + 0], 0, v2, perm2);
+                    from_skeleton_meta(v2, moved, root_u, moved.adj_u[3 * root_u + 0], 0, perm2);
                     const double d = kern->score(meta(v2), perm2) - L0;
                     if (d < best || (d == best && e < best_edge)) {
                         best = d;
@@ -383,7 +383,7 @@ TEST(CpuDevice, MoveTiesGoToTheSmallestEdge) {
         std::vector<int32_t> perm(K);
         queue_shuffle_rooted(start.c1.data(), start.c2.data(), K, 0, v.data(), perm.data());
         SkeletonMeta s;
-        build_skeleton_metadata(v, s);
+        to_skeleton_meta(v, s);
         kern->score(s, perm);
         std::vector<double> best_delta;
         std::vector<int32_t> best_j;
