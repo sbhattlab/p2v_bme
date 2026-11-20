@@ -6,10 +6,11 @@
  */
 #include <charconv>
 #include <ctype.h>
+#include <fstream>
+#include <sstream>
 #include <stdexcept>
-#include <stdio.h>
-#include <string.h>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -22,32 +23,30 @@ namespace {
 
 bool needs_quotes(const std::string &name) { return name.find_first_of(" \t()[]':;,") != std::string::npos; }
 
-void write_name(FILE *f, const std::string &name) {
+void write_name(std::ostream &out, const std::string &name) {
     if (!needs_quotes(name)) {
-        fputs(name.c_str(), f);
+        out << name;
         return;
     }
-    fputc('\'', f);
+    out.put('\'');
     for (char ch : name) {
         if (ch == '\'')
-            fputc('\'', f);
-        fputc(ch, f);
+            out.put('\'');
+        out.put(ch);
     }
-    fputc('\'', f);
+    out.put('\'');
 }
 
 } // namespace
 
 Tree read_newick(const std::string &path, const std::vector<std::string> &names) {
-    FILE *f = fopen(path.c_str(), "r");
-    if (!f)
+    std::ifstream in(path);
+    if (!in)
         throw std::runtime_error("cannot open " + path);
-    std::string s;
-    char buf[1 << 16];
-    size_t n;
-    while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
-        s.append(buf, n);
-    fclose(f);
+    // The whole file in one string; the file closes itself, also when an error is thrown.
+    std::ostringstream text;
+    text << in.rdbuf();
+    const std::string s = text.str();
 
     const int32_t N = (int32_t)names.size();
     std::unordered_map<std::string, int32_t> leaf_id;
@@ -94,7 +93,8 @@ Tree read_newick(const std::string &path, const std::vector<std::string> &names)
                 label.push_back(s[i++]);
             }
         } else {
-            while (i < s.size() && !strchr("(),:;", s[i]) && !isspace((unsigned char)s[i]))
+            while (i < s.size() && std::string_view("(),:;").find(s[i]) == std::string_view::npos &&
+                   !isspace((unsigned char)s[i]))
                 label.push_back(s[i++]);
         }
         return label;
@@ -197,10 +197,9 @@ void write_newick_unrooted(const std::string &path, const std::vector<std::strin
     const int32_t N = (int32_t)names.size();
     if (N < 3)
         throw std::runtime_error("an unrooted tree needs at least 3 leaves");
-    FILE *f = fopen(path.c_str(), "w");
-    if (!f)
+    std::ofstream out(path);
+    if (!out)
         throw std::runtime_error("cannot write " + path);
-    setvbuf(f, NULL, _IOFBF, 1 << 24);
     const bool with_bl = !tree.branch_lengths.empty();
     const int32_t root = 2 * N - 2;
     const int32_t a = tree.c1[root], b = tree.c2[root];
@@ -223,7 +222,7 @@ void write_newick_unrooted(const std::string &path, const std::vector<std::strin
         buf[0] = ':';
         const char *end = tree.double_precision_lengths ? std::to_chars(buf + 1, buf + sizeof(buf), len).ptr
                                                         : std::to_chars(buf + 1, buf + sizeof(buf), (float)len).ptr;
-        fwrite(buf, 1, (size_t)(end - buf), f);
+        out.write(buf, end - buf);
     };
     auto write_subtree = [&](int32_t top) {
         std::vector<std::pair<int32_t, int32_t>> st;
@@ -231,7 +230,7 @@ void write_newick_unrooted(const std::string &path, const std::vector<std::strin
         while (!st.empty()) {
             const int32_t u = st.back().first;
             if (u < N) {
-                write_name(f, names[u]);
+                write_name(out, names[u]);
                 if (with_bl)
                     put_length(edge(u));
                 st.pop_back();
@@ -239,29 +238,31 @@ void write_newick_unrooted(const std::string &path, const std::vector<std::strin
             }
             const int32_t state = st.back().second;
             if (state == 0) {
-                fputc('(', f);
+                out.put('(');
                 st.back().second = 1;
                 st.push_back(std::make_pair(tree.c1[u], 0));
             } else if (state == 1) {
-                fputc(',', f);
+                out.put(',');
                 st.back().second = 2;
                 st.push_back(std::make_pair(tree.c2[u], 0));
             } else {
-                fputc(')', f);
+                out.put(')');
                 if (with_bl)
                     put_length(edge(u));
                 st.pop_back();
             }
         }
     };
-    fputc('(', f);
+    out.put('(');
     write_subtree(tree.c1[centre]);
-    fputc(',', f);
+    out.put(',');
     write_subtree(tree.c2[centre]);
-    fputc(',', f);
+    out.put(',');
     write_subtree(sibling);
-    fputs(");\n", f);
-    if (fclose(f) != 0)
+    out << ");\n";
+    // close() flushes; a failed write or flush leaves the stream failed.
+    out.close();
+    if (!out)
         throw std::runtime_error("cannot write " + path);
 }
 
