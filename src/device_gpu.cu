@@ -1634,20 +1634,4 @@ Devices make_devices(const std::vector<int> &gpu_ids) {
     return devices;
 }
 
-std::string gpu_build_info() {
-    int runtime = 0, driver = 0;
-    cudaRuntimeGetVersion(&runtime);
-    cudaDriverGetVersion(&driver);
-    std::string archs;
-#ifdef __CUDA_ARCH_LIST__
-#define P2VBME_STR2(x) #x
-#define P2VBME_STR(x) P2VBME_STR2(x)
-    archs = P2VBME_STR(__CUDA_ARCH_LIST__);
-#endif
-    char buf[160];
-    snprintf(buf, sizeof(buf), "CUDA runtime %d.%d, driver %d.%d, compiled for compute capabilities %s", runtime / 1000,
-             (runtime % 1000) / 10, driver / 1000, (driver % 1000) / 10, archs.empty() ? "unknown" : archs.c_str());
-    return buf;
-}
-
 } // namespace p2vbme

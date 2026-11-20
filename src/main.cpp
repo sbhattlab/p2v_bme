@@ -43,13 +43,17 @@ int main(int argc, char **argv) {
         if (!std::getenv("OMP_NUM_THREADS"))
             omp_set_num_threads(std::max(1, omp_get_num_procs() - 1));
 
-        const p2vbme::DeviceChoice choice = p2vbme::choose_devices(opt.accelerator, opt.precision);
+        const p2vbme::Accelerator accelerator = p2vbme::resolve_accelerator(opt.accelerator, opt.precision);
+        const bool on_gpu = accelerator == p2vbme::Accelerator::Gpu;
         // Device: if auto and no GPU found, indicate what precision is used for CPU.
-        if (!choice.note.empty()) {
-            run.warnings.push_back(choice.note);
-            std::cerr << "p2v-bme: warning: " << choice.note << '\n';
+        if (opt.accelerator == p2vbme::Accelerator::Auto && !on_gpu) {
+            const std::string note =
+                std::string(opt.precision == p2vbme::Precision::Double ? "double precision" : "no GPU found") +
+                ": running on the CPU";
+            run.warnings.push_back(note);
+            std::cerr << "p2v-bme: warning: " << note << '\n';
         }
-        parse_devices_option(args.devices, choice.on_gpu, opt);
+        parse_devices_option(args.devices, on_gpu, opt);
 
         // Output: fail now if the outputs cannot be written
         for (const char *ext : {".nwk", ".json"}) {
@@ -59,12 +63,10 @@ int main(int argc, char **argv) {
         }
 
         // Device: select the devices (this checks the device settings), before the read so that errors come early
-        p2vbme::Devices devices = p2vbme::select_devices(choice, opt.precision, opt.devices, opt.threads);
-        run.on_gpu = choice.on_gpu;
+        p2vbme::Devices devices = p2vbme::select_devices(accelerator, opt.precision, opt.devices, opt.threads);
+        run.on_gpu = on_gpu;
         for (const auto &dev : devices)
             run.devices.push_back(dev->name());
-        if (run.on_gpu)
-            run.gpu_build_info = p2vbme::gpu_build_info();
 
         // Time: start of reading the alignment
         const double t_read = omp_get_wtime();

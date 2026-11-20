@@ -13,34 +13,33 @@
 
 namespace p2vbme {
 
-// auto: the GPU if one is found (and single precision), else the CPU, with a message
-DeviceChoice choose_devices(Accelerator accelerator, Precision precision) {
-    DeviceChoice choice;
-    choice.on_gpu = accelerator == Accelerator::Gpu;
-    if (accelerator == Accelerator::Auto) {
-        choice.on_gpu = precision == Precision::Single && visible_gpus() > 0;
-        if (!choice.on_gpu)
-            choice.note = std::string(precision == Precision::Double ? "double precision" : "no GPU found") +
-                          ": running on the CPU";
-    }
-    return choice;
+// auto: the GPU if one is found (and single precision), else the CPU
+Accelerator resolve_accelerator(Accelerator accelerator, Precision precision) {
+    if (accelerator != Accelerator::Auto)
+        return accelerator;
+    return (precision == Precision::Single && visible_gpus() > 0) ? Accelerator::Gpu : Accelerator::Cpu;
 }
 
 namespace {
 
-// Throws std::runtime_error if the choice cannot run: the GPU in double precision, or no GPU visible.
-void check_devices(const DeviceChoice &choice, Precision precision) {
-    if (choice.on_gpu && precision == Precision::Double)
+// Throws std::runtime_error if the accelerator cannot run: the GPU in double precision, or no GPU visible.
+void check_devices(Accelerator accelerator, Precision precision) {
+    if (accelerator == Accelerator::Gpu && precision == Precision::Double)
         throw std::runtime_error("the GPU computes in single precision; double precision runs on the CPU "
                                  "(--accelerator cpu)");
-    if (choice.on_gpu && visible_gpus() < 1)
-        throw std::runtime_error("no GPU found (" + gpu_build_info() + "); run on the CPU (--accelerator cpu)");
+    if (accelerator == Accelerator::Gpu && visible_gpus() < 1)
+#ifdef P2VBME_WITH_CUDA
+        throw std::runtime_error("no GPU found; run on the CPU (--accelerator cpu)");
+#else
+        throw std::runtime_error("this p2v-bme was built without CUDA; run on the CPU (--accelerator cpu)");
+#endif
 }
 
 } // namespace
 
-Devices select_devices(const DeviceChoice &choice, Precision precision, const std::vector<int> &gpu_ids,
-                       int32_t threads) {
+Devices select_devices(Accelerator accelerator, Precision precision, const std::vector<int> &gpu_ids, int32_t threads) {
+    if (accelerator == Accelerator::Auto)
+        throw std::logic_error("select_devices: resolve the accelerator first (resolve_accelerator)");
     for (size_t i = 0; i < gpu_ids.size(); ++i)
         for (size_t j = 0; j < i; ++j)
             if (gpu_ids[i] == gpu_ids[j])
@@ -50,8 +49,8 @@ Devices select_devices(const DeviceChoice &choice, Precision precision, const st
     if (threads > omp_get_num_procs())
         throw std::runtime_error("CPU threads must be at most the " + std::to_string(omp_get_num_procs()) +
                                  " processors available");
-    check_devices(choice, precision);
-    if (choice.on_gpu)
+    check_devices(accelerator, precision);
+    if (accelerator == Accelerator::Gpu)
         return make_devices(gpu_ids);
     return make_cpu_devices(threads > 0 ? threads : omp_get_max_threads(), precision == Precision::Double);
 }

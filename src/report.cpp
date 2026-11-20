@@ -81,12 +81,11 @@ void detail_settings(JsonWriter &w, const Report &run, const Settings &opt, cons
     w.end_object();
 }
 
-// The GPUs used, each with the CUDA versions, or one line for the CPU workers.
+// The GPUs used, or one line for the CPU workers.
 void detail_devices(JsonWriter &w, const Report &run) {
     std::vector<std::string> devices;
     if (run.on_gpu) {
-        for (const std::string &name : run.devices)
-            devices.push_back(name + " (" + run.gpu_build_info + ")");
+        devices = run.devices;
     } else {
         devices.push_back("CPU: " + std::to_string(run.devices.size()) + " threads");
     }

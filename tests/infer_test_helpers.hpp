@@ -11,8 +11,8 @@ namespace {
 
 // The devices the settings choose, as the command line chooses them.
 p2vbme::Devices devices_for(const p2vbme::Settings &opt) {
-    return p2vbme::select_devices(p2vbme::choose_devices(opt.accelerator, opt.precision), opt.precision, opt.devices,
-                                  opt.threads);
+    return p2vbme::select_devices(p2vbme::resolve_accelerator(opt.accelerator, opt.precision), opt.precision,
+                                  opt.devices, opt.threads);
 }
 
 // The settings with the alignment's base frequencies (F81, F84, TN93), as the command line counts them.

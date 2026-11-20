@@ -80,9 +80,6 @@ int visible_gpus();
 // Throws std::runtime_error if a GPU does not exist or there is none.
 Devices make_devices(const std::vector<int> &gpu_ids);
 
-// The CUDA runtime and driver versions and the GPU architectures compiled for.
-std::string gpu_build_info();
-
 // One GPU with a workspace for windows of up to max_k pieces.
 std::unique_ptr<Device> make_gpu_device(int gpu, int32_t max_k = WORKSPACE_MAX_K);
 
@@ -93,22 +90,21 @@ std::unique_ptr<Device> make_cpu_device(int32_t worker, int32_t threads, bool do
 
 // ---- The run's devices, chosen once (the command line, then infer() runs on them) ----
 
-// The processor of a run: the GPU or the CPU as asked; auto: the GPU if one is visible and the precision is
-// single, else the CPU, with the reason in `note` ("<why>: running on the CPU").
+// Resolves the accelerator: (accelerator, precision) -> Gpu or Cpu, never Auto.
+// gpu, cpu: as asked.
+// auto: the GPU if one is visible and the precision is single, else the CPU.
 // The only place auto is resolved.
-struct DeviceChoice {
-    bool on_gpu = false;
-    std::string note; // auto on the CPU: why (else empty)
-};
-DeviceChoice choose_devices(Accelerator accelerator, Precision precision);
+Accelerator resolve_accelerator(Accelerator accelerator, Precision precision);
 
-// The devices of the choice: one per GPU number in gpu_ids (empty: all visible), or `threads` CPU workers (0: all,
-// omp_get_max_threads) in the precision.
-// First checks the device settings, the only place they are checked.
-// Throws std::runtime_error if a GPU is listed twice, the number of threads is out of range, or the choice cannot run
-// (the GPU in double precision, or no GPU visible).
-Devices select_devices(const DeviceChoice &choice, Precision precision, const std::vector<int> &gpu_ids,
-                       int32_t threads);
+// Creates the run's devices after checking their settings: accelerator -> one Device per GPU or per CPU worker.
+// The accelerator is Gpu or Cpu (resolve_accelerator).
+// GPU: one device per GPU number in gpu_ids (empty: all visible).
+// CPU: `threads` workers (0: all, omp_get_max_threads) in the precision.
+// The only place the device settings are checked.
+// Throws std::runtime_error if a GPU is listed twice, the number of threads is out of range, or the accelerator
+// cannot run (the GPU in double precision, or no GPU visible).
+// Throws std::logic_error if the accelerator is Auto.
+Devices select_devices(Accelerator accelerator, Precision precision, const std::vector<int> &gpu_ids, int32_t threads);
 
 } // namespace p2vbme
 

@@ -496,8 +496,6 @@ Devices make_devices(const std::vector<int> &) { throw std::runtime_error("this 
 std::unique_ptr<Device> make_gpu_device(int, int32_t) {
     throw std::runtime_error("this p2v-bme was built without CUDA");
 }
-
-std::string gpu_build_info() { return "built without CUDA"; }
 #endif
 
 } // namespace p2vbme

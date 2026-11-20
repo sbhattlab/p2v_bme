@@ -46,7 +46,6 @@ struct Report {
     // The devices of the run (select_devices) and their memory when it ends.
     std::vector<std::string> devices;         // the devices used, e.g. "GPU 0: NVIDIA RTX A6000"
     bool on_gpu = false;                      // the run used the GPU (else the CPU)
-    std::string gpu_build_info;               // on the GPU: the CUDA versions and architectures
     double gpu_memory_in_use_at_end_mb = 0.0; // MiB in use when the run ends, largest over the GPUs; GPU-wide
                                               // (other processes included), not a peak
 };
