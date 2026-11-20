@@ -9,19 +9,14 @@
  * has tiled kernels; the other models need the 16 pair counts and take the per-pair path of each kernel.
  */
 #include <cuda_runtime.h>
-#include <float.h>
-#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include <algorithm>
 #include <functional>
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "config.hpp"
