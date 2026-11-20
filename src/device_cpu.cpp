@@ -137,13 +137,16 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
         return 0.5 * acc;
     }
 
+    // Finds each row's best move from the last score: rows i = 1 .. K - 2 -> (best_delta[i], best_j[i]).
     void best_moves(const SkeletonTables &s, std::vector<double> &best_delta, std::vector<int32_t> &best_j) override {
         const int32_t K = K_, M = M_, root_u = M - 1;
+        // Step 1: mark every row "no move" (rows 0 and K - 1 are not scored; a row without regraft edges keeps it).
         best_delta.assign(K, 1e30);
         best_j.assign(K, -1);
         const T *sd = ws_.subdist.data();
-        // per-thread buffers, allocated before the parallel region (an exception must not leave it); the stack never
-        // holds more than the M nodes
+        // Step 2: allocate one edge buffer and one stack per thread, before the parallel region (an exception must not
+        // leave it).
+        // The stack never holds more than the M nodes.
         const int nt = threads_for(threads_, K, 8);
         std::vector<std::vector<T>> edges(nt, std::vector<T>((size_t)M));
         std::vector<std::vector<Frame>> stacks(nt);
@@ -155,6 +158,8 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
             std::vector<Frame> &stack = stacks[omp_get_thread_num()];
 #pragma omp for schedule(dynamic, 8)
             for (int32_t i = 1; i < K - 1; ++i) {
+                // Step 3: find the pruning point: row i prunes the subtree under tree_root, which hangs from `parent`
+                // (rc2 for root_u, which has no parent); other0 and other1 are parent's other neighbours.
                 const int32_t tree_root = s.v_map[i + 1];
                 const int32_t parent = (tree_root == root_u) ? s.rc2 : s.parent_u[tree_root];
                 int32_t other0 = -1, other1 = -1;
@@ -169,12 +174,14 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
                 }
                 if (other0 == -1)
                     continue;
-                // every edge starts at "no move"; the edges at the pruning point stay so
+                // Step 4: score the regraft edges in the half trees beyond other0 and other1 (an edge by its child
+                // node).
+                // Every edge starts at "no move"; those at the pruning point and in the pruned subtree stay so.
                 std::fill(edge.begin(), edge.end(), T(1e30));
                 const T *row_root = sd + (size_t)tree_root * M;
                 seed(s, other0, other1, parent, row_root, sd + (size_t)other1 * M, edge.data(), stack);
                 seed(s, other1, other0, parent, row_root, sd + (size_t)other0 * M, edge.data(), stack);
-                // the smallest change; ties to the smallest edge (the GPU reduction's rule)
+                // Step 5: keep the smallest change; ties go to the smallest edge (the GPU reduction's rule).
                 T b_val = T(1e30);
                 int32_t b_j = -1;
                 for (int32_t du = 0; du < root_u; ++du)
@@ -300,6 +307,8 @@ struct SubsetStore {
     std::vector<std::pair<std::vector<int32_t>, std::weak_ptr<const std::vector<uint64_t>>>> levels;
 };
 
+// One CPU worker, templated on its precision T: float as the GPU (the default), or double (--precision double).
+// Its distances, workspace and sums are all in T, so the precision is chosen once (cpu_device), not in every loop.
 template <class T> class CpuDevice final : public Device {
   public:
     CpuDevice(int32_t worker, int32_t threads, std::shared_ptr<SubsetStore> store)
