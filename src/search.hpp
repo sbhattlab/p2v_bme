@@ -75,13 +75,13 @@ struct SkeletonMeta {
     int32_t rc2 = -1;
 };
 
-// Decodes the skeleton's vector v_cf (K - 1 entries) into sk.
-void build_skeleton_metadata(const std::vector<int64_t> &v_cf, SkeletonMeta &sk);
+// Decodes the skeleton's vector v (K - 1 entries) into sk.
+void build_skeleton_metadata(const std::vector<int64_t> &v, SkeletonMeta &sk);
 void apply_unrooted_spr_host(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_u, int32_t dest_v);
 void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, int32_t root_edge_v, int32_t flip_mode,
-                        std::vector<int64_t> &v_cf, std::vector<int32_t> &perm);
+                        std::vector<int64_t> &v, std::vector<int32_t> &perm);
 // All-pairs topological distances between the K pieces of a skeleton.
-void compute_skeleton_leaf_dists(const int64_t *v_cf, const int32_t *perm, int32_t K, std::vector<int32_t> &dist_out);
+void compute_skeleton_leaf_dists(const int64_t *v, const int32_t *perm, int32_t K, std::vector<int32_t> &dist_out);
 
 // ---- The window solve, shared by the devices (each gives its kernels: Device::window_kernels) ----
 
@@ -111,16 +111,16 @@ class WindowKernels {
 // A window is part of the tree cut into K pieces.
 // Each piece is summarised as a weighted leaf profile (CSR: profile_offsets[K + 1], profile_leaves,
 // profile_weights).
-// Its skeleton, the tree connecting the pieces, is the Phylo2Vec vector v_cf over the leaf permutation perm.
+// Its skeleton, the tree connecting the pieces, is the Phylo2Vec vector v over the leaf permutation perm.
 // Runs up to max_iters sweeps of batched moves on the skeleton (Algorithm S1, batch cap max_batch_cap) to shorten its
 // BME length.
-// Updates v_cf and perm and returns the BME change (0 and the input tree if nothing improved).
+// Updates v and perm and returns the BME change (0 and the input tree if nothing improved).
 // The caller writes the new skeleton back into the full tree.
 // With exact_builder, small gains (> -exact_check_eta) are re-checked on complete profiles.
 double solve_window_host(int32_t K, int32_t max_iters, int32_t max_batch_cap, double exact_check_eta,
                          const int32_t *profile_offsets, const int32_t *profile_leaves, const float *profile_weights,
-                         std::vector<int64_t> &v_cf, std::vector<int32_t> &perm,
-                         const ExactProfileBuilder *exact_builder, WindowKernels &kernels);
+                         std::vector<int64_t> &v, std::vector<int32_t> &perm, const ExactProfileBuilder *exact_builder,
+                         WindowKernels &kernels);
 
 // The CPU device's window kernels on their own, one thread (tests): alignment rows read in place.
 std::unique_ptr<WindowKernels> make_cpu_window_kernels(const uint64_t *rows, int32_t n_words,

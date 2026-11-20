@@ -11,8 +11,8 @@
 
 namespace p2vbme {
 
-void queue_shuffle_rooted(const int32_t *c1_r, const int32_t *c2_r, int32_t n_leaves, int32_t flip_mode,
-                          int64_t *v_cf_out, int32_t *perm_out) {
+void queue_shuffle_rooted(const int32_t *c1_r, const int32_t *c2_r, int32_t n_leaves, int32_t flip_mode, int64_t *v_out,
+                          int32_t *perm_out) {
     const int32_t n_nodes_r = 2 * n_leaves - 1;
     const int32_t root_r = n_nodes_r - 1;
     std::vector<int32_t> ord(n_leaves - 1);
@@ -45,7 +45,7 @@ void queue_shuffle_rooted(const int32_t *c1_r, const int32_t *c2_r, int32_t n_le
     }
     rep_leaf[r_stay] = 0;
     rep_leaf[r_move] = 1;
-    v_cf_out[0] = 0;
+    v_out[0] = 0;
     int32_t next_label = 2;
     for (int32_t idx = 1; idx < ord_len; ++idx) {
         int32_t m = ord[idx];
@@ -61,7 +61,7 @@ void queue_shuffle_rooted(const int32_t *c1_r, const int32_t *c2_r, int32_t n_le
         int32_t y = next_label++;
         rep_leaf[c_stay] = x;
         rep_leaf[c_move] = y;
-        v_cf_out[y - 1] = x;
+        v_out[y - 1] = x;
     }
     for (int32_t old_l = 0; old_l < n_leaves; ++old_l) {
         perm_out[rep_leaf[old_l]] = old_l;

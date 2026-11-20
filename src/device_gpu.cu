@@ -1837,25 +1837,23 @@ class GpuWindowKernels final : public WindowKernels {
         const int32_t R_sk = 2 * K - 1;
         dim3 blk2d(16, 16);
         dim3 grd2d((K + 15) / 16, (K + 15) / 16);
-        const std::vector<int32_t> &c1_cf = s.c1, &c2_cf = s.c2, &v_map_cf = s.v_map, &parent_u_cf = s.parent_u;
-        const std::vector<int32_t> &sub_size_cf = s.sub_size, &tin_cf = s.tin, &adj_u_cf = s.adj_u;
         const int32_t rc0 = s.rc0, rc1 = s.rc1, rc2 = s.rc2;
         double curr_L = 0.0;
         CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_perm, perm.data(), (size_t)K * sizeof(int32_t), cudaMemcpyHostToDevice,
                                    gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_c1_r, c1_cf.data(), (size_t)R_sk * sizeof(int32_t), cudaMemcpyHostToDevice,
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_c1_r, s.c1.data(), (size_t)R_sk * sizeof(int32_t), cudaMemcpyHostToDevice,
                                    gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_c2_r, c2_cf.data(), (size_t)R_sk * sizeof(int32_t), cudaMemcpyHostToDevice,
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_c2_r, s.c2.data(), (size_t)R_sk * sizeof(int32_t), cudaMemcpyHostToDevice,
                                    gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_v_map, v_map_cf.data(), (size_t)K * sizeof(int32_t), cudaMemcpyHostToDevice,
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_v_map, s.v_map.data(), (size_t)K * sizeof(int32_t), cudaMemcpyHostToDevice,
                                    gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_parent_u, parent_u_cf.data(), (size_t)M_sk * sizeof(int32_t),
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_parent_u, s.parent_u.data(), (size_t)M_sk * sizeof(int32_t),
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_sub_size, sub_size_cf.data(), (size_t)M_sk * sizeof(int32_t),
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_sub_size, s.sub_size.data(), (size_t)M_sk * sizeof(int32_t),
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_tin, tin_cf.data(), (size_t)M_sk * sizeof(int32_t), cudaMemcpyHostToDevice,
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_tin, s.tin.data(), (size_t)M_sk * sizeof(int32_t), cudaMemcpyHostToDevice,
                                    gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_adj_u, adj_u_cf.data(), (size_t)3 * M_sk * sizeof(int32_t),
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_adj_u, s.adj_u.data(), (size_t)3 * M_sk * sizeof(int32_t),
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
 
         k_copy_leaf_rows_perm<<<grd2d, blk2d, 0, gpu_ws.stream>>>(gpu_ws.d_D, gpu_ws.d_perm, gpu_ws.d_subdist, K, M_sk);
