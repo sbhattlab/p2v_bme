@@ -34,6 +34,8 @@ namespace p2vbme {
 
 namespace {
 
+// ---- Helpers ----
+
 // The model's distance between two rows of the 5-bitplane layout (JC69 from its two counts, as the GPU).
 template <class T> T row_distance(const uint64_t *a, const uint64_t *b, int32_t W, const DistanceParams<T> &dm) {
     if (dm.model == Model::JC69) {
@@ -55,12 +57,7 @@ inline int threads_for(int threads, int64_t items, int64_t per_thread) {
     return (int)std::max<int64_t>(1, std::min<int64_t>(threads, items / per_thread));
 }
 
-// The start tree's subsamples, shared by the CPU devices of one run: each device pushes the same rows, and the first
-// one gathers them (a GPU copies them to each GPU; the CPU workers share one host copy).
-struct SubsetStore {
-    std::mutex mutex;
-    std::vector<std::pair<std::vector<int32_t>, std::weak_ptr<const std::vector<uint64_t>>>> levels;
-};
+// ---- Window solve: the kernels of solve_window ----
 
 // What one CPU device keeps between windows: the window's distances and the skeleton's subtree averages.
 template <class T> struct CpuWorkspace {
@@ -294,6 +291,15 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
     int32_t K_ = 0, M_ = 0;
 };
 
+// ---- The device ----
+
+// The start tree's subsamples, shared by the CPU devices of one run: each device pushes the same rows, and the first
+// one gathers them (a GPU copies them to each GPU; the CPU workers share one host copy).
+struct SubsetStore {
+    std::mutex mutex;
+    std::vector<std::pair<std::vector<int32_t>, std::weak_ptr<const std::vector<uint64_t>>>> levels;
+};
+
 template <class T> class CpuDevice final : public Device {
   public:
     CpuDevice(int32_t worker, int32_t threads, std::shared_ptr<SubsetStore> store)
@@ -452,16 +458,26 @@ template <class T> class CpuDevice final : public Device {
     CpuWorkspace<T> ws_;
 };
 
-} // namespace
-
-namespace {
 std::unique_ptr<Device> cpu_device(int32_t worker, int32_t threads, bool double_precision,
                                    std::shared_ptr<SubsetStore> store) {
     if (double_precision)
         return std::unique_ptr<Device>(new CpuDevice<double>(worker, threads, std::move(store)));
     return std::unique_ptr<Device>(new CpuDevice<float>(worker, threads, std::move(store)));
 }
+
 } // namespace
+
+// ---- Factories ----
+
+Devices make_cpu_devices(int32_t n_workers, bool double_precision) {
+    if (n_workers < 1)
+        throw std::runtime_error("the CPU needs at least one thread");
+    Devices devices;
+    auto store = std::make_shared<SubsetStore>(); // one copy of each subsample for all workers
+    for (int32_t w = 0; w < n_workers; ++w)
+        devices.push_back(cpu_device(w, n_workers, double_precision, store));
+    return devices;
+}
 
 std::unique_ptr<Device> make_cpu_device(int32_t worker, int32_t threads, bool double_precision) {
     return cpu_device(worker, threads, double_precision, std::make_shared<SubsetStore>());
@@ -477,15 +493,7 @@ std::unique_ptr<WindowKernels> make_cpu_window_kernels(const uint64_t *rows, int
         new CpuWindowKernels<float>(rows, n_words, distance_params<float>(model, eigen), 1));
 }
 
-Devices make_cpu_devices(int32_t n_workers, bool double_precision) {
-    if (n_workers < 1)
-        throw std::runtime_error("the CPU needs at least one thread");
-    Devices devices;
-    auto store = std::make_shared<SubsetStore>(); // one copy of each subsample for all workers
-    for (int32_t w = 0; w < n_workers; ++w)
-        devices.push_back(cpu_device(w, n_workers, double_precision, store));
-    return devices;
-}
+// ---- Without CUDA: the GPU entry points of device.hpp ----
 
 #ifndef P2VBME_WITH_CUDA
 // A build without CUDA has no GPU.
