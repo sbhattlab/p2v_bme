@@ -3,7 +3,9 @@
 //   - complete profiles (cap >= N): every branch length equal to the exact one (float or double precision);
 //   - capped profiles (cap 32, the default): the approximation error stays within measured bounds;
 //   - Pauplin's identity: the exact lengths sum to the tree's BME length (0.5 sum_x d({x}, outside x)), and so do the
-//     O(N) lengths with complete profiles (also the returned total); the root's right child gets 0.
+//     O(N) lengths with complete profiles (also the returned total); the root's right child gets 0;
+//   - infer() on a given tree (no search, complete profiles): its BME length equals Pauplin's formula for every
+//     model, to float precision in single and to 1e-9 in double precision.
 // BranchLengths.* run on the CPU device; BranchLengthsGpu.* on GPU 0 (label gpu).
 #include <gtest/gtest.h>
 
@@ -13,9 +15,11 @@
 #include <string>
 #include <vector>
 
+#include "bme_test_helpers.hpp"
 #include "branch_lengths.hpp"
 #include "device.hpp"
 #include "eigen_dist.hpp"
+#include "infer_test_helpers.hpp"
 #include "inference.hpp"
 #include "simulations.hpp"
 #include "substitution_models.hpp"
@@ -192,6 +196,25 @@ TEST(BranchLengths, CpuSingle) {
 TEST(BranchLengths, CpuDouble) {
     Devices devices = make_cpu_devices(2, true);
     run_all(devices, true, "CPU double");
+}
+
+TEST(BranchLengths, BmeLengthOfAGivenTree) {
+    const int32_t N = 48;
+    const Tree tree = random_tree(N, 0.02, 0.2, 21);
+    const Alignment aln = simulate_alignment(tree, 4000, truth(), 22);
+    for (Model model : {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC})
+        for (Precision precision : {Precision::Single, Precision::Double}) {
+            Settings opt = cpu_settings(model, precision);
+            opt.tree_init = TreeInit::Given;
+            opt.max_rounds = 0;
+            opt.bl_profile_cap = PROFILE_CAP_MAX;
+            const Result res = run_infer(aln, opt, &tree);
+            const double exact =
+                pauplin(unrooted(tree, N), N, distance_matrix(aln, with_base_frequencies(aln, opt).substitution_model));
+            const double tol = precision == Precision::Double ? 1e-9 : 1e-4;
+            EXPECT_NEAR(res.bme_length, exact, tol * exact) << model_name(model);
+            EXPECT_EQ(res.tree.double_precision_lengths, precision == Precision::Double);
+        }
 }
 
 TEST(BranchLengthsGpu, Gpu) {

@@ -92,6 +92,19 @@ TEST(Newick, LengthsAreShortestRoundTripFloats) {
     EXPECT_EQ(std::stof("1.5e-07"), 1.5e-7f);
 }
 
+// --precision double: the lengths keep double digits (shortest round trip of the double values).
+TEST(Newick, DoublePrecisionLengthsKeepDoubleDigits) {
+    p2vbme::Tree t;
+    t.c1 = {-1, -1, -1, -1, 0, 2, 4};
+    t.c2 = {-1, -1, -1, -1, 1, 3, 5};
+    t.branch_lengths = {1.0 / 3.0, 0.1, 0.2, 0.4, 0.5, 0.25, 0.0};
+    t.double_precision_lengths = true;
+    const std::string out = temp_path("double_lengths.nwk");
+    p2vbme::write_newick_unrooted(out, {"a", "b", "c", "d"}, t);
+    EXPECT_EQ(read_file(out), "(a:0.3333333333333333,b:0.1,(c:0.2,d:0.4):0.75);\n");
+    EXPECT_EQ(std::stod("0.3333333333333333"), 1.0 / 3.0);
+}
+
 TEST(Newick, QuotesNamesThatNeedIt) {
     p2vbme::Tree t;
     t.c1 = {-1, -1, -1, 0, 3};

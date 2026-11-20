@@ -1,4 +1,4 @@
-// Helpers shared by the tests that run infer() (test_cpu_device, test_device_distances).
+// Helpers shared by the tests that run infer() (test_inference, test_branch_lengths, test_device_distances).
 #ifndef P2VBME_TESTS_INFER_TEST_HELPERS_HPP
 #define P2VBME_TESTS_INFER_TEST_HELPERS_HPP
 

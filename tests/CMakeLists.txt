@@ -28,13 +28,24 @@ target_compile_options(test_distances PRIVATE -Wall -Wextra)
 target_link_libraries(test_distances PRIVATE p2vbme_distances p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_distances)
 
-# The CPU device (any build): brute force at small N, SPR optimality by the reference library, precision, workers
-add_executable(test_cpu_device test_cpu_device.cpp ${BME_REFERENCE_SOURCE})
-target_include_directories(test_cpu_device PRIVATE ${BME_REFERENCE_INCLUDE})
-target_compile_options(test_cpu_device PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O2 -Wall -Wextra> $<$<COMPILE_LANGUAGE:C>:-O2>)
-target_link_libraries(test_cpu_device PRIVATE p2vbme p2vbme_io p2vbme_processing p2vbme_simulations GTest::gtest_main
-                                              m)
-gtest_discover_tests(test_cpu_device DISCOVERY_TIMEOUT 60)
+# infer() on the CPU (any build): brute force at small N, SPR optimality by the reference library, workers
+add_executable(test_inference test_inference.cpp ${BME_REFERENCE_SOURCE})
+target_include_directories(test_inference PRIVATE ${BME_REFERENCE_INCLUDE})
+target_compile_options(test_inference PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O2 -Wall -Wextra> $<$<COMPILE_LANGUAGE:C>:-O2>)
+target_link_libraries(test_inference PRIVATE p2vbme p2vbme_processing p2vbme_simulations GTest::gtest_main m)
+gtest_discover_tests(test_inference DISCOVERY_TIMEOUT 60)
+
+# The CPU device's window kernels (any build): move scores against exact BME changes, ties
+add_executable(test_device_cpu test_device_cpu.cpp)
+target_compile_options(test_device_cpu PRIVATE -O2 -Wall -Wextra)
+target_link_libraries(test_device_cpu PRIVATE p2vbme p2vbme_simulations GTest::gtest_main)
+gtest_discover_tests(test_device_cpu)
+
+# The run's devices (any build): the settings select_devices refuses
+add_executable(test_device test_device.cpp)
+target_compile_options(test_device PRIVATE -Wall -Wextra)
+target_link_libraries(test_device PRIVATE p2vbme GTest::gtest_main)
+gtest_discover_tests(test_device)
 
 # Phylo2Vec encoding and decoding (src/phylo2vec): reference rows from the phylo2vec crate, round trips
 add_executable(test_phylo2vec test_phylo2vec.cpp)
@@ -51,7 +62,7 @@ gtest_discover_tests(test_search DISCOVERY_TIMEOUT 60)
 # O(N) branch lengths against the exact O(N^2) ones: CPU device; BranchLengthsGpu.* on the GPU
 add_executable(test_branch_lengths test_branch_lengths.cpp)
 target_compile_options(test_branch_lengths PRIVATE -O2 -Wall -Wextra)
-target_link_libraries(test_branch_lengths PRIVATE p2vbme p2vbme_simulations GTest::gtest_main)
+target_link_libraries(test_branch_lengths PRIVATE p2vbme p2vbme_processing p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_branch_lengths TEST_FILTER "-BranchLengthsGpu.*" DISCOVERY_TIMEOUT 60)
 if(P2VBME_CUDA)
   gtest_discover_tests(test_branch_lengths TEST_FILTER "BranchLengthsGpu.*" PROPERTIES LABELS gpu DISCOVERY_TIMEOUT 60)
