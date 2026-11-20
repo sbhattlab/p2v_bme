@@ -86,7 +86,7 @@ void calculate_discrete_gradient_c(const int64_t *P2V_RESTRICT v, const double *
  * @param[in]  flip_mode 0 for standard orientation (gauge 0); 1 for reversed orientation (gauge 1).
  * @param[out] v_out     Output ordered Phylo2Vec vector of length N-1 (0 <= v_out[i] <= i).
  * @param[out] perm_out  Output leaf permutation of length N: computational leaf a in {0..N-1}
- *                       corresponds to original leaf perm_out[a] in {0..N-1}.
+ *                       corresponds to original leaf perm_out[a] in {0..N-1} (phylo2vec's label mapping).
  *
  * @note Complexity: O(N) time and O(N) space.
  */

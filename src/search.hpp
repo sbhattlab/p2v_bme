@@ -111,7 +111,8 @@ class WindowKernels {
 // A window is part of the tree cut into K pieces.
 // Each piece is summarised as a weighted leaf profile (CSR: profile_offsets[K + 1], profile_leaves,
 // profile_weights).
-// Its skeleton, the tree connecting the pieces, is the Phylo2Vec vector v over the leaf permutation perm.
+// Its skeleton, the tree connecting the pieces, is the Phylo2Vec vector v over the leaf permutation perm (phylo2vec's
+// label mapping: perm[a] is the piece of tip a).
 // Runs up to max_iters sweeps of batched moves on the skeleton (Algorithm S1, batch cap max_batch_cap) to shorten its
 // BME length.
 // Updates v and perm and returns the BME change (0 and the input tree if nothing improved).
