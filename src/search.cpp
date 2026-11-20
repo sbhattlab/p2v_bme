@@ -115,6 +115,8 @@ void compute_tree_summary(const Tree &tree, TreeSummary &out) {
     const int32_t n_nodes_r = 2 * n_leaves - 1;
     const int32_t root_r = n_nodes_r - 1;
 
+    // Pass 1, top-down: walk from the root breadth first; order lists the internal nodes, parents before children, and
+    // each node's parent is set on the way.
     out.order.resize(n_leaves - 1);
     out.parent.assign(n_nodes_r, -1);
     int32_t ord_len = 0;
@@ -130,9 +132,11 @@ void compute_tree_summary(const Tree &tree, TreeSummary &out) {
             out.order[ord_len++] = b1;
     }
 
+    // Pass 2, bottom-up: order read backwards, children before parents; each node's leaf count is its children's sum,
+    // and its stand-in is the leaf nearest to it (the shallowest below it, c1 on ties).
     out.leaf_count.assign(n_nodes_r, 1);
     out.stand_in.resize(n_nodes_r);
-    std::vector<int32_t> min_depth(n_nodes_r, 0);
+    std::vector<int32_t> min_depth(n_nodes_r, 0); // depth of the nearest leaf below each node
     for (int32_t x = 0; x < n_leaves; ++x) {
         out.stand_in[x] = x;
     }
