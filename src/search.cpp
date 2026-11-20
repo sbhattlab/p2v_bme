@@ -35,12 +35,12 @@
 namespace p2vbme {
 
 void build_skeleton_metadata(const std::vector<int64_t> &v, SkeletonMeta &sk) {
-    const int32_t K = (int32_t)v.size() + 1;
+    const int32_t K = (int32_t)v.size() + 1; // pieces = tips of the skeleton
     std::vector<int32_t> &c1 = sk.c1, &c2 = sk.c2, &v_map = sk.v_map, &parent_u = sk.parent_u;
     std::vector<int32_t> &sub_size = sk.sub_size, &tin = sk.tin, &adj_u = sk.adj_u;
-    const int32_t R_sk = 2 * K - 1;
-    const int32_t M_sk = 2 * K - 2;
-    const int32_t root_u_sk = M_sk - 1;
+    const int32_t R_sk = 2 * K - 1;     // nodes of the rooted skeleton (root 2K - 2)
+    const int32_t M_sk = 2 * K - 2;     // nodes of the unrooted skeleton (the rooted one without its root)
+    const int32_t root_u_sk = M_sk - 1; // the node the unrooted skeleton hangs from (2K - 3)
 
     c1.assign(R_sk, 0);
     c2.assign(R_sk, 0);
@@ -50,6 +50,11 @@ void build_skeleton_metadata(const std::vector<int64_t> &v, SkeletonMeta &sk) {
     tin.assign(M_sk, 0);
     adj_u.assign(3 * M_sk, -1);
 
+    // Step 1: decode the ordered vector into the rooted skeleton (c1, c2), as phylo2vec does.
+    // Read from the last entry: leaf i + 1 joins the subtree named v[i] under the next node K + k, and the merged
+    // subtree keeps the name v[i] (scratch_uf: the top node of the subtree each name stands for).
+    // Children always get smaller ids than their parent.
+    // v_map[i + 1] is the subtree row i merges in: the subtree its moves prune.
     std::vector<int32_t> scratch_uf(R_sk);
     for (int32_t x = 0; x < K; ++x)
         scratch_uf[x] = x;
@@ -65,6 +70,10 @@ void build_skeleton_metadata(const std::vector<int64_t> &v, SkeletonMeta &sk) {
         v_map[y] = b0;
         scratch_uf[x] = m;
     }
+    // Step 2: unroot it: drop the root 2K - 2 and join its two children by an edge.
+    // One child is node 2K - 3 (made by row 1), which becomes the node the unrooted skeleton hangs from; the other
+    // (other_rc, the smaller id) becomes its third neighbour.
+    // The hanging node's neighbours: its two rooted children (rc0, rc1) and other_rc (rc2).
     int32_t rc1 = c1[R_sk - 1], rc2 = c2[R_sk - 1];
     int32_t other_rc = (rc1 < rc2) ? rc1 : rc2;
     int32_t r_c0 = c1[root_u_sk], r_c1 = c2[root_u_sk], r_c2 = other_rc;
@@ -73,6 +82,8 @@ void build_skeleton_metadata(const std::vector<int64_t> &v, SkeletonMeta &sk) {
     sk.rc1 = r_c1;
     sk.rc2 = r_c2;
 
+    // Step 3: set the parents and subtree sizes (in nodes), children before parents, and the internal nodes'
+    // adjacency (two children, then the parent).
     for (int32_t u = 0; u < K; ++u)
         sub_size[u] = 1;
     for (int32_t u = K; u < root_u_sk; ++u) {
@@ -88,6 +99,8 @@ void build_skeleton_metadata(const std::vector<int64_t> &v, SkeletonMeta &sk) {
     parent_u[r_c1] = root_u_sk;
     parent_u[r_c2] = root_u_sk;
     parent_u[root_u_sk] = -1;
+    // Step 4: the rest of the unrooted adjacency (3 slots per node, -1 if unused): a tip has only its parent, an
+    // internal node gets its parent in the third slot, the hanging node its three neighbours.
     for (int32_t u = 0; u < K; ++u) {
         adj_u[3 * u + 0] = parent_u[u];
         adj_u[3 * u + 1] = -1;
@@ -99,6 +112,8 @@ void build_skeleton_metadata(const std::vector<int64_t> &v, SkeletonMeta &sk) {
     adj_u[3 * root_u_sk + 1] = r_c1;
     adj_u[3 * root_u_sk + 2] = r_c2;
 
+    // Step 5: preorder numbers (tin) of a walk from the hanging node, parents before children (ids decreasing).
+    // With sub_size they make "x is under y" one comparison: tin[y] <= tin[x] < tin[y] + sub_size[y].
     tin[root_u_sk] = 0;
     tin[r_c0] = 1;
     tin[r_c1] = 1 + sub_size[r_c0];
