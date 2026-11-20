@@ -96,7 +96,7 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
             }
     }
 
-    double score(const SkeletonMeta &s, const std::vector<int32_t> &perm) override {
+    double score(const SkeletonTables &s, const std::vector<int32_t> &perm) override {
         const int32_t K = K_, M = M_, root_u = M - 1;
         ws_.subdist.resize((size_t)M * M);
         T *sd = ws_.subdist.data();
@@ -140,7 +140,7 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
         return 0.5 * acc;
     }
 
-    void best_moves(const SkeletonMeta &s, std::vector<double> &best_delta, std::vector<int32_t> &best_j) override {
+    void best_moves(const SkeletonTables &s, std::vector<double> &best_delta, std::vector<int32_t> &best_j) override {
         const int32_t K = K_, M = M_, root_u = M - 1;
         best_delta.assign(K, 1e30);
         best_j.assign(K, -1);
@@ -203,7 +203,7 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
         return row_distance<T>(rows_ + (size_t)x * 5 * W_, rows_ + (size_t)y * 5 * W_, W_, dm_);
     }
 
-    void top_down(const SkeletonMeta &s, int32_t v) {
+    void top_down(const SkeletonTables &s, int32_t v) {
         const int32_t M = M_, root_u = M - 1;
         T *sd = ws_.subdist.data();
         if (v == root_u) {
@@ -241,8 +241,8 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
 
     // The score changes of the regraft edges in the half tree beyond `start` (a neighbour of the pruning point
     // `parent`; `orig` is its other neighbour), for the subtree whose row of averages is row_root.
-    void seed(const SkeletonMeta &s, int32_t start, int32_t orig, int32_t parent, const T *row_root, const T *row_orig,
-              T *edge, std::vector<Frame> &stack) const {
+    void seed(const SkeletonTables &s, int32_t start, int32_t orig, int32_t parent, const T *row_root,
+              const T *row_orig, T *edge, std::vector<Frame> &stack) const {
         const int32_t K = K_;
         if (start < K)
             return;

@@ -64,9 +64,11 @@ struct SearchStats {
 
 // ---- Skeleton of a window (shared with the devices' window solve) ----
 
-// A skeleton of K pieces as to_skeleton_meta describes it: rooted children c1, c2 (2K - 1 nodes), the
-// unrooted tree on 2K - 2 nodes rooted at node 2K - 3 (parent_u, sub_size, tin, adj_u) and the root's children.
-struct SkeletonMeta {
+// The tables of a skeleton of K pieces, decoded from its vector by to_skeleton_tables: rooted children c1, c2 (2K - 1
+// nodes; phylo2vec's ancestry, children swapped), the unrooted tree on 2K - 2 nodes rooted at node 2K - 3 (parent_u,
+// sub_size, tin, adj_u) and the root's children.
+// Numbered as the vector: tip a stands for piece perm[a], internal nodes in decoding order.
+struct SkeletonTables {
     std::vector<int32_t> c1, c2, v_map, parent_u, sub_size, tin, adj_u;
     int32_t other_rc = -1;
     int32_t rc0 = -1;
@@ -75,14 +77,16 @@ struct SkeletonMeta {
 };
 
 // Decodes the skeleton's vector v (K - 1 entries) into sk.
-void to_skeleton_meta(const std::vector<int64_t> &v, SkeletonMeta &sk);
+void to_skeleton_tables(const std::vector<int64_t> &v, SkeletonTables &sk);
 void apply_unrooted_spr(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_a, int32_t dest_b);
 // Encodes the unrooted skeleton sk.adj_u, rooted on the edge between root_c1 and root_c2, as an ordered vector v
 // (queue shuffle, labelling flip_mode) and composes perm with the new tip labels.
 // Reads only sk.adj_u, and K from the size of sk.v_map: after a batch of moves, the other fields of sk still describe
 // the tree before it.
-void from_skeleton_meta(std::vector<int64_t> &v, const SkeletonMeta &sk, int32_t root_c1, int32_t root_c2,
-                        int32_t flip_mode, std::vector<int32_t> &perm);
+// The root edge and flip_mode change only which subtrees become rows, i.e. which moves the next sweep tries, never
+// the BME length.
+void from_skeleton_tables(std::vector<int64_t> &v, const SkeletonTables &sk, int32_t root_c1, int32_t root_c2,
+                          int32_t flip_mode, std::vector<int32_t> &perm);
 
 // ---- The window solve, shared by the devices (each gives its kernels: Device::window_kernels) ----
 
@@ -95,10 +99,10 @@ class WindowKernels {
                            const float *profile_weights) = 0;
     // The skeleton's average distances between all its node pairs (perm: the piece of each skeleton leaf), kept for
     // best_moves; returns its BME length (Pauplin's formula, sum of 2^(1 - tau_ij) d_ij over the piece pairs).
-    virtual double score(const SkeletonMeta &s, const std::vector<int32_t> &perm) = 0;
+    virtual double score(const SkeletonTables &s, const std::vector<int32_t> &perm) = 0;
     // For rows i = 1 .. K - 2 of the vector: the best regraft edge of the subtree pruned at row i and the BME change of
     // that move (best_delta[i], best_j[i]), from the last score.
-    virtual void best_moves(const SkeletonMeta &s, std::vector<double> &best_delta, std::vector<int32_t> &best_j) = 0;
+    virtual void best_moves(const SkeletonTables &s, std::vector<double> &best_delta, std::vector<int32_t> &best_j) = 0;
 };
 
 // The window solve, with a device's kernels.
@@ -134,18 +138,20 @@ struct TreeSummary {
 // The summary of the tree, rebuilt in full.
 // stand_in is each node's closest leaf (the c1 side on ties).
 void compute_tree_summary(const Tree &tree, TreeSummary &out);
-// The skeleton of a window, in the layout of Tree: tips 0..K-1 (the clade pieces left to right, then the outgroup if
-// any), internal nodes K..2K-2, root 2K-2.
-struct WindowSkeleton {
-    std::vector<int32_t> c1, c2;      // the skeleton's children (0 for its tips)
+// A window's skeleton: its K pieces (the clade pieces left to right, then the outgroup if any) and the tree connecting
+// them, as an ordered Phylo2Vec vector.
+struct Skeleton {
     std::vector<int32_t> piece_roots; // the tree node at the top of each clade piece (a leaf, or a clade not opened)
-    std::vector<int32_t> opened;      // the tree node of skeleton internal node K + s (children before parents)
+    std::vector<int32_t> opened;      // the tree nodes the window opened, children before parents (its root last)
+    std::vector<int64_t> v;           // the ordered vector (K - 1 entries; empty below WINDOW_MIN_K pieces)
+    std::vector<int32_t> perm;        // its label mapping: tip a of the vector stands for piece perm[a]
 };
 // The window under window_root: it opens internal nodes from window_root, largest clades first, up to
 // WINDOW_MAX_INTERNALS, never a node marked in stop_at_comp_root; the clades below them are the pieces.
 // with_outgroup: one more tip (the rest of the tree), joined to window_root under a new root.
-WindowSkeleton extract_skeleton(int32_t window_root, const Tree &tree, const TreeSummary &summary,
-                                const uint8_t *stop_at_comp_root, bool with_outgroup);
+// v and perm: the queue shuffle of the skeleton's tree.
+Skeleton extract_skeleton(int32_t window_root, const Tree &tree, const TreeSummary &summary,
+                          const uint8_t *stop_at_comp_root, bool with_outgroup);
 void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t max_cap,
                            std::vector<uint8_t> &is_comp_root, std::vector<std::vector<int32_t>> &waves);
 

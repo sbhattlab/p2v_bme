@@ -34,7 +34,8 @@
 
 namespace p2vbme {
 
-void to_skeleton_meta(const std::vector<int64_t> &v, SkeletonMeta &sk) {
+// Decodes a skeleton's ordered vector into its tables, which the scoring, the moves and the write-back read.
+void to_skeleton_tables(const std::vector<int64_t> &v, SkeletonTables &sk) {
     const int32_t K = (int32_t)v.size() + 1; // pieces = tips of the skeleton
     const int32_t R_sk = 2 * K - 1;          // nodes of the rooted skeleton (root 2K - 2)
     const int32_t M_sk = 2 * K - 2;          // nodes of the unrooted skeleton (the rooted one without its root)
@@ -107,6 +108,7 @@ void to_skeleton_meta(const std::vector<int64_t> &v, SkeletonMeta &sk) {
     }
 }
 
+// Rebuilds the summary of the whole tree (BFS order, parents, leaf counts, stand-ins) from scratch.
 void compute_tree_summary(const Tree &tree, TreeSummary &out) {
     const int32_t n_leaves = tree.n_leaves();
     const int32_t *c1_r = tree.c1.data(), *c2_r = tree.c2.data();
@@ -294,21 +296,15 @@ static void compute_outgroup_dyadic_profile(int32_t window_root, const Tree &tre
                             profile_leaves_out, profile_weights_out);
 }
 
-WindowSkeleton extract_skeleton(int32_t window_root, const Tree &tree, const TreeSummary &summary,
-                                const uint8_t *stop_at_comp_root, bool with_outgroup) {
+// Chooses a window's pieces and the nodes it opens, and encodes its skeleton as an ordered vector.
+Skeleton extract_skeleton(int32_t window_root, const Tree &tree, const TreeSummary &summary,
+                          const uint8_t *stop_at_comp_root, bool with_outgroup) {
     const int32_t n_leaves = tree.n_leaves();
     const int32_t *c1_r = tree.c1.data(), *c2_r = tree.c2.data();
-    WindowSkeleton skel;
+    Skeleton skel;
     if (window_root < n_leaves) {
         // a leaf: the window is that single piece
         skel.piece_roots.push_back(window_root);
-        const int32_t K = with_outgroup ? 2 : 1;
-        skel.c1.assign(2 * K - 1, 0);
-        skel.c2.assign(2 * K - 1, 0);
-        if (with_outgroup) {
-            skel.c1[2 * K - 2] = 0;
-            skel.c2[2 * K - 2] = 1;
-        }
         return skel;
     }
 
@@ -371,8 +367,7 @@ WindowSkeleton extract_skeleton(int32_t window_root, const Tree &tree, const Tre
     // A binary tree has one tip more than internal nodes, so the clade pieces number the opened nodes + 1.
     const int32_t K_in = (int32_t)exp_nodes.size() + 1;
     const int32_t K = with_outgroup ? K_in + 1 : K_in;
-    skel.c1.assign(2 * K - 1, 0);
-    skel.c2.assign(2 * K - 1, 0);
+    std::vector<int32_t> skel_c1(2 * K - 1, 0), skel_c2(2 * K - 1, 0); // the skeleton as a rooted tree (Tree layout)
     skel.opened.reserve(K_in - 1);
     skel.piece_roots.reserve(K_in);
     // each finished subtree's skeleton node: a piece i (tip i) or opened node s (internal node K + s)
@@ -407,16 +402,22 @@ WindowSkeleton extract_skeleton(int32_t window_root, const Tree &tree, const Tre
         } else {
             const int32_t node = K + (int32_t)skel.opened.size();
             skel.opened.push_back(en.u);
-            skel.c1[node] = f.left_node;
-            skel.c2[node] = last_node;
+            skel_c1[node] = f.left_node;
+            skel_c2[node] = last_node;
             last_node = node;
             st.pop_back();
         }
     }
     // the outgroup: one more tip, joined to the window's root under a new root
     if (with_outgroup) {
-        skel.c1[2 * K - 2] = last_node;
-        skel.c2[2 * K - 2] = K_in;
+        skel_c1[2 * K - 2] = last_node;
+        skel_c2[2 * K - 2] = K_in;
+    }
+    // Step 3: encode the skeleton as an ordered vector (queue shuffle), for windows large enough to be solved.
+    if (K >= p2vbme::WINDOW_MIN_K) {
+        skel.v.resize(K - 1);
+        skel.perm.resize(K);
+        queue_shuffle_rooted(skel_c1.data(), skel_c2.data(), K, 0, skel.v.data(), skel.perm.data());
     }
     return skel;
 }
@@ -605,44 +606,29 @@ void apply_unrooted_spr(int32_t *adj_u, int32_t prune_node, int32_t anchor_node,
     adj_u[3 * anchor_node + 2] = dest_b;
 }
 
-void from_skeleton_meta(std::vector<int64_t> &v, const SkeletonMeta &sk, int32_t root_c1, int32_t root_c2,
-                        int32_t flip_mode, std::vector<int32_t> &perm) {
-    const int32_t K = (int32_t)sk.v_map.size(); // pieces = tips of the skeleton
-    const int32_t R_sk = 2 * K - 1;             // nodes of the rooted skeleton
-    const int32_t root_r = R_sk - 1;            // its root (2K - 2)
-    // Step 1: root the unrooted skeleton on the edge between root_c1 and root_c2: a new root with those two as its
-    // children.
-    std::vector<int32_t> c1_r(R_sk, 0), c2_r(R_sk, 0);
-    c1_r[root_r] = root_c1;
-    c2_r[root_r] = root_c2;
-
-    // Step 2: walk outward from that edge, breadth first.
-    // An internal node gets its two neighbours other than the one it was reached from as rooted children, in sk.adj_u's
-    // slot order; tips (ids < K) end the walk.
-    std::vector<int32_t> to_visit;     // the internal nodes to visit
+// Orients the unrooted skeleton adj_u (3 slots per node, tips 0..K-1) away from the start nodes, breadth first.
+// starts: the internal nodes to begin with, each with the neighbour it is reached from.
+// Each internal node reached gets its two other neighbours as children (child0, child1, indexed by node, in adj_u's
+// slot order); tips end the walk.
+// Returns the internal nodes in visiting order (parents before children).
+static std::vector<int32_t> orient(const std::vector<int32_t> &adj_u, int32_t K,
+                                   const std::vector<std::pair<int32_t, int32_t>> &starts, std::vector<int32_t> &child0,
+                                   std::vector<int32_t> &child1) {
+    std::vector<int32_t> to_visit;     // the internal nodes to visit, in order (head: the next one)
     std::vector<int32_t> reached_from; // the neighbour each was reached from
-    to_visit.reserve(R_sk);
-    reached_from.reserve(R_sk);
-    if (root_c1 >= K) {
-        to_visit.push_back(root_c1);
-        reached_from.push_back(root_c2);
+    to_visit.reserve(2 * K);
+    reached_from.reserve(2 * K);
+    for (const auto &[node, from] : starts) {
+        to_visit.push_back(node);
+        reached_from.push_back(from);
     }
-    if (root_c2 >= K) {
-        to_visit.push_back(root_c2);
-        reached_from.push_back(root_c1);
-    }
-
-    // Take the queue in order (head: the next node), so parents come before their children.
-    // Each node's children are its neighbours other than the one it was reached from; the internal ones join the queue.
-    size_t head = 0;
-    while (head < to_visit.size()) {
-        int32_t node = to_visit[head];
-        int32_t from = reached_from[head];
-        head++;
+    for (size_t head = 0; head < to_visit.size(); ++head) {
+        const int32_t node = to_visit[head];
+        const int32_t from = reached_from[head];
         // its two neighbours other than from
         int32_t b0 = -1, b1 = -1;
         for (int32_t k = 0; k < 3; ++k) {
-            int32_t nb = sk.adj_u[3 * node + k];
+            const int32_t nb = adj_u[3 * node + k];
             if (nb != -1 && nb != from) {
                 if (b0 == -1)
                     b0 = nb;
@@ -650,8 +636,8 @@ void from_skeleton_meta(std::vector<int64_t> &v, const SkeletonMeta &sk, int32_t
                     b1 = nb;
             }
         }
-        c1_r[node] = b0;
-        c2_r[node] = b1;
+        child0[node] = b0;
+        child1[node] = b1;
         if (b0 >= K) {
             to_visit.push_back(b0);
             reached_from.push_back(node);
@@ -661,6 +647,28 @@ void from_skeleton_meta(std::vector<int64_t> &v, const SkeletonMeta &sk, int32_t
             reached_from.push_back(node);
         }
     }
+    return to_visit;
+}
+
+// Re-encodes a skeleton after a batch of moves, or with the other labelling (the flip), for the next sweep.
+void from_skeleton_tables(std::vector<int64_t> &v, const SkeletonTables &sk, int32_t root_c1, int32_t root_c2,
+                          int32_t flip_mode, std::vector<int32_t> &perm) {
+    const int32_t K = (int32_t)sk.v_map.size(); // pieces = tips of the skeleton
+    const int32_t R_sk = 2 * K - 1;             // nodes of the rooted skeleton
+    const int32_t root_r = R_sk - 1;            // its root (2K - 2)
+    // Step 1: root the unrooted skeleton on the edge between root_c1 and root_c2: a new root with those two as its
+    // children.
+    std::vector<int32_t> c1_r(R_sk, 0), c2_r(R_sk, 0);
+    c1_r[root_r] = root_c1;
+    c2_r[root_r] = root_c2;
+
+    // Step 2: orient the unrooted skeleton away from that edge: each internal node's two rooted children.
+    std::vector<std::pair<int32_t, int32_t>> starts; // the edge's internal ends, each reached from the other end
+    if (root_c1 >= K)
+        starts.push_back({root_c1, root_c2});
+    if (root_c2 >= K)
+        starts.push_back({root_c2, root_c1});
+    orient(sk.adj_u, K, starts, c1_r, c2_r);
 
     // Step 3: encode the rooted tree as an ordered vector (queue shuffle, labelling flip_mode), then compose perm with
     // the new tip labels (step_perm, the label mapping of this encoding) so each tip still points to its piece.
@@ -694,7 +702,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
     // The K x K distances between the pieces, from their profiles: computed once per window, kept for every sweep.
     kernels.distances(K, profile_offsets, profile_leaves, profile_weights);
 
-    SkeletonMeta sk;
+    SkeletonTables sk;
     std::vector<double> h_best_delta(K);
     std::vector<int32_t> h_best_j(K);
 
@@ -707,7 +715,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
 
     for (int32_t iter = 0; iter <= max_iters; ++iter) {
         // Step 1: decode the skeleton (v) into the arrays the kernels and the moves read.
-        to_skeleton_meta(v, sk);
+        to_skeleton_tables(v, sk);
         const int32_t other_rc = sk.other_rc;
         std::vector<int32_t> &v_map = sk.v_map, &parent_u = sk.parent_u, &sub_size = sk.sub_size;
         std::vector<int32_t> &tin = sk.tin, &adj_u = sk.adj_u;
@@ -770,7 +778,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
         if (cands.empty()) {
             if (flipped_already == 0) {
                 flipped_already = 1;
-                from_skeleton_meta(v, sk, root_u_sk, other_rc, 1, perm);
+                from_skeleton_tables(v, sk, root_u_sk, other_rc, 1, perm);
                 continue;
             }
             break;
@@ -829,7 +837,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
         // Step 7: re-encode the moved skeleton as an ordered vector (the labelling alternates each sweep); the next
         // sweep scores it.
         int32_t r_nb = adj_u[3 * root_u_sk + 0];
-        from_skeleton_meta(v, sk, root_u_sk, r_nb, iter & 1, perm);
+        from_skeleton_tables(v, sk, root_u_sk, r_nb, iter & 1, perm);
     }
 
     if (best_L >= init_L - p2vbme::WINDOW_MIN_GAIN) {
@@ -843,6 +851,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
     return best_L - init_L;
 }
 
+// Updates the summary after the write-back gave node u the children b0, b1: their parent, u's leaf count and stand-in.
 static inline void update_one_node_summary(int32_t u, int32_t b0, int32_t b1, TreeSummary &summary) {
     summary.parent[b0] = u;
     summary.parent[b1] = u;
@@ -877,47 +886,43 @@ static uint64_t window_input_hash(int32_t K, int32_t max_iters, const std::vecto
     return h;
 }
 
-// Writes a window's solved skeleton (v, perm) back into the tree: decodes it, roots it (a subtree window where its
-// outgroup attaches, the whole-tree window on its centroid edge), and gives the window's opened nodes their new
-// children.
+// Writes a window's solved skeleton (skel.v, skel.perm) back into the tree: decodes it, roots it (a subtree window
+// where its outgroup attaches, the whole-tree window on its centroid edge), and gives the window's opened nodes their
+// new children.
 // It also patches the summary of those nodes (in_snapshot: only leaf_count and stand_in, as parallel windows must
 // leave summary.parent alone).
-static void write_back_skeleton(const std::vector<int64_t> &v_mb, const std::vector<int32_t> &perm_mb,
-                                const WindowSkeleton &skel, int32_t window_root, int32_t parent_of_window_root,
+static void write_back_skeleton(const Skeleton &skel, int32_t window_root, int32_t parent_of_window_root,
                                 bool in_snapshot, Tree &tree, TreeSummary &summary) {
     const int32_t n_leaves = tree.n_leaves();
     const int32_t root_r = 2 * n_leaves - 2;
-    const int32_t K = (int32_t)v_mb.size() + 1;
+    const int32_t K = (int32_t)skel.v.size() + 1;
     const std::vector<int32_t> &piece_roots = skel.piece_roots;
     const int32_t K_in = (int32_t)piece_roots.size();
     const bool has_outgroup = window_root != root_r;
     std::vector<int32_t> &curr_c1 = tree.c1, &curr_c2 = tree.c2;
 
     // Decode the vector back to a skeleton + kernel extras
-    SkeletonMeta sk;
-    to_skeleton_meta(v_mb, sk);
+    SkeletonTables sk;
+    to_skeleton_tables(skel.v, sk);
 
     // Step 1: choose the root.
     // A subtree window: the node its outgroup tip hangs from, so the subtree keeps its place.
     // The whole-tree window: its centroid edge, the split closest to N/2 leaves (pieces weighed by their leaf counts).
     int32_t a_out = -1, u_best = -1, p_best = -1;
-    std::vector<int32_t> st_u, st_p;
-    st_u.reserve(K - 2);
-    st_p.reserve(K - 2);
+    std::vector<std::pair<int32_t, int32_t>> starts; // where step 2 starts, each with the neighbour it is reached from
     if (has_outgroup) {
         for (int32_t a = 0; a < K; ++a) {
-            if (perm_mb[a] == K_in) {
+            if (skel.perm[a] == K_in) {
                 a_out = a;
                 break;
             }
         }
-        st_u.push_back(sk.adj_u[3 * a_out + 0]);
-        st_p.push_back(a_out);
+        starts.push_back({sk.adj_u[3 * a_out + 0], a_out});
     } else {
         const int32_t root_u_sk = 2 * K - 3;
         std::vector<int32_t> w_sub(2 * K - 2, 0);
         for (int32_t a = 0; a < K; ++a)
-            w_sub[a] = summary.leaf_count[piece_roots[perm_mb[a]]];
+            w_sub[a] = summary.leaf_count[piece_roots[skel.perm[a]]];
         for (int32_t u = K; u < root_u_sk; ++u)
             w_sub[u] = w_sub[sk.c1[u]] + w_sub[sk.c2[u]];
         u_best = 0;
@@ -930,56 +935,30 @@ static void write_back_skeleton(const std::vector<int64_t> &v_mb, const std::vec
             }
         }
         p_best = sk.parent_u[u_best];
-        if (u_best >= K) {
-            st_u.push_back(u_best);
-            st_p.push_back(p_best);
-        }
-        if (p_best >= K) {
-            st_u.push_back(p_best);
-            st_p.push_back(u_best);
-        }
+        if (u_best >= K)
+            starts.push_back({u_best, p_best});
+        if (p_best >= K)
+            starts.push_back({p_best, u_best});
     }
     // Step 2: orient the skeleton away from that root, breadth first: each internal node's two children.
+    // order: the skeleton's internal nodes, parents before children.
     std::vector<int32_t> child0(2 * K - 2, -1), child1(2 * K - 2, -1);
-    for (size_t idx = 0; idx < st_u.size(); ++idx) {
-        int32_t u = st_u[idx];
-        int32_t p = st_p[idx];
-        int32_t b0 = -1, b1 = -1;
-        for (int32_t k = 0; k < 3; ++k) {
-            int32_t nb = sk.adj_u[3 * u + k];
-            if (nb != -1 && nb != p) {
-                if (b0 == -1)
-                    b0 = nb;
-                else
-                    b1 = nb;
-            }
-        }
-        child0[u] = b0;
-        child1[u] = b1;
-        if (b0 >= K) {
-            st_u.push_back(b0);
-            st_p.push_back(u);
-        }
-        if (b1 >= K) {
-            st_u.push_back(b1);
-            st_p.push_back(u);
-        }
-    }
+    const std::vector<int32_t> order = orient(sk.adj_u, K, starts, child0, child1);
 
     // Step 3: map the skeleton's nodes to tree nodes: each tip to its piece's root, and the internal nodes to the
     // window's opened nodes, children before parents (so window_root stays at the top).
     std::vector<int32_t> sk_to_full(2 * K - 2, -1);
     for (int32_t a = 0; a < K; ++a) {
         if (a != a_out)
-            sk_to_full[a] = piece_roots[perm_mb[a]];
+            sk_to_full[a] = piece_roots[skel.perm[a]];
     }
     for (int32_t s = 0; s < K - 2; ++s) {
-        int32_t u_sk = st_u[K - 3 - s];
+        int32_t u_sk = order[K - 3 - s];
         sk_to_full[u_sk] = skel.opened[s];
     }
     // Step 4: give the opened nodes their new children (and patch their summary).
     for (int32_t s = 0; s < K - 2; ++s) {
-        int32_t u_sk = st_u[K - 3 - s];
+        int32_t u_sk = order[K - 3 - s];
         int32_t full_u = sk_to_full[u_sk];
         int32_t b0 = sk_to_full[child0[u_sk]];
         int32_t b1 = sk_to_full[child1[u_sk]];
@@ -1040,7 +1019,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
     // A subtree window also sees the rest of the tree, as one extra piece (the outgroup).
     const bool has_outgroup = window_root != root_r;
     // Decide what a window contains and return its skeleton
-    const WindowSkeleton skel = extract_skeleton(window_root, tree, summary, stop_at_comp_root, has_outgroup);
+    Skeleton skel = extract_skeleton(window_root, tree, summary, stop_at_comp_root, has_outgroup);
     const std::vector<int32_t> &piece_roots = skel.piece_roots;
     // The root is alone in its wave, so the whole-tree window never gets a snapshot.
     if (!has_outgroup && snapshot != NULL)
@@ -1073,27 +1052,22 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
         profile_offsets[K] = (int32_t)profile_leaves.size();
     }
 
-    // Convert skeleton into phylo2vec form
-    std::vector<int64_t> v_mb(K - 1);
-    std::vector<int32_t> perm_mb(K);
-    queue_shuffle_rooted(skel.c1.data(), skel.c2.data(), K, 0, v_mb.data(), perm_mb.data());
-
     // Skip a solve whose input already found no improvement.
     const uint64_t input_hash =
-        window_input_hash(K, max_iters, v_mb, perm_mb, profile_offsets, profile_leaves, profile_weights);
+        window_input_hash(K, max_iters, skel.v, skel.perm, profile_offsets, profile_leaves, profile_weights);
     if (fruitless.count(input_hash) != 0)
         return 0.0;
     // Core device-powered search through the skeleton with SPR sweeps
-    // Returns the gain, and the new skeleton in v_mb, perm_mb
+    // Returns the gain, and the new skeleton in skel.v, skel.perm
     double dL = solve_window(K, max_iters, p2vbme::MOVE_BATCH_CAP, profile_offsets.data(), profile_leaves.data(),
-                             profile_weights.data(), v_mb, perm_mb, *dev.window_kernels());
+                             profile_weights.data(), skel.v, skel.perm, *dev.window_kernels());
     if (dL == 0.0) {
         fruitless_hash = input_hash;
         return 0.0;
     }
 
     // Write the solved skeleton back into the tree.
-    write_back_skeleton(v_mb, perm_mb, skel, window_root, parent_of_window_root, snapshot != NULL, tree, summary);
+    write_back_skeleton(skel, window_root, parent_of_window_root, snapshot != NULL, tree, summary);
     return dL;
 }
 
@@ -1283,6 +1257,8 @@ static void run_vcycle(SearchState &s, int32_t round) {
     }
 }
 
+// The schedule of a search: rounds of window passes (backbone, leaf-covering waves and, above WAVE_COMPONENT_CAP
+// leaves, the V-cycle) until the rounds stop, then, above WAVE_COMPONENT_CAP leaves, a final cleanup wave pass.
 double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &settings, int32_t level,
                          SearchStats *stats) {
     const int32_t n_leaves = tree.n_leaves();

@@ -29,8 +29,8 @@ using namespace p2vbme;
 class NoMoveKernels : public WindowKernels {
   public:
     void distances(int32_t, const int32_t *, const int32_t *, const float *) override {}
-    double score(const SkeletonMeta &, const std::vector<int32_t> &) override { return 0.0; }
-    void best_moves(const SkeletonMeta &, std::vector<double> &best_delta, std::vector<int32_t> &best_j) override {
+    double score(const SkeletonTables &, const std::vector<int32_t> &) override { return 0.0; }
+    void best_moves(const SkeletonTables &, std::vector<double> &best_delta, std::vector<int32_t> &best_j) override {
         std::fill(best_delta.begin(), best_delta.end(), 1e30);
         std::fill(best_j.begin(), best_j.end(), -1);
     }

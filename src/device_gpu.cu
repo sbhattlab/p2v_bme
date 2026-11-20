@@ -1341,7 +1341,7 @@ class GpuWindowKernels final : public WindowKernels {
         }
     }
 
-    double score(const SkeletonMeta &s, const std::vector<int32_t> &perm) override {
+    double score(const SkeletonTables &s, const std::vector<int32_t> &perm) override {
         const int32_t R_sk = 2 * K - 1;
         dim3 blk2d(16, 16);
         dim3 grd2d((K + 15) / 16, (K + 15) / 16);
@@ -1385,7 +1385,7 @@ class GpuWindowKernels final : public WindowKernels {
         return curr_L;
     }
 
-    void best_moves(const SkeletonMeta &s, std::vector<double> &best_delta, std::vector<int32_t> &h_best_j) override {
+    void best_moves(const SkeletonTables &s, std::vector<double> &best_delta, std::vector<int32_t> &h_best_j) override {
         const int32_t other_rc = s.other_rc;
         std::vector<float> h_best_delta(K);
         h_best_j.resize(K);
