@@ -601,14 +601,18 @@ void apply_unrooted_spr_host(int32_t *adj_u, int32_t prune_node, int32_t anchor_
 
 void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, int32_t root_edge_v, int32_t flip_mode,
                         std::vector<int64_t> &v, std::vector<int32_t> &perm) {
-    const int32_t R_sk = 2 * K - 1;
-    const int32_t root_r = R_sk - 1;
+    const int32_t R_sk = 2 * K - 1;  // nodes of the rooted skeleton
+    const int32_t root_r = R_sk - 1; // its root (2K - 2)
+    // Step 1: root the unrooted skeleton on the edge root_edge_u - root_edge_v: a new root with those two as children.
     std::vector<int32_t> c1_r(R_sk, 0), c2_r(R_sk, 0);
     c1_r[root_r] = root_edge_u;
     c2_r[root_r] = root_edge_v;
 
-    std::vector<int32_t> q_u;
-    std::vector<int32_t> q_p;
+    // Step 2: walk outward from that edge, breadth first.
+    // An internal node u reached from pr gets its two other neighbours as rooted children, in adj_u's slot order; tips
+    // (ids < K) end the walk.
+    std::vector<int32_t> q_u; // the internal nodes to visit
+    std::vector<int32_t> q_p; // the neighbour each was reached from
     q_u.reserve(R_sk);
     q_p.reserve(R_sk);
     if (root_edge_u >= K) {
@@ -620,11 +624,14 @@ void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, in
         q_p.push_back(root_edge_u);
     }
 
+    // Take the queue in order (head: the next node), so parents come before their children.
+    // Each node's children are its neighbours other than the one it was reached from; the internal ones join the queue.
     size_t head = 0;
     while (head < q_u.size()) {
         int32_t u = q_u[head];
         int32_t pr = q_p[head];
         head++;
+        // its two neighbours other than pr
         int32_t b0 = -1, b1 = -1;
         for (int32_t k = 0; k < 3; ++k) {
             int32_t nb = adj_u[3 * u + k];
@@ -647,6 +654,8 @@ void relabel_from_adj_u(const int32_t *adj_u, int32_t K, int32_t root_edge_u, in
         }
     }
 
+    // Step 3: encode the rooted tree as an ordered vector (queue shuffle, labelling flip_mode), then compose perm with
+    // the new tip labels (step_perm, the label mapping of this encoding) so each tip still points to its piece.
     std::vector<int32_t> step_perm(K);
     queue_shuffle_rooted(c1_r.data(), c2_r.data(), K, flip_mode, v.data(), step_perm.data());
     std::vector<int32_t> new_perm(K);
