@@ -34,11 +34,6 @@ class NoMoveKernels : public WindowKernels {
         std::fill(best_delta.begin(), best_delta.end(), 1e30);
         std::fill(best_j.begin(), best_j.end(), -1);
     }
-    void exact_distances(const std::vector<int32_t> &pair_a, const std::vector<int32_t> &, const int32_t *,
-                         const int32_t *, const float *, std::vector<double> &out) override {
-        out.assign(pair_a.size(), 0.0);
-    }
-    void read_distances(std::vector<double> &D) override { D.clear(); }
 };
 
 class FailingDevice : public Device {

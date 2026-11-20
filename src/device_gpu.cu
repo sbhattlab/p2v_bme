@@ -3,7 +3,7 @@
  *
  * The GPU device: every CUDA kernel and CUDA call of the package. Alignment copies (and start-tree
  * subsamples), the window workspace, the window solve (condensed K x K distances, discrete gradient, batched
- * moves, the exact acceptance check), the nearest-sample search and the edge-length pass. Distances: the run's
+ * moves), the nearest-sample search and the edge-length pass. Distances: the run's
  * model (set_distance; JC69 by default) from the 5-bitplane alignment, by the per-pair formulas of
  * substitution_models.hpp and eigen_dist.hpp. JC69 needs two counts per pair (shared valid sites, matches) and
  * has tiled kernels; the other models need the 16 pair counts and take the per-pair path of each kernel.
@@ -322,428 +322,6 @@ __global__ __launch_bounds__(256) void k_build_condensed_D_heavy_tiled(
     if (tid == 0) {
         d_D_cond[(size_t)a * K + b] = d_val;
         d_D_cond[(size_t)b * K + a] = d_val;
-    }
-}
-
-// Block-parallel exact refinement of selected piece pairs (a, b) using uncapped dyadic profiles (d_exact_offsets,
-// d_exact_leaves, d_exact_weights) and on-the-fly JC69 popcount distances.
-// Uses shared-memory staged, k-sliced, 4x4 register-tiled evaluation with adaptive A-tile heights (16, 32, 48, 64) and
-// multi-pair packing across consecutive pairs sharing the same right-hand profile b, updating d_D_cond[a * K + b],
-// d_D_cond[b * K + a], and d_pair_exact_D[pid].
-template <bool JC>
-__global__ __launch_bounds__(256, 2) void k_refine_real_seq_condensed_D_pairs(
-    int32_t K, int32_t W, int32_t n_pairs, const int32_t *__restrict__ d_pair_a, const int32_t *__restrict__ d_pair_b,
-    const int32_t *__restrict__ d_exact_offsets, const int32_t *__restrict__ d_exact_leaves,
-    const float *__restrict__ d_exact_weights, const uint64_t *__restrict__ d_packed_seqs, float *__restrict__ d_D_cond,
-    double *__restrict__ d_pair_exact_D, DeviceDistance dm) {
-    const int32_t tid = (int32_t)threadIdx.x;
-    const int32_t pid = (int32_t)blockIdx.x;
-    if (pid >= n_pairs)
-        return;
-
-    constexpr int32_t BM = 64, BN = 64, TY = 16, TX = 16, RJ = 4;
-    constexpr int32_t SW = 25, PA = BM + 1, PB = BN + 1;
-    constexpr int32_t MAX_CAP_A = 128;
-    const int32_t nsl = W / 5;
-    const int32_t stride_x = 5 * W;
-    const int32_t c_step = W - 5;
-
-    __shared__ uint64_t sA[SW * PA];
-    __shared__ uint64_t sB[SW * PB];
-    __shared__ int32_t s_win_a[64];
-    __shared__ int32_t s_win_b[64];
-    __shared__ int32_t s_win_oa[64];
-    __shared__ int32_t s_win_la[64];
-    __shared__ int32_t s_win_ob[64];
-    __shared__ int32_t s_win_lb[64];
-    __shared__ int32_t s_pack_leaf_a[MAX_CAP_A];
-    __shared__ double s_pack_wa[MAX_CAP_A];
-    __shared__ uint8_t s_pack_pidx[MAX_CAP_A];
-    __shared__ double s_pair_sum[64];
-    __shared__ int32_t s_leaf_a[BM];
-    __shared__ double s_wa[BM];
-    __shared__ int32_t s_leaf_b[BN];
-    __shared__ double s_wb[BN];
-    __shared__ double s_row_sum[BM];
-    __shared__ int32_t s_meta[6];
-
-    // Per-pair path: models other than JC69, and word counts the tiled path does not handle
-    if (!JC || W <= 0 || (W % 5) != 0) {
-        int32_t a = d_pair_a[pid];
-        int32_t b = d_pair_b[pid];
-        int32_t off_a = d_exact_offsets[a], end_a = d_exact_offsets[a + 1];
-        int32_t off_b = d_exact_offsets[b], end_b = d_exact_offsets[b + 1];
-        int32_t len_b = end_b - off_b;
-        int64_t total_ij = (int64_t)(end_a - off_a) * (int64_t)len_b;
-        double my_sum = 0.0;
-        for (int64_t idx = tid; idx < total_ij; idx += 256) {
-            int32_t p = off_a + (int32_t)(idx / len_b);
-            int32_t q = off_b + (int32_t)(idx % len_b);
-            float wp = d_exact_weights[p], wq = d_exact_weights[q];
-            if (wp == 0.0f || wq == 0.0f)
-                continue;
-            int32_t lx = d_exact_leaves[p], ly = d_exact_leaves[q];
-            float d_jc = 0.0f;
-            if constexpr (!JC) {
-                if (lx != ly)
-                    d_jc = dev_model_dist(lx, ly, d_packed_seqs, W, dm);
-            } else if (lx != ly) {
-                const uint64_t *sx = d_packed_seqs + (size_t)lx * (5 * W);
-                const uint64_t *sy = d_packed_seqs + (size_t)ly * (5 * W);
-                int32_t n_valid = 0, n_match = 0;
-#pragma unroll 1
-                for (int32_t w = 0; w < W; ++w) {
-                    n_valid += __popcll(sx[4 * W + w] & sy[4 * W + w]);
-                    n_match += __popcll((sx[0 * W + w] & sy[0 * W + w]) | (sx[1 * W + w] & sy[1 * W + w]) |
-                                        (sx[2 * W + w] & sy[2 * W + w]) | (sx[3 * W + w] & sy[3 * W + w]));
-                }
-                d_jc = jc69_distance<float>(n_valid, n_match);
-            }
-            my_sum += ((double)wp * (double)wq) * (double)d_jc;
-        }
-        double *s_red = reinterpret_cast<double *>(sA);
-        s_red[tid] = my_sum;
-        __syncthreads();
-        for (int32_t s = 128; s > 0; s >>= 1) {
-            if (tid < s)
-                s_red[tid] += s_red[tid + s];
-            __syncthreads();
-        }
-        if (tid == 0) {
-            if (d_pair_exact_D != NULL)
-                d_pair_exact_D[pid] = s_red[0];
-            if (d_D_cond != NULL && a < K && b < K) {
-                float fv = (float)s_red[0];
-                d_D_cond[(size_t)a * K + b] = fv;
-                d_D_cond[(size_t)b * K + a] = fv;
-            }
-        }
-        return;
-    }
-
-    const int32_t ws = pid & ~63;
-    const int32_t we = (ws + 64 < n_pairs) ? (ws + 64) : n_pairs;
-    const int32_t wlen = we - ws;
-    if (tid < wlen) {
-        int32_t ak = d_pair_a[ws + tid];
-        int32_t bk = d_pair_b[ws + tid];
-        int32_t oa = d_exact_offsets[ak];
-        int32_t ea = d_exact_offsets[ak + 1];
-        int32_t ob = d_exact_offsets[bk];
-        int32_t eb = d_exact_offsets[bk + 1];
-        s_win_a[tid] = ak;
-        s_win_b[tid] = bk;
-        s_win_oa[tid] = oa;
-        s_win_la[tid] = ea - oa;
-        s_win_ob[tid] = ob;
-        s_win_lb[tid] = eb - ob;
-    }
-    __syncthreads();
-
-    const int32_t my_idx = pid - ws;
-    int32_t lead_idx = my_idx, pack_m = 1, total_a = 0;
-    int32_t cur = 0;
-    while (cur < wlen) {
-        int32_t b_cur = s_win_b[cur];
-        int32_t lb_cur = s_win_lb[cur];
-        int32_t la_cur = s_win_la[cur];
-        int32_t cap_a = (n_pairs >= 4096) ? 64 : ((n_pairs >= 2048) ? 32 : 16);
-        if (lb_cur <= 512) {
-            cap_a = (n_pairs >= 2048) ? MAX_CAP_A : 64;
-        }
-        int32_t m = 1;
-        int32_t sum_a = la_cur;
-        if (la_cur > 0 && la_cur <= lb_cur && la_cur < cap_a) {
-            while (cur + m < wlen) {
-                int32_t b_nxt = s_win_b[cur + m];
-                int32_t la_nxt = s_win_la[cur + m];
-                if (b_nxt != b_cur || la_nxt <= 0 || la_nxt > lb_cur || sum_a + la_nxt > cap_a)
-                    break;
-                sum_a += la_nxt;
-                ++m;
-            }
-        }
-        if (my_idx >= cur && my_idx < cur + m) {
-            lead_idx = cur;
-            pack_m = m;
-            total_a = sum_a;
-            break;
-        }
-        cur += m;
-    }
-    if (my_idx != lead_idx)
-        return;
-
-    int32_t off_a0 = s_win_oa[lead_idx];
-    int32_t len_a0 = s_win_la[lead_idx];
-    int32_t off_b0 = s_win_ob[lead_idx];
-    int32_t len_b0 = s_win_lb[lead_idx];
-    if (pack_m == 1) {
-        if (len_a0 > len_b0) {
-            int32_t t;
-            t = off_a0;
-            off_a0 = off_b0;
-            off_b0 = t;
-            t = len_a0;
-            len_a0 = len_b0;
-            len_b0 = t;
-        }
-        total_a = len_a0;
-    }
-    if (tid < pack_m) {
-        s_pair_sum[tid] = 0.0;
-    }
-    if (total_a <= 0 || len_b0 <= 0) {
-        if (tid < pack_m) {
-            int32_t gpid = ws + lead_idx + tid;
-            int32_t ak = s_win_a[lead_idx + tid];
-            int32_t bk = s_win_b[lead_idx + tid];
-            if (d_pair_exact_D != NULL)
-                d_pair_exact_D[gpid] = 0.0;
-            if (d_D_cond != NULL && ak < K && bk < K) {
-                d_D_cond[(size_t)ak * K + bk] = 0.0f;
-                d_D_cond[(size_t)bk * K + ak] = 0.0f;
-            }
-        }
-        return;
-    }
-
-    if (tid == 0) {
-        s_meta[0] = lead_idx;
-        s_meta[1] = pack_m;
-        s_meta[2] = total_a;
-        s_meta[3] = off_a0;
-        s_meta[4] = off_b0;
-        s_meta[5] = len_b0;
-    }
-    if (pack_m > 1 && tid < total_a) {
-        int32_t rem = tid;
-        int32_t p = 0;
-        while (p + 1 < pack_m) {
-            int32_t la_p = s_win_la[lead_idx + p];
-            if (rem < la_p)
-                break;
-            rem -= la_p;
-            ++p;
-        }
-        int32_t src_idx = s_win_oa[lead_idx + p] + rem;
-        float w = d_exact_weights[src_idx];
-        s_pack_leaf_a[tid] = (w != 0.0f) ? d_exact_leaves[src_idx] : -1;
-        s_pack_wa[tid] = (double)w;
-        s_pack_pidx[tid] = (uint8_t)p;
-    }
-    __syncthreads();
-
-    const int32_t tx = tid & 15;
-    const int32_t ty = tid >> 4;
-
-#define NK_WL_STEP(RI, ASTRIDE, ABASE, wl)                                                                             \
-    {                                                                                                                  \
-        uint64_t a_reg[RI], b_reg[RJ];                                                                                 \
-        const int32_t kv = 20 + (wl);                                                                                  \
-        _Pragma("unroll") for (int32_t i = 0; i < (RI); ++i) a_reg[i] = sA[((ABASE) + kv) * (ASTRIDE) + ty + TY * i];  \
-        _Pragma("unroll") for (int32_t j = 0; j < RJ; ++j) b_reg[j] = sB[kv * PB + tx + TX * j];                       \
-        _Pragma("unroll") for (int32_t i = 0; i < (RI); ++i) _Pragma("unroll") for (int32_t j = 0; j < RJ; ++j)        \
-            nv[i][j] += __popcll(a_reg[i] & b_reg[j]);                                                                 \
-        uint64_t m_reg[RI][RJ];                                                                                        \
-        _Pragma("unroll") for (int32_t c = 0; c < 4; ++c) {                                                            \
-            const int32_t kc = c * 5 + (wl);                                                                           \
-            _Pragma("unroll") for (int32_t i = 0; i < (RI); ++i) a_reg[i] =                                            \
-                sA[((ABASE) + kc) * (ASTRIDE) + ty + TY * i];                                                          \
-            _Pragma("unroll") for (int32_t j = 0; j < RJ; ++j) b_reg[j] = sB[kc * PB + tx + TX * j];                   \
-            _Pragma("unroll") for (int32_t i = 0; i < (RI); ++i) _Pragma("unroll") for (int32_t j = 0; j < RJ; ++j)    \
-                m_reg[i][j] = (c == 0) ? (a_reg[i] & b_reg[j]) : (m_reg[i][j] | (a_reg[i] & b_reg[j]));                \
-        }                                                                                                              \
-        _Pragma("unroll") for (int32_t i = 0; i < (RI); ++i) _Pragma("unroll") for (int32_t j = 0; j < RJ; ++j)        \
-            nm[i][j] += __popcll(m_reg[i][j]);                                                                         \
-    }
-
-#define NK_RUN_ATILE_16()                                                                                              \
-    {                                                                                                                  \
-        double acc0 = 0.0;                                                                                             \
-        _Pragma("unroll 1") for (int32_t q0 = 0; q0 < s_meta[5]; q0 += BN) {                                           \
-            const int32_t tile_b = (s_meta[5] - q0 < BN) ? (s_meta[5] - q0) : BN;                                      \
-            __syncthreads();                                                                                           \
-            if (tid < BN) {                                                                                            \
-                if (tid < tile_b) {                                                                                    \
-                    float w = d_exact_weights[s_meta[4] + q0 + tid];                                                   \
-                    s_leaf_b[tid] = (w != 0.0f) ? d_exact_leaves[s_meta[4] + q0 + tid] : -1;                           \
-                    s_wb[tid] = (double)w;                                                                             \
-                } else {                                                                                               \
-                    s_leaf_b[tid] = -1;                                                                                \
-                    s_wb[tid] = 0.0;                                                                                   \
-                }                                                                                                      \
-            }                                                                                                          \
-            uint32_t nv[1][RJ], nm[1][RJ];                                                                             \
-            _Pragma("unroll") for (int32_t j = 0; j < RJ; ++j) {                                                       \
-                nv[0][j] = 0u;                                                                                         \
-                nm[0][j] = 0u;                                                                                         \
-            }                                                                                                          \
-            _Pragma("unroll 1") for (int32_t s = 0; s < nsl; ++s) {                                                    \
-                __syncthreads();                                                                                       \
-                _Pragma("unroll 1") for (int32_t idx = tid; idx < 16 * SW; idx += 256) {                               \
-                    int32_t r = idx / SW;                                                                              \
-                    int32_t k = idx - r * SW;                                                                          \
-                    int32_t c = k / 5;                                                                                 \
-                    int32_t la = s_leaf_a[r];                                                                          \
-                    sA[k * PA + r] =                                                                                   \
-                        (la >= 0) ? __ldg(&d_packed_seqs[(size_t)la * stride_x + s * 5 + c * c_step + k]) : 0ULL;      \
-                }                                                                                                      \
-                _Pragma("unroll 1") for (int32_t idx = tid; idx < BN * SW; idx += 256) {                               \
-                    int32_t r = idx / SW;                                                                              \
-                    int32_t k = idx - r * SW;                                                                          \
-                    int32_t c = k / 5;                                                                                 \
-                    int32_t lb = s_leaf_b[r];                                                                          \
-                    sB[k * PB + r] =                                                                                   \
-                        (lb >= 0) ? __ldg(&d_packed_seqs[(size_t)lb * stride_x + s * 5 + c * c_step + k]) : 0ULL;      \
-                }                                                                                                      \
-                __syncthreads();                                                                                       \
-                NK_WL_STEP(1, PA, 0, 0)                                                                                \
-                NK_WL_STEP(1, PA, 0, 1)                                                                                \
-                NK_WL_STEP(1, PA, 0, 2)                                                                                \
-                NK_WL_STEP(1, PA, 0, 3)                                                                                \
-                NK_WL_STEP(1, PA, 0, 4)                                                                                \
-            }                                                                                                          \
-            _Pragma("unroll") for (int32_t j = 0; j < RJ; ++j) {                                                       \
-                const double wq = s_wb[tx + TX * j];                                                                   \
-                const float d_jc = jc69_distance<float>((int32_t)nv[0][j], (int32_t)nm[0][j]);                         \
-                acc0 += wq * (double)d_jc;                                                                             \
-            }                                                                                                          \
-        }                                                                                                              \
-        _Pragma("unroll") for (int32_t offset = 8; offset > 0; offset >>= 1) {                                         \
-            acc0 += __shfl_down_sync(0xffffffffu, acc0, offset);                                                       \
-        }                                                                                                              \
-        if (tx == 0 && ty < tile_a) {                                                                                  \
-            s_row_sum[ty] = s_wa[ty] * acc0;                                                                           \
-        }                                                                                                              \
-    }
-
-#define NK_RUN_ATILE_64(RI)                                                                                            \
-    {                                                                                                                  \
-        double acc[RI];                                                                                                \
-        _Pragma("unroll") for (int32_t i = 0; i < (RI); ++i) acc[i] = 0.0;                                             \
-        _Pragma("unroll 1") for (int32_t q0 = 0; q0 < s_meta[5]; q0 += BN) {                                           \
-            const int32_t tile_b = (s_meta[5] - q0 < BN) ? (s_meta[5] - q0) : BN;                                      \
-            __syncthreads();                                                                                           \
-            if (tid < BN) {                                                                                            \
-                if (tid < tile_b) {                                                                                    \
-                    float w = d_exact_weights[s_meta[4] + q0 + tid];                                                   \
-                    s_leaf_b[tid] = (w != 0.0f) ? d_exact_leaves[s_meta[4] + q0 + tid] : -1;                           \
-                    s_wb[tid] = (double)w;                                                                             \
-                } else {                                                                                               \
-                    s_leaf_b[tid] = -1;                                                                                \
-                    s_wb[tid] = 0.0;                                                                                   \
-                }                                                                                                      \
-            }                                                                                                          \
-            uint32_t nv[RI][RJ], nm[RI][RJ];                                                                           \
-            _Pragma("unroll") for (int32_t i = 0; i < (RI); ++i) _Pragma("unroll") for (int32_t j = 0; j < RJ; ++j) {  \
-                nv[i][j] = 0u;                                                                                         \
-                nm[i][j] = 0u;                                                                                         \
-            }                                                                                                          \
-            _Pragma("unroll 1") for (int32_t s = 0; s < nsl; ++s) {                                                    \
-                __syncthreads();                                                                                       \
-                _Pragma("unroll 1") for (int32_t idx = tid; idx < (RI) * 16 * SW; idx += 256) {                        \
-                    int32_t r = idx / SW;                                                                              \
-                    int32_t k = idx - r * SW;                                                                          \
-                    int32_t c = k / 5;                                                                                 \
-                    int32_t la = s_leaf_a[r];                                                                          \
-                    sA[k * PA + r] =                                                                                   \
-                        (la >= 0) ? __ldg(&d_packed_seqs[(size_t)la * stride_x + s * 5 + c * c_step + k]) : 0ULL;      \
-                }                                                                                                      \
-                _Pragma("unroll 1") for (int32_t idx = tid; idx < BN * SW; idx += 256) {                               \
-                    int32_t r = idx / SW;                                                                              \
-                    int32_t k = idx - r * SW;                                                                          \
-                    int32_t c = k / 5;                                                                                 \
-                    int32_t lb = s_leaf_b[r];                                                                          \
-                    sB[k * PB + r] =                                                                                   \
-                        (lb >= 0) ? __ldg(&d_packed_seqs[(size_t)lb * stride_x + s * 5 + c * c_step + k]) : 0ULL;      \
-                }                                                                                                      \
-                __syncthreads();                                                                                       \
-                NK_WL_STEP(RI, PA, 0, 0)                                                                               \
-                NK_WL_STEP(RI, PA, 0, 1)                                                                               \
-                NK_WL_STEP(RI, PA, 0, 2)                                                                               \
-                NK_WL_STEP(RI, PA, 0, 3)                                                                               \
-                NK_WL_STEP(RI, PA, 0, 4)                                                                               \
-            }                                                                                                          \
-            _Pragma("unroll") for (int32_t j = 0; j < RJ; ++j) {                                                       \
-                const double wq = s_wb[tx + TX * j];                                                                   \
-                _Pragma("unroll") for (int32_t i = 0; i < (RI); ++i) {                                                 \
-                    const float d_jc = jc69_distance<float>((int32_t)nv[i][j], (int32_t)nm[i][j]);                     \
-                    acc[i] += wq * (double)d_jc;                                                                       \
-                }                                                                                                      \
-            }                                                                                                          \
-        }                                                                                                              \
-        _Pragma("unroll") for (int32_t i = 0; i < (RI); ++i) {                                                         \
-            double v = acc[i];                                                                                         \
-            _Pragma("unroll") for (int32_t offset = 8; offset > 0; offset >>= 1) {                                     \
-                v += __shfl_down_sync(0xffffffffu, v, offset);                                                         \
-            }                                                                                                          \
-            int32_t r = ty + TY * i;                                                                                   \
-            if (tx == 0 && r < tile_a) {                                                                               \
-                s_row_sum[r] = s_wa[r] * v;                                                                            \
-            }                                                                                                          \
-        }                                                                                                              \
-    }
-
-#pragma unroll 1
-    for (int32_t p0 = 0; p0 < s_meta[2]; p0 += BM) {
-        const int32_t tile_a = (s_meta[2] - p0 < BM) ? (s_meta[2] - p0) : BM;
-        if (tid < BM) {
-            if (tid < tile_a) {
-                if (s_meta[1] == 1) {
-                    float w = d_exact_weights[s_meta[3] + p0 + tid];
-                    s_leaf_a[tid] = (w != 0.0f) ? d_exact_leaves[s_meta[3] + p0 + tid] : -1;
-                    s_wa[tid] = (double)w;
-                } else {
-                    s_leaf_a[tid] = s_pack_leaf_a[p0 + tid];
-                    s_wa[tid] = s_pack_wa[p0 + tid];
-                }
-            } else {
-                s_leaf_a[tid] = -1;
-                s_wa[tid] = 0.0;
-            }
-        }
-        __syncthreads();
-
-        if (tile_a <= 16) {
-            NK_RUN_ATILE_16()
-        } else if (tile_a <= 32) {
-            NK_RUN_ATILE_64(2)
-        } else if (tile_a <= 48) {
-            NK_RUN_ATILE_64(3)
-        } else {
-            NK_RUN_ATILE_64(4)
-        }
-        __syncthreads();
-
-        if (tid < s_meta[1]) {
-            double s = s_pair_sum[tid];
-            for (int32_t r = 0; r < tile_a; ++r) {
-                if (s_meta[1] == 1 || s_pack_pidx[p0 + r] == (uint8_t)tid) {
-                    s += s_row_sum[r];
-                }
-            }
-            s_pair_sum[tid] = s;
-        }
-        __syncthreads();
-    }
-
-#undef NK_RUN_ATILE_64
-#undef NK_RUN_ATILE_16
-#undef NK_WL_STEP
-
-    if (tid < s_meta[1]) {
-        int32_t gpid = (pid & ~63) + s_meta[0] + tid;
-        int32_t ak = s_win_a[s_meta[0] + tid];
-        int32_t bk = s_win_b[s_meta[0] + tid];
-        double exact_val = s_pair_sum[tid];
-        if (d_pair_exact_D != NULL)
-            d_pair_exact_D[gpid] = exact_val;
-        if (d_D_cond != NULL && ak < K && bk < K) {
-            float fv = (float)exact_val;
-            d_D_cond[(size_t)ak * K + bk] = fv;
-            d_D_cond[(size_t)bk * K + ak] = fv;
-        }
     }
 }
 
@@ -1600,18 +1178,10 @@ __global__ __launch_bounds__(64) void k_eval_internal_node_triples_tiled(
 struct RnaSimGpuWorkspace {
     int32_t dev_id;
     int32_t max_K;
-    size_t exact_prof_cap;
-    size_t pair_cap;
     cudaStream_t stream = NULL;
     int32_t *d_prof_offsets = NULL;
     int32_t *d_prof_leaves = NULL;
     float *d_prof_weights = NULL;
-    int32_t *d_exact_offsets = NULL;
-    int32_t *d_exact_leaves = NULL;
-    float *d_exact_weights = NULL;
-    int32_t *d_pair_a = NULL;
-    int32_t *d_pair_b = NULL;
-    double *d_pair_exact_D = NULL;
     int32_t *d_perm = NULL;
     float *d_D = NULL;
     float *d_subdist = NULL;
@@ -1628,8 +1198,6 @@ struct RnaSimGpuWorkspace {
     float *d_best_delta = NULL;
     int32_t *d_best_j = NULL;
     double *d_curr_L = NULL;
-    float *d_refine_D_scratch = NULL;
-    bool refine_split_ready;
     // Heavy-pair list for k_build_condensed_D_heavy_tiled (grown on demand).
     int32_t *d_heavy_a = NULL;
     int32_t *d_heavy_b = NULL;
@@ -1639,27 +1207,17 @@ struct RnaSimGpuWorkspace {
     void init(int32_t gpu_id, int32_t K_cap) {
         dev_id = gpu_id;
         max_K = K_cap;
-        d_refine_D_scratch = NULL;
-        refine_split_ready = false;
         d_heavy_a = NULL;
         d_heavy_b = NULL;
         heavy_cap = 0;
         int32_t R = 2 * K_cap - 1;
         int32_t M = 2 * K_cap - 2;
         size_t prof_cap = std::max((size_t)256 * (size_t)K_cap, (size_t)4096);
-        exact_prof_cap = std::max(prof_cap, (size_t)16384);
-        pair_cap = (size_t)K_cap * (size_t)K_cap / 2 + 16;
         CUDA_CHECK(cudaSetDevice(dev_id));
         CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
         gpu_alloc(&d_prof_offsets, (size_t)(K_cap + 1) * sizeof(int32_t));
         gpu_alloc(&d_prof_leaves, prof_cap * sizeof(int32_t));
         gpu_alloc(&d_prof_weights, prof_cap * sizeof(float));
-        gpu_alloc(&d_exact_offsets, (size_t)(K_cap + 1) * sizeof(int32_t));
-        gpu_alloc(&d_exact_leaves, exact_prof_cap * sizeof(int32_t));
-        gpu_alloc(&d_exact_weights, exact_prof_cap * sizeof(float));
-        gpu_alloc(&d_pair_a, pair_cap * sizeof(int32_t));
-        gpu_alloc(&d_pair_b, pair_cap * sizeof(int32_t));
-        gpu_alloc(&d_pair_exact_D, pair_cap * sizeof(double));
         gpu_alloc(&d_perm, (size_t)K_cap * sizeof(int32_t));
         gpu_alloc(&d_D, (size_t)K_cap * K_cap * sizeof(float));
         gpu_alloc(&d_subdist, (size_t)M * M * sizeof(float));
@@ -1679,47 +1237,6 @@ struct RnaSimGpuWorkspace {
         CUDA_CHECK(cudaFuncSetAttribute(k_spr_rows_top1, cudaFuncAttributeMaxDynamicSharedMemorySize, 90112));
     }
 
-    void ensure_exact_prof_cap(size_t needed) {
-        if (needed > exact_prof_cap) {
-            CUDA_CHECK(cudaSetDevice(dev_id));
-            CUDA_CHECK(cudaStreamSynchronize(stream));
-            // freed pointers are cleared and the capacity set only once allocated, so a failed allocation leaves
-            // nothing for destroy() to free twice
-            cudaFree(d_exact_leaves);
-            cudaFree(d_exact_weights);
-            d_exact_leaves = NULL;
-            d_exact_weights = NULL;
-            exact_prof_cap = 0;
-            const size_t new_cap = needed + 4096;
-            gpu_alloc(&d_exact_leaves, new_cap * sizeof(int32_t));
-            gpu_alloc(&d_exact_weights, new_cap * sizeof(float));
-            exact_prof_cap = new_cap;
-        }
-        if (!refine_split_ready) {
-            // Room for the load-balanced exact refinement in optimize_skeleton_on_gpu: up to 4 * max_K virtual CSR
-            // slots and appended launch pairs, plus a D scratch matrix the refinement kernel writes at indices
-            // a * K + b and b * K + a with a, b < 5 * K.
-            // Allocated on first use, so workspaces that never refine exactly do not pay for it.
-            CUDA_CHECK(cudaSetDevice(dev_id));
-            CUDA_CHECK(cudaStreamSynchronize(stream));
-            size_t extra = (size_t)4 * (size_t)max_K;
-            cudaFree(d_exact_offsets);
-            cudaFree(d_pair_a);
-            cudaFree(d_pair_b);
-            cudaFree(d_pair_exact_D);
-            d_exact_offsets = d_pair_a = d_pair_b = NULL;
-            d_pair_exact_D = NULL;
-            const size_t new_pair_cap = pair_cap + extra;
-            gpu_alloc(&d_exact_offsets, ((size_t)max_K + 1 + extra) * sizeof(int32_t));
-            gpu_alloc(&d_pair_a, new_pair_cap * sizeof(int32_t));
-            gpu_alloc(&d_pair_b, new_pair_cap * sizeof(int32_t));
-            gpu_alloc(&d_pair_exact_D, new_pair_cap * sizeof(double));
-            pair_cap = new_pair_cap;
-            gpu_alloc(&d_refine_D_scratch, (size_t)5 * (size_t)max_K * ((size_t)max_K + 1) * sizeof(float));
-            refine_split_ready = true;
-        }
-    }
-
     // Frees everything allocated so far (also after a failed init); never throws.
     void destroy() noexcept {
         cudaSetDevice(dev_id);
@@ -1729,12 +1246,6 @@ struct RnaSimGpuWorkspace {
         cudaFree(d_prof_offsets);
         cudaFree(d_prof_leaves);
         cudaFree(d_prof_weights);
-        cudaFree(d_exact_offsets);
-        cudaFree(d_exact_leaves);
-        cudaFree(d_exact_weights);
-        cudaFree(d_pair_a);
-        cudaFree(d_pair_b);
-        cudaFree(d_pair_exact_D);
         cudaFree(d_perm);
         cudaFree(d_D);
         cudaFree(d_subdist);
@@ -1751,9 +1262,6 @@ struct RnaSimGpuWorkspace {
         cudaFree(d_best_delta);
         cudaFree(d_best_j);
         cudaFree(d_curr_L);
-        cudaFree(d_refine_D_scratch);
-        d_refine_D_scratch = NULL;
-        refine_split_ready = false;
         cudaFree(d_heavy_a);
         cudaFree(d_heavy_b);
         d_heavy_a = d_heavy_b = NULL;
@@ -1761,8 +1269,8 @@ struct RnaSimGpuWorkspace {
     }
 };
 
-// The GPU parts of a window solve; the sweeps of batched moves and the exact check's bookkeeping are
-// solve_window_host's (search.cpp), shared with the CPU device.
+// The GPU parts of a window solve; the sweeps of batched moves are solve_window_host's (search.cpp), shared with the
+// CPU device.
 class GpuWindowKernels final : public WindowKernels {
   public:
     GpuWindowKernels(RnaSimGpuWorkspace &ws, const uint64_t *seqs, int32_t n_words, const DeviceDistance &model)
@@ -1896,179 +1404,6 @@ class GpuWindowKernels final : public WindowKernels {
         // rows 0 and K - 1 have no move (the kernel leaves them unwritten)
         best_delta[0] = best_delta[K - 1] = 1e30;
         h_best_j[0] = h_best_j[K - 1] = -1;
-    }
-
-    void exact_distances(const std::vector<int32_t> &pair_a, const std::vector<int32_t> &pair_b,
-                         const int32_t *exact_profile_offsets, const int32_t *exact_profile_leaves,
-                         const float *exact_profile_weights, std::vector<double> &h_pair_exact_D) override {
-        h_pair_exact_D.assign(pair_a.size(), 0.0);
-        if (pair_a.empty())
-            return;
-        int32_t n_pairs = (int32_t)pair_a.size();
-        int32_t total_exact_prof = exact_profile_offsets[K];
-        gpu_ws.ensure_exact_prof_cap((size_t)total_exact_prof);
-
-        // Load balancing.
-        // The refinement kernel runs one 256-thread block per launch pair, so a capped pair with ~1e9 leaf pairs would
-        // occupy one SM while the rest of the GPU idles.
-        // Such pairs are split into row chunks of their smaller exact profile.
-        // Each chunk is a virtual piece id >= K + 1 whose CSR range in refine_offsets points into the same exact
-        // leaf and weight arrays.
-        // Chunk 0 takes the pair's own launch slot, chunks 1..c-1 are appended after n_pairs, and the chunk sums are
-        // added back per pair in a fixed order, so results are deterministic.
-        // With a split, d_exact_offsets receives K + 1 + slots entries, the launch has n_launch > n_pairs slots, and D
-        // is written to the scratch matrix because virtual ids fall outside the K x K layout of d_D.
-        // Without a heavy pair the launch equals the unsplit one.
-        std::vector<int32_t> launch_a(pair_a), launch_b(pair_b), chunk_owner;
-        std::vector<int32_t> refine_offsets;
-        {
-            const double chunk_leaf_pairs = 4194304.0;  // target leaf pairs per block
-            const int64_t b_chunk_target = 6144;        // ~6-8k leaf B-chunks sized for L2 cache
-            const int64_t max_virtual = (int64_t)4 * K; // slots reserved by ensure_exact_prof_cap
-            std::vector<int32_t> heavy_pid, heavy_small, heavy_large;
-            std::vector<int64_t> heavy_rows;
-            std::vector<std::vector<int32_t>> b_split_pids((size_t)K);
-            std::vector<int32_t> b_split_profs;
-            for (int32_t pid = 0; pid < n_pairs; ++pid) {
-                int32_t u = pair_a[pid], v = pair_b[pid];
-                int64_t lu = exact_profile_offsets[u + 1] - exact_profile_offsets[u];
-                int64_t lv = exact_profile_offsets[v + 1] - exact_profile_offsets[v];
-                int32_t s = (lu <= lv) ? u : v;
-                int32_t l = (lu <= lv) ? v : u;
-                int64_t ls = std::min(lu, lv), ll = std::max(lu, lv);
-                int64_t b_c =
-                    (ll > b_chunk_target) ? std::min((int64_t)16, (ll + b_chunk_target - 1) / b_chunk_target) : 1;
-                int64_t b_rows = (b_c >= 2) ? ((((ll + b_c - 1) / b_c) + 63) & ~(int64_t)63) : ll;
-                if (b_c >= 2 && (double)ls * (double)b_rows <= 2.0 * chunk_leaf_pairs) {
-                    if (b_split_pids[l].empty())
-                        b_split_profs.push_back(l);
-                    b_split_pids[l].push_back(pid);
-                } else if (ls >= 32 && (double)ls * (double)ll > 2.0 * chunk_leaf_pairs) {
-                    int64_t rows = (int64_t)std::ceil(chunk_leaf_pairs / (double)ll);
-                    rows = std::max((int64_t)16, ((rows + 15) / 16) * 16);
-                    heavy_pid.push_back(pid);
-                    heavy_small.push_back(s);
-                    heavy_large.push_back(l);
-                    heavy_rows.push_back(rows);
-                }
-            }
-            int64_t b_slots = 0, b_extra_pairs = 0;
-            for (int32_t l : b_split_profs) {
-                int64_t ll = exact_profile_offsets[l + 1] - exact_profile_offsets[l];
-                int64_t b_c = std::min((int64_t)16, (ll + b_chunk_target - 1) / b_chunk_target);
-                int64_t b_rows = (((ll + b_c - 1) / b_c) + 63) & ~(int64_t)63;
-                int64_t c = (ll + b_rows - 1) / b_rows;
-                if (c >= 2) {
-                    b_slots += c + 1;
-                    b_extra_pairs += (c - 1) * (int64_t)b_split_pids[l].size();
-                }
-            }
-            int64_t slots = 0, extra_pairs = 0;
-            for (int32_t pass = 0; pass < 64; ++pass) {
-                slots = b_slots;
-                extra_pairs = b_extra_pairs;
-                for (size_t h = 0; h < heavy_pid.size(); ++h) {
-                    int32_t s = heavy_small[h];
-                    int64_t ls = exact_profile_offsets[s + 1] - exact_profile_offsets[s];
-                    int64_t c = (ls + heavy_rows[h] - 1) / heavy_rows[h];
-                    if (c >= 2) {
-                        slots += c + 1;
-                        extra_pairs += c - 1;
-                    }
-                }
-                if (slots <= max_virtual)
-                    break;
-                for (size_t h = 0; h < heavy_rows.size(); ++h)
-                    heavy_rows[h] *= 2;
-            }
-            if (slots > 0 && slots <= max_virtual &&
-                (size_t)(n_pairs + extra_pairs) <= (size_t)K * (size_t)K / 2 + 16 + (size_t)4 * K) {
-                refine_offsets.assign(exact_profile_offsets, exact_profile_offsets + K + 1);
-                for (size_t h = 0; h < heavy_pid.size(); ++h) {
-                    int32_t pid = heavy_pid[h], s = heavy_small[h], l = heavy_large[h];
-                    int64_t o0 = exact_profile_offsets[s], o1 = exact_profile_offsets[s + 1];
-                    int64_t rows = heavy_rows[h];
-                    int64_t c = (o1 - o0 + rows - 1) / rows;
-                    if (c < 2)
-                        continue;
-                    int32_t base = (int32_t)refine_offsets.size();
-                    for (int64_t j = 0; j < c; ++j)
-                        refine_offsets.push_back((int32_t)(o0 + j * rows));
-                    refine_offsets.push_back((int32_t)o1);
-                    if (launch_a[pid] == s)
-                        launch_a[pid] = base;
-                    else
-                        launch_b[pid] = base;
-                    for (int64_t j = 1; j < c; ++j) {
-                        launch_a.push_back(base + (int32_t)j);
-                        launch_b.push_back(l);
-                        chunk_owner.push_back(pid);
-                    }
-                }
-                for (int32_t l : b_split_profs) {
-                    int64_t o0 = exact_profile_offsets[l], o1 = exact_profile_offsets[l + 1];
-                    int64_t ll = o1 - o0;
-                    int64_t b_c = std::min((int64_t)16, (ll + b_chunk_target - 1) / b_chunk_target);
-                    int64_t b_rows = (((ll + b_c - 1) / b_c) + 63) & ~(int64_t)63;
-                    int64_t c = (ll + b_rows - 1) / b_rows;
-                    if (c < 2)
-                        continue;
-                    int32_t base = (int32_t)refine_offsets.size();
-                    for (int64_t j = 0; j < c; ++j)
-                        refine_offsets.push_back((int32_t)(o0 + j * b_rows));
-                    refine_offsets.push_back((int32_t)o1);
-                    for (int32_t pid : b_split_pids[l]) {
-                        int32_t s_pid = (launch_a[pid] == l) ? launch_b[pid] : launch_a[pid];
-                        launch_a[pid] = s_pid;
-                        launch_b[pid] = base;
-                    }
-                    for (int64_t j = 1; j < c; ++j) {
-                        for (int32_t pid : b_split_pids[l]) {
-                            launch_a.push_back(launch_a[pid]);
-                            launch_b.push_back(base + (int32_t)j);
-                            chunk_owner.push_back(pid);
-                        }
-                    }
-                }
-            }
-        }
-        const int32_t n_launch = (int32_t)launch_a.size();
-        const bool split_pairs = !refine_offsets.empty();
-
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_exact_offsets, split_pairs ? refine_offsets.data() : exact_profile_offsets,
-                                   (split_pairs ? refine_offsets.size() : (size_t)(K + 1)) * sizeof(int32_t),
-                                   cudaMemcpyHostToDevice, gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_exact_leaves, exact_profile_leaves,
-                                   (size_t)total_exact_prof * sizeof(int32_t), cudaMemcpyHostToDevice, gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_exact_weights, exact_profile_weights,
-                                   (size_t)total_exact_prof * sizeof(float), cudaMemcpyHostToDevice, gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_pair_a, launch_a.data(), (size_t)n_launch * sizeof(int32_t),
-                                   cudaMemcpyHostToDevice, gpu_ws.stream));
-        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_pair_b, launch_b.data(), (size_t)n_launch * sizeof(int32_t),
-                                   cudaMemcpyHostToDevice, gpu_ws.stream));
-
-        auto refine = jc69 ? k_refine_real_seq_condensed_D_pairs<true> : k_refine_real_seq_condensed_D_pairs<false>;
-        refine<<<n_launch, 256, 0, gpu_ws.stream>>>(
-            K, W, n_launch, gpu_ws.d_pair_a, gpu_ws.d_pair_b, gpu_ws.d_exact_offsets, gpu_ws.d_exact_leaves,
-            gpu_ws.d_exact_weights, d_packed_seqs, split_pairs ? gpu_ws.d_refine_D_scratch : gpu_ws.d_D,
-            gpu_ws.d_pair_exact_D, dm);
-        CUDA_CHECK(cudaGetLastError());
-        std::vector<double> h_launch_exact_D((size_t)n_launch, 0.0);
-        CUDA_CHECK(cudaMemcpyAsync(h_launch_exact_D.data(), gpu_ws.d_pair_exact_D, (size_t)n_launch * sizeof(double),
-                                   cudaMemcpyDeviceToHost, gpu_ws.stream));
-        CUDA_CHECK(cudaStreamSynchronize(gpu_ws.stream));
-        for (int32_t pid = 0; pid < n_pairs; ++pid)
-            h_pair_exact_D[pid] = h_launch_exact_D[pid];
-        for (int32_t t = n_pairs; t < n_launch; ++t)
-            h_pair_exact_D[chunk_owner[t - n_pairs]] += h_launch_exact_D[t];
-    }
-
-    void read_distances(std::vector<double> &D) override {
-        std::vector<float> h_D_cond((size_t)K * K);
-        CUDA_CHECK(cudaMemcpyAsync(h_D_cond.data(), gpu_ws.d_D, (size_t)K * K * sizeof(float), cudaMemcpyDeviceToHost,
-                                   gpu_ws.stream));
-        CUDA_CHECK(cudaStreamSynchronize(gpu_ws.stream));
-        D.assign(h_D_cond.begin(), h_D_cond.end()); // exact: float to double
     }
 
   private:

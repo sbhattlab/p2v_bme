@@ -6,13 +6,12 @@
  * --precision double. One CpuDevice per worker (--devices N: N workers); a step uses the run's threads when it
  * runs alone and one thread when several devices work in parallel (inside the search's parallel region).
  *
- * The window solve's sweeps and exact check are search.cpp's solve_window_host; here are its kernels, ported
+ * The window solve's sweeps are search.cpp's solve_window_host; here are its kernels, ported
  * from the GPU kernels value for value (up to floating-point contraction and summation order): the window
  * distances (k_build_real_seq_condensed_D's summation order), the subtree averages and BME length of a
  * skeleton (k_copy_leaf_rows_perm ... k_compute_bme_length), each row's best move (k_spr_rows_top1: the seeds
- * of dev_seed_half_tree_fifo, then dev_expand_subtree_stack's step on each internal node, depth-first here), and
- * the exact check's pair distances. Without CUDA this file also provides the GPU entry points of device.hpp,
- * which then report that there is no GPU.
+ * of dev_seed_half_tree_fifo, then dev_expand_subtree_stack's step on each internal node, depth-first here).
+ * Without CUDA this file also provides the GPU entry points of device.hpp, which then report that there is no GPU.
  */
 #include <omp.h>
 #include <stdint.h>
@@ -191,30 +190,6 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
             }
         }
     }
-
-    // The exact check: complete-profile distances in double, as the GPU's refinement
-    void exact_distances(const std::vector<int32_t> &pair_a, const std::vector<int32_t> &pair_b, const int32_t *off,
-                         const int32_t *leaves, const float *weights, std::vector<double> &out) override {
-        const int32_t n_pairs = (int32_t)pair_a.size();
-        out.assign(n_pairs, 0.0);
-#pragma omp parallel for schedule(dynamic, 1) num_threads(threads_for(threads_, n_pairs, 4))
-        for (int32_t pid = 0; pid < n_pairs; ++pid) {
-            const int32_t a = pair_a[pid], b = pair_b[pid];
-            double sum = 0.0;
-            for (int32_t p = off[a]; p < off[a + 1]; ++p) {
-                if (weights[p] == 0.0f)
-                    continue;
-                for (int32_t q = off[b]; q < off[b + 1]; ++q) {
-                    if (weights[q] == 0.0f)
-                        continue;
-                    sum += ((double)weights[p] * (double)weights[q]) * (double)leaf_distance(leaves[p], leaves[q]);
-                }
-            }
-            out[pid] = sum;
-        }
-    }
-
-    void read_distances(std::vector<double> &D) override { D.assign(ws_.D.begin(), ws_.D.end()); }
 
   private:
     struct Frame {

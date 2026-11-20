@@ -95,13 +95,6 @@ class WindowKernels {
     // For rows i = 1 .. K - 2 of the vector: the best regraft edge of the subtree pruned at row i and the BME change of
     // that move (best_delta[i], best_j[i]), from the last score.
     virtual void best_moves(const SkeletonMeta &s, std::vector<double> &best_delta, std::vector<int32_t> &best_j) = 0;
-    // The exact check: the distances of the pairs (pair_a[k], pair_b[k]) on complete profiles (CSR).
-    virtual void exact_distances(const std::vector<int32_t> &pair_a, const std::vector<int32_t> &pair_b,
-                                 const int32_t *offsets, const int32_t *leaves, const float *weights,
-                                 std::vector<double> &out) = 0;
-    // The K x K distances of distances(), as doubles, for the exact check's uncapped pairs (a device may have
-    // overwritten the pairs exact_distances refined).
-    virtual void read_distances(std::vector<double> &D) = 0;
 };
 
 // The window solve, with a device's kernels.
