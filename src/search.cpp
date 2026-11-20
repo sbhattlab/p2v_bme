@@ -36,78 +36,74 @@ namespace p2vbme {
 
 void build_skeleton_metadata(const std::vector<int64_t> &v, SkeletonMeta &sk) {
     const int32_t K = (int32_t)v.size() + 1; // pieces = tips of the skeleton
-    std::vector<int32_t> &c1 = sk.c1, &c2 = sk.c2, &v_map = sk.v_map, &parent_u = sk.parent_u;
-    std::vector<int32_t> &sub_size = sk.sub_size, &tin = sk.tin, &adj_u = sk.adj_u;
-    const int32_t R_sk = 2 * K - 1;     // nodes of the rooted skeleton (root 2K - 2)
-    const int32_t M_sk = 2 * K - 2;     // nodes of the unrooted skeleton (the rooted one without its root)
-    const int32_t root_u_sk = M_sk - 1; // the node the unrooted skeleton hangs from (2K - 3)
+    const int32_t R_sk = 2 * K - 1;          // nodes of the rooted skeleton (root 2K - 2)
+    const int32_t M_sk = 2 * K - 2;          // nodes of the unrooted skeleton (the rooted one without its root)
+    const int32_t root_u_sk = M_sk - 1;      // the node the unrooted skeleton hangs from (2K - 3)
 
-    c1.assign(R_sk, 0);
-    c2.assign(R_sk, 0);
-    v_map.assign(K, 0);
-    parent_u.assign(M_sk, -1);
-    sub_size.assign(M_sk, 1);
-    tin.assign(M_sk, 0);
-    adj_u.assign(3 * M_sk, -1);
+    sk.c1.assign(R_sk, 0);
+    sk.c2.assign(R_sk, 0);
+    sk.v_map.assign(K, 0);
+    sk.parent_u.assign(M_sk, -1);
+    sk.sub_size.assign(M_sk, 1);
+    sk.tin.assign(M_sk, 0);
+    sk.adj_u.assign(3 * M_sk, -1);
 
     // Step 1: decode the ordered vector into the rooted skeleton (c1, c2).
     // v_map[i + 1] is the subtree row i merges in, the c1 side of the node it makes (2K - 2 - i): the subtree its
     // moves prune.
-    to_skeleton(v.data(), K, c1.data(), c2.data());
+    to_skeleton(v.data(), K, sk.c1.data(), sk.c2.data());
     for (int32_t y = 1; y < K; ++y)
-        v_map[y] = c1[2 * K - 1 - y];
+        sk.v_map[y] = sk.c1[2 * K - 1 - y];
     // Step 2: unroot it: drop the root 2K - 2 and join its two children by an edge.
     // One child is node 2K - 3 (made by row 1), which becomes the node the unrooted skeleton hangs from; the other
     // (other_rc, the smaller id) becomes its third neighbour.
     // The hanging node's neighbours: its two rooted children (rc0, rc1) and other_rc (rc2).
-    int32_t rc1 = c1[R_sk - 1], rc2 = c2[R_sk - 1];
-    int32_t other_rc = (rc1 < rc2) ? rc1 : rc2;
-    int32_t r_c0 = c1[root_u_sk], r_c1 = c2[root_u_sk], r_c2 = other_rc;
-    sk.other_rc = other_rc;
-    sk.rc0 = r_c0;
-    sk.rc1 = r_c1;
-    sk.rc2 = r_c2;
+    const int32_t root_a = sk.c1[R_sk - 1], root_b = sk.c2[R_sk - 1]; // the children of the root 2K - 2
+    sk.other_rc = (root_a < root_b) ? root_a : root_b;
+    sk.rc0 = sk.c1[root_u_sk];
+    sk.rc1 = sk.c2[root_u_sk];
+    sk.rc2 = sk.other_rc;
 
     // Step 3: set the parents and subtree sizes (in nodes), children before parents, and the internal nodes'
     // adjacency (two children, then the parent).
     for (int32_t u = 0; u < K; ++u)
-        sub_size[u] = 1;
+        sk.sub_size[u] = 1;
     for (int32_t u = K; u < root_u_sk; ++u) {
-        int32_t b0 = c1[u], b1 = c2[u];
-        parent_u[b0] = u;
-        parent_u[b1] = u;
-        sub_size[u] = 1 + sub_size[b0] + sub_size[b1];
-        adj_u[3 * u + 0] = b0;
-        adj_u[3 * u + 1] = b1;
+        int32_t b0 = sk.c1[u], b1 = sk.c2[u];
+        sk.parent_u[b0] = u;
+        sk.parent_u[b1] = u;
+        sk.sub_size[u] = 1 + sk.sub_size[b0] + sk.sub_size[b1];
+        sk.adj_u[3 * u + 0] = b0;
+        sk.adj_u[3 * u + 1] = b1;
     }
-    sub_size[root_u_sk] = M_sk; // the root's Euler interval spans every node: it is an ancestor of all
-    parent_u[r_c0] = root_u_sk;
-    parent_u[r_c1] = root_u_sk;
-    parent_u[r_c2] = root_u_sk;
-    parent_u[root_u_sk] = -1;
+    sk.sub_size[root_u_sk] = M_sk; // the root's Euler interval spans every node: it is an ancestor of all
+    sk.parent_u[sk.rc0] = root_u_sk;
+    sk.parent_u[sk.rc1] = root_u_sk;
+    sk.parent_u[sk.rc2] = root_u_sk;
+    sk.parent_u[root_u_sk] = -1;
     // Step 4: the rest of the unrooted adjacency (3 slots per node, -1 if unused): a tip has only its parent, an
     // internal node gets its parent in the third slot, the hanging node its three neighbours.
     for (int32_t u = 0; u < K; ++u) {
-        adj_u[3 * u + 0] = parent_u[u];
-        adj_u[3 * u + 1] = -1;
-        adj_u[3 * u + 2] = -1;
+        sk.adj_u[3 * u + 0] = sk.parent_u[u];
+        sk.adj_u[3 * u + 1] = -1;
+        sk.adj_u[3 * u + 2] = -1;
     }
     for (int32_t u = K; u < root_u_sk; ++u)
-        adj_u[3 * u + 2] = parent_u[u];
-    adj_u[3 * root_u_sk + 0] = r_c0;
-    adj_u[3 * root_u_sk + 1] = r_c1;
-    adj_u[3 * root_u_sk + 2] = r_c2;
+        sk.adj_u[3 * u + 2] = sk.parent_u[u];
+    sk.adj_u[3 * root_u_sk + 0] = sk.rc0;
+    sk.adj_u[3 * root_u_sk + 1] = sk.rc1;
+    sk.adj_u[3 * root_u_sk + 2] = sk.rc2;
 
     // Step 5: preorder numbers (tin) of a walk from the hanging node, parents before children (ids decreasing).
     // With sub_size they make "x is under y" one comparison: tin[y] <= tin[x] < tin[y] + sub_size[y].
-    tin[root_u_sk] = 0;
-    tin[r_c0] = 1;
-    tin[r_c1] = 1 + sub_size[r_c0];
-    tin[r_c2] = 1 + sub_size[r_c0] + sub_size[r_c1];
+    sk.tin[root_u_sk] = 0;
+    sk.tin[sk.rc0] = 1;
+    sk.tin[sk.rc1] = 1 + sk.sub_size[sk.rc0];
+    sk.tin[sk.rc2] = 1 + sk.sub_size[sk.rc0] + sk.sub_size[sk.rc1];
     for (int32_t u = root_u_sk - 1; u >= K; --u) {
-        int32_t b0 = c1[u], b1 = c2[u];
-        tin[b0] = tin[u] + 1;
-        tin[b1] = tin[u] + 1 + sub_size[b0];
+        int32_t b0 = sk.c1[u], b1 = sk.c2[u];
+        sk.tin[b0] = sk.tin[u] + 1;
+        sk.tin[b1] = sk.tin[u] + 1 + sk.sub_size[b0];
     }
 }
 
