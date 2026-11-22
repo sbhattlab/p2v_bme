@@ -60,13 +60,21 @@ struct SubstitutionModel {
 
 // ---- Constants -------------------------------------------------------------------------------------------
 
-// JC69 (the search's values): p is capped at JC69_P_MAX, so the largest distance is about 3.24; a pair with no shared
-// valid site gets JC69_NO_OVERLAP_DISTANCE.
+// The search needs a finite distance for every pair, but the formulas give none in two cases:
+// sequences too different (a logarithm's argument reaches 0) and a pair without a shared valid site (no data).
+// These constants fill both cases.
+// JC69 keeps the values of the paper's search core, the other models those of the paper's GTR+GC code.
+// No reason for either set is recorded.
+
+// JC69's d = -3/4 ln(1 - 4/3 p) is infinite at p = 3/4, the mismatch share of unrelated sequences.
+// p is capped just below, so the largest JC69 distance is -3/4 ln(1 - 4/3 * 0.74) = 3.24.
 constexpr double JC69_P_MAX = 0.74;
+// JC69 distance of a pair without a shared valid site.
 constexpr double JC69_NO_OVERLAP_DISTANCE = 1.5;
-// Every other model: a pair with no shared valid site (the value of the paper's GPU implementation)
+// Distance of a pair without a shared valid site, every other model.
 constexpr double NO_OVERLAP_DISTANCE = 2.0;
-// and the largest distance (the cap of the paper's C distance library)
+// Largest distance, every other model.
+// Their logarithms' arguments are floored at 1e-4 (neg_log_link), which bounds each term at ln(1e4) = 9.21.
 constexpr double MAX_DISTANCE = 10.0;
 
 // ---- Pair counts -----------------------------------------------------------------------------------------
