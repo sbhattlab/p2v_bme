@@ -51,10 +51,10 @@ void check_settings(const Settings &opt) {
         // Single precision divides by alpha, so alpha must be a normal float.
         // The exchangeabilities are scaled to mean 1 (distance_params), so their sum must be finite.
         const SubstitutionModel &m = opt.substitution_model;
-        if (!(m.gtr_alpha >= std::numeric_limits<float>::min() && m.gtr_alpha <= std::numeric_limits<float>::max()))
+        if (!(m.alpha >= std::numeric_limits<float>::min() && m.alpha <= std::numeric_limits<float>::max()))
             throw std::runtime_error("GTR+GC: alpha must be > 0 and finite in single precision");
         double rate_sum = 0.0;
-        for (double r : m.gtr_rates) {
+        for (double r : m.rates) {
             if (!(std::isfinite(r) && r > 0.0))
                 throw std::runtime_error("GTR+GC: exchangeabilities must be finite and > 0");
             rate_sum += r;
@@ -72,13 +72,13 @@ void warn_gtr_precision(const Settings &opt, std::vector<std::string> &warnings)
     if (m.model != Model::GTR_GC || opt.precision != Precision::Single)
         return;
     const char *consequence = "; single-precision distances may be less accurate (--precision double avoids this)";
-    if (m.gtr_alpha < GTR_FLOAT_ALPHA_MIN || m.gtr_alpha > GTR_FLOAT_ALPHA_MAX) {
+    if (m.alpha < GTR_FLOAT_ALPHA_MIN || m.alpha > GTR_FLOAT_ALPHA_MAX) {
         std::ostringstream w;
-        w << "GTR+GC: alpha = " << m.gtr_alpha << " is outside [" << GTR_FLOAT_ALPHA_MIN << ", " << GTR_FLOAT_ALPHA_MAX
+        w << "GTR+GC: alpha = " << m.alpha << " is outside [" << GTR_FLOAT_ALPHA_MIN << ", " << GTR_FLOAT_ALPHA_MAX
           << "]" << consequence;
         warnings.push_back(w.str());
     }
-    const auto lo_hi = std::minmax_element(m.gtr_rates, m.gtr_rates + N_GTR_RATES);
+    const auto lo_hi = std::minmax_element(m.rates, m.rates + N_GTR_RATES);
     const double ratio = *lo_hi.second / *lo_hi.first;
     if (ratio > GTR_FLOAT_RATE_RATIO_MAX) {
         std::ostringstream w;

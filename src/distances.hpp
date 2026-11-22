@@ -52,8 +52,8 @@ Model parse_model(const std::string &name);
 // The substitution model of a run: the model and its parameters.
 struct SubstitutionModel {
     Model model = Model::JC69;
-    double gtr_rates[N_GTR_RATES] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; // GTR+GC exchangeabilities AC, AG, AT, CG, CT, GT
-    double gtr_alpha = 1.0;                                         // GTR+GC gamma shape
+    double rates[N_GTR_RATES] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; // GTR+GC exchangeabilities AC, AG, AT, CG, CT, GT
+    double alpha = 1.0;                                         // GTR+GC: gamma shape of the rates across sites
     double base_freqs[N_BASES] = {0.0, 0.0, 0.0, 0.0}; // F81, F84, TN93: the alignment's base frequencies (A, C,
                                                        // G, T); all 0: not given (count_base_frequencies)
 };

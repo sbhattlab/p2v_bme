@@ -309,8 +309,8 @@ T gtr_distance(const PairCounts &c, const SimulationModel &m, double alpha, Eige
     SubstitutionModel dm;
     dm.model = Model::GTR_GC;
     for (int k = 0; k < N_GTR_RATES; ++k)
-        dm.gtr_rates[k] = m.rates[k];
-    dm.gtr_alpha = alpha;
+        dm.rates[k] = m.rates[k];
+    dm.alpha = alpha;
     return pair_distance<T>(distance_params<T>(dm, settings), c.n);
 }
 

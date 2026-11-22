@@ -156,11 +156,11 @@ TEST(Errors, GtrGcParameters) {
     const double inf = std::numeric_limits<double>::infinity(), nan = std::numeric_limits<double>::quiet_NaN();
 
     for (double a : {0.0, -1.0, 1e-40, 1e39, inf, nan}) {
-        opt.substitution_model.gtr_alpha = a;
+        opt.substitution_model.alpha = a;
         EXPECT_TRUE(refused("alpha must be > 0")) << a;
     }
-    opt.substitution_model.gtr_alpha = 1.0;
-    double *s = opt.substitution_model.gtr_rates;
+    opt.substitution_model.alpha = 1.0;
+    double *s = opt.substitution_model.rates;
     for (double r : {0.0, -1.0, inf, nan}) {
         s[4] = r;
         EXPECT_TRUE(refused("exchangeabilities must be finite and > 0")) << r;
@@ -174,7 +174,7 @@ TEST(Errors, GtrGcParameters) {
     EXPECT_TRUE(warnings().empty());
 
     // outside the checked range: a warning per parameter in single precision, none in double
-    opt.substitution_model.gtr_alpha = 2.0 * GTR_FLOAT_ALPHA_MAX;
+    opt.substitution_model.alpha = 2.0 * GTR_FLOAT_ALPHA_MAX;
     s[1] = 2.0 * GTR_FLOAT_RATE_RATIO_MAX;
     const std::vector<std::string> w = warnings();
     ASSERT_EQ(w.size(), 2u);
@@ -184,7 +184,7 @@ TEST(Errors, GtrGcParameters) {
     EXPECT_TRUE(warnings().empty());
     // only the ratios matter: tiny or large exchangeabilities of ratio 1 are fine
     opt.precision = Precision::Single;
-    opt.substitution_model.gtr_alpha = 1.0;
+    opt.substitution_model.alpha = 1.0;
     for (double scale : {1e-30, 1e30}) {
         std::fill(s, s + N_GTR_RATES, scale);
         EXPECT_TRUE(warnings().empty()) << scale;

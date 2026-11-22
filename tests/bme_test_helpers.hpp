@@ -38,8 +38,8 @@ inline p2vbme::SubstitutionModel distance_model(p2vbme::Model model) {
     dm.model = model;
     const p2vbme::SimulationModel t = truth();
     for (int k = 0; k < p2vbme::N_GTR_RATES; ++k)
-        dm.gtr_rates[k] = t.rates[k];
-    dm.gtr_alpha = t.alpha;
+        dm.rates[k] = t.rates[k];
+    dm.alpha = t.alpha;
     return dm;
 }
 

@@ -406,11 +406,11 @@ template <class T> inline DistanceParams<T> distance_params(const SubstitutionMo
     // The distance depends only on their ratios; the scaling keeps the rate matrix's own normalisation in range.
     double rate_sum = 0.0;
     for (int k = 0; k < N_GTR_RATES; ++k)
-        rate_sum += m.gtr_rates[k];
+        rate_sum += m.rates[k];
     const double rate_scale = 6.0 / rate_sum;
     for (int k = 0; k < N_GTR_RATES; ++k)
-        p.rates[k] = (T)(m.gtr_rates[k] * rate_scale);
-    p.alpha = (T)m.gtr_alpha;
+        p.rates[k] = (T)(m.rates[k] * rate_scale);
+    p.alpha = (T)m.alpha;
     p.inv_alpha = T(1) / p.alpha; // as the paper's GPU implementation: 1 / alpha in the device's precision
     p.eigen = eigen;
     const double sum = m.base_freqs[0] + m.base_freqs[1] + m.base_freqs[2] + m.base_freqs[3];
