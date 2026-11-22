@@ -6,10 +6,8 @@
  */
 #include "report.hpp"
 
-#include <omp.h>
 #include <sys/resource.h>
 #include <time.h>
-#include <unistd.h>
 
 #include <fstream>
 #include <stdexcept>
@@ -33,13 +31,6 @@ std::string utc_now() {
     return buf;
 }
 
-std::string host_name() {
-    char buf[256] = {0};
-    if (gethostname(buf, sizeof(buf) - 1) != 0)
-        return "unknown";
-    return buf;
-}
-
 // Peak resident memory of the process, MiB (ru_maxrss is in KiB on Linux).
 double peak_host_ram_mb() {
     struct rusage ru;
@@ -58,7 +49,7 @@ void detail_input(JsonWriter &w, const Report &run) {
     w.end_object();
 }
 
-// Every setting, defaults included, with the auto values resolved: accelerator, threads, sample size.
+// Every setting, defaults included, with the auto values resolved: accelerator, sample size.
 void detail_settings(JsonWriter &w, const Report &run, const Settings &opt, const Result &res) {
     w.key("settings");
     w.begin_object();
@@ -74,10 +65,7 @@ void detail_settings(JsonWriter &w, const Report &run, const Settings &opt, cons
     w.field("neg_as_zero", run.neg_as_zero);
     w.field("dedup", run.dedup);
     w.field("accelerator", accelerator_name(run.on_gpu ? Accelerator::Gpu : Accelerator::Cpu));
-    // CPU: the workers; GPU: the host's threads
-    w.field("threads", run.on_gpu ? (int32_t)omp_get_max_threads() : (int32_t)run.devices.size());
     w.field("precision", precision_name(opt.precision));
-    w.field("prefix", run.prefix);
     w.end_object();
 }
 
@@ -148,7 +136,6 @@ std::string report_json(const Report &run, const Settings &opt, const Result &re
     if (run.full) {
         w.key("details");
         w.begin_object();
-        w.field("host", host_name());
         detail_input(w, run);
         detail_settings(w, run, opt, res);
         detail_devices(w, run);

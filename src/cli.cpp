@@ -119,7 +119,7 @@ CommandLine parse_command_line(int argc, char **argv) {
         ("bl-profile-cap", "leaves kept per subtree profile for branch lengths (1-256)",
          cxxopts::value(opt.bl_profile_cap), "N")
         ("no-neg-as-zero", "write negative branch lengths as they are (default: as 0)")
-        ("report-full", "add the details to <prefix>.json: host, input, settings as used, devices, time per stage, "
+        ("report-full", "add the details to <prefix>.json: input, settings as used, devices, time per stage, "
          "memory, model parameters, gain of each round");
     cli.add_options("Input")
         ("no-dedup", "keep all identical sequences (default: two of each group are kept for the search and the "

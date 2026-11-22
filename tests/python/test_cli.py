@@ -124,7 +124,6 @@ def test_options_reach_the_run(data, tmp_path):
         "bl_profile_cap": 8,
         "neg_as_zero": False,
         "accelerator": "cpu",
-        "threads": 2,
         "precision": "double",
     }
     settings = r["details"]["settings"]
