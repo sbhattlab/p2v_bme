@@ -7,11 +7,11 @@
 #include "report.hpp"
 
 #include <omp.h>
-#include <stdio.h>
 #include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
 
+#include <fstream>
 #include <stdexcept>
 #include <string>
 
@@ -164,11 +164,13 @@ std::string report_json(const Report &run, const Settings &opt, const Result &re
 
 void write_report(const std::string &path, const Report &run, const Settings &settings, const Result &result) {
     const std::string text = report_json(run, settings, result);
-    FILE *f = fopen(path.c_str(), "w");
-    if (!f)
+    std::ofstream out(path);
+    if (!out)
         throw std::runtime_error("cannot write " + path);
-    const bool ok = fwrite(text.data(), 1, text.size(), f) == text.size();
-    if (fclose(f) != 0 || !ok)
+    out << text;
+    // close() flushes; a failed write or flush leaves the stream failed.
+    out.close();
+    if (!out)
         throw std::runtime_error("cannot write " + path);
 }
 
