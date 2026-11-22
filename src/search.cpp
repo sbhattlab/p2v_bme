@@ -708,7 +708,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
     double init_L = 0.0, curr_L = 0.0, best_L = 1e300, prev_L = 1e300;
     std::vector<int64_t> best_v = v, prev_v = v;
     std::vector<int32_t> best_perm = perm, prev_perm = perm;
-    int32_t flipped_already = 0;
+    bool flipped_already = false;
     int32_t cur_batch_cap = max_batch_cap; // the batch cap B of Algorithm S1
     bool batch_pending = false;            // a batch was applied in the previous sweep and is checked now
 
@@ -774,14 +774,14 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
         // None: relabel the skeleton once with the other labelling of its cherries (its rows give other moves), then
         // stop.
         if (cands.empty()) {
-            if (flipped_already == 0) {
-                flipped_already = 1;
+            if (!flipped_already) {
+                flipped_already = true;
                 from_skeleton_tables(v, sk, root_u_sk, sk.rc2, true, perm);
                 continue;
             }
             break;
         }
-        flipped_already = 0;
+        flipped_already = false;
         std::sort(cands.begin(), cands.end(),
                   [](const CandidateMove &a, const CandidateMove &b) { return a.dL < b.dL; });
 
