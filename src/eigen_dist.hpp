@@ -16,8 +16,8 @@
  * with s_k = sigma_k, then EIGEN_REWEIGHT_PASSES refits with s_k = (1 + |lambda_k| d / alpha)^(-alpha).
  * Saturation: a saturated mode (sigma at 1e-4) gets almost no weight in the first fit, but the reweighting passes
  * weight each mode by its model-implied s_k, so a fully saturated direction can still pull the distance to the cap (the
- * paper's GPU implementation behaves the same). Distances lie in [0, 10]; no shared valid site gives 2.0, identical
- * sequences 0.
+ * paper's GPU implementation behaves the same). pair_distance (distances.hpp) gives the pairs without a shared valid
+ * site and the identical ones their values, and caps the distance at MAX_DISTANCE.
  *
  * The paper's GPU implementation, ported line by line (bitwise equal when both are compiled without FMA contraction,
  * for exchangeabilities with mean 1 as the paper's fit returns them; others are scaled to mean 1 first).
@@ -135,6 +135,8 @@ template <class T> P2V_HD inline void sym4x4_rank3_eigenvalues(const T M[16], co
 
 // s_rates: exchangeabilities (AC, AG, AT, CG, CT, GT); alpha > 0 and inv_alpha = 1 / alpha (computed once by the
 // caller, as the paper's GPU implementation does).
+// Assumes a pair that shares a valid site and is not identical, as pair_distance (distances.hpp) ensures.
+// pair_distance also caps the result.
 template <class T>
 P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_rates[N_GTR_RATES], T alpha,
                                T inv_alpha) {
@@ -143,11 +145,6 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
     uint32_t r2 = c[8] + c[9] + c[10] + c[11];
     uint32_t r3 = c[12] + c[13] + c[14] + c[15];
     uint32_t total_valid = r0 + r1 + r2 + r3;
-    uint32_t diag_match = c[0] + c[5] + c[10] + c[15];
-    if (total_valid == 0u)
-        return T(NO_OVERLAP_DISTANCE);
-    if (diag_match == total_valid)
-        return T(0);
 
     const T eps = T(EIGEN_PSEUDOCOUNT);
     T inv_tot = T(1) / ((T)total_valid + T(N_BASES * N_BASES) * eps);
@@ -270,8 +267,6 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
         if (d_ab < T(0))
             d_ab = T(0);
     }
-    if (d_ab > T(MAX_DISTANCE))
-        d_ab = T(MAX_DISTANCE);
     return d_ab;
 }
 
