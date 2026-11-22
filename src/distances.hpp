@@ -20,9 +20,9 @@
 #ifndef P2VBME_DISTANCES_HPP
 #define P2VBME_DISTANCES_HPP
 
-#include <math.h>
 #include <stdint.h>
 
+#include <cmath>
 #include <string>
 
 #include "core.hpp"
@@ -91,23 +91,6 @@ PairCounts count_pair(const uint64_t *row_a, const uint64_t *row_b, int32_t n_wo
 // Uniform if the alignment has no valid site.
 void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, double freqs[N_BASES]);
 
-// ---- Floating-point helpers (float and double overloads, host and device) ---------------------------------
-
-namespace fp {
-P2V_HD inline float log(float x) { return ::logf(x); }
-P2V_HD inline double log(double x) { return ::log(x); }
-P2V_HD inline float exp(float x) { return ::expf(x); }
-P2V_HD inline double exp(double x) { return ::exp(x); }
-P2V_HD inline float expm1(float x) { return ::expm1f(x); }
-P2V_HD inline double expm1(double x) { return ::expm1(x); }
-P2V_HD inline float sqrt(float x) { return ::sqrtf(x); }
-P2V_HD inline double sqrt(double x) { return ::sqrt(x); }
-P2V_HD inline float acos(float x) { return ::acosf(x); }
-P2V_HD inline double acos(double x) { return ::acos(x); }
-P2V_HD inline float cos(float x) { return ::cosf(x); }
-P2V_HD inline double cos(double x) { return ::cos(x); }
-} // namespace fp
-
 // ---- Closed-form distances -------------------------------------------------------------------------------
 
 // JC69 from the number of shared valid sites and of matching sites (the search core's formula): d = -3/4 ln(1 - 4/3 p),
@@ -118,7 +101,7 @@ template <class T> P2V_HD inline T jc69_distance(int32_t n_valid, int32_t n_matc
     T p = (T)(n_valid - n_match) / (T)n_valid;
     if (p >= T(JC69_P_MAX))
         p = T(JC69_P_MAX);
-    T d = T(-0.75) * fp::log(T(1) - (T(4) / T(3)) * p);
+    T d = T(-0.75) * std::log(T(1) - (T(4) / T(3)) * p);
     return (d > T(0)) ? d : T(0);
 }
 
@@ -134,7 +117,7 @@ template <class T> P2V_HD inline T neg_log_link(T w) {
         w = T(1e-4);
     if (w >= T(1) - T(1e-12))
         return T(0);
-    return -fp::log(w);
+    return -std::log(w);
 }
 
 template <class T> P2V_HD inline T clamp_distance(T d) {
@@ -290,7 +273,7 @@ template <class T> P2V_HD inline T logdet_distance(const uint32_t n[N_BASES * N_
     const T det = s0 * c5 - s1 * c4 + s2 * c3 + s3 * c2 - s4 * c1 + s5 * c0;
     if (!(det > T(1e-30)) || !(prod_f > T(1e-30)))
         return T(MAX_DISTANCE);
-    return detail::clamp_distance(T(-0.25) * (fp::log(det) - T(0.5) * fp::log(prod_f)));
+    return detail::clamp_distance(T(-0.25) * (std::log(det) - T(0.5) * std::log(prod_f)));
 }
 
 // ---- GTR rate matrix -------------------------------------------------------------------------------------
@@ -316,7 +299,7 @@ P2V_HD inline T gtr_symmetric_rate_matrix(const T s[N_GTR_RATES], const T xi[N_B
     const T inv_mu = (mu > T(1e-20)) ? (T(1) / mu) : T(1);
     T sxi[N_BASES];
     for (int i = 0; i < N_BASES; ++i)
-        sxi[i] = fp::sqrt(xi[i]);
+        sxi[i] = std::sqrt(xi[i]);
     T neg_tr_Q = T(0);
     for (int i = 0; i < N_BASES; ++i) {
         for (int j = 0; j < N_BASES; ++j) {

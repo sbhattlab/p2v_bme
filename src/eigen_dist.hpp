@@ -36,6 +36,8 @@
 
 #include <stdint.h>
 
+#include <cmath>
+
 #include "config.hpp"
 #include "distances.hpp"
 
@@ -98,17 +100,17 @@ template <class T> P2V_HD inline void sym4x4_rank3_eigenvalues(const T M[16], co
         }
     }
     T q = s3 * (T(1) / T(6));
-    T sp = fp::sqrt(p);
+    T sp = std::sqrt(p);
     T r = q / (p * sp);
     if (r < T(-1))
         r = T(-1);
     if (r > T(1))
         r = T(1);
-    T theta = fp::acos(r) * (T(1) / T(3));
+    T theta = std::acos(r) * (T(1) / T(3));
     T two_sp = T(2) * sp;
-    evals3[0] = mu + two_sp * fp::cos(theta);
-    evals3[1] = mu + two_sp * fp::cos(theta - two_pi_over_3<T>());
-    evals3[2] = mu + two_sp * fp::cos(theta + two_pi_over_3<T>());
+    evals3[0] = mu + two_sp * std::cos(theta);
+    evals3[1] = mu + two_sp * std::cos(theta - two_pi_over_3<T>());
+    evals3[2] = mu + two_sp * std::cos(theta + two_pi_over_3<T>());
 }
 
 // All four eigenvalues of a symmetric 4 x 4 matrix (overwritten), in decreasing order, by cyclic Jacobi rotations (as
@@ -130,9 +132,9 @@ template <class T> P2V_HD inline void sym4x4_jacobi_eigenvalues(T A[16], T evals
                 continue;
             const T app = A[ip * 4 + ip], aqq = A[iq * 4 + iq];
             const T tau = (aqq - app) / (T(2) * apq);
-            const T t = (tau >= T(0)) ? (T(1) / (tau + fp::sqrt(T(1) + tau * tau)))
-                                      : (T(-1) / (-tau + fp::sqrt(T(1) + tau * tau)));
-            const T c = T(1) / fp::sqrt(T(1) + t * t), s = t * c;
+            const T t = (tau >= T(0)) ? (T(1) / (tau + std::sqrt(T(1) + tau * tau)))
+                                      : (T(-1) / (-tau + std::sqrt(T(1) + tau * tau)));
+            const T c = T(1) / std::sqrt(T(1) + t * t), s = t * c;
             A[ip * 4 + ip] = app - t * apq;
             A[iq * 4 + iq] = aqq + t * apq;
             A[ip * 4 + iq] = T(0);
@@ -196,9 +198,9 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
     T sfa[N_BASES], inv_sfa[N_BASES], sfb[N_BASES], inv_sfb[N_BASES], xi[N_BASES];
     T xi_sum = T(0);
     for (int i = 0; i < N_BASES; ++i) {
-        sfa[i] = fp::sqrt(Fa[i]);
+        sfa[i] = std::sqrt(Fa[i]);
         inv_sfa[i] = T(1) / sfa[i];
-        sfb[i] = fp::sqrt(Fb[i]);
+        sfb[i] = std::sqrt(Fb[i]);
         inv_sfb[i] = T(1) / sfb[i];
         xi[i] = sfa[i] * sfb[i];
         xi_sum += xi[i];
@@ -235,7 +237,7 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
         sym4x4_jacobi_eigenvalues<T>(G, ev);
         T sig4[N_BASES];
         for (int k = 0; k < N_BASES; ++k)
-            sig4[k] = (ev[k] > T(0)) ? fp::sqrt(ev[k]) : T(0);
+            sig4[k] = (ev[k] > T(0)) ? std::sqrt(ev[k]) : T(0);
         if (opt.saturation == Saturation::Pair) {
             const T s0 = K[0] * K[5] - K[1] * K[4], s1 = K[0] * K[6] - K[2] * K[4], s2 = K[0] * K[7] - K[3] * K[4];
             const T s3 = K[1] * K[6] - K[2] * K[5], s4 = K[1] * K[7] - K[3] * K[5], s5 = K[2] * K[7] - K[3] * K[6];
@@ -252,10 +254,10 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
                 sig = T(1);
             if (sig < T(EIGEN_SIGMA_MIN))
                 sig = T(EIGEN_SIGMA_MIN);
-            T u = -fp::log(sig) * inv_alpha;
+            T u = -std::log(sig) * inv_alpha;
             if (u > T(30))
                 u = T(30);
-            sum_gamma += alpha * fp::expm1(u);
+            sum_gamma += alpha * std::expm1(u);
         }
         T d_ab = (neg_tr_Q > T(1e-12)) ? (sum_gamma / neg_tr_Q) : T(0);
         if (d_ab < T(0))
@@ -285,7 +287,7 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
 
     T sigma[3];
     for (int k = 0; k < 3; ++k) {
-        T sv = (g_evals[k] > T(0)) ? fp::sqrt(g_evals[k]) : T(EIGEN_SIGMA_MIN);
+        T sv = (g_evals[k] > T(0)) ? std::sqrt(g_evals[k]) : T(EIGEN_SIGMA_MIN);
         if (sv < T(EIGEN_SIGMA_MIN))
             sv = T(EIGEN_SIGMA_MIN);
         if (sv > T(EIGEN_SIGMA_MAX))
@@ -307,10 +309,10 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
         // SymSVD: the sum of the three modes over -trace Q
         T sum_gamma = T(0);
         for (int k = 0; k < 3; ++k) {
-            T u = -fp::log(sigma[k]) * inv_alpha;
+            T u = -std::log(sigma[k]) * inv_alpha;
             if (u > T(20))
                 u = T(20);
-            sum_gamma += alpha * fp::expm1(u);
+            sum_gamma += alpha * std::expm1(u);
         }
         T d_ab = (neg_tr_Q > T(1e-8)) ? (sum_gamma / neg_tr_Q) : T(0);
         if (d_ab < T(0))
@@ -323,7 +325,7 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
     // SymWLS
     T sxi[N_BASES];
     for (int i = 0; i < N_BASES; ++i)
-        sxi[i] = fp::sqrt(xi[i]);
+        sxi[i] = std::sqrt(xi[i]);
     T r_evals[3];
     sym4x4_rank3_eigenvalues<T>(R, sxi, r_evals);
     T y[3], neg_lam[3], lw[3];
@@ -334,18 +336,18 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
         if (nl < T(1e-6))
             nl = T(1e-6);
         neg_lam[k] = nl;
-        T log_sig = fp::log(sig);
+        T log_sig = std::log(sig);
         T u = -log_sig * inv_alpha;
         if (u > T(20))
             u = T(20);
-        y[k] = alpha * fp::expm1(u);
-        lw[k] = (T(2) + T(2) * inv_alpha) * log_sig - fp::log(T(1) - sig * sig + T(1e-4));
+        y[k] = alpha * std::expm1(u);
+        lw[k] = (T(2) + T(2) * inv_alpha) * log_sig - std::log(T(1) - sig * sig + T(1e-4));
         if (lw[k] > max_lw)
             max_lw = lw[k];
     }
     T num = T(0), den = T(0);
     for (int k = 0; k < 3; ++k) {
-        T w_k = fp::exp(lw[k] - max_lw);
+        T w_k = std::exp(lw[k] - max_lw);
         num += w_k * neg_lam[k] * y[k];
         den += w_k * neg_lam[k] * neg_lam[k];
     }
@@ -360,20 +362,20 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
             T base = T(1) + (d_curr * neg_lam[k]) * inv_alpha;
             if (base < T(1))
                 base = T(1);
-            T log_mu = -alpha * fp::log(base);
+            T log_mu = -alpha * std::log(base);
             if (log_mu > T(-1e-6))
                 log_mu = T(-1e-6);
             if (log_mu < log_sigma_min<T>())
                 log_mu = log_sigma_min<T>();
-            T mu_k = fp::exp(log_mu);
-            lw[k] = (T(2) + T(2) * inv_alpha) * log_mu - fp::log(T(1) - mu_k * mu_k + T(1e-4));
+            T mu_k = std::exp(log_mu);
+            lw[k] = (T(2) + T(2) * inv_alpha) * log_mu - std::log(T(1) - mu_k * mu_k + T(1e-4));
             if (lw[k] > max_lw)
                 max_lw = lw[k];
         }
         num = T(0);
         den = T(0);
         for (int k = 0; k < 3; ++k) {
-            T w_k = fp::exp(lw[k] - max_lw);
+            T w_k = std::exp(lw[k] - max_lw);
             num += w_k * neg_lam[k] * y[k];
             den += w_k * neg_lam[k] * neg_lam[k];
         }
