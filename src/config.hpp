@@ -1,9 +1,14 @@
 /*
  * config.hpp
  *
- * Every number the method depends on, in one place: the defaults of the user settings (Settings and the
- * command line both read these) and the algorithm's fixed constants. Values are the paper's.
- * Kernel tile sizes stay next to their kernels.
+ * The numbers the method depends on: the defaults of the user settings (Settings reads them, and the command line
+ * through Settings) and the algorithm's fixed constants.
+ * A few stay next to their only user: kernel tile sizes, the salts of the random streams (random.hpp), the reweighting
+ * passes (eigen_dist.hpp) and the component sizes of the waves (search.cpp).
+ * Most values are the paper's.
+ * Changed since: WINDOW_MIN_K 6 -> 4 (trees of 4 and 5 leaves were never searched), and JC69 now uses
+ * NO_OVERLAP_DISTANCE and MAX_DISTANCE like every model (it had 1.5 and a cap at p = 0.74), so NN_P_NO_OVERLAP
+ * 0.6485 -> 0.6979.
  */
 #ifndef P2VBME_CONFIG_HPP
 #define P2VBME_CONFIG_HPP
@@ -16,11 +21,11 @@ namespace p2vbme {
 
 // ---- Defaults of the user settings ------------------------------------------------------------------
 
-constexpr int32_t DEFAULT_MAX_ROUNDS = 8;      // rounds of the search, then a final cleanup pass
+constexpr int32_t DEFAULT_MAX_ROUNDS = 8;      // search rounds, then a cleanup pass if N > WAVE_COMPONENT_CAP
 constexpr double DEFAULT_TOL = 1e-6;           // stop once a round gains <= this x the total gain (0 = zero gain only)
 constexpr double DEFAULT_TIME_LIMIT = 0.0;     // seconds after which no new round starts (0 = none)
 constexpr int32_t DEFAULT_PROFILE_CAP = 64;    // leaves kept per clade profile in a window (1..PROFILE_CAP_MAX)
-constexpr int32_t DEFAULT_SAMPLE_SIZE = 0;     // sample-and-place start: 0 = min(START_SAMPLE_MAX, N / 10)
+constexpr int32_t DEFAULT_SAMPLE_SIZE = 0;     // sample-and-place start: 0 = the default size (see "Start tree")
 constexpr uint64_t DEFAULT_SEED = 1;           // seeds the start tree
 constexpr bool DEFAULT_BRANCH_LENGTHS = true;  // estimate BME branch lengths
 constexpr int32_t DEFAULT_BL_PROFILE_CAP = 32; // leaves kept per subtree profile for branch lengths
@@ -28,15 +33,6 @@ constexpr int32_t DEFAULT_BL_PROFILE_CAP = 32; // leaves kept per subtree profil
 // ---- Limits ------------------------------------------------------------------------------------------
 
 constexpr int32_t PROFILE_CAP_MAX = 256; // the GPU profile buffer holds PROFILE_CAP_MAX x WORKSPACE_MAX_K entries
-
-// GTR+GC: the range where single-precision distances (the GPU's) were checked against double precision.
-// Inside it, 99% of simulated pairs of 1,500 sites were within 0.3% of double precision.
-// Outside it, the error grows: about 1% at alpha = 0.001, and several-fold on rare pairs when one exchangeability is
-// 1,000 times the others.
-// infer() warns outside it in single precision; it requires only alpha > 0 and exchangeabilities > 0.
-constexpr double GTR_FLOAT_ALPHA_MIN = 0.05;
-constexpr double GTR_FLOAT_ALPHA_MAX = 1e3;
-constexpr double GTR_FLOAT_RATE_RATIO_MAX = 100.0; // largest / smallest exchangeability
 
 // ---- Distances -----------------------------------------------------------------------------------------
 
@@ -52,6 +48,15 @@ constexpr double NO_OVERLAP_DISTANCE = 2.0;
 // JC69, for example, reaches at most 3/4 * 9.21 = 6.91, for p >= 3/4 (the mismatch share of unrelated sequences).
 constexpr double MAX_DISTANCE = 10.0;
 
+// GTR+GC: the range where single-precision distances (the GPU's) were checked against double precision.
+// Inside it, 99% of simulated pairs of 1,500 sites were within 0.3% of double precision.
+// Outside it, the error grows: about 1% at alpha = 0.001, and several-fold on rare pairs when one exchangeability is
+// 1,000 times the others.
+// infer() warns outside it in single precision; it requires only alpha > 0 and exchangeabilities > 0.
+constexpr double GTR_FLOAT_ALPHA_MIN = 0.05;
+constexpr double GTR_FLOAT_ALPHA_MAX = 1e3;
+constexpr double GTR_FLOAT_RATE_RATIO_MAX = 100.0; // largest / smallest exchangeability
+
 // ---- Search: windows ----------------------------------------------------------------------------------
 
 // Sweeps of the core step per window, at most (each sweep applies a batch of moves); windows usually stop earlier, as
@@ -60,12 +65,12 @@ constexpr int32_t WINDOW_MAX_SWEEPS = 200;
 // The smallest BME gains (decreases of L) that count, by level: a move, a batch of moves, a window.
 // A move is a candidate only if its predicted BME change is below -MOVE_MIN_GAIN (a float, as the scores may be).
 constexpr float MOVE_MIN_GAIN = 1e-6f;
-// The score of "no move" (a row or regraft edge the move scores leave out): larger than any BME change.
-constexpr double NO_MOVE = std::numeric_limits<double>::infinity();
 // A batch of moves is kept only if it lowers the BME length by more than this; otherwise it is undone.
 constexpr double BATCH_MIN_GAIN = 1e-8;
 // A window's new skeleton is kept only if it lowers the BME length by more than this.
 constexpr double WINDOW_MIN_GAIN = 1e-7;
+// The score of "no move" (a row or regraft edge the move scores leave out): larger than any BME change.
+constexpr double NO_MOVE = std::numeric_limits<double>::infinity();
 // Internal-vertex budget of a window: 1,498 splits give at most 1,499 pieces, plus the outside component, so every
 // window has K <= 1,500 pieces.
 constexpr int32_t WINDOW_MAX_INTERNALS = 1498;
@@ -101,11 +106,14 @@ constexpr int32_t START_SAMPLE_MAX = 100000; // default sample: min(START_SAMPLE
 constexpr int32_t START_SAMPLE_DIVISOR = 10;
 // The sample is clamped to [START_SAMPLE_MIN, N / 2]; half of START_SAMPLE_MIN_N, so that range is never empty.
 constexpr int32_t START_SAMPLE_MIN = START_SAMPLE_MIN_N / 2;
-constexpr int32_t START_RANDOM_TREE_MAX = 1000; // a sample of at most this size starts from a random tree;
-                                                // larger ones are themselves placed on a sample of
-                                                // max(START_RANDOM_TREE_MAX, n / START_SAMPLE_DIVISOR)
-// Nearest sampled sequence (p-distance for every model): a pair without shared valid sites ranks as p = 0.6979, the
-// p-distance whose JC69 distance is NO_OVERLAP_DISTANCE = 2.0: p = 3/4 (1 - e^(-8/3)).
+// A sample of at most this size starts from a random tree; larger ones are themselves placed on a sample of
+// max(START_RANDOM_TREE_MAX, n / START_SAMPLE_DIVISOR).
+constexpr int32_t START_RANDOM_TREE_MAX = 1000;
+// Placement finds each query's nearest sampled sequence by p-distance (the share of mismatches, for every model); a
+// pair without a shared valid site counts as this p.
+// It is NO_OVERLAP_DISTANCE seen as a p-distance: the p at which JC69 reaches that distance,
+// p = 3/4 (1 - e^(-4 d / 3)) with d = NO_OVERLAP_DISTANCE = 2, so 3/4 (1 - e^(-8/3)) = 0.69789.
+// Written out because std::exp is not constexpr; test_config checks it against NO_OVERLAP_DISTANCE.
 constexpr float NN_P_NO_OVERLAP = 0.6979f;
 
 } // namespace p2vbme

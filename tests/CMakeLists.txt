@@ -100,6 +100,12 @@ target_compile_options(test_random PRIVATE -Wall -Wextra)
 target_link_libraries(test_random PRIVATE GTest::gtest_main)
 gtest_discover_tests(test_random)
 
+add_executable(test_config test_config.cpp)
+target_include_directories(test_config PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_compile_options(test_config PRIVATE -Wall -Wextra)
+target_link_libraries(test_config PRIVATE GTest::gtest_main)
+gtest_discover_tests(test_config)
+
 # CPU core checks against the reference library (exit code)
 add_executable(verify_all verify_all.c ${BME_REFERENCE_SOURCE})
 target_include_directories(verify_all PRIVATE ${BME_REFERENCE_INCLUDE})
