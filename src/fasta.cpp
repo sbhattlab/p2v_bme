@@ -31,7 +31,7 @@ Alignment read_fasta(const std::string &path) {
             if (seq.empty())
                 throw std::runtime_error(path + ": first sequence '" + name + "' is empty");
             aln.n_sites = (int32_t)seq.size();
-            aln.n_words = (aln.n_sites + 63) / 64;
+            aln.n_words = (aln.n_sites + WORD_BITS - 1) / WORD_BITS;
         } else if ((int32_t)seq.size() != aln.n_sites) {
             throw std::runtime_error(path + ": sequence '" + name + "' has " + std::to_string(seq.size()) +
                                      " sites, the first has " + std::to_string(aln.n_sites) +
@@ -39,7 +39,7 @@ Alignment read_fasta(const std::string &path) {
         }
         if (!seen.emplace(name, aln.n_taxa).second)
             throw std::runtime_error(path + ": duplicate name '" + name + "'");
-        // Appends the sequence's 5 bitplanes (A, C, G, T, observed), n_words 64-bit words each, zeroed.
+        // Appends the sequence's 5 bitplanes (A, C, G, T, valid), n_words words of WORD_BITS bits each, zeroed.
         // pack_sequence then sets one bit per site.
         const size_t row = aln.packed.size();
         aln.packed.resize(row + (size_t)N_PLANES * aln.n_words, 0);

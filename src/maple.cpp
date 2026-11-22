@@ -58,7 +58,7 @@ Alignment read_maple(const std::string &path) {
 
     Alignment aln;
     aln.n_sites = (int32_t)ref.size();
-    aln.n_words = (aln.n_sites + 63) / 64;
+    aln.n_words = (aln.n_sites + WORD_BITS - 1) / WORD_BITS;
     const int32_t W = aln.n_words, L = aln.n_sites;
     std::vector<uint64_t> ref_row((size_t)N_PLANES * W, 0);
     pack_sequence(ref, W, ref_row.data());
@@ -98,8 +98,8 @@ Alignment read_maple(const std::string &path) {
             const int c = toupper((unsigned char)ln[0]);
             const int plane = c == 'A' ? 0 : c == 'C' ? 1 : c == 'G' ? 2 : (c == 'T' || c == 'U') ? 3 : -1;
             for (long site = pos - 1; site < pos - 1 + span; ++site) {
-                const uint64_t bit = 1ULL << (site % 64);
-                const size_t w = (size_t)(site / 64);
+                const uint64_t bit = 1ULL << (site % WORD_BITS);
+                const size_t w = (size_t)(site / WORD_BITS);
                 for (int b = 0; b < N_PLANES; ++b)
                     r[(size_t)b * W + w] &= ~bit;
                 if (plane >= 0) {

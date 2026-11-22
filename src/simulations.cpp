@@ -231,7 +231,7 @@ Alignment simulate_alignment(const Tree &tree, int32_t n_sites, const Simulation
     Alignment aln;
     aln.n_taxa = N;
     aln.n_sites = n_sites;
-    aln.n_words = (n_sites + 63) / 64;
+    aln.n_words = (n_sites + WORD_BITS - 1) / WORD_BITS;
     aln.packed.assign((size_t)N * N_PLANES * aln.n_words, 0);
     for (int32_t i = 0; i < N; ++i)
         aln.names.push_back("t" + std::to_string(i));
@@ -261,9 +261,9 @@ Alignment simulate_alignment(const Tree &tree, int32_t n_sites, const Simulation
         if (child < N) {
             uint64_t *row = &aln.packed[(size_t)child * N_PLANES * aln.n_words];
             for (int32_t s = 0; s < n_sites; ++s) {
-                const uint64_t bit = 1ULL << (s % 64);
-                row[(size_t)out[s] * aln.n_words + s / 64] |= bit;
-                row[(size_t)VALID_PLANE * aln.n_words + s / 64] |= bit;
+                const uint64_t bit = 1ULL << (s % WORD_BITS);
+                row[(size_t)out[s] * aln.n_words + s / WORD_BITS] |= bit;
+                row[(size_t)VALID_PLANE * aln.n_words + s / WORD_BITS] |= bit;
             }
         } else {
             seq[child] = std::move(out);

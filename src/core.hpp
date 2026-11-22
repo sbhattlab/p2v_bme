@@ -1,8 +1,8 @@
 /*
  * core.hpp
  *
- * The types the whole package shares: an aligned DNA alignment packed as bitplanes (Alignment) and a rooted binary
- * tree (Tree), and the packing of one aligned sequence into its bitplanes (pack_sequence).
+ * The types the whole package shares: a DNA alignment packed as bitplanes (Alignment) and a rooted binary tree
+ * (Tree), and the packing of one aligned sequence into its bitplanes (pack_sequence).
  */
 #ifndef P2VBME_CORE_HPP
 #define P2VBME_CORE_HPP
@@ -21,9 +21,11 @@ constexpr int32_t N_GTR_RATES = 6;
 // The bitplanes of a packed sequence: one per base (planes 0..3), then valid (= any of the four).
 constexpr int32_t VALID_PLANE = N_BASES;
 constexpr int32_t N_PLANES = N_BASES + 1;
+// Bits per word of a bitplane.
+constexpr int32_t WORD_BITS = 64;
 
 // N aligned sequences packed as bitplanes: packed[(i * N_PLANES + plane) * n_words + w], bit k of word w is site
-// 64 w + k.
+// w * WORD_BITS + k.
 // Other characters (gaps, N, IUPAC ambiguity codes) set no bit.
 struct Alignment {
     int32_t n_taxa = 0;
@@ -48,8 +50,8 @@ struct Tree {
     int32_t n_leaves() const { return ((int32_t)c1.size() + 1) / 2; }
 };
 
-// Packs one aligned sequence into its 5 bitplanes of n_words words each (A, C, G, T or U, observed), from out on;
-// out must start zeroed.
+// Packs one aligned sequence into its N_PLANES bitplanes (A, C, G, T or U, valid), n_words words each, starting at out.
+// out must start zeroed, and seq must have at most n_words * WORD_BITS sites.
 // The .maple reader packs its reference with it.
 void pack_sequence(const std::string &seq, int32_t n_words, uint64_t *out);
 
