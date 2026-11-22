@@ -13,8 +13,11 @@
 
 namespace {
 
+using p2vbme::WORD_BITS;
+
 bool bit(const p2vbme::Alignment &a, int taxon, int plane, int site) {
-    return (a.packed[((size_t)taxon * p2vbme::N_PLANES + plane) * a.n_words + site / 64] >> (site % 64)) & 1ULL;
+    const int w = site / WORD_BITS, k = site % WORD_BITS; // bit k of word w
+    return (a.packed[((size_t)taxon * p2vbme::N_PLANES + plane) * a.n_words + w] >> k) & 1ULL;
 }
 
 } // namespace
@@ -100,8 +103,8 @@ TEST(Fasta, RandomSequencesPackAsALetterByLetterLoop) {
             if (plane < 0)
                 continue;
             uint64_t *row = &expected[(size_t)x * p2vbme::N_PLANES * n_words];
-            row[(size_t)plane * n_words + i / 64] |= 1ULL << (i % 64);
-            row[(size_t)p2vbme::VALID_PLANE * n_words + i / 64] |= 1ULL << (i % 64);
+            row[(size_t)plane * n_words + i / WORD_BITS] |= 1ULL << (i % WORD_BITS);
+            row[(size_t)p2vbme::VALID_PLANE * n_words + i / WORD_BITS] |= 1ULL << (i % WORD_BITS);
         }
     }
     EXPECT_EQ(aln.packed, expected);

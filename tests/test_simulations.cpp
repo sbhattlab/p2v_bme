@@ -11,6 +11,7 @@
 namespace {
 
 using p2vbme::SimulationModel;
+using p2vbme::WORD_BITS;
 
 // p-distance between taxa i and j over sites valid in both (bitplanes as in the .bin bundles).
 double p_distance(const p2vbme::Alignment &a, int i, int j, int64_t *n_valid = nullptr) {
@@ -157,7 +158,7 @@ TEST(Simulate, LayoutAndDeterminism) {
     const p2vbme::Tree t = p2vbme::random_tree(20, 0.05, 0.3, 3);
     SimulationModel m;
     m.alpha = 0.7;
-    const int L = 130; // not a multiple of 64: the last word has unused bits
+    const int L = 130; // not a multiple of WORD_BITS: the last word has unused bits
     const p2vbme::Alignment a = p2vbme::simulate_alignment(t, L, m, 11);
     ASSERT_EQ(a.n_taxa, 20);
     ASSERT_EQ(a.n_sites, L);
@@ -167,12 +168,12 @@ TEST(Simulate, LayoutAndDeterminism) {
     EXPECT_EQ(a.names[0], "t0");
     EXPECT_EQ(a.names[19], "t19");
     for (int i = 0; i < a.n_taxa; ++i)
-        for (int s = 0; s < 3 * 64; ++s) {
+        for (int s = 0; s < 3 * WORD_BITS; ++s) {
+            const int w = s / WORD_BITS, k = s % WORD_BITS; // bit k of word w
             int n_bases = 0;
             for (int b = 0; b < p2vbme::N_BASES; ++b)
-                n_bases += (a.packed[((size_t)i * p2vbme::N_PLANES + b) * 3 + s / 64] >> (s % 64)) & 1;
-            const int valid =
-                (a.packed[((size_t)i * p2vbme::N_PLANES + p2vbme::VALID_PLANE) * 3 + s / 64] >> (s % 64)) & 1;
+                n_bases += (a.packed[((size_t)i * p2vbme::N_PLANES + b) * 3 + w] >> k) & 1;
+            const int valid = (a.packed[((size_t)i * p2vbme::N_PLANES + p2vbme::VALID_PLANE) * 3 + w] >> k) & 1;
             EXPECT_EQ(n_bases, s < L ? 1 : 0);
             EXPECT_EQ(valid, s < L ? 1 : 0);
         }

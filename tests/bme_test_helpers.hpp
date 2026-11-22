@@ -110,7 +110,7 @@ inline void punch_holes(p2vbme::Alignment &aln, double rate, uint64_t seed) {
                 clear = clear || s < aln.n_sites / 2;
             if (clear)
                 for (int p = 0; p < p2vbme::N_PLANES; ++p)
-                    row[(size_t)p * W + s / 64] &= ~(1ULL << (s % 64));
+                    row[(size_t)p * W + s / p2vbme::WORD_BITS] &= ~(1ULL << (s % p2vbme::WORD_BITS));
         }
     }
 }

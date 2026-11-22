@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
         const uint64_t *row = &aln.packed[(size_t)i * p2vbme::N_PLANES * aln.n_words];
         for (int32_t s = 0; s < sites; ++s)
             for (int b = 0; b < p2vbme::N_BASES; ++b)
-                if ((row[(size_t)b * aln.n_words + s / 64] >> (s % 64)) & 1ULL)
+                if ((row[(size_t)b * aln.n_words + s / p2vbme::WORD_BITS] >> (s % p2vbme::WORD_BITS)) & 1ULL)
                     seqs[i][s] = bases[b];
     }
     seqs[3][5] = 'N'; /* a few missing sites, so the .maple file has runs of n and - */
