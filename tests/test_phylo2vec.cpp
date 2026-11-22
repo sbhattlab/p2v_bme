@@ -2,7 +2,10 @@
 //   - to_skeleton decodes as phylo2vec's to_ancestry (reference rows from the phylo2vec crate 1.7.0), children
 //     swapped, and children get smaller ids than their parent;
 //   - queue_shuffle_rooted encodes any rooted tree, whatever its internal ids, as an ordered vector with a label
-//     mapping, in both labellings, and decoding gives the tree back.
+//     mapping, in both labellings, and decoding gives the tree back;
+//   - at each node the child holding the smaller leaf keeps the label, or with flip the other child;
+//   - with flip, on the tree of an ordered vector, it gives phylo2vec's queue_shuffle (reference values from the
+//     phylo2vec crate 1.7.0).
 #include <gtest/gtest.h>
 
 #include <stdint.h>
@@ -138,7 +141,7 @@ TEST(Phylo2Vec, QueueShuffleRoundTrip) {
             std::iota(identity.begin(), identity.end(), 0);
             const auto want = clades(c1, c2, n, identity);
             std::vector<int64_t> v_flip[2];
-            for (int32_t flip : {0, 1}) {
+            for (const bool flip : {false, true}) {
                 std::vector<int64_t> v(n - 1, -1);
                 std::vector<int32_t> perm(n, -1);
                 queue_shuffle_rooted(c1.data(), c2.data(), n, flip, v.data(), perm.data());
@@ -158,4 +161,66 @@ TEST(Phylo2Vec, QueueShuffleRoundTrip) {
         }
     }
     EXPECT_GT(flips_differ, 0) << "the two labellings never gave different vectors";
+}
+
+// Without flip, the child holding the smaller leaf keeps its parent's label; with flip, the other child.
+// In the decoded tree the child that kept the label is c2 (to_skeleton), so the smallest original leaf (perm[tip]) on
+// c2's side is below c1's at every node without flip, above it with flip.
+TEST(Phylo2Vec, QueueShuffleFlipChoosesWhichChildKeepsTheLabel) {
+    std::mt19937_64 rng(11);
+    for (int32_t n : {2, 3, 4, 5, 10, 100, 1000}) {
+        for (int rep = 0; rep < (n > 100 ? 20 : 200); ++rep) {
+            std::vector<int32_t> c1, c2;
+            random_rooted_tree(n, rng, c1, c2);
+            for (const bool flip : {false, true}) {
+                std::vector<int64_t> v(n - 1);
+                std::vector<int32_t> perm(n);
+                queue_shuffle_rooted(c1.data(), c2.data(), n, flip, v.data(), perm.data());
+                std::vector<int32_t> d1(2 * n - 1), d2(2 * n - 1);
+                to_skeleton(v.data(), n, d1.data(), d2.data());
+                // smallest original leaf below each node of the decoded tree (children have smaller ids)
+                std::vector<int32_t> min_leaf(2 * n - 1);
+                for (int32_t a = 0; a < n; ++a)
+                    min_leaf[a] = perm[a];
+                for (int32_t m = n; m < 2 * n - 1; ++m) {
+                    min_leaf[m] = std::min(min_leaf[d1[m]], min_leaf[d2[m]]);
+                    if (flip)
+                        EXPECT_GT(min_leaf[d2[m]], min_leaf[d1[m]]) << "n " << n << " node " << m;
+                    else
+                        EXPECT_LT(min_leaf[d2[m]], min_leaf[d1[m]]) << "n " << n << " node " << m;
+                }
+            }
+        }
+    }
+}
+
+// With flip, queue_shuffle_rooted on the tree of an ordered vector gives phylo2vec's queue_shuffle(v, false): the same
+// vector and label mapping (phylo2vec crate 1.7.0, vector::ops::queue_shuffle; the last two vectors drawn at random)
+TEST(Phylo2Vec, QueueShuffleWithFlipMatchesPhylo2vec) {
+    struct Case {
+        std::vector<int64_t> v;
+        std::vector<int64_t> v_qs;
+        std::vector<int32_t> label_mapping;
+    };
+    const std::vector<Case> cases = {
+        {{0, 0, 1}, {0, 0, 1}, {3, 2, 1, 0}},
+        {{0, 0, 0, 1}, {0, 0, 1, 3}, {4, 2, 1, 3, 0}},
+        {{0, 1, 2, 3, 4}, {0, 0, 0, 0, 0}, {5, 0, 1, 2, 3, 4}},
+        {{0, 0, 0, 0, 0, 0}, {0, 1, 2, 3, 4, 5}, {1, 2, 3, 4, 5, 6, 0}},
+        {{0, 1, 0, 2, 1, 5, 3}, {0, 0, 1, 0, 2, 1, 2}, {4, 7, 6, 0, 2, 1, 3, 5}},
+        {{0, 1, 1, 0, 3, 2, 6, 1, 4, 9, 7}, {0, 0, 1, 0, 2, 1, 0, 2, 5, 1, 0}, {11, 10, 5, 0, 2, 8, 4, 6, 3, 1, 9, 7}},
+        {{0, 0, 2, 1, 4, 4, 0, 7, 3, 2, 10, 5, 12, 8, 1},
+         {0, 0, 1, 0, 2, 1, 3, 0, 4, 1, 6, 3, 0, 6, 3},
+         {13, 9, 15, 14, 6, 1, 11, 0, 5, 4, 3, 2, 7, 12, 10, 8}},
+    };
+    for (const Case &c : cases) {
+        const int32_t n = (int32_t)c.v.size() + 1;
+        std::vector<int32_t> c1(2 * n - 1), c2(2 * n - 1);
+        to_skeleton(c.v.data(), n, c1.data(), c2.data());
+        std::vector<int64_t> v(n - 1);
+        std::vector<int32_t> perm(n);
+        queue_shuffle_rooted(c1.data(), c2.data(), n, true, v.data(), perm.data());
+        EXPECT_EQ(v, c.v_qs) << "n " << n;
+        EXPECT_EQ(perm, c.label_mapping) << "n " << n;
+    }
 }

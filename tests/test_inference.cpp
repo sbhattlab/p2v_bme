@@ -221,7 +221,7 @@ TEST(Inference, SprOptimalByTheReferenceLibrary) {
             const Result res = run_infer(aln, opt);
             const std::vector<double> D = distance_matrix(aln, with_base_frequencies(aln, opt).substitution_model);
             double min_delta = 0.0;
-            for (int32_t flip : {0, 1}) {
+            for (const bool flip : {false, true}) {
                 std::vector<int64_t> v(N - 1);
                 std::vector<int32_t> perm(N);
                 queue_shuffle_rooted(res.tree.c1.data(), res.tree.c2.data(), N, flip, v.data(), perm.data());

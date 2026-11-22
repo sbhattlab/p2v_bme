@@ -39,7 +39,7 @@ TEST(CpuDevice, MoveScoresAreExactBmeChanges) {
             const Tree start = random_tree(K, 0.1, 0.1, 1000 + seed);
             std::vector<int64_t> v(K - 1);
             std::vector<int32_t> perm(K);
-            queue_shuffle_rooted(start.c1.data(), start.c2.data(), K, 0, v.data(), perm.data());
+            queue_shuffle_rooted(start.c1.data(), start.c2.data(), K, false, v.data(), perm.data());
             auto meta = [&](const std::vector<int64_t> &vv) {
                 SkeletonTables s;
                 to_skeleton_tables(vv, s);
@@ -79,7 +79,7 @@ TEST(CpuDevice, MoveScoresAreExactBmeChanges) {
                     apply_unrooted_spr(moved.adj_u.data(), tr, pr, e, s.parent_u[e]);
                     std::vector<int64_t> v2 = v;
                     std::vector<int32_t> perm2 = perm;
-                    from_skeleton_tables(v2, moved, root_u, moved.adj_u[3 * root_u + 0], 0, perm2);
+                    from_skeleton_tables(v2, moved, root_u, moved.adj_u[3 * root_u + 0], false, perm2);
                     const double d = kern->score(meta(v2), perm2) - L0;
                     if (d < best || (d == best && e < best_edge)) {
                         best = d;
@@ -119,7 +119,7 @@ TEST(CpuDevice, MoveTiesGoToTheSmallestEdge) {
         const Tree start = random_tree(K, 0.1, 0.1, 113);
         std::vector<int64_t> v(K - 1);
         std::vector<int32_t> perm(K);
-        queue_shuffle_rooted(start.c1.data(), start.c2.data(), K, 0, v.data(), perm.data());
+        queue_shuffle_rooted(start.c1.data(), start.c2.data(), K, false, v.data(), perm.data());
         SkeletonTables s;
         to_skeleton_tables(v, s);
         kern->score(s, perm);

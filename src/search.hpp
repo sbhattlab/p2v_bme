@@ -81,15 +81,15 @@ void to_skeleton_tables(const std::vector<int64_t> &v, SkeletonTables &sk);
 // Moves the subtree at prune_node, with the node it hangs from (anchor_node), onto the edge between dest_a and dest_b:
 // adj_u -> adj_u (see search.cpp for a drawing).
 void apply_unrooted_spr(int32_t *adj_u, int32_t prune_node, int32_t anchor_node, int32_t dest_a, int32_t dest_b);
-// Encodes the unrooted skeleton back into an ordered vector: (sk.adj_u, root edge, flip_mode) -> (v, perm).
-// It roots sk.adj_u on the edge between root_c1 and root_c2, queue-shuffles it (labelling flip_mode) and composes perm
+// Encodes the unrooted skeleton back into an ordered vector: (sk.adj_u, root edge, flip) -> (v, perm).
+// It roots sk.adj_u on the edge between root_c1 and root_c2, queue-shuffles it (labelling flip) and composes perm
 // with the new tip labels.
 // Reads only sk.adj_u, and K from the size of sk.v_map: after a batch of moves, the other fields of sk still describe
 // the tree before it.
-// The root edge and flip_mode change only which subtrees become rows, i.e. which moves the next sweep tries, never
+// The root edge and flip change only which subtrees become rows, i.e. which moves the next sweep tries, never
 // the BME length.
 void from_skeleton_tables(std::vector<int64_t> &v, const SkeletonTables &sk, int32_t root_c1, int32_t root_c2,
-                          int32_t flip_mode, std::vector<int32_t> &perm);
+                          bool flip, std::vector<int32_t> &perm);
 
 // ---- The window solve, shared by the devices (each gives its kernels: Device::window_kernels) ----
 

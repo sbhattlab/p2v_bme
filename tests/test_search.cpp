@@ -425,7 +425,7 @@ TEST(Search, SkeletonTablesRoundTrip) {
             for (int32_t r1 = 0; r1 < n_nodes; r1 += (k > 33 ? 7 : 1)) {
                 for (int32_t s = 0; s < (r1 < k ? 1 : 3); ++s) {
                     const int32_t r2 = sk.adj_u[3 * r1 + s];
-                    for (int32_t flip : {0, 1}) {
+                    for (const bool flip : {false, true}) {
                         std::vector<int64_t> v2(k - 1);
                         std::vector<int32_t> perm = start;
                         from_skeleton_tables(v2, sk, r1, r2, flip, perm);
@@ -455,7 +455,7 @@ TEST(Search, SkeletonTablesRoundTrip) {
                 const int32_t hang = n_nodes - 1;
                 std::vector<int64_t> v2(k - 1);
                 std::vector<int32_t> perm = start;
-                from_skeleton_tables(v2, moved, hang, moved.adj_u[3 * hang], 0, perm);
+                from_skeleton_tables(v2, moved, hang, moved.adj_u[3 * hang], false, perm);
                 std::vector<int32_t> d1(2 * k - 1), d2(2 * k - 1);
                 to_skeleton(v2.data(), k, d1.data(), d2.data());
                 EXPECT_EQ(splits_of_rooted(d1, d2, k, perm), moved_splits) << "after a move";

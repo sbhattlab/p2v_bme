@@ -416,7 +416,7 @@ Skeleton extract_skeleton(int32_t window_root, const Tree &tree, const TreeSumma
     if (K >= p2vbme::WINDOW_MIN_K) {
         skel.v.resize(K - 1);
         skel.perm.resize(K);
-        queue_shuffle_rooted(skel_c1.data(), skel_c2.data(), K, 0, skel.v.data(), skel.perm.data());
+        queue_shuffle_rooted(skel_c1.data(), skel_c2.data(), K, false, skel.v.data(), skel.perm.data());
     }
     return skel;
 }
@@ -651,7 +651,7 @@ static std::vector<int32_t> orient(const std::vector<int32_t> &adj_u, int32_t K,
 
 // Re-encodes a skeleton after a batch of moves, or with the other labelling (the flip), for the next sweep.
 void from_skeleton_tables(std::vector<int64_t> &v, const SkeletonTables &sk, int32_t root_c1, int32_t root_c2,
-                          int32_t flip_mode, std::vector<int32_t> &perm) {
+                          bool flip, std::vector<int32_t> &perm) {
     const int32_t K = (int32_t)sk.v_map.size(); // pieces = tips of the skeleton
     const int32_t R_sk = 2 * K - 1;             // nodes of the rooted skeleton
     const int32_t root_r = R_sk - 1;            // its root (2K - 2)
@@ -669,10 +669,10 @@ void from_skeleton_tables(std::vector<int64_t> &v, const SkeletonTables &sk, int
         starts.push_back({root_c2, root_c1});
     orient(sk.adj_u, K, starts, c1_r, c2_r);
 
-    // Step 3: encode the rooted tree as an ordered vector (queue shuffle, labelling flip_mode), then compose perm with
+    // Step 3: encode the rooted tree as an ordered vector (queue shuffle, labelling flip), then compose perm with
     // the new tip labels (step_perm, the label mapping of this encoding) so each tip still points to its piece.
     std::vector<int32_t> step_perm(K);
-    queue_shuffle_rooted(c1_r.data(), c2_r.data(), K, flip_mode, v.data(), step_perm.data());
+    queue_shuffle_rooted(c1_r.data(), c2_r.data(), K, flip, v.data(), step_perm.data());
     std::vector<int32_t> new_perm(K);
     for (int32_t a = 0; a < K; ++a)
         new_perm[a] = perm[step_perm[a]];
@@ -776,7 +776,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
         if (cands.empty()) {
             if (flipped_already == 0) {
                 flipped_already = 1;
-                from_skeleton_tables(v, sk, root_u_sk, sk.rc2, 1, perm);
+                from_skeleton_tables(v, sk, root_u_sk, sk.rc2, true, perm);
                 continue;
             }
             break;
@@ -835,7 +835,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
         // Step 7: re-encode the moved skeleton as an ordered vector (the labelling alternates each sweep); the next
         // sweep scores it.
         int32_t r_nb = adj_u[3 * root_u_sk + 0];
-        from_skeleton_tables(v, sk, root_u_sk, r_nb, iter & 1, perm);
+        from_skeleton_tables(v, sk, root_u_sk, r_nb, (iter & 1) != 0, perm);
     }
 
     if (best_L >= init_L - p2vbme::WINDOW_MIN_GAIN) {
