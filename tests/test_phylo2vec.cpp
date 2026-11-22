@@ -8,10 +8,9 @@
 //     phylo2vec crate 1.7.0).
 #include <gtest/gtest.h>
 
-#include <stdint.h>
-
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <numeric>
 #include <random>
 #include <set>

@@ -5,8 +5,7 @@
  */
 #include "phylo2vec.hpp"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <utility>
 #include <vector>
 

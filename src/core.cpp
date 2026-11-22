@@ -6,7 +6,7 @@
 #include "core.hpp"
 
 #include <array>
-#include <stdint.h>
+#include <cstdint>
 #include <string>
 
 namespace p2vbme {

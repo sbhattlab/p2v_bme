@@ -6,7 +6,7 @@
 #ifndef P2VBME_PHYLO2VEC_HPP
 #define P2VBME_PHYLO2VEC_HPP
 
-#include <stdint.h>
+#include <cstdint>
 
 namespace p2vbme {
 

@@ -2,11 +2,9 @@
 // permutation, equally likely outcomes, and the number of draws it takes from the stream.
 #include <gtest/gtest.h>
 
-#include <stdint.h>
-
 #include <algorithm>
-#include <math.h>
-
+#include <cmath>
+#include <cstdint>
 #include <map>
 #include <numeric>
 #include <vector>

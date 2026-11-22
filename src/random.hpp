@@ -15,9 +15,8 @@
 #ifndef P2VBME_RANDOM_HPP
 #define P2VBME_RANDOM_HPP
 
-#include <stddef.h>
-#include <stdint.h>
-
+#include <cstddef>
+#include <cstdint>
 #include <utility>
 
 namespace p2vbme {

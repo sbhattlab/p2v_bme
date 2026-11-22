@@ -13,8 +13,7 @@
 #ifndef P2VBME_CONFIG_HPP
 #define P2VBME_CONFIG_HPP
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <limits>
 
 namespace p2vbme {

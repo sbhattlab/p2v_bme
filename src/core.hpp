@@ -7,8 +7,7 @@
 #ifndef P2VBME_CORE_HPP
 #define P2VBME_CORE_HPP
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 #include <vector>
 
