@@ -11,16 +11,17 @@
  */
 #include "json_writer.hpp"
 
-#include <math.h>
-#include <stddef.h>
-#include <stdio.h>
-
 #include <charconv>
+#include <cmath>
+#include <cstddef>
 #include <stdexcept>
 
 namespace p2vbme {
 
 namespace {
+
+// The digits of a \uXXXX escape, lower case
+constexpr char HEX_DIGITS[] = "0123456789abcdef";
 
 // Length of the valid UTF-8 sequence starting at s[i] (2-4), or 0 if it is not valid UTF-8.
 // length from the first byte -> must fit in s -> the next bytes must be continuation bytes (10xxxxxx) -> second-byte
@@ -159,7 +160,7 @@ void JsonWriter::integer(int64_t x) {
 // (std::to_chars)
 template <class F> void JsonWriter::real(F x) {
     before_value();
-    if (!isfinite(x)) {
+    if (!std::isfinite(x)) {
         out_ += "null";
         return;
     }
@@ -206,10 +207,10 @@ void JsonWriter::write_string(std::string_view s) {
             out_ += "\\t";
             break;
         default:
-            if (c < 0x20) {
-                char buf[8];
-                snprintf(buf, sizeof(buf), "\\u%04x", c);
-                out_ += buf;
+            if (c < 0x20) { // \u00XX: c fits in the last two hex digits
+                out_ += "\\u00";
+                out_ += HEX_DIGITS[c >> 4];
+                out_ += HEX_DIGITS[c & 0xF];
             } else {
                 out_ += (char)c;
             }
