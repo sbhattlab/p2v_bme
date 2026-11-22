@@ -28,12 +28,21 @@ target_compile_options(test_distances PRIVATE -Wall -Wextra)
 target_link_libraries(test_distances PRIVATE p2vbme_distances p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_distances)
 
-# infer() on the CPU (any build): brute force at small N, SPR optimality by the reference library, workers
+add_executable(test_eigen_dist test_eigen_dist.cpp)
+target_compile_options(test_eigen_dist PRIVATE -Wall -Wextra)
+target_link_libraries(test_eigen_dist PRIVATE p2vbme_distances p2vbme_simulations GTest::gtest_main)
+gtest_discover_tests(test_eigen_dist)
+
+# infer() on the CPU (any build): brute force at small N, SPR optimality by the reference library, workers;
+# InferenceGpu.* on the GPU: a search under every model, CPU against GPU
 add_executable(test_inference test_inference.cpp ${BME_REFERENCE_SOURCE})
 target_include_directories(test_inference PRIVATE ${BME_REFERENCE_INCLUDE})
 target_compile_options(test_inference PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O2 -Wall -Wextra> $<$<COMPILE_LANGUAGE:C>:-O2>)
 target_link_libraries(test_inference PRIVATE p2vbme p2vbme_processing p2vbme_simulations GTest::gtest_main m)
-gtest_discover_tests(test_inference DISCOVERY_TIMEOUT 60)
+gtest_discover_tests(test_inference TEST_FILTER "-InferenceGpu.*" DISCOVERY_TIMEOUT 60)
+if(P2VBME_CUDA)
+  gtest_discover_tests(test_inference TEST_FILTER "InferenceGpu.*" PROPERTIES LABELS gpu DISCOVERY_TIMEOUT 60)
+endif()
 
 # The CPU device's window kernels (any build): move scores against exact BME changes, ties
 add_executable(test_device_cpu test_device_cpu.cpp)
@@ -58,6 +67,12 @@ add_executable(test_search test_search.cpp)
 target_compile_options(test_search PRIVATE -O2 -Wall -Wextra)
 target_link_libraries(test_search PRIVATE p2vbme GTest::gtest_main)
 gtest_discover_tests(test_search DISCOVERY_TIMEOUT 60)
+
+# The start trees (src/start_tree.hpp): a failing device's error leaves the sample-and-place start
+add_executable(test_start_tree test_start_tree.cpp)
+target_compile_options(test_start_tree PRIVATE -Wall -Wextra)
+target_link_libraries(test_start_tree PRIVATE p2vbme GTest::gtest_main)
+gtest_discover_tests(test_start_tree)
 
 # O(N) branch lengths against the exact O(N^2) ones: CPU device; BranchLengthsGpu.* on the GPU
 add_executable(test_branch_lengths test_branch_lengths.cpp)
@@ -93,24 +108,11 @@ target_link_libraries(verify_all PRIVATE m pthread)
 add_test(NAME verify_all COMMAND verify_all)
 
 if(P2VBME_CUDA)
-  # Same tree for any number of devices (several devices on one GPU)
-  add_executable(test_search_devices test_search_devices.cpp)
-  target_compile_options(test_search_devices PRIVATE -Wall -Wextra)
-  target_link_libraries(test_search_devices PRIVATE p2vbme p2vbme_simulations GTest::gtest_main)
-  gtest_discover_tests(test_search_devices PROPERTIES LABELS gpu)
-
-  # GPU distances under every model against the CPU formulas
-  add_executable(test_device_distances test_device_distances.cpp)
-  target_compile_options(test_device_distances PRIVATE -Wall -Wextra)
-  target_link_libraries(test_device_distances PRIVATE p2vbme p2vbme_processing p2vbme_simulations GTest::gtest_main)
-  gtest_discover_tests(test_device_distances PROPERTIES LABELS gpu DISCOVERY_TIMEOUT 60)
-
-  # Error paths: device-step failures (a fake device), argument errors; Errors.Gpu*: out of memory, CUDA errors
-  add_executable(test_errors test_errors.cpp)
-  target_compile_options(test_errors PRIVATE -Wall -Wextra)
-  target_link_libraries(test_errors PRIVATE p2vbme p2vbme_simulations GTest::gtest_main CUDA::cudart)
-  gtest_discover_tests(test_errors TEST_FILTER "-Errors.Gpu*")
-  gtest_discover_tests(test_errors TEST_FILTER "Errors.Gpu*" PROPERTIES LABELS gpu)
+  # The GPU device: its distances under every model against the CPU formulas, through the edge-length pass; its errors
+  add_executable(test_device_gpu test_device_gpu.cpp)
+  target_compile_options(test_device_gpu PRIVATE -Wall -Wextra)
+  target_link_libraries(test_device_gpu PRIVATE p2vbme p2vbme_simulations GTest::gtest_main CUDA::cudart)
+  gtest_discover_tests(test_device_gpu PROPERTIES LABELS gpu DISCOVERY_TIMEOUT 60)
 endif()
 
 # The command line: tests/python/test_cli.py (pytest) runs p2v-bme and checks its exit code, output and files.

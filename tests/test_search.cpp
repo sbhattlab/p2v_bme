@@ -5,7 +5,8 @@
 //   - extract_skeleton: pieces and opened nodes describe the window, and its vector decodes into the window's clades;
 //   - to_skeleton_tables: the tables agree with each other;
 //   - from_skeleton_tables: re-encoding gives the same unrooted tree, from any root edge and labelling, also after a
-//     move.
+//     move;
+//   - run_minibatch_bme rethrows a window solve that throws on one of several host threads (a fake device).
 #include <gtest/gtest.h>
 
 #include <stdint.h>
@@ -18,6 +19,7 @@
 #include <vector>
 
 #include "config.hpp"
+#include "fake_device_test_helpers.hpp"
 #include "phylo2vec.hpp"
 #include "search.hpp"
 #include "start_tree.hpp"
@@ -462,4 +464,14 @@ TEST(Search, SkeletonTablesRoundTrip) {
         }
     }
     EXPECT_GT(moved_trees_changed, 0) << "no move changed the tree: the move test checked nothing";
+}
+
+// A window solve that throws on one of several host threads: the search rethrows it after the parallel wave.
+TEST(Search, WindowSolveFailureLeavesTheSearch) {
+    for (int n_devices : {1, 3}) {
+        Devices devices = failing_devices(n_devices, "window_kernels");
+        Tree tree = build_random_tree(3000, 1);
+        const std::string msg = thrown_message([&] { run_minibatch_bme(tree, devices, SearchSettings()); });
+        EXPECT_EQ(msg, "injected failure in window_kernels") << n_devices;
+    }
 }

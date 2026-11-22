@@ -1,6 +1,6 @@
 // Helpers shared by the tests that check BME lengths on simulated alignments (test_inference, test_branch_lengths,
-// test_device_cpu): the simulation model, its distance models, the distance matrix, Pauplin's formula and the CPU
-// settings.
+// test_device_cpu, test_device_gpu): the simulation model, its distance models, missing sites, the distance matrix,
+// Pauplin's formula and the CPU settings.
 #ifndef P2VBME_TESTS_BME_TEST_HELPERS_HPP
 #define P2VBME_TESTS_BME_TEST_HELPERS_HPP
 
@@ -15,6 +15,7 @@
 #include "core.hpp"
 #include "distances.hpp"
 #include "inference.hpp"
+#include "random.hpp"
 #include "simulations.hpp"
 
 namespace {
@@ -92,6 +93,26 @@ inline std::vector<std::vector<int32_t>> unrooted(const p2vbme::Tree &t, int32_t
     adj[t.c1[root]].push_back(t.c2[root]);
     adj[t.c2[root]].push_back(t.c1[root]);
     return adj;
+}
+
+// Clears each site of each sequence with probability `rate` (missing data), and makes sequences 0 and 1 share no
+// valid site (0 keeps the first half, 1 the second).
+inline void punch_holes(p2vbme::Alignment &aln, double rate, uint64_t seed) {
+    uint64_t st = seed;
+    const int32_t W = aln.n_words;
+    for (int32_t i = 0; i < aln.n_taxa; ++i) {
+        uint64_t *row = &aln.packed[(size_t)i * p2vbme::N_PLANES * W];
+        for (int32_t s = 0; s < aln.n_sites; ++s) {
+            bool clear = (double)(p2vbme::splitmix64(st) >> 11) * 0x1.0p-53 < rate;
+            if (i == 0)
+                clear = clear || s >= aln.n_sites / 2;
+            if (i == 1)
+                clear = clear || s < aln.n_sites / 2;
+            if (clear)
+                for (int p = 0; p < p2vbme::N_PLANES; ++p)
+                    row[(size_t)p * W + s / 64] &= ~(1ULL << (s % 64));
+        }
+    }
 }
 
 // The settings of a CPU run under a distance model: random start, `threads` CPU workers.
