@@ -10,24 +10,19 @@
  *   K~ = diag(F^a)^(-1/2) K diag(F^b)^(-1/2) - sqrt(F^a) sqrt(F^b)^T,
  * clipped to [1e-4, 1). The rate matrix uses pair frequencies xi_i = sqrt(F^a_i F^b_i) / sum_j sqrt(F^a_j F^b_j);
  * lambda_k < 0 are its non-zero eigenvalues, by increasing magnitude. Each mode estimates the distance by
- * g(sigma_k) / |lambda_k|, g(sigma) = alpha (sigma^(-1/alpha) - 1). Estimators:
- *   wls   SymWLS (the default; the distance of the paper's supplement): the weighted least-squares combination
- *         d = sum_k w_k |lambda_k| g(sigma_k) / sum_k w_k lambda_k^2, w_k = s_k^(2 + 2/alpha) / (1 - s_k^2 + 1e-4),
- *         with s_k = sigma_k, then `reweight` updates with s_k = (1 + |lambda_k| d / alpha)^(-alpha);
- *   svd   SymSVD: d = sum_k g(sigma_k) / (-trace Q);
- *   orig  the singular values of the (+1/2, -3/2) symmetrised matrix
- *         (diag(F^a)^(1/2) K diag(F^a)^(-3/2) + diag(F^b)^(-3/2) K diag(F^b)^(1/2)) / 2, all four in the sum.
- * Saturation: `direction` (default) clips each sigma to [1e-4, 1) (orig: [1e-4, 1]); a saturated mode gets almost no
- * weight in SymWLS's first fit, but the reweighting passes weight each mode by its model-implied s_k, so a fully
- * saturated direction can still pull the distance to the cap (the paper's GPU implementation behaves the same). `pair`
- * (the rule of the paper's C distance library) also sets all three sigma to 1e-4 when det K <= 0: the cap for alpha up
- * to about 14, 6.9 to 9.8 above. Distances lie in [0, 10]; no shared valid site gives 2.0, identical sequences 0.
+ * g(sigma_k) / |lambda_k|, g(sigma) = alpha (sigma^(-1/alpha) - 1). SymWLS (the distance of the paper's supplement)
+ * combines the three modes by weighted least squares,
+ *   d = sum_k w_k |lambda_k| g(sigma_k) / sum_k w_k lambda_k^2,  w_k = s_k^(2 + 2/alpha) / (1 - s_k^2 + 1e-4),
+ * with s_k = sigma_k, then `reweight` updates with s_k = (1 + |lambda_k| d / alpha)^(-alpha).
+ * Saturation: a saturated mode (sigma at 1e-4) gets almost no weight in the first fit, but the reweighting passes
+ * weight each mode by its model-implied s_k, so a fully saturated direction can still pull the distance to the cap (the
+ * paper's GPU implementation behaves the same). Distances lie in [0, 10]; no shared valid site gives 2.0, identical
+ * sequences 0.
  *
- * wls and svd with the default settings are the paper's GPU implementation, ported line by line (bitwise equal when
- * both are compiled without FMA contraction, for exchangeabilities with mean 1 as the paper's fit returns them; others
- * are scaled to mean 1 first); orig and `pair` follow the paper's C distance library, with the GPU
- * implementation's pseudocount 1e-5 (library: 1e-8).
- * Not ported: the library's projection onto the bases present when a base is missing (its "reduced alphabet");
+ * The paper's GPU implementation, ported line by line (bitwise equal when both are compiled without FMA contraction,
+ * for exchangeabilities with mean 1 as the paper's fit returns them; others are scaled to mean 1 first).
+ * Not ported: the paper's C distance library's projection onto the bases present when a base is missing (its "reduced
+ * alphabet");
  * here a base absent from both sequences gives a pseudocount-only row of K~ (singular value 1/4), which reads as
  * a strongly diverged mode, as in the paper's GPU implementation.
  */
@@ -43,19 +38,9 @@
 
 namespace p2vbme {
 
-enum class GtrEstimator : int32_t { Wls, Svd, Orig };
-enum class Saturation : int32_t { Direction, Pair };
-
 struct EigenSettings {
-    GtrEstimator estimator = GtrEstimator::Wls;
-    int32_t reweight = DEFAULT_GTR_REWEIGHT; // SymWLS weight updates after the first fit (wls only)
-    Saturation saturation = Saturation::Direction;
+    int32_t reweight = DEFAULT_GTR_REWEIGHT; // SymWLS weight updates after the first fit
 };
-
-const char *estimator_name(GtrEstimator e);            // wls, svd, orig
-const char *saturation_name(Saturation s);             // direction, pair
-GtrEstimator parse_estimator(const std::string &name); // throws std::runtime_error
-Saturation parse_saturation(const std::string &name);
 
 // The pseudocount added to each of the 16 counts, and the range of the singular values.
 constexpr double EIGEN_PSEUDOCOUNT = 1e-5;
@@ -113,56 +98,6 @@ template <class T> P2V_HD inline void sym4x4_rank3_eigenvalues(const T M[16], co
     evals3[2] = mu + two_sp * std::cos(theta + two_pi_over_3<T>());
 }
 
-// All four eigenvalues of a symmetric 4 x 4 matrix (overwritten), in decreasing order, by cyclic Jacobi rotations (as
-// the paper's C distance library, eigenvalues only).
-template <class T> P2V_HD inline void sym4x4_jacobi_eigenvalues(T A[16], T evals[4]) {
-    const int pairs[6][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
-    for (int sweep = 0; sweep < 6; ++sweep) {
-        T off = T(0);
-        for (int k = 0; k < 6; ++k) {
-            const T a = A[pairs[k][0] * 4 + pairs[k][1]];
-            off += a * a;
-        }
-        if (off < T(1e-30))
-            break;
-        for (int k = 0; k < 6; ++k) {
-            const int ip = pairs[k][0], iq = pairs[k][1];
-            const T apq = A[ip * 4 + iq];
-            if (apq < T(1e-18) && apq > T(-1e-18))
-                continue;
-            const T app = A[ip * 4 + ip], aqq = A[iq * 4 + iq];
-            const T tau = (aqq - app) / (T(2) * apq);
-            const T t = (tau >= T(0)) ? (T(1) / (tau + std::sqrt(T(1) + tau * tau)))
-                                      : (T(-1) / (-tau + std::sqrt(T(1) + tau * tau)));
-            const T c = T(1) / std::sqrt(T(1) + t * t), s = t * c;
-            A[ip * 4 + ip] = app - t * apq;
-            A[iq * 4 + iq] = aqq + t * apq;
-            A[ip * 4 + iq] = T(0);
-            A[iq * 4 + ip] = T(0);
-            for (int r = 0; r < 4; ++r) {
-                if (r != ip && r != iq) {
-                    const T arp = A[r * 4 + ip], arq = A[r * 4 + iq];
-                    A[r * 4 + ip] = c * arp - s * arq;
-                    A[ip * 4 + r] = A[r * 4 + ip];
-                    A[r * 4 + iq] = s * arp + c * arq;
-                    A[iq * 4 + r] = A[r * 4 + iq];
-                }
-            }
-        }
-    }
-    for (int i = 0; i < 4; ++i)
-        evals[i] = A[i * 4 + i];
-    for (int i = 0; i < 3; ++i) {
-        int best = i;
-        for (int j = i + 1; j < 4; ++j)
-            if (evals[j] > evals[best])
-                best = j;
-        const T tmp = evals[i];
-        evals[i] = evals[best];
-        evals[best] = tmp;
-    }
-}
-
 // ---- The eigenvalue GTR+GC distance ----------------------------------------------------------------------
 
 // s_rates: exchangeabilities (AC, AG, AT, CG, CT, GT); alpha > 0 and inv_alpha = 1 / alpha (computed once by the
@@ -211,61 +146,7 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
 
     // The rate matrix for the pair frequencies xi
     T R[N_BASES * N_BASES];
-    const T neg_tr_Q = gtr_symmetric_rate_matrix<T>(s_rates, xi, R);
-
-    if (opt.estimator == GtrEstimator::Orig) {
-        // orig: all four singular values of the (+1/2, -3/2) symmetrised matrix
-        T G[N_BASES * N_BASES];
-        {
-            T Lbar[N_BASES * N_BASES];
-            for (int i = 0; i < N_BASES; ++i)
-                for (int j = 0; j < N_BASES; ++j) {
-                    const T t1 = sfa[i] * K[i * N_BASES + j] / (Fa[j] * sfa[j]);
-                    const T t2 = K[i * N_BASES + j] * sfb[j] / (Fb[i] * sfb[i]);
-                    Lbar[i * N_BASES + j] = T(0.5) * (t1 + t2);
-                }
-            for (int i = 0; i < N_BASES; ++i)
-                for (int j = i; j < N_BASES; ++j) {
-                    T s = T(0);
-                    for (int k = 0; k < N_BASES; ++k)
-                        s += Lbar[k * N_BASES + i] * Lbar[k * N_BASES + j];
-                    G[i * N_BASES + j] = s;
-                    G[j * N_BASES + i] = s;
-                }
-        }
-        T ev[N_BASES];
-        sym4x4_jacobi_eigenvalues<T>(G, ev);
-        T sig4[N_BASES];
-        for (int k = 0; k < N_BASES; ++k)
-            sig4[k] = (ev[k] > T(0)) ? std::sqrt(ev[k]) : T(0);
-        if (opt.saturation == Saturation::Pair) {
-            const T s0 = K[0] * K[5] - K[1] * K[4], s1 = K[0] * K[6] - K[2] * K[4], s2 = K[0] * K[7] - K[3] * K[4];
-            const T s3 = K[1] * K[6] - K[2] * K[5], s4 = K[1] * K[7] - K[3] * K[5], s5 = K[2] * K[7] - K[3] * K[6];
-            const T c5 = K[10] * K[15] - K[11] * K[14], c4 = K[9] * K[15] - K[11] * K[13];
-            const T c3 = K[9] * K[14] - K[10] * K[13], c2 = K[8] * K[15] - K[11] * K[12];
-            const T c1 = K[8] * K[14] - K[10] * K[12], c0 = K[8] * K[13] - K[9] * K[12];
-            if (s0 * c5 - s1 * c4 + s2 * c3 + s3 * c2 - s4 * c1 + s5 * c0 <= T(0))
-                sig4[1] = sig4[2] = sig4[3] = T(EIGEN_SIGMA_MIN);
-        }
-        T sum_gamma = T(0);
-        for (int k = 0; k < N_BASES; ++k) {
-            T sig = sig4[k];
-            if (sig > T(1))
-                sig = T(1);
-            if (sig < T(EIGEN_SIGMA_MIN))
-                sig = T(EIGEN_SIGMA_MIN);
-            T u = -std::log(sig) * inv_alpha;
-            if (u > T(30))
-                u = T(30);
-            sum_gamma += alpha * std::expm1(u);
-        }
-        T d_ab = (neg_tr_Q > T(1e-12)) ? (sum_gamma / neg_tr_Q) : T(0);
-        if (d_ab < T(0))
-            d_ab = T(0);
-        if (d_ab > T(MAX_DISTANCE))
-            d_ab = T(MAX_DISTANCE);
-        return d_ab;
-    }
+    gtr_symmetric_rate_matrix<T>(s_rates, xi, R);
 
     T Ltilde[N_BASES * N_BASES];
     for (int i = 0; i < N_BASES; ++i)
@@ -293,33 +174,6 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
         if (sv > T(EIGEN_SIGMA_MAX))
             sv = T(EIGEN_SIGMA_MAX);
         sigma[k] = sv;
-    }
-    if (opt.saturation == Saturation::Pair) {
-        // the rule of the paper's C distance library: det K <= 0 (a mode has crossed zero) saturates the whole pair
-        const T s0 = K[0] * K[5] - K[1] * K[4], s1 = K[0] * K[6] - K[2] * K[4], s2 = K[0] * K[7] - K[3] * K[4];
-        const T s3 = K[1] * K[6] - K[2] * K[5], s4 = K[1] * K[7] - K[3] * K[5], s5 = K[2] * K[7] - K[3] * K[6];
-        const T c5 = K[10] * K[15] - K[11] * K[14], c4 = K[9] * K[15] - K[11] * K[13];
-        const T c3 = K[9] * K[14] - K[10] * K[13], c2 = K[8] * K[15] - K[11] * K[12];
-        const T c1 = K[8] * K[14] - K[10] * K[12], c0 = K[8] * K[13] - K[9] * K[12];
-        if (s0 * c5 - s1 * c4 + s2 * c3 + s3 * c2 - s4 * c1 + s5 * c0 <= T(0))
-            sigma[0] = sigma[1] = sigma[2] = T(EIGEN_SIGMA_MIN);
-    }
-
-    if (opt.estimator == GtrEstimator::Svd) {
-        // SymSVD: the sum of the three modes over -trace Q
-        T sum_gamma = T(0);
-        for (int k = 0; k < 3; ++k) {
-            T u = -std::log(sigma[k]) * inv_alpha;
-            if (u > T(20))
-                u = T(20);
-            sum_gamma += alpha * std::expm1(u);
-        }
-        T d_ab = (neg_tr_Q > T(1e-8)) ? (sum_gamma / neg_tr_Q) : T(0);
-        if (d_ab < T(0))
-            d_ab = T(0);
-        if (d_ab > T(MAX_DISTANCE))
-            d_ab = T(MAX_DISTANCE);
-        return d_ab;
     }
 
     // SymWLS

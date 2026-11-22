@@ -58,7 +58,7 @@ target_compile_options(p2vbme_simulations PRIVATE -O3 -Wall -Wextra)
 target_link_libraries(p2vbme_simulations PUBLIC p2vbme_core)
 
 # Distance models: names, pair counts; the per-pair formulas are inline in the headers (plain C++, no CUDA)
-add_library(p2vbme_distances STATIC src/distances.cpp src/eigen_dist.cpp)
+add_library(p2vbme_distances STATIC src/distances.cpp)
 target_include_directories(p2vbme_distances PUBLIC src)
 target_compile_options(p2vbme_distances PRIVATE -O3 -Wall -Wextra)
 

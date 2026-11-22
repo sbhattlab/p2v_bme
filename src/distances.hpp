@@ -274,9 +274,8 @@ template <class T> P2V_HD inline T logdet_distance(const uint32_t n[N_BASES * N_
 // and stationary frequencies xi, normalised to one expected substitution per unit time (mean rate sum_i xi_i sum_j s_ij
 // xi_j = 1).
 // R has the eigenvalues of Q.
-// Returns -trace(Q).
 template <class T>
-P2V_HD inline T gtr_symmetric_rate_matrix(const T s[N_GTR_RATES], const T xi[N_BASES], T R[N_BASES * N_BASES]) {
+P2V_HD inline void gtr_symmetric_rate_matrix(const T s[N_GTR_RATES], const T xi[N_BASES], T R[N_BASES * N_BASES]) {
     const T S[N_BASES * N_BASES] = {T(0), s[0], s[1], s[2], s[0], T(0), s[3], s[4],
                                     s[1], s[3], T(0), s[5], s[2], s[4], s[5], T(0)};
     T row_sum[N_BASES];
@@ -292,19 +291,15 @@ P2V_HD inline T gtr_symmetric_rate_matrix(const T s[N_GTR_RATES], const T xi[N_B
     T sxi[N_BASES];
     for (int i = 0; i < N_BASES; ++i)
         sxi[i] = std::sqrt(xi[i]);
-    T neg_tr_Q = T(0);
     for (int i = 0; i < N_BASES; ++i) {
         for (int j = 0; j < N_BASES; ++j) {
             if (i == j) {
-                const T q_ii = -row_sum[i] * inv_mu;
-                R[i * N_BASES + i] = q_ii;
-                neg_tr_Q -= q_ii;
+                R[i * N_BASES + i] = -row_sum[i] * inv_mu;
             } else {
                 R[i * N_BASES + j] = S[i * N_BASES + j] * sxi[i] * sxi[j] * inv_mu;
             }
         }
     }
-    return neg_tr_Q;
 }
 
 } // namespace p2vbme

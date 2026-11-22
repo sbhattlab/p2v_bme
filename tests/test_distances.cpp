@@ -207,9 +207,6 @@ TEST(Distances, ModelNames) {
     EXPECT_THROW(parse_model("GTR+G"), std::runtime_error);
     EXPECT_THROW(parse_model("GTR"), std::runtime_error);
     EXPECT_THROW(parse_model("HKY"), std::runtime_error);
-    EXPECT_EQ(parse_estimator("svd"), GtrEstimator::Svd);
-    EXPECT_EQ(parse_saturation("pair"), Saturation::Pair);
-    EXPECT_THROW(parse_estimator("ols"), std::runtime_error);
 }
 
 // The float JC69 is the paper's search-core expression, value for value, wherever the core did not cap p (p <= 0.74).
@@ -317,21 +314,16 @@ T gtr_distance(const PairCounts &c, const SimulationModel &m, double alpha, Eige
 
 } // namespace
 
-/* With the true parameters, SymWLS and SymSVD return t from the expected counts under GTR+GC: each mode gives
+/* With the true parameters, SymWLS returns t from the expected counts under GTR+GC: each mode gives
  * g(sigma_k) / |lambda_k| = t. */
 TEST(EigenDist, GtrGcConsistent) {
     for (const SimulationModel &m : {model_jc(), model_tn93(), model_gtr()})
         for (double alpha : {0.3, 1.0, 5.0})
             for (double t : TIMES) {
                 const PairCounts c = expected_counts_gamma(m, t, alpha);
-                for (GtrEstimator e : {GtrEstimator::Wls, GtrEstimator::Svd}) {
-                    EigenSettings s;
-                    s.estimator = e;
-                    EXPECT_NEAR(gtr_distance<double>(c, m, alpha, s), t, 1e-5 * t)
-                        << estimator_name(e) << " alpha=" << alpha << " t=" << t;
-                    EXPECT_NEAR(gtr_distance<float>(c, m, alpha, s), t, 3e-3 * t)
-                        << estimator_name(e) << " alpha=" << alpha << " t=" << t << " (float)";
-                }
+                EXPECT_NEAR(gtr_distance<double>(c, m, alpha), t, 1e-5 * t) << "alpha=" << alpha << " t=" << t;
+                EXPECT_NEAR(gtr_distance<float>(c, m, alpha), t, 3e-3 * t)
+                    << "alpha=" << alpha << " t=" << t << " (float)";
             }
 }
 
@@ -353,21 +345,7 @@ TEST(EigenDist, GtrGcScaleFree) {
     }
 }
 
-/* The library's mode 0 is consistent with equal base frequencies (its symmetrised matrix has the singular values
- * of P(t) only when diag(F) commutes with it). */
-TEST(EigenDist, OrigConsistentAtEqualFrequencies) {
-    EigenSettings s;
-    s.estimator = GtrEstimator::Orig;
-    for (double alpha : {0.5, 2.0})
-        for (double t : TIMES) {
-            const PairCounts c = expected_counts_gamma(model_k80(), t, alpha);
-            EXPECT_NEAR(gtr_distance<double>(c, model_k80(), alpha, s), t, 1e-5 * t);
-            EXPECT_NEAR(gtr_distance<float>(c, model_k80(), alpha, s), t, 3e-3 * t);
-        }
-}
-
-/* The settings change what they should: on exact data the reweighting does not matter; on a noisy pair it does;
- * `pair` saturation sends a pair with det K <= 0 to the cap, `direction` does not. */
+/* The reweighting changes what it should: on exact data it does not matter; on a noisy pair it does. */
 TEST(EigenDist, Settings) {
     const SimulationModel m = model_gtr();
     const PairCounts exact = expected_counts_gamma(m, 0.4, 0.7);
@@ -382,11 +360,6 @@ TEST(EigenDist, Settings) {
     EXPECT_NE(d0, d2);
     EXPECT_NE(d2, d3);
     EXPECT_GT(d0, 0.0);
-    const PairCounts flipped = {{2, 40, 3, 5, 38, 4, 6, 2, 3, 5, 37, 3, 6, 3, 4, 39}}; /* A, C swapped: det K < 0 */
-    EigenSettings pair;
-    pair.saturation = Saturation::Pair;
-    EXPECT_EQ(gtr_distance<double>(flipped, m, 0.7, pair), 10.0);
-    EXPECT_LT(gtr_distance<double>(flipped, m, 0.7), 10.0);
 }
 
 /* The alignment's base frequencies: each base's share of all valid sites ("AACG" and "T-GA": 3 A, 1 C, 2 G, 1 T). */
