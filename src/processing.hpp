@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "core.hpp"
-#include "substitution_models.hpp"
+#include "distances.hpp"
 
 namespace p2vbme {
 

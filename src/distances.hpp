@@ -1,5 +1,5 @@
 /*
- * substitution_models.hpp
+ * distances.hpp
  *
  * The substitution models of the distances: their names, the pair counts they start from, and
  * the closed-form distances of JC69, K80, F81, F84, TN93 and LogDet, plus the symmetric form of the GTR rate
@@ -17,8 +17,8 @@
  * every pair: a logarithm's argument is floored at 1e-4 and a distance capped at MAX_DISTANCE (the paper's C distance
  * library's rules); no shared valid site gives NO_OVERLAP_DISTANCE; an undefined LogDet gives MAX_DISTANCE.
  */
-#ifndef P2VBME_SUBSTITUTION_MODELS_HPP
-#define P2VBME_SUBSTITUTION_MODELS_HPP
+#ifndef P2VBME_DISTANCES_HPP
+#define P2VBME_DISTANCES_HPP
 
 #include <math.h>
 #include <stdint.h>
@@ -334,4 +334,4 @@ P2V_HD inline T gtr_symmetric_rate_matrix(const T s[N_GTR_RATES], const T xi[N_B
 
 } // namespace p2vbme
 
-#endif // P2VBME_SUBSTITUTION_MODELS_HPP
+#endif // P2VBME_DISTANCES_HPP

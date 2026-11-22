@@ -5,7 +5,7 @@
  * subsamples), the window workspace, the window solve (condensed K x K distances, discrete gradient, batched
  * moves), the nearest-sample search and the edge-length pass. Distances: the run's
  * model (set_distance; JC69 by default) from the 5-bitplane alignment, by the per-pair formulas of
- * substitution_models.hpp and eigen_dist.hpp. JC69 needs two counts per pair (shared valid sites, matches) and
+ * distances.hpp and eigen_dist.hpp. JC69 needs two counts per pair (shared valid sites, matches) and
  * has tiled kernels; the other models need the 16 pair counts and take the per-pair path of each kernel.
  */
 #include <cuda_runtime.h>
@@ -21,9 +21,9 @@
 
 #include "config.hpp"
 #include "device.hpp"
+#include "distances.hpp"
 #include "eigen_dist.hpp"
 #include "search.hpp"
-#include "substitution_models.hpp"
 
 // Every CUDA call is checked; a failure throws std::runtime_error (the library never exits).
 #define CUDA_CHECK(call)                                                                                               \

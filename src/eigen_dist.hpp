@@ -37,7 +37,7 @@
 #include <stdint.h>
 
 #include "config.hpp"
-#include "substitution_models.hpp"
+#include "distances.hpp"
 
 namespace p2vbme {
 

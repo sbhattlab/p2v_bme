@@ -1,4 +1,4 @@
-// The GPU's distances under every model against the CPU formulas (substitution_models.hpp, eigen_dist.hpp) on the
+// The GPU's distances under every model against the CPU formulas (distances.hpp, eigen_dist.hpp) on the
 // same pair counts. Label gpu.
 //   - single pairs and profile-weighted sums through the edge-length pass (the JC69 tiled path and the
 //     per-pair path of the other models), on an alignment with missing sites and a pair without shared sites;
@@ -17,13 +17,13 @@
 #include <vector>
 
 #include "device.hpp"
+#include "distances.hpp"
 #include "eigen_dist.hpp"
 #include "infer_test_helpers.hpp"
 #include "inference.hpp"
 #include "random.hpp"
 #include "search.hpp"
 #include "simulations.hpp"
-#include "substitution_models.hpp"
 
 namespace {
 

@@ -27,9 +27,9 @@
 #include "config.hpp"
 #include "core.hpp"
 #include "device.hpp"
+#include "distances.hpp"
 #include "eigen_dist.hpp"
 #include "search.hpp"
-#include "substitution_models.hpp"
 
 namespace p2vbme {
 

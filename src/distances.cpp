@@ -1,9 +1,9 @@
 /*
- * substitution_models.cpp
+ * distances.cpp
  *
  * Model names and the pair counts of two alignment rows (host).
  */
-#include "substitution_models.hpp"
+#include "distances.hpp"
 #include "core.hpp"
 
 #include <ctype.h>

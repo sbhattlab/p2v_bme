@@ -14,8 +14,8 @@
 #include <string>
 
 #include "accelerator.hpp"
+#include "distances.hpp"
 #include "json_writer.hpp"
-#include "substitution_models.hpp"
 #include "version.hpp"
 
 namespace p2vbme {

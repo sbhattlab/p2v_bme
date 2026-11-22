@@ -18,11 +18,11 @@
 #include "bme_test_helpers.hpp"
 #include "branch_lengths.hpp"
 #include "device.hpp"
+#include "distances.hpp"
 #include "eigen_dist.hpp"
 #include "infer_test_helpers.hpp"
 #include "inference.hpp"
 #include "simulations.hpp"
-#include "substitution_models.hpp"
 
 namespace {
 

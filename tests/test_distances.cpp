@@ -1,7 +1,7 @@
 /*
  * test_distances.cpp
  *
- * The distance models on the CPU (substitution_models.hpp, eigen_dist.hpp), against references that do not use
+ * The distance models on the CPU (distances.hpp, eigen_dist.hpp), against references that do not use
  * the code under test:
  *   - consistency: on the expected pair counts of a model at distance t (L = 10^9 sites, from the simulator's
  *     transition probabilities), each model's estimator returns t when the data follow it;
@@ -16,9 +16,9 @@
 
 #include <gtest/gtest.h>
 
+#include "distances.hpp"
 #include "eigen_dist.hpp"
 #include "simulations.hpp"
-#include "substitution_models.hpp"
 
 using namespace p2vbme;
 
