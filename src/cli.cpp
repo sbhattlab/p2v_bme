@@ -120,7 +120,7 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value(opt.bl_profile_cap), "N")
         ("no-neg-as-zero", "write negative branch lengths as they are (default: as 0)")
         ("report-full", "add the details to <prefix>.json: input, settings as used, devices, time per stage, "
-         "memory, model parameters, gain of each round");
+         "memory, gain of each round");
     cli.add_options("Input")
         ("no-dedup", "keep all identical sequences (default: two of each group are kept for the search and the "
          "others put back next to them, with zero-length branches)");
