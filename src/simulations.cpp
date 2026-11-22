@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "eigen_dist.hpp"
 #include "random.hpp"
 
 namespace p2vbme {
@@ -113,29 +114,12 @@ Eigen4 decompose(const SimulationModel &m) {
     if (!(m.alpha >= 0.0))
         throw std::invalid_argument("simulation: alpha must be >= 0");
 
-    // exchangeabilities r_ij in the order AC, AG, AT, CG, CT, GT
-    double r[N_BASES][N_BASES] = {};
-    const int pairs[N_GTR_RATES][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
-    for (int k = 0; k < N_GTR_RATES; ++k)
-        r[pairs[k][0]][pairs[k][1]] = r[pairs[k][1]][pairs[k][0]] = m.rates[k];
-    // mean rate mu = sum_i pi_i sum_{j != i} r_ij pi_j; Q = R Pi / mu has one substitution per unit time
-    double mu = 0.0;
+    // S = Pi^(1/2) Q Pi^(-1/2), Q normalised to one substitution per unit time (eigen_dist.hpp)
+    double R[N_BASES * N_BASES], S[N_BASES][N_BASES];
+    gtr_symmetric_rate_matrix(m.rates, e.pi, R);
     for (int i = 0; i < N_BASES; ++i)
         for (int j = 0; j < N_BASES; ++j)
-            if (i != j)
-                mu += e.pi[i] * r[i][j] * e.pi[j];
-    // S = Pi^(1/2) Q Pi^(-1/2): S_ij = r_ij sqrt(pi_i pi_j) / mu (i != j), S_ii = Q_ii
-    double S[N_BASES][N_BASES];
-    for (int i = 0; i < N_BASES; ++i) {
-        double row = 0.0;
-        for (int j = 0; j < N_BASES; ++j) {
-            if (i == j)
-                continue;
-            S[i][j] = r[i][j] * sqrt(e.pi[i] * e.pi[j]) / mu;
-            row += r[i][j] * e.pi[j] / mu;
-        }
-        S[i][i] = -row;
-    }
+            S[i][j] = R[N_BASES * i + j];
     double W[N_BASES][N_BASES];
     jacobi4(S, W, e.lambda);
     for (int i = 0; i < N_BASES; ++i)
