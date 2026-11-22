@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
         }
         // Device: record the largest memory in use on the devices (GPU-wide, other processes included)
         for (const auto &dev : devices)
-            run.gpu_memory_in_use_at_end_mb = std::max(run.gpu_memory_in_use_at_end_mb, dev->memory_in_use_mb());
+            run.gpu_memory_in_use_at_end_mib = std::max(run.gpu_memory_in_use_at_end_mib, dev->memory_in_use_mb());
         // Data: put back the identical sequences set aside, with zero-length branches
         p2vbme::restore_copies(res.tree, dd);
 

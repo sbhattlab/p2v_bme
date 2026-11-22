@@ -32,7 +32,7 @@ std::string utc_now() {
 }
 
 // Peak resident memory of the process, MiB (ru_maxrss is in KiB on Linux).
-double peak_host_ram_mb() {
+double peak_host_ram_mib() {
     struct rusage ru;
     getrusage(RUSAGE_SELF, &ru);
     return (double)ru.ru_maxrss / 1024.0;
@@ -94,9 +94,9 @@ void detail_time(JsonWriter &w, const Report &run, const Result &res) {
 void detail_memory(JsonWriter &w, const Report &run) {
     w.key("memory");
     w.begin_object();
-    w.field("host_ram_mb", peak_host_ram_mb()); // peak
+    w.field("host_ram_mib", peak_host_ram_mib()); // peak
     // GPU-wide (other processes included) and not a peak
-    w.field("gpu_memory_in_use_at_end_mb", run.gpu_memory_in_use_at_end_mb);
+    w.field("gpu_memory_in_use_at_end_mib", run.gpu_memory_in_use_at_end_mib);
     w.end_object();
 }
 
