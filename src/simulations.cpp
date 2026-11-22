@@ -284,25 +284,4 @@ Alignment simulate_alignment(const Tree &tree, int32_t n_sites, const Simulation
     return aln;
 }
 
-double path_length(const Tree &tree, int32_t i, int32_t j) {
-    const int32_t n_nodes = (int32_t)tree.c1.size();
-    std::vector<int32_t> parent(n_nodes, -1);
-    for (int32_t m = (n_nodes + 1) / 2; m < n_nodes; ++m)
-        parent[tree.c1[m]] = parent[tree.c2[m]] = m;
-    std::vector<double> up(n_nodes, -1.0); // distance from i up to each of its ancestors
-    double d = 0.0;
-    for (int32_t u = i; u != -1; u = parent[u]) {
-        up[u] = d;
-        if (parent[u] != -1)
-            d += tree.branch_lengths[u];
-    }
-    d = 0.0;
-    for (int32_t u = j; u != -1; u = parent[u]) {
-        if (up[u] >= 0.0)
-            return d + up[u];
-        d += tree.branch_lengths[u];
-    }
-    throw std::logic_error("path_length: no common ancestor");
-}
-
 } // namespace p2vbme

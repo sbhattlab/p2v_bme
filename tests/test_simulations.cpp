@@ -30,6 +30,28 @@ double p_distance(const p2vbme::Alignment &a, int i, int j, int64_t *n_valid = n
     return (double)(valid - match) / (double)valid;
 }
 
+// Sum of the branch lengths on the path between leaves i and j.
+double path_length(const p2vbme::Tree &tree, int32_t i, int32_t j) {
+    const int32_t n_nodes = (int32_t)tree.c1.size();
+    std::vector<int32_t> parent(n_nodes, -1);
+    for (int32_t m = (n_nodes + 1) / 2; m < n_nodes; ++m)
+        parent[tree.c1[m]] = parent[tree.c2[m]] = m;
+    std::vector<double> up(n_nodes, -1.0); // distance from i up to each of its ancestors
+    double d = 0.0;
+    for (int32_t u = i; u != -1; u = parent[u]) {
+        up[u] = d;
+        if (parent[u] != -1)
+            d += tree.branch_lengths[u];
+    }
+    d = 0.0;
+    for (int32_t u = j; u != -1; u = parent[u]) {
+        if (up[u] >= 0.0)
+            return d + up[u];
+        d += tree.branch_lengths[u];
+    }
+    throw std::logic_error("path_length: no common ancestor");
+}
+
 TEST(TransitionMatrix, Jc69ClosedForm) {
     SimulationModel m;
     for (double t : {0.0, 0.01, 0.1, 0.5, 2.0}) {
@@ -148,10 +170,10 @@ TEST(PathLength, SmallTree) {
     t.c1 = {-1, -1, -1, 0, 3};
     t.c2 = {-1, -1, -1, 1, 2};
     t.branch_lengths = {1.0f, 2.0f, 4.0f, 3.0f, 0.0f};
-    EXPECT_DOUBLE_EQ(p2vbme::path_length(t, 0, 1), 3.0);
-    EXPECT_DOUBLE_EQ(p2vbme::path_length(t, 0, 2), 8.0);
-    EXPECT_DOUBLE_EQ(p2vbme::path_length(t, 2, 1), 9.0);
-    EXPECT_DOUBLE_EQ(p2vbme::path_length(t, 1, 1), 0.0);
+    EXPECT_DOUBLE_EQ(path_length(t, 0, 1), 3.0);
+    EXPECT_DOUBLE_EQ(path_length(t, 0, 2), 8.0);
+    EXPECT_DOUBLE_EQ(path_length(t, 2, 1), 9.0);
+    EXPECT_DOUBLE_EQ(path_length(t, 1, 1), 0.0);
 }
 
 TEST(Simulate, LayoutAndDeterminism) {
@@ -190,7 +212,7 @@ TEST(Simulate, Jc69DistancesMatchPathLengths) {
         for (int j = i + 1; j < n; ++j) {
             const double p = p_distance(a, i, j), d = -0.75 * log(1.0 - 4.0 * p / 3.0);
             const double se = sqrt(p * (1.0 - p) / L) / (1.0 - 4.0 * p / 3.0);
-            EXPECT_NEAR(d, p2vbme::path_length(t, i, j), 4.0 * se) << i << "," << j;
+            EXPECT_NEAR(d, path_length(t, i, j), 4.0 * se) << i << "," << j;
         }
 }
 

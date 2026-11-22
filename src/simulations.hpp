@@ -35,9 +35,6 @@ Tree random_tree(int32_t n, double min_length, double max_length, uint64_t seed)
 // Names are t0 ... t{N-1}; no gaps.
 Alignment simulate_alignment(const Tree &tree, int32_t n_sites, const SimulationModel &model, uint64_t seed);
 
-// Sum of the branch lengths on the path between leaves i and j.
-double path_length(const Tree &tree, int32_t i, int32_t j);
-
 } // namespace p2vbme
 
 #endif // P2VBME_SIMULATIONS_HPP
