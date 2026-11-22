@@ -859,7 +859,7 @@ static uint64_t window_input_hash(int32_t K, int32_t max_iters, const std::vecto
                                   const std::vector<int32_t> &perm, const std::vector<int32_t> &offsets,
                                   const std::vector<int32_t> &leaves, const std::vector<float> &weights) {
     uint64_t h = 0;
-    auto add = [&h](uint64_t x) { h = splitmix64_mix(h ^ (x + 0x9e3779b97f4a7c15ULL)); };
+    auto add = [&h](uint64_t x) { h = splitmix64_mix(h ^ (x + SPLITMIX64_GAMMA)); };
     add((uint64_t)(uint32_t)K | ((uint64_t)(uint32_t)max_iters << 32));
     for (int64_t x : v)
         add((uint64_t)x);

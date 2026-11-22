@@ -70,7 +70,7 @@ Tree build_sample_and_place_tree(int32_t n_leaves, int32_t &n0_leaves, uint64_t 
         t0 = build_sample_and_place_tree(n0_leaves, n0_inner, inner_seed, devices, settings, level + 1);
     } else {
         // independent stream: seed the random subsample tree with a splitmix64 output, not with a value that
-        // splitmix64's own state sequence (step 0x9E3779B97F4A7C15) can reach
+        // splitmix64's own state sequence (step SPLITMIX64_GAMMA) can reach
         t0 = build_random_tree(n0_leaves, p2vbme::derive_seed(seed, p2vbme::SALT_START_TREE_RANDOM));
     }
     // 3. optimise t0 with the same solver and settings (rounds, stop rule) as the main run
