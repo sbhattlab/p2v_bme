@@ -10,8 +10,8 @@
  * Pair counts: n[4 * i + j] is the number of sites where sequence a has base i and sequence b has base j (order A,
  * C, G, T), over the sites valid in both. Distances are in expected substitutions per site.
  *
- * The formulas: JC69 is the search's (float); K80, F81, F84 and TN93 are those of ape's dist.dna, with the base
- * frequencies of the whole alignment (base_frequencies), as ape and FastME estimate them (comparable with other
+ * The formulas: JC69 is the paper's search-core formula; K80, F81, F84 and TN93 are those of ape's dist.dna, with the
+ * base frequencies of the whole alignment (base_frequencies), as ape and FastME estimate them (comparable with other
  * programs); LogDet is the paper's C distance library's, which uses each sequence's own frequencies by definition.
  * Values other programs leave undefined (NaN or infinite) are made finite here, since the search needs a number for
  * every pair: a logarithm's argument is floored at 1e-4 and a distance capped at MAX_DISTANCE (the paper's C distance
@@ -62,19 +62,14 @@ struct SubstitutionModel {
 
 // The search needs a finite distance for every pair, but the formulas give none in two cases:
 // sequences too different (a logarithm's argument reaches 0) and a pair without a shared valid site (no data).
-// These constants fill both cases.
-// JC69 keeps the values of the paper's search core, the other models those of the paper's GTR+GC code.
-// No reason for either set is recorded.
+// These constants fill both cases, for every model.
+// They are the values of the paper's GTR+GC code; no reason for them is recorded.
 
-// JC69's d = -3/4 ln(1 - 4/3 p) is infinite at p = 3/4, the mismatch share of unrelated sequences.
-// p is capped just below, so the largest JC69 distance is -3/4 ln(1 - 4/3 * 0.74) = 3.24.
-constexpr double JC69_P_MAX = 0.74;
-// JC69 distance of a pair without a shared valid site.
-constexpr double JC69_NO_OVERLAP_DISTANCE = 1.5;
-// Distance of a pair without a shared valid site, every other model.
+// Distance of a pair without a shared valid site.
 constexpr double NO_OVERLAP_DISTANCE = 2.0;
-// Largest distance, every other model.
-// Their logarithms' arguments are floored at 1e-4 (neg_log_link), which bounds each term at ln(1e4) = 9.21.
+// Largest distance.
+// Logarithms' arguments are floored at 1e-4 (neg_log_link), which bounds each term at ln(1e4) = 9.21.
+// JC69, for example, reaches at most 3/4 * 9.21 = 6.91, for p >= 3/4 (the mismatch share of unrelated sequences).
 constexpr double MAX_DISTANCE = 10.0;
 
 // ---- Pair counts -----------------------------------------------------------------------------------------
@@ -92,18 +87,6 @@ PairCounts count_pair(const uint64_t *row_a, const uint64_t *row_b, int32_t n_wo
 void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, double freqs[N_BASES]);
 
 // ---- Closed-form distances -------------------------------------------------------------------------------
-
-// JC69 from the number of shared valid sites and of matching sites (the search core's formula): d = -3/4 ln(1 - 4/3 p),
-// p = mismatches / valid, capped at JC69_P_MAX.
-template <class T> P2V_HD inline T jc69_distance(int32_t n_valid, int32_t n_match) {
-    if (n_valid <= 0)
-        return T(JC69_NO_OVERLAP_DISTANCE);
-    T p = (T)(n_valid - n_match) / (T)n_valid;
-    if (p >= T(JC69_P_MAX))
-        p = T(JC69_P_MAX);
-    T d = T(-0.75) * std::log(T(1) - (T(4) / T(3)) * p);
-    return (d > T(0)) ? d : T(0);
-}
 
 namespace detail {
 
@@ -167,6 +150,15 @@ template <class T> P2V_HD inline T f81_form(T p, const T pi[N_BASES]) {
 }
 
 } // namespace detail
+
+// JC69 from the number of shared valid sites and of matching sites: d = -3/4 ln(1 - 4/3 p), p = mismatches / valid.
+// Two counts instead of 16, so the GPU has faster kernels for it.
+template <class T> P2V_HD inline T jc69_distance(int32_t n_valid, int32_t n_match) {
+    if (n_valid <= 0)
+        return T(NO_OVERLAP_DISTANCE);
+    const T p = (T)(n_valid - n_match) / (T)n_valid;
+    return detail::clamp_distance(T(0.75) * detail::neg_log_link(T(1) - (T(4) / T(3)) * p));
+}
 
 // K80 (Kimura 1980): d = -1/2 ln(1 - 2P - Q) - 1/4 ln(1 - 2Q), P = transitions, Q = transversions.
 template <class T> P2V_HD inline T k80_distance(const uint32_t n[N_BASES * N_BASES]) {

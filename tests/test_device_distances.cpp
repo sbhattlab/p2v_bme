@@ -214,8 +214,7 @@ TEST(DeviceDistances, EdgeLengthPassMatchesCpu) {
             EXPECT_NEAR(dAB[i], ab, tol * ab + 1e-6) << model_name(model) << " pair " << i;
             EXPECT_NEAR(dAO[i], ao, tol * ao + 1e-6) << model_name(model) << " pair " << i;
         }
-        const double none = model == Model::JC69 ? 1.5 : 2.0;
-        EXPECT_EQ(dAB[0], (float)none) << model_name(model) << ": leaves 0 and 1 share no site";
+        EXPECT_EQ(dAB[0], (float)NO_OVERLAP_DISTANCE) << model_name(model) << ": leaves 0 and 1 share no site";
 
         // profiles
         const int32_t pc1 = N, pc2 = N + 1;

@@ -10,6 +10,7 @@
  */
 #include <math.h>
 
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -211,19 +212,20 @@ TEST(Distances, ModelNames) {
     EXPECT_THROW(parse_estimator("ols"), std::runtime_error);
 }
 
-/* The float JC69 is the search core's expression, value for value. */
+// The float JC69 is the paper's search-core expression, value for value, wherever the core did not cap p (p <= 0.74).
+// Above, the logarithm's argument is floored at 1e-4, as for the other models.
 TEST(Distances, Jc69IsTheCoreFormula) {
-    for (int32_t nv : {0, 1, 7, 100, 1500, 50000})
+    EXPECT_EQ(jc69_distance<float>(0, 0), (float)NO_OVERLAP_DISTANCE);
+    for (int32_t nv : {1, 7, 100, 1500, 50000})
         for (int32_t nm = 0; nm <= nv; nm += (nv > 100 ? nv / 97 + 1 : 1)) {
-            float core = 1.5f;
-            if (nv > 0) {
-                float p = (float)(nv - nm) / (float)nv;
-                if (p >= 0.74f)
-                    p = 0.74f;
-                const float d = -0.75f * logf(1.0f - (4.0f / 3.0f) * p);
-                core = (d > 0.0f) ? d : 0.0f;
+            const float p = (float)(nv - nm) / (float)nv;
+            const float d = jc69_distance<float>(nv, nm);
+            if (p <= 0.74f) {
+                const float core = -0.75f * logf(1.0f - (4.0f / 3.0f) * p);
+                EXPECT_EQ(d, (core > 0.0f) ? core : 0.0f) << nv << " " << nm;
+            } else {
+                EXPECT_EQ(d, -0.75f * logf(std::max(1.0f - (4.0f / 3.0f) * p, 1e-4f))) << nv << " " << nm;
             }
-            EXPECT_EQ(jc69_distance<float>(nv, nm), core) << nv << " " << nm;
         }
 }
 
@@ -284,8 +286,7 @@ TEST(Distances, EdgeCases) {
     const PairCounts all_diff = {{0, 10, 10, 10, 10, 0, 10, 10, 10, 10, 0, 10, 10, 10, 10, 0}};
     /* T missing from sequence b: LogDet undefined */
     const PairCounts no_t = {{30, 2, 3, 0, 1, 25, 1, 0, 2, 1, 28, 0, 3, 2, 1, 0}};
-    EXPECT_EQ(distance<float>(Model::JC69, none), 1.5f);
-    for (Model m : {Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC}) {
+    for (Model m : {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC}) {
         EXPECT_EQ(distance<float>(m, none), 2.0f) << model_name(m);
         EXPECT_EQ(distance<double>(m, same), 0.0) << model_name(m);
         EXPECT_EQ(distance<double>(m, poly_a), 0.0) << model_name(m);

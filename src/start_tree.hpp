@@ -27,7 +27,7 @@ Tree build_random_tree(int32_t n_leaves, uint64_t seed);
 //      sample-and-place tree of its own (this function, one level down)
 //   3. optimise t0 with the minibatch search (the run's settings)
 //   4. assign every other sequence to its nearest sampled sequence by p-distance over shared valid sites, for every
-//      model; a pair with no shared valid site ranks like JC69 = 1.5 (p = 0.6485)
+//      model; a pair with no shared valid site ranks like JC69 = 2.0 (p = 0.6979)
 //   5. replace each sampled leaf by a balanced tree of itself + its assigned sequences (random order)
 // Needs n_leaves >= START_SAMPLE_MIN_N (below it, infer() uses the random start instead).
 // n0_leaves: in, the sample size asked for; out, the size used (after the clamp of step 1).

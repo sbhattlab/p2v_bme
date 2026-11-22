@@ -91,9 +91,9 @@ constexpr int32_t START_SAMPLE_MIN = START_SAMPLE_MIN_N / 2;
 constexpr int32_t START_RANDOM_TREE_MAX = 1000; // a sample of at most this size starts from a random tree;
                                                 // larger ones are themselves placed on a sample of
                                                 // max(START_RANDOM_TREE_MAX, n / START_SAMPLE_DIVISOR)
-// Nearest sampled sequence (p-distance for every model): a pair without shared valid sites ranks as p = 0.6485, the
-// p-distance whose JC69 distance is 1.5 (what JC69 gives such pairs; the other models give them 2.0).
-constexpr float NN_P_NO_OVERLAP = 0.6485f;
+// Nearest sampled sequence (p-distance for every model): a pair without shared valid sites ranks as p = 0.6979, the
+// p-distance whose JC69 distance is NO_OVERLAP_DISTANCE = 2.0: p = 3/4 (1 - e^(-8/3)).
+constexpr float NN_P_NO_OVERLAP = 0.6979f;
 
 } // namespace p2vbme
 
