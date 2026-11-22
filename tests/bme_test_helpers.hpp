@@ -52,7 +52,7 @@ inline std::vector<double> distance_matrix(const p2vbme::Alignment &aln, const p
             const p2vbme::PairCounts c = p2vbme::count_pair(&aln.packed[(size_t)i * p2vbme::N_PLANES * W],
                                                             &aln.packed[(size_t)j * p2vbme::N_PLANES * W], W);
             D[(size_t)i * N + j] = D[(size_t)j * N + i] =
-                p2vbme::pair_distance<double>(p2vbme::distance_params<double>(dm, p2vbme::EigenSettings()), c.n);
+                p2vbme::pair_distance<double>(p2vbme::distance_params<double>(dm), c.n);
         }
     return D;
 }

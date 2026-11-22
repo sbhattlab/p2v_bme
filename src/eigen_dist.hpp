@@ -13,7 +13,7 @@
  * g(sigma_k) / |lambda_k|, g(sigma) = alpha (sigma^(-1/alpha) - 1). SymWLS (the distance of the paper's supplement)
  * combines the three modes by weighted least squares,
  *   d = sum_k w_k |lambda_k| g(sigma_k) / sum_k w_k lambda_k^2,  w_k = s_k^(2 + 2/alpha) / (1 - s_k^2 + 1e-4),
- * with s_k = sigma_k, then `reweight` updates with s_k = (1 + |lambda_k| d / alpha)^(-alpha).
+ * with s_k = sigma_k, then EIGEN_REWEIGHT_PASSES refits with s_k = (1 + |lambda_k| d / alpha)^(-alpha).
  * Saturation: a saturated mode (sigma at 1e-4) gets almost no weight in the first fit, but the reweighting passes
  * weight each mode by its model-implied s_k, so a fully saturated direction can still pull the distance to the cap (the
  * paper's GPU implementation behaves the same). Distances lie in [0, 10]; no shared valid site gives 2.0, identical
@@ -33,19 +33,17 @@
 
 #include <cmath>
 
-#include "config.hpp"
 #include "distances.hpp"
 
 namespace p2vbme {
-
-struct EigenSettings {
-    int32_t reweight = DEFAULT_GTR_REWEIGHT; // SymWLS weight updates after the first fit
-};
 
 // The pseudocount added to each of the 16 counts, and the range of the singular values.
 constexpr double EIGEN_PSEUDOCOUNT = 1e-5;
 constexpr double EIGEN_SIGMA_MIN = 1e-4;
 constexpr double EIGEN_SIGMA_MAX = 0.999999;
+// SymWLS refits after the first fit, each with the weights at the fitted singular values (the manuscript's two): they
+// reduce the first fit's downward bias, since weights at the observed values favour the modes that look least diverged.
+constexpr int32_t EIGEN_REWEIGHT_PASSES = 2;
 
 // ---- 4 x 4 symmetric eigenvalues ------------------------------------------------------------------------
 
@@ -103,8 +101,8 @@ template <class T> P2V_HD inline void sym4x4_rank3_eigenvalues(const T M[16], co
 // s_rates: exchangeabilities (AC, AG, AT, CG, CT, GT); alpha > 0 and inv_alpha = 1 / alpha (computed once by the
 // caller, as the paper's GPU implementation does).
 template <class T>
-P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_rates[N_GTR_RATES], T alpha, T inv_alpha,
-                               const EigenSettings &opt) {
+P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_rates[N_GTR_RATES], T alpha,
+                               T inv_alpha) {
     uint32_t r0 = c[0] + c[1] + c[2] + c[3];
     uint32_t r1 = c[4] + c[5] + c[6] + c[7];
     uint32_t r2 = c[8] + c[9] + c[10] + c[11];
@@ -209,7 +207,7 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
     if (d_ab < T(0))
         d_ab = T(0);
 
-    for (int it = 0; it < opt.reweight; ++it) {
+    for (int it = 0; it < EIGEN_REWEIGHT_PASSES; ++it) {
         T d_curr = (d_ab > T(MAX_DISTANCE)) ? T(MAX_DISTANCE) : d_ab;
         max_lw = T(-1e30);
         for (int k = 0; k < 3; ++k) {
@@ -249,11 +247,10 @@ template <class T> struct DistanceParams {
     Model model;
     T rates[N_GTR_RATES];
     T alpha, inv_alpha;
-    EigenSettings eigen;
     T pi[N_BASES]; // base frequencies, normalised (uniform if not given)
 };
 
-template <class T> inline DistanceParams<T> distance_params(const SubstitutionModel &m, const EigenSettings &eigen) {
+template <class T> inline DistanceParams<T> distance_params(const SubstitutionModel &m) {
     DistanceParams<T> p;
     p.model = m.model;
     // The exchangeabilities scaled to mean 1, as the paper's fit returns them.
@@ -266,7 +263,6 @@ template <class T> inline DistanceParams<T> distance_params(const SubstitutionMo
         p.rates[k] = (T)(m.rates[k] * rate_scale);
     p.alpha = (T)m.alpha;
     p.inv_alpha = T(1) / p.alpha; // as the paper's GPU implementation: 1 / alpha in the device's precision
-    p.eigen = eigen;
     const double sum = m.base_freqs[0] + m.base_freqs[1] + m.base_freqs[2] + m.base_freqs[3];
     for (int i = 0; i < N_BASES; ++i)
         p.pi[i] = sum > 0.0 ? (T)(m.base_freqs[i] / sum) : T(0.25);
@@ -289,7 +285,7 @@ template <class T> P2V_HD inline T pair_distance(const DistanceParams<T> &p, con
     case Model::LogDet:
         return logdet_distance<T>(n);
     case Model::GTR_GC:
-        return eigen_distance<T>(n, p.rates, p.alpha, p.inv_alpha, p.eigen);
+        return eigen_distance<T>(n, p.rates, p.alpha, p.inv_alpha);
     }
     return T(MAX_DISTANCE);
 }

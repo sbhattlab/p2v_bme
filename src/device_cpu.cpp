@@ -348,9 +348,7 @@ template <class T> class CpuDevice final : public Device {
         n_words_ = n_words;
     }
 
-    void set_distance(const SubstitutionModel &model, const EigenSettings &eigen) override {
-        dm_ = distance_params<T>(model, eigen);
-    }
+    void set_distance(const SubstitutionModel &model) override { dm_ = distance_params<T>(model); }
 
     // The rows of the current alignment (k_gather_rows), shared with the run's other CPU devices at this depth.
     void push_subset(const std::vector<int32_t> &rows) override {
@@ -487,7 +485,7 @@ template <class T> class CpuDevice final : public Device {
 
     int32_t worker_;
     int threads_;
-    DistanceParams<T> dm_ = distance_params<T>(SubstitutionModel(), EigenSettings()); // JC69 until set_distance
+    DistanceParams<T> dm_ = distance_params<T>(SubstitutionModel()); // JC69 until set_distance
     const uint64_t *base_ = nullptr;
     int32_t n_words_ = 0;
     std::vector<std::shared_ptr<const std::vector<uint64_t>>> subsets_; // start-tree subsamples, innermost last
@@ -521,13 +519,11 @@ std::unique_ptr<Device> make_cpu_device(int32_t worker, int32_t threads, bool do
 }
 
 std::unique_ptr<WindowKernels> make_cpu_window_kernels(const uint64_t *rows, int32_t n_words,
-                                                       const SubstitutionModel &model, const EigenSettings &eigen,
-                                                       bool double_precision) {
+                                                       const SubstitutionModel &model, bool double_precision) {
     if (double_precision)
         return std::unique_ptr<WindowKernels>(
-            new CpuWindowKernels<double>(rows, n_words, distance_params<double>(model, eigen), 1));
-    return std::unique_ptr<WindowKernels>(
-        new CpuWindowKernels<float>(rows, n_words, distance_params<float>(model, eigen), 1));
+            new CpuWindowKernels<double>(rows, n_words, distance_params<double>(model), 1));
+    return std::unique_ptr<WindowKernels>(new CpuWindowKernels<float>(rows, n_words, distance_params<float>(model), 1));
 }
 
 // ---- Without CUDA: the GPU entry points of device.hpp ----

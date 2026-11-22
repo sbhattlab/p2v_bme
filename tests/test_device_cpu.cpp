@@ -34,8 +34,7 @@ TEST(CpuDevice, MoveScoresAreExactBmeChanges) {
     int compared = 0;
     for (Model model : {Model::JC69, Model::TN93, Model::GTR_GC})
         for (uint64_t seed : {1, 2, 3}) {
-            auto kern =
-                make_cpu_window_kernels(aln.packed.data(), aln.n_words, distance_model(model), EigenSettings(), true);
+            auto kern = make_cpu_window_kernels(aln.packed.data(), aln.n_words, distance_model(model), true);
             kern->distances(K, off.data(), leaves.data(), weights.data());
             const Tree start = random_tree(K, 0.1, 0.1, 1000 + seed);
             std::vector<int64_t> v(K - 1);
@@ -114,8 +113,8 @@ TEST(CpuDevice, MoveTiesGoToTheSmallestEdge) {
     for (int32_t a = 0; a < K; ++a)
         leaves[a] = a;
     for (bool double_precision : {false, true}) {
-        auto kern = make_cpu_window_kernels(aln.packed.data(), aln.n_words, distance_model(Model::JC69),
-                                            EigenSettings(), double_precision);
+        auto kern =
+            make_cpu_window_kernels(aln.packed.data(), aln.n_words, distance_model(Model::JC69), double_precision);
         kern->distances(K, off.data(), leaves.data(), weights.data());
         const Tree start = random_tree(K, 0.1, 0.1, 113);
         std::vector<int64_t> v(K - 1);

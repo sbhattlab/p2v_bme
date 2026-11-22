@@ -61,8 +61,6 @@ void check_settings(const Settings &opt) {
         }
         if (!std::isfinite(rate_sum))
             throw std::runtime_error("GTR+GC: the sum of the exchangeabilities must be finite");
-        if (opt.eigen.reweight < 0)
-            throw std::runtime_error("GTR+GC: reweighting passes must be >= 0");
     }
 }
 
@@ -119,7 +117,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     // Load the alignment and set the distance model on all devices.
     for (auto &dev : devices) {
         dev->load(aln.packed.data(), N, W);
-        dev->set_distance(substitution, opt.eigen);
+        dev->set_distance(substitution);
     }
     // The devices are used in parallel, so they must all finish their work before the next step.
     for (auto &dev : devices)

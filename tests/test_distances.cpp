@@ -138,7 +138,7 @@ template <class T> T distance(Model model, const PairCounts &c, const double *fr
     if (freqs)
         for (int i = 0; i < N_BASES; ++i)
             m.base_freqs[i] = freqs[i];
-    return pair_distance<T>(distance_params<T>(m, EigenSettings()), c.n);
+    return pair_distance<T>(distance_params<T>(m), c.n);
 }
 
 SimulationModel model_jc() { return SimulationModel(); }
@@ -302,14 +302,13 @@ TEST(Distances, EdgeCases) {
 
 namespace {
 
-template <class T>
-T gtr_distance(const PairCounts &c, const SimulationModel &m, double alpha, EigenSettings settings = EigenSettings()) {
+template <class T> T gtr_distance(const PairCounts &c, const SimulationModel &m, double alpha) {
     SubstitutionModel dm;
     dm.model = Model::GTR_GC;
     for (int k = 0; k < N_GTR_RATES; ++k)
         dm.rates[k] = m.rates[k];
     dm.alpha = alpha;
-    return pair_distance<T>(distance_params<T>(dm, settings), c.n);
+    return pair_distance<T>(distance_params<T>(dm), c.n);
 }
 
 } // namespace
@@ -343,23 +342,6 @@ TEST(EigenDist, GtrGcScaleFree) {
             EXPECT_NEAR(gtr_distance<float>(c, scaled, 1.0), f, 1e-6f * f) << "t=" << t << " scale=" << scale;
         }
     }
-}
-
-/* The reweighting changes what it should: on exact data it does not matter; on a noisy pair it does. */
-TEST(EigenDist, Settings) {
-    const SimulationModel m = model_gtr();
-    const PairCounts exact = expected_counts_gamma(m, 0.4, 0.7);
-    EigenSettings none;
-    none.reweight = 0;
-    EXPECT_NEAR(gtr_distance<double>(exact, m, 0.7, none), 0.4, 4e-6);
-    const PairCounts noisy = {{120, 9, 30, 11, 7, 41, 6, 19, 28, 4, 63, 8, 12, 22, 9, 95}};
-    EigenSettings three;
-    three.reweight = 3;
-    const double d0 = gtr_distance<double>(noisy, m, 0.7, none), d2 = gtr_distance<double>(noisy, m, 0.7);
-    const double d3 = gtr_distance<double>(noisy, m, 0.7, three);
-    EXPECT_NE(d0, d2);
-    EXPECT_NE(d2, d3);
-    EXPECT_GT(d0, 0.0);
 }
 
 /* The alignment's base frequencies: each base's share of all valid sites ("AACG" and "T-GA": 3 A, 1 C, 2 G, 1 T). */

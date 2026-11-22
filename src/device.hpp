@@ -19,7 +19,7 @@
 
 #include "accelerator.hpp"
 #include "config.hpp"
-#include "eigen_dist.hpp"
+#include "distances.hpp"
 
 namespace p2vbme {
 
@@ -39,7 +39,7 @@ class Device {
     virtual void load(const uint64_t *packed, int32_t n_taxa, int32_t n_words) = 0;
     // Sets the distance model of the window solve and the edge-length pass (JC69 until set).
     // The nearest-sample search always uses the p-distance.
-    virtual void set_distance(const SubstitutionModel &model, const EigenSettings &eigen) = 0;
+    virtual void set_distance(const SubstitutionModel &model) = 0;
     // Narrows the current alignment to its rows[] (a start-tree subsample), until pop_subset.
     // Subsets nest: each push narrows the current alignment again.
     virtual void push_subset(const std::vector<int32_t> &rows) = 0;

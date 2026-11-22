@@ -126,8 +126,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
 
 // Creates the CPU device's window kernels on their own, one thread (tests): alignment rows read in place.
 std::unique_ptr<WindowKernels> make_cpu_window_kernels(const uint64_t *rows, int32_t n_words,
-                                                       const SubstitutionModel &model, const EigenSettings &eigen,
-                                                       bool double_precision);
+                                                       const SubstitutionModel &model, bool double_precision);
 
 // ---- Tree summaries and windows ----
 

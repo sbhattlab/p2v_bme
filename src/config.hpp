@@ -24,7 +24,6 @@ constexpr int32_t DEFAULT_SAMPLE_SIZE = 0;     // sample-and-place start: 0 = mi
 constexpr uint64_t DEFAULT_SEED = 1;           // seeds the start tree
 constexpr bool DEFAULT_BRANCH_LENGTHS = true;  // estimate BME branch lengths
 constexpr int32_t DEFAULT_BL_PROFILE_CAP = 32; // leaves kept per subtree profile for branch lengths
-constexpr int32_t DEFAULT_GTR_REWEIGHT = 2;    // GTR+GC SymWLS: weight updates after the first fit (supplement)
 
 // ---- Limits ------------------------------------------------------------------------------------------
 

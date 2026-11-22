@@ -19,7 +19,7 @@
 #include "config.hpp"
 #include "core.hpp"
 #include "device.hpp"
-#include "eigen_dist.hpp"
+#include "distances.hpp"
 #include "stop_reason.hpp"
 
 namespace p2vbme {
@@ -40,7 +40,6 @@ struct Settings {
     int32_t bl_profile_cap = DEFAULT_BL_PROFILE_CAP; // leaves kept per subtree profile for branch lengths
     SubstitutionModel substitution_model;            // the model of the distances (JC69 by default);
                                                      // GTR+GC with given parameters (the fit comes later)
-    EigenSettings eigen;                             // how GTR+GC distances are estimated (not on the command line)
     Accelerator accelerator = Accelerator::Auto;     // auto: the GPU if one is visible, else the CPU
     std::vector<int> devices;                        // GPU numbers; empty = all visible
     int32_t threads = 0;                             // CPU: workers (threads); 0 = all (omp_get_max_threads)

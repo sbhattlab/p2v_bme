@@ -77,7 +77,7 @@ double cpu_distance(const Alignment &aln, const SubstitutionModel &dm, int32_t a
         return 0.0;
     const int32_t W = aln.n_words;
     const PairCounts c = count_pair(&aln.packed[(size_t)a * N_PLANES * W], &aln.packed[(size_t)b * N_PLANES * W], W);
-    return pair_distance<double>(distance_params<double>(dm, EigenSettings()), c.n);
+    return pair_distance<double>(distance_params<double>(dm), c.n);
 }
 
 // Exact BME length of a rooted binary tree (Tree layout) by Pauplin's formula: sum_{i<j} 2^(1 - edges(i, j)) d_ij,
@@ -203,7 +203,7 @@ TEST(DeviceDistances, EdgeLengthPassMatchesCpu) {
 
     for (Model model : MODELS) {
         const SubstitutionModel dm = distance_model(model);
-        dev->set_distance(dm, EigenSettings());
+        dev->set_distance(dm);
         std::vector<double> dAB(N), dAO(N), dBO(N);
         const double tol = model == Model::GTR_GC ? 2e-4 : 2e-5; /* float on the GPU, double here */
         // single pairs: cap 1 for the outside profiles (in_* unused)

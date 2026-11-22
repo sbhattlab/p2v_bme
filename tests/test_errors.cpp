@@ -40,7 +40,7 @@ class FailingDevice : public Device {
   public:
     explicit FailingDevice(const char *step) : step_(step) {}
     void load(const uint64_t *, int32_t, int32_t) override {}
-    void set_distance(const SubstitutionModel &, const EigenSettings &) override {}
+    void set_distance(const SubstitutionModel &) override {}
     void push_subset(const std::vector<int32_t> &) override {}
     void pop_subset() override {}
     int32_t max_window() const override { return WORKSPACE_MAX_K; }
@@ -141,7 +141,7 @@ TEST(Errors, SampleStartFallsBackToRandom) {
     EXPECT_NE(res.warnings[0].find("using the random start"), std::string::npos);
 }
 
-// GTR+GC needs alpha > 0 (a normal float), exchangeabilities > 0 with a finite sum, and reweighting passes >= 0.
+// GTR+GC needs alpha > 0 (a normal float), and exchangeabilities > 0 with a finite sum.
 // Values outside the range checked in single precision run, with a warning (none in double precision).
 TEST(Errors, GtrGcParameters) {
     const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
@@ -168,9 +168,6 @@ TEST(Errors, GtrGcParameters) {
     std::fill(s, s + N_GTR_RATES, 1e308);
     EXPECT_TRUE(refused("sum of the exchangeabilities"));
     std::fill(s, s + N_GTR_RATES, 1.0);
-    opt.eigen.reweight = -1;
-    EXPECT_TRUE(refused("reweighting passes must be >= 0"));
-    opt.eigen.reweight = 1000;
     EXPECT_TRUE(warnings().empty());
 
     // outside the checked range: a warning per parameter in single precision, none in double
