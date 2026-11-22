@@ -1,21 +1,13 @@
 /*
  * distances.hpp
  *
- * The substitution models of the distances: their names, the pair counts they start from, and
- * the closed-form distances of JC69, K80, F81, F84, TN93 and LogDet, plus the symmetric form of the GTR rate
- * matrix that the eigenvalue GTR+GC distance (eigen_dist.hpp) uses. The per-pair formulas are inline and
- * __host__ __device__, so the GPU kernels and the CPU device evaluate the same code; they are templates on the
- * floating-point type (the GPU uses float).
- *
- * Pair counts: n[4 * i + j] is the number of sites where sequence a has base i and sequence b has base j (order A,
- * C, G, T), over the sites valid in both. Distances are in expected substitutions per site.
- *
- * The formulas: JC69 is the paper's search-core formula; K80, F81, F84 and TN93 are those of ape's dist.dna, with the
- * base frequencies of the whole alignment (base_frequencies), as ape and FastME estimate them (comparable with other
- * programs); LogDet is the paper's C distance library's, which uses each sequence's own frequencies by definition.
- * Values other programs leave undefined (NaN or infinite) are made finite here, since the search needs a number for
- * every pair: a logarithm's argument is floored at 1e-4 and a distance capped at MAX_DISTANCE (the paper's C distance
- * library's rules); no shared valid site gives NO_OVERLAP_DISTANCE; an undefined LogDet gives MAX_DISTANCE.
+ * The distance of a pair of sequences under each model, from the pair's counts: n[4 * i + j] is the number of sites
+ * where sequence a has base i and sequence b has base j (A, C, G, T), over the sites valid in both.
+ * In order: the models and their parameters, the pair counts, one formula per model (GTR+GC's in eigen_dist.hpp), and
+ * pair_distance, which applies the run's model.
+ * Distances are in expected substitutions per site, and always finite (config.hpp: NO_OVERLAP_DISTANCE, MAX_DISTANCE).
+ * The formulas are inline host/device templates on the floating-point type, so the GPU kernels (float) and the CPU
+ * device run the same code.
  */
 #ifndef P2VBME_DISTANCES_HPP
 #define P2VBME_DISTANCES_HPP
@@ -25,16 +17,10 @@
 #include <cmath>
 #include <string>
 
+#include "config.hpp"
 #include "core.hpp"
-
-// Marks the per-pair formulas host and device functions under nvcc (plain functions elsewhere).
-#ifndef P2V_HD
-#ifdef __CUDACC__
-#define P2V_HD __host__ __device__
-#else
-#define P2V_HD
-#endif
-#endif
+#include "eigen_dist.hpp"
+#include "host_device.hpp"
 
 namespace p2vbme {
 
@@ -57,20 +43,6 @@ struct SubstitutionModel {
     double base_freqs[N_BASES] = {0.0, 0.0, 0.0, 0.0}; // F81, F84, TN93: the alignment's base frequencies (A, C,
                                                        // G, T); all 0: not given (count_base_frequencies)
 };
-
-// ---- Constants -------------------------------------------------------------------------------------------
-
-// The search needs a finite distance for every pair, but the formulas give none in two cases:
-// sequences too different (a logarithm's argument reaches 0) and a pair without a shared valid site (no data).
-// These constants fill both cases, for every model.
-// They are the values of the paper's GTR+GC code; no reason for them is recorded.
-
-// Distance of a pair without a shared valid site.
-constexpr double NO_OVERLAP_DISTANCE = 2.0;
-// Largest distance.
-// Logarithms' arguments are floored at 1e-4 (neg_log_link), which bounds each term at ln(1e4) = 9.21.
-// JC69, for example, reaches at most 3/4 * 9.21 = 6.91, for p >= 3/4 (the mismatch share of unrelated sequences).
-constexpr double MAX_DISTANCE = 10.0;
 
 // ---- Pair counts -----------------------------------------------------------------------------------------
 
@@ -268,38 +240,54 @@ template <class T> P2V_HD inline T logdet_distance(const uint32_t n[N_BASES * N_
     return detail::clamp_distance(T(-0.25) * (std::log(det) - T(0.5) * std::log(prod_f)));
 }
 
-// ---- GTR rate matrix -------------------------------------------------------------------------------------
+// ---- One pair's distance under the run's model -----------------------------------------------------------
 
-// Symmetric form R = Pi^(1/2) Q Pi^(-1/2) of the GTR rate matrix Q with exchangeabilities s (AC, AG, AT, CG, CT, GT)
-// and stationary frequencies xi, normalised to one expected substitution per unit time (mean rate sum_i xi_i sum_j s_ij
-// xi_j = 1).
-// R has the eigenvalues of Q.
-template <class T>
-P2V_HD inline void gtr_symmetric_rate_matrix(const T s[N_GTR_RATES], const T xi[N_BASES], T R[N_BASES * N_BASES]) {
-    const T S[N_BASES * N_BASES] = {T(0), s[0], s[1], s[2], s[0], T(0), s[3], s[4],
-                                    s[1], s[3], T(0), s[5], s[2], s[4], s[5], T(0)};
-    T row_sum[N_BASES];
-    T mu = T(0);
-    for (int i = 0; i < N_BASES; ++i) {
-        T rs = T(0);
-        for (int j = 0; j < N_BASES; ++j)
-            rs += S[i * N_BASES + j] * xi[j];
-        row_sum[i] = rs;
-        mu += xi[i] * rs;
-    }
-    const T inv_mu = (mu > T(1e-20)) ? (T(1) / mu) : T(1);
-    T sxi[N_BASES];
+// The model in the precision of a device (the GPU: float).
+template <class T> struct DistanceParams {
+    Model model;
+    T rates[N_GTR_RATES];
+    T alpha, inv_alpha;
+    T pi[N_BASES]; // base frequencies, normalised (uniform if not given)
+};
+
+template <class T> inline DistanceParams<T> distance_params(const SubstitutionModel &m) {
+    DistanceParams<T> p;
+    p.model = m.model;
+    // The exchangeabilities scaled to mean 1, as the paper's fit returns them.
+    // The distance depends only on their ratios; the scaling keeps the rate matrix's own normalisation in range.
+    double rate_sum = 0.0;
+    for (int k = 0; k < N_GTR_RATES; ++k)
+        rate_sum += m.rates[k];
+    const double rate_scale = 6.0 / rate_sum;
+    for (int k = 0; k < N_GTR_RATES; ++k)
+        p.rates[k] = (T)(m.rates[k] * rate_scale);
+    p.alpha = (T)m.alpha;
+    p.inv_alpha = T(1) / p.alpha; // as the paper's GPU implementation: 1 / alpha in the device's precision
+    const double sum = m.base_freqs[0] + m.base_freqs[1] + m.base_freqs[2] + m.base_freqs[3];
     for (int i = 0; i < N_BASES; ++i)
-        sxi[i] = std::sqrt(xi[i]);
-    for (int i = 0; i < N_BASES; ++i) {
-        for (int j = 0; j < N_BASES; ++j) {
-            if (i == j) {
-                R[i * N_BASES + i] = -row_sum[i] * inv_mu;
-            } else {
-                R[i * N_BASES + j] = S[i * N_BASES + j] * sxi[i] * sxi[j] * inv_mu;
-            }
-        }
+        p.pi[i] = sum > 0.0 ? (T)(m.base_freqs[i] / sum) : T(0.25);
+    return p;
+}
+
+// The distance of a pair with counts n under the model.
+template <class T> P2V_HD inline T pair_distance(const DistanceParams<T> &p, const uint32_t n[N_BASES * N_BASES]) {
+    switch (p.model) {
+    case Model::JC69:
+        return jc69_distance<T>((int32_t)detail::total_count(n), (int32_t)detail::diagonal_count(n));
+    case Model::K80:
+        return k80_distance<T>(n);
+    case Model::F81:
+        return f81_distance<T>(n, p.pi);
+    case Model::F84:
+        return f84_distance<T>(n, p.pi);
+    case Model::TN93:
+        return tn93_distance<T>(n, p.pi);
+    case Model::LogDet:
+        return logdet_distance<T>(n);
+    case Model::GTR_GC:
+        return eigen_distance<T>(n, p.rates, p.alpha, p.inv_alpha);
     }
+    return T(MAX_DISTANCE);
 }
 
 } // namespace p2vbme

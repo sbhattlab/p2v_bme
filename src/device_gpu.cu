@@ -22,7 +22,6 @@
 #include "config.hpp"
 #include "device.hpp"
 #include "distances.hpp"
-#include "eigen_dist.hpp"
 #include "search.hpp"
 
 // Every CUDA call is checked; a failure throws std::runtime_error (the library never exits).

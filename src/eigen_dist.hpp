@@ -2,8 +2,8 @@
  * eigen_dist.hpp
  *
  * The eigenvalue GTR+GC distance (Penn et al. 2025, Bull. Math. Biol. 87, 32, doi:10.1007/s11538-024-01403-z) with
- * given GTR exchangeabilities and gamma shape alpha, and the dispatch of a pair's distance over all models
- * (pair_distance). Per-pair code, inline and __host__ __device__, templated on the floating-point type.
+ * given GTR exchangeabilities and gamma shape alpha (eigen_distance, which pair_distance in distances.hpp calls), and
+ * the GTR rate matrix it needs. Per-pair code, inline and __host__ __device__, templated on the floating-point type.
  *
  * For a pair (a, b) with pair counts n: K = (n + 1e-5) / (L + 16e-5), F^a and F^b its row and column sums, and
  * sigma_1 >= sigma_2 >= sigma_3 the non-trivial singular values of
@@ -22,9 +22,8 @@
  * The paper's GPU implementation, ported line by line (bitwise equal when both are compiled without FMA contraction,
  * for exchangeabilities with mean 1 as the paper's fit returns them; others are scaled to mean 1 first).
  * Not ported: the paper's C distance library's projection onto the bases present when a base is missing (its "reduced
- * alphabet");
- * here a base absent from both sequences gives a pseudocount-only row of K~ (singular value 1/4), which reads as
- * a strongly diverged mode, as in the paper's GPU implementation.
+ * alphabet"); here a base absent from both sequences gives a pseudocount-only row of K~ (singular value 1/4), which
+ * reads as a strongly diverged mode, as in the paper's GPU implementation.
  */
 #ifndef P2VBME_EIGEN_DIST_HPP
 #define P2VBME_EIGEN_DIST_HPP
@@ -33,7 +32,9 @@
 
 #include <cmath>
 
-#include "distances.hpp"
+#include "config.hpp"
+#include "core.hpp"
+#include "host_device.hpp"
 
 namespace p2vbme {
 
@@ -44,6 +45,40 @@ constexpr double EIGEN_SIGMA_MAX = 0.999999;
 // SymWLS refits after the first fit, each with the weights at the fitted singular values (the manuscript's two): they
 // reduce the first fit's downward bias, since weights at the observed values favour the modes that look least diverged.
 constexpr int32_t EIGEN_REWEIGHT_PASSES = 2;
+
+// ---- GTR rate matrix -------------------------------------------------------------------------------------
+
+// Symmetric form R = Pi^(1/2) Q Pi^(-1/2) of the GTR rate matrix Q with exchangeabilities s (AC, AG, AT, CG, CT, GT)
+// and stationary frequencies xi, normalised to one expected substitution per unit time (mean rate sum_i xi_i sum_j s_ij
+// xi_j = 1).
+// R has the eigenvalues of Q.
+template <class T>
+P2V_HD inline void gtr_symmetric_rate_matrix(const T s[N_GTR_RATES], const T xi[N_BASES], T R[N_BASES * N_BASES]) {
+    const T S[N_BASES * N_BASES] = {T(0), s[0], s[1], s[2], s[0], T(0), s[3], s[4],
+                                    s[1], s[3], T(0), s[5], s[2], s[4], s[5], T(0)};
+    T row_sum[N_BASES];
+    T mu = T(0);
+    for (int i = 0; i < N_BASES; ++i) {
+        T rs = T(0);
+        for (int j = 0; j < N_BASES; ++j)
+            rs += S[i * N_BASES + j] * xi[j];
+        row_sum[i] = rs;
+        mu += xi[i] * rs;
+    }
+    const T inv_mu = (mu > T(1e-20)) ? (T(1) / mu) : T(1);
+    T sxi[N_BASES];
+    for (int i = 0; i < N_BASES; ++i)
+        sxi[i] = std::sqrt(xi[i]);
+    for (int i = 0; i < N_BASES; ++i) {
+        for (int j = 0; j < N_BASES; ++j) {
+            if (i == j) {
+                R[i * N_BASES + i] = -row_sum[i] * inv_mu;
+            } else {
+                R[i * N_BASES + j] = S[i * N_BASES + j] * sxi[i] * sxi[j] * inv_mu;
+            }
+        }
+    }
+}
 
 // ---- 4 x 4 symmetric eigenvalues ------------------------------------------------------------------------
 
@@ -238,56 +273,6 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
     if (d_ab > T(MAX_DISTANCE))
         d_ab = T(MAX_DISTANCE);
     return d_ab;
-}
-
-// ---- One pair's distance under the run's model -----------------------------------------------------------
-
-// The model in the precision of a device (the GPU: float).
-template <class T> struct DistanceParams {
-    Model model;
-    T rates[N_GTR_RATES];
-    T alpha, inv_alpha;
-    T pi[N_BASES]; // base frequencies, normalised (uniform if not given)
-};
-
-template <class T> inline DistanceParams<T> distance_params(const SubstitutionModel &m) {
-    DistanceParams<T> p;
-    p.model = m.model;
-    // The exchangeabilities scaled to mean 1, as the paper's fit returns them.
-    // The distance depends only on their ratios; the scaling keeps the rate matrix's own normalisation in range.
-    double rate_sum = 0.0;
-    for (int k = 0; k < N_GTR_RATES; ++k)
-        rate_sum += m.rates[k];
-    const double rate_scale = 6.0 / rate_sum;
-    for (int k = 0; k < N_GTR_RATES; ++k)
-        p.rates[k] = (T)(m.rates[k] * rate_scale);
-    p.alpha = (T)m.alpha;
-    p.inv_alpha = T(1) / p.alpha; // as the paper's GPU implementation: 1 / alpha in the device's precision
-    const double sum = m.base_freqs[0] + m.base_freqs[1] + m.base_freqs[2] + m.base_freqs[3];
-    for (int i = 0; i < N_BASES; ++i)
-        p.pi[i] = sum > 0.0 ? (T)(m.base_freqs[i] / sum) : T(0.25);
-    return p;
-}
-
-// The distance of a pair with counts n under the model.
-template <class T> P2V_HD inline T pair_distance(const DistanceParams<T> &p, const uint32_t n[N_BASES * N_BASES]) {
-    switch (p.model) {
-    case Model::JC69:
-        return jc69_distance<T>((int32_t)detail::total_count(n), (int32_t)detail::diagonal_count(n));
-    case Model::K80:
-        return k80_distance<T>(n);
-    case Model::F81:
-        return f81_distance<T>(n, p.pi);
-    case Model::F84:
-        return f84_distance<T>(n, p.pi);
-    case Model::TN93:
-        return tn93_distance<T>(n, p.pi);
-    case Model::LogDet:
-        return logdet_distance<T>(n);
-    case Model::GTR_GC:
-        return eigen_distance<T>(n, p.rates, p.alpha, p.inv_alpha);
-    }
-    return T(MAX_DISTANCE);
 }
 
 } // namespace p2vbme

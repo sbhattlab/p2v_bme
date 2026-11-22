@@ -18,7 +18,6 @@
 #include <gtest/gtest.h>
 
 #include "distances.hpp"
-#include "eigen_dist.hpp"
 #include "simulations.hpp"
 
 using namespace p2vbme;

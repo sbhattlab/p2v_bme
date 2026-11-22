@@ -38,6 +38,20 @@ constexpr double GTR_FLOAT_ALPHA_MIN = 0.05;
 constexpr double GTR_FLOAT_ALPHA_MAX = 1e3;
 constexpr double GTR_FLOAT_RATE_RATIO_MAX = 100.0; // largest / smallest exchangeability
 
+// ---- Distances -----------------------------------------------------------------------------------------
+
+// The search needs a finite distance for every pair, but the formulas give none in two cases:
+// sequences too different (a logarithm's argument reaches 0) and a pair without a shared valid site (no data).
+// These constants fill both cases, for every model.
+// They are the values of the paper's GTR+GC code; no reason for them is recorded.
+
+// Distance of a pair without a shared valid site.
+constexpr double NO_OVERLAP_DISTANCE = 2.0;
+// Largest distance.
+// Logarithms' arguments are floored at 1e-4 (neg_log_link), which bounds each term at ln(1e4) = 9.21.
+// JC69, for example, reaches at most 3/4 * 9.21 = 6.91, for p >= 3/4 (the mismatch share of unrelated sequences).
+constexpr double MAX_DISTANCE = 10.0;
+
 // ---- Search: windows ----------------------------------------------------------------------------------
 
 // Sweeps of the core step per window, at most (each sweep applies a batch of moves); windows usually stop earlier, as

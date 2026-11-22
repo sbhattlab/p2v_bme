@@ -28,7 +28,6 @@
 #include "core.hpp"
 #include "device.hpp"
 #include "distances.hpp"
-#include "eigen_dist.hpp"
 #include "search.hpp"
 
 namespace p2vbme {

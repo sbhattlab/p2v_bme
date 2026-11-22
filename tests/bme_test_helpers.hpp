@@ -14,7 +14,6 @@
 #include "accelerator.hpp"
 #include "core.hpp"
 #include "distances.hpp"
-#include "eigen_dist.hpp"
 #include "inference.hpp"
 #include "simulations.hpp"
 

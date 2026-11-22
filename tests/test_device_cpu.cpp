@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "bme_test_helpers.hpp"
-#include "eigen_dist.hpp"
+#include "distances.hpp"
 #include "phylo2vec.hpp"
 #include "search.hpp"
 #include "simulations.hpp"
