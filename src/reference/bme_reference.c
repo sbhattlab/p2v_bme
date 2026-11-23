@@ -12,6 +12,10 @@
  * The API is documented in bme_reference.h.
  */
 
+// Cap on the rounds of optimize_phylo2vec_bme_c, one O(N^2) gradient sweep each.
+// From a random start a search takes about 0.75 N rounds, so the cap binds from about N = 600.
+static const int32_t OPTIMIZE_MAX_ROUNDS = 500;
+
 static _Thread_local int32_t *g_iwork = NULL;
 static _Thread_local double *g_dwork = NULL;
 static _Thread_local int32_t g_cap_leaves = 0;
@@ -1215,7 +1219,7 @@ double optimize_phylo2vec_bme_c(const int64_t *restrict v_init, const double *re
     int32_t escape_attempts = 0;
     int32_t adj_synced = 0;
 
-    for (int32_t iter = 0; iter < 500; ++iter) {
+    for (int32_t iter = 0; iter < OPTIMIZE_MAX_ROUNDS; ++iter) {
         int32_t has_gt_i = 0;
         for (int32_t i = 1; i < n_pairs; ++i) {
             if (v_pi[i] > i) {
@@ -1705,7 +1709,7 @@ double optimize_phylo2vec_bme_c(const int64_t *restrict v_init, const double *re
             has_saved_best = 1;
         }
 
-        if (n_near >= 2 && escape_attempts < 2 && iter + 1 < 500) {
+        if (n_near >= 2 && escape_attempts < 2 && iter + 1 < OPTIMIZE_MAX_ROUNDS) {
             escape_attempts++;
             for (int32_t a = 0; a < n_near / 2; ++a) {
                 int32_t tr = near_rows[a];
