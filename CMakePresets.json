@@ -4,10 +4,11 @@
   "configurePresets": [
     {
       "name": "default",
-      "displayName": "Package and tests (GPU code if CUDA is found)",
+      "displayName": "Package, tests and the paper's tools (GPU code if CUDA is found)",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "$env{CONDA_PREFIX}"
+        "CMAKE_PREFIX_PATH": "$env{CONDA_PREFIX}",
+        "P2VBME_BUILD_PAPER_TOOLS": "ON"
       }
     },
     {
