@@ -33,6 +33,11 @@ target_compile_options(test_eigen_dist PRIVATE -Wall -Wextra)
 target_link_libraries(test_eigen_dist PRIVATE p2vbme_distances p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_eigen_dist)
 
+add_executable(test_gtr_fit test_gtr_fit.cpp)
+target_compile_options(test_gtr_fit PRIVATE -O2 -Wall -Wextra)
+target_link_libraries(test_gtr_fit PRIVATE p2vbme_gtr_fit p2vbme_simulations OpenMP::OpenMP_CXX GTest::gtest_main)
+gtest_discover_tests(test_gtr_fit)
+
 # infer() on the CPU (any build): brute force at small N, SPR optimality by the reference library, workers;
 # InferenceGpu.* on the GPU: a search under every model, CPU against GPU
 add_executable(test_inference test_inference.cpp ${BME_REFERENCE_SOURCE})

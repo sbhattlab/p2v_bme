@@ -4,7 +4,7 @@
  * The numbers the method depends on: the defaults of the user settings (Settings reads them, and the command line
  * through Settings) and the algorithm's fixed constants.
  * A few stay next to their only user: kernel tile sizes, the salts of the random streams (random.hpp), the reweighting
- * passes (eigen_dist.hpp) and the component sizes of the waves (search.cpp).
+ * passes (eigen_dist.hpp), the GTR+GC fit's (gtr_fit.hpp) and the component sizes of the waves (search.cpp).
  * Most values are the paper's.
  * Changed since: WINDOW_MIN_K 6 -> 4 (trees of 4 and 5 leaves were never searched), and JC69 now uses
  * NO_OVERLAP_DISTANCE and MAX_DISTANCE like every model (it had 1.5 and a cap at p = 0.74), so NN_P_NO_OVERLAP
