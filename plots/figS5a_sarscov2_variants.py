@@ -8,29 +8,17 @@ Outputs: img/figS5a_sarscov2_variants.{pdf,svg}
     pixi run -e paper python -m plots.figS5a_sarscov2_variants
 """
 
-from typing import Any
-
 import matplotlib.pyplot as plt
-
-from matplotlib.typing import RcKeyType
 
 from plots._config import OURS_COLOUR, STYLE
 from plots.utils import parser, read_tsv, save
 
 FIGSIZE = (84 / 25.4, 66 / 25.4)  # panel a of the 150 mm wide figure
-RC: dict[RcKeyType, Any] = {
-    "font.size": 8,
-    "axes.labelsize": 8,
-    "xtick.labelsize": 7.5,
-    "ytick.labelsize": 7.5,
-    "legend.fontsize": 7.2,
-}
 
 
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
-    plt.rcParams.update(RC)
     rows = sorted(
         read_tsv(args.tables_dir, "viridian_variants"),
         key=lambda v: -float(v["genomes"]),
@@ -66,9 +54,8 @@ def main() -> None:
             f"{float(v['ours_sub']):.0f}",
             ha="center",
             va="center",
-            fontsize=7.5,
         )
-    ax.text(116, -0.95, "subst.", ha="center", va="center", fontsize=7.5)
+    ax.text(116, -0.95, "subst.", ha="center", va="center")
     ax.set_yticks(range(len(rows)))
     ax.set_yticklabels([f"{v['name']}  {float(v['genomes']):,.0f}" for v in rows])
     ax.set_ylim(len(rows) - 0.5, -1.4)

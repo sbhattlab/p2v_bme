@@ -10,9 +10,9 @@ Outputs: img/fig3b_silva_support.{pdf,svg}
 
 import matplotlib.pyplot as plt
 
+from plots._config import STYLE
 from plots.utils import parser, read_tsv, save
 
-FS = 1.32  # as Fig. 3a: drawn wide, printed at 180 mm
 COLOUR = "#1f6f8b"  # Bacteria's colour in Fig. 3a
 LABELS = {
     "10001-2106464": ">10k",
@@ -33,20 +33,7 @@ def compact(n: int) -> str:
 
 def main() -> None:
     args = parser(__doc__).parse_args()
-    plt.rcParams.update(
-        {
-            "font.family": "sans-serif",
-            "font.sans-serif": ["DejaVu Sans", "Arial", "Helvetica"],
-            "font.size": FS * 8.4,
-            "axes.labelsize": FS * 8.8,
-            "xtick.labelsize": FS * 7.8,
-            "ytick.labelsize": FS * 8.0,
-            "axes.linewidth": 0.75,
-            "pdf.fonttype": 42,
-            "ps.fonttype": 42,
-            "svg.hashsalt": "phylo2vec-figures",
-        }
-    )
+    plt.style.use(STYLE)
     bins = read_tsv(args.tables_dir, "silva_support")
     x = range(len(bins))
     fig, ax = plt.subplots(figsize=(4.3, 6.3))
@@ -70,7 +57,7 @@ def main() -> None:
         for b in bins
     ]
     ax.set_xticks(list(x))
-    ax.set_xticklabels(labels, fontsize=FS * 6.6)
+    ax.set_xticklabels(labels)
     ax.set_xlim(-0.25, len(bins) - 0.65)
     ax.set_ylim(0, 104)
     ax.set_yticks([0, 20, 40, 60, 80, 100])
@@ -83,7 +70,6 @@ def main() -> None:
         frameon=True,
         facecolor="white",
         edgecolor="#cbd5e0",
-        fontsize=FS * 6.6,
     )
     save(fig, args.img_dir, "fig3b_silva_support")
 

@@ -10,7 +10,7 @@ Outputs: img/fig2d_pandemic_rf_error.{pdf,svg}
 
 import matplotlib.pyplot as plt
 
-from plots._config import MAIN_RC, PANDEMIC
+from plots._config import PANDEMIC, STYLE
 from plots.utils import parser, read_tsv, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
@@ -19,7 +19,7 @@ LIMIT = 28  # per cent, both axes
 
 def main() -> None:
     args = parser(__doc__).parse_args()
-    plt.rcParams.update(MAIN_RC)
+    plt.style.use(STYLE)
     paired: dict[tuple[int, float], dict[str, float]] = {}
     for r in read_tsv(args.tables_dir, "maple"):
         paired.setdefault((int(r["n"]), float(r["mean_branch_length"])), {})[
@@ -62,8 +62,8 @@ def main() -> None:
     ax.set(xlim=(0, LIMIT), ylim=(0, LIMIT), xticks=[0, 10, 20], yticks=[0, 10, 20])
     ax.set_xlabel("Baseline RF error (%)")
     ax.set_ylabel("Phylo2VecME RF error (%)")
-    ax.set_title("Pandemic RF error", loc="left", fontsize=9, pad=8)
-    ax.legend(loc="upper left", fontsize=7, frameon=False, handletextpad=0.3)
+    ax.set_title("Pandemic RF error", loc="left", pad=8)
+    ax.legend(loc="upper left", frameon=False, handletextpad=0.3)
     save(fig, args.img_dir, "fig2d_pandemic_rf_error")
     print(f"largest RF gap to a baseline: {gap:.6f} percentage points")
 

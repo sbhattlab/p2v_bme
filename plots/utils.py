@@ -222,7 +222,6 @@ def method_legend(fig: plt.Figure, stats: dict) -> None:
         loc="upper center",
         ncol=3,
         bbox_to_anchor=(0.53, 0.998),
-        fontsize=8.8,
         handletextpad=0.4,
         columnspacing=2.0,
         frameon=False,

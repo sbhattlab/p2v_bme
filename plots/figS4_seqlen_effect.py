@@ -79,7 +79,7 @@ def main() -> None:
             zorder=5,
         )
     ax.set_yticks(range(len(rows)))
-    ax.set_yticklabels([SPEC[k]["label"] for k, *_ in rows], fontsize=8.5)
+    ax.set_yticklabels([SPEC[k]["label"] for k, *_ in rows])
     ax.set_ylim(-0.6, len(rows) - 0.4)
     ax.set_xscale("log")
     ax.set_xlim(1.3, 50)
@@ -112,7 +112,6 @@ def main() -> None:
             ),
         ],
         loc="upper right",
-        fontsize=8,
         handletextpad=0.3,
         borderaxespad=0.2,
     )

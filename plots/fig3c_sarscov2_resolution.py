@@ -21,10 +21,10 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
 from numpy import arange, array, average, zeros
 
+from plots._config import STYLE
 from plots.utils import parser, read_tsv, save
 
-FS = 1.32  # as Fig. 3a,b: drawn wide, printed at 180 mm
-TEXT, SCALE = FS * 8.7, 1.15  # tick and legend text; line and marker scale
+SCALE = 1.15  # line and marker scale
 GROUPS = (
     ("other", "Other", "#9A9A9A"),
     ("alpha", "Alpha", "#3B7FB6"),
@@ -49,17 +49,7 @@ def months_at_threshold(rows: list[dict[str, str]]) -> list[dict[str, str]]:
 
 def main() -> None:
     args = parser(__doc__).parse_args()
-    plt.rcParams.update(
-        {
-            "font.family": "sans-serif",
-            "font.sans-serif": ["DejaVu Sans", "Arial", "Helvetica"],
-            "font.size": FS * 8.4,
-            "axes.linewidth": 0.75,
-            "pdf.fonttype": 42,
-            "ps.fonttype": 42,
-            "svg.hashsalt": "phylo2vec-figures",
-        }
-    )
+    plt.style.use(STYLE)
     rows = months_at_threshold(read_tsv(args.tables_dir, "viridian_resolution"))
     months = [r["month"] for r in rows]
     column = lambda name: array([float(r[name]) for r in rows])  # noqa: E731
@@ -83,7 +73,6 @@ def main() -> None:
                 color="white",
                 ha="center",
                 va="center",
-                fontsize=TEXT,
                 fontweight="bold",
             )
     strip.set_ylim(0, 1)
@@ -121,7 +110,6 @@ def main() -> None:
     )
     ax.legend(
         frameon=False,
-        fontsize=TEXT,
         loc="upper left",
         ncol=2,
         handlelength=1.8,
@@ -143,10 +131,8 @@ def main() -> None:
     ax.yaxis.set_minor_formatter(NullFormatter())
     ax.set_ylabel(
         "Contemporaries in the\nsmallest supported clade",
-        fontsize=TEXT + 1,
         fontweight="bold",
     )
-    ax.tick_params(labelsize=TEXT)
     ticks = [i for i, m in enumerate(months) if m[5:7] in QUARTER]
     ax.set_xticks(ticks)
     ax.set_xticklabels(
@@ -157,7 +143,7 @@ def main() -> None:
         ]
     )
     ax.set_xlim(-0.5, len(rows) - 0.5)
-    ax.set_xlabel("Sampling month", fontsize=TEXT + 1, fontweight="bold")
+    ax.set_xlabel("Sampling month", fontweight="bold")
     ax.grid(axis="y", color="#EEEEEE", linewidth=0.6, zorder=0)
     ax.set_axisbelow(True)
     for side in ("top", "right"):

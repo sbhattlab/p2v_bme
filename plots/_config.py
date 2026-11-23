@@ -1,34 +1,15 @@
 """Plot constants: folders, output formats, the method colours shared by every figure, and the figure styles."""
 
-from typing import Any, TypedDict
-
-from matplotlib.typing import RcKeyType
+from typing import TypedDict
 
 DEFAULT_TABLES_DIR = "data/tables"  # figure data written by paper/make_tables.py
 DEFAULT_IMG_DIR = "img"  # figure outputs (git-ignored)
 FIGURE_FORMATS = ("pdf", "svg")  # every figure is saved once per format
-STYLE = "plots/figure.mplstyle"  # supplementary figures
+STYLE = "plots/paper.mplstyle"  # every figure
 
 # Matplotlib metadata without timestamps, so that an unchanged figure is an unchanged file
 SAVE_METADATA = {"pdf": {"CreationDate": None}, "svg": {"Date": None}}
 
-# Main figures: font sizes of the 180 mm wide page
-MAIN_RC: dict[RcKeyType, Any] = {
-    "font.family": "DejaVu Sans",
-    "font.size": 8,
-    "axes.labelsize": 8,
-    "xtick.labelsize": 7,
-    "ytick.labelsize": 7,
-    "axes.spines.top": False,
-    "axes.spines.right": False,
-    "axes.linewidth": 0.7,
-    "pdf.fonttype": 42,
-    "ps.fonttype": 42,
-    "svg.fonttype": "none",
-    "mathtext.default": "regular",
-    "savefig.facecolor": "white",
-    "svg.hashsalt": "phylo2vec-figures",
-}
 
 # One entry per method, used identically in every figure: key, legend label, colour, marker, filled, line style.
 # Hue encodes the family: vermilion = Phylo2VecME, purple = DIPPER, blues = ML searches, greys = ME searches.

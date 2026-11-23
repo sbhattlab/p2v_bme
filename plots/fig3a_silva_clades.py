@@ -21,9 +21,9 @@ import matplotlib.pyplot as plt
 
 from matplotlib.patches import Polygon, Rectangle
 
+from plots._config import STYLE
 from plots.utils import parser, read_tsv, save
 
-FS = 1.32  # the figure is drawn wide and printed at 180 mm: text is set larger by this factor
 COLOURS = {"Archaea": "#6a4c93", "Eukaryota": "#c85a32", "Bacteria": "#1f6f8b"}
 TBE_MARKS = (
     (95.0, "#1b7837", "≥ 95%"),
@@ -212,7 +212,6 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
             y,
             node["label"],
             color="#1a202c",
-            fontsize=FS * 7.8,
             fontweight="bold" if node["leaves"] >= 200000 else "normal",
             va="center",
             ha="left",
@@ -222,10 +221,8 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
             y,
             f"{node['leaves']:,}",
             color="#2d3748",
-            fontsize=FS * 7.4,
             va="center",
             ha="right",
-            family="monospace",
         )
         f1 = node["f1"]
         f1_colour = (
@@ -236,11 +233,9 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
             y,
             f"{f1:.3f}",
             color=f1_colour,
-            fontsize=FS * 7.4,
             fontweight="bold",
             va="center",
             ha="right",
-            family="monospace",
         )
         bar, width = columns["bar"], columns["bar_width"]
         ax.add_patch(
@@ -269,7 +264,6 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
             y,
             f"{node['tbe']:.1f}%",
             color="#1a202c",
-            fontsize=FS * 7.4,
             fontweight="bold",
             va="center",
             ha="left",
@@ -303,17 +297,7 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
 
 def main() -> None:
     args = parser(__doc__).parse_args()
-    plt.rcParams.update(
-        {
-            "font.family": "sans-serif",
-            "font.sans-serif": ["DejaVu Sans", "Arial", "Helvetica"],
-            "font.size": FS * 8.4,
-            "axes.linewidth": 0.75,
-            "pdf.fonttype": 42,
-            "ps.fonttype": 42,
-            "svg.hashsalt": "phylo2vec-figures",
-        }
-    )
+    plt.style.use(STYLE)
     clades, paths = read_clades(args.tables_dir)
     tree = induced_tree(clades, paths)
     tips = place(tree, 0.0, [0]) + 0.025
@@ -353,7 +337,6 @@ def main() -> None:
             f"{name}\n{int(c['unique_leaves']):,}\nTBE {float(c['tbe_pct']):.0f}%",
             color=COLOURS[name],
             fontweight="bold",
-            fontsize=FS * 7.5,
             ha="right",
             va="center",
             linespacing=1.15,
@@ -370,7 +353,6 @@ def main() -> None:
             x,
             header,
             text,
-            fontsize=FS * 7.6,
             fontweight="bold",
             color="#1a202c",
             ha=ha,
@@ -396,7 +378,6 @@ def main() -> None:
             1.01 * i + 0.020,
             -1.05,
             f"Backbone TBE {label}",
-            fontsize=FS * 7.0,
             va="center",
             color="#2d3748",
         )

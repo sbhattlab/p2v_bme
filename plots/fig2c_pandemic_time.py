@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import NullLocator
 from numpy import ceil, floor, log10
 
-from plots._config import MAIN_RC, PANDEMIC
+from plots._config import PANDEMIC, STYLE
 from plots.utils import parser, read_tsv, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
@@ -24,7 +24,7 @@ SIZES = [100000, 200000, 500000]
 
 def main() -> None:
     args = parser(__doc__).parse_args()
-    plt.rcParams.update(MAIN_RC)
+    plt.style.use(STYLE)
     rows = read_tsv(args.tables_dir, "maple")
     fig, ax = plt.subplots(figsize=FIGSIZE)
     fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.86)
@@ -66,10 +66,10 @@ def main() -> None:
     ax.tick_params(axis="x", which="minor", bottom=False)
     ax.set_xlabel("Number of sequences")
     ax.set_ylabel("Time (s)")
-    ax.set_title("Pandemic runtime", loc="left", fontsize=9, pad=8)
+    ax.set_title("Pandemic runtime", loc="left", pad=8)
     ax.grid(axis="y", which="major", color="#E5E5E5", linewidth=0.5)
     ax.set_axisbelow(True)
-    ax.legend(loc="upper left", fontsize=6.7, frameon=False, handlelength=1.5)
+    ax.legend(loc="upper left", frameon=False, handlelength=1.5)
     save(fig, args.img_dir, "fig2c_pandemic_time")
 
 

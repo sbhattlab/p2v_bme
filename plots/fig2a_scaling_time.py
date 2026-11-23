@@ -10,7 +10,7 @@ Outputs: img/fig2a_scaling_time.{pdf,svg}
 
 import matplotlib.pyplot as plt
 
-from plots._config import MAIN_RC
+from plots._config import STYLE
 from plots.utils import parser, save, scaling_axes, scaling_data, scaling_series
 
 FIGSIZE = (
@@ -21,12 +21,12 @@ FIGSIZE = (
 
 def main() -> None:
     args = parser(__doc__).parse_args()
-    plt.rcParams.update(MAIN_RC)
+    plt.style.use(STYLE)
     fig, ax = plt.subplots(figsize=FIGSIZE)
     fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.86)
     scaling_series(ax, scaling_data(args.tables_dir), "time_s")
     scaling_axes(ax)
-    ax.set_title("Timed inference", loc="left", fontsize=9, pad=8)
+    ax.set_title("Timed inference", loc="left", pad=8)
     ax.set_ylabel("Time (s)")
     save(fig, args.img_dir, "fig2a_scaling_time")
 

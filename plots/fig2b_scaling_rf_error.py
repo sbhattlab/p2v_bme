@@ -14,7 +14,7 @@ Outputs: img/fig2b_scaling_rf_error.{pdf,svg}
 
 import matplotlib.pyplot as plt
 
-from plots._config import MAIN_RC, SCALING_SERIES
+from plots._config import SCALING_SERIES, STYLE
 from plots.utils import parser, save, scaling_axes, scaling_data, scaling_series
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
@@ -48,7 +48,7 @@ def backbone_series(ax: plt.Axes, rows: list[dict[str, str]]) -> None:
 
 def main() -> None:
     args = parser(__doc__).parse_args()
-    plt.rcParams.update(MAIN_RC)
+    plt.style.use(STYLE)
     rows = scaling_data(args.tables_dir)
     fig, ax = plt.subplots(figsize=FIGSIZE)
     fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.86)
@@ -76,7 +76,6 @@ def main() -> None:
         handles,
         labels,
         loc="lower left",
-        fontsize=6.5,
         frameon=False,
         handlelength=1.9,
         handletextpad=0.5,
@@ -84,7 +83,7 @@ def main() -> None:
         borderaxespad=0.15,
         borderpad=0.2,
     )
-    ax.set_title("Topological error", loc="left", fontsize=9, pad=8)
+    ax.set_title("Topological error", loc="left", pad=8)
     ax.set_ylabel("Normalised RF error (%)")
     save(fig, args.img_dir, "fig2b_scaling_rf_error")
 
