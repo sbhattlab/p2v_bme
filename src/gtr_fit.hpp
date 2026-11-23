@@ -30,7 +30,7 @@
  * The penalty on the rate variance 1 / alpha is negligible beside the likelihood whenever alpha is determined, and
  * otherwise selects equal rates across sites (alpha at its upper bound).
  *
- * Double precision throughout, on the host.
+ * Double precision throughout, on the host (OpenMP).
  * In single precision the cells of close pairs lose up to ~40% to cancellation (d = 1e-7), and the objective (~1e8
  * for 100,000 pairs of 1,000 sites) can no longer resolve the search's steps.
  */
@@ -80,8 +80,9 @@ struct GtrFit {
 // Tables with fewer than GTR_FIT_MIN_SITES sites are left out; if none is left, the defaults (equal rates, alpha = 1)
 // stay, with n_pairs = 0.
 // The start scan uses the first GTR_FIT_START_PAIRS tables (gtr_fit.cpp), so their order should be random.
+// threads: at most this many (0: omp_get_max_threads()); each parallel loop uses at most one per 1,000 pairs.
 // The result does not depend on the number of threads: the pairs' terms are added in index order.
-GtrFit fit_gtr_gc_counts(const std::vector<PairCounts> &tables);
+GtrFit fit_gtr_gc_counts(const std::vector<PairCounts> &tables, int threads = 0);
 
 // Draws the pairs of the fit: (n_taxa, n_pairs, seed) -> pairs (a, b), a != b.
 // More than n_pairs pairs in all: n_pairs uniform draws with replacement, the paper's draw (a uniform among all, then
@@ -91,9 +92,9 @@ GtrFit fit_gtr_gc_counts(const std::vector<PairCounts> &tables);
 std::vector<std::pair<int32_t, int32_t>> draw_fit_pairs(int32_t n_taxa, int32_t n_pairs, uint64_t seed);
 
 // Fits GTR+GC to an alignment: (aln, n_pairs, seed) -> (rates, alpha), from the counts of the pairs draw_fit_pairs
-// draws.
+// draws; threads as fit_gtr_gc_counts.
 // Throws std::invalid_argument if n_pairs < 1.
-GtrFit fit_gtr_gc(const Alignment &aln, int32_t n_pairs, uint64_t seed);
+GtrFit fit_gtr_gc(const Alignment &aln, int32_t n_pairs, uint64_t seed, int threads = 0);
 
 } // namespace p2vbme
 

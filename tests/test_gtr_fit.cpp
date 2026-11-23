@@ -4,8 +4,6 @@
  * The GTR+GC fit (gtr_fit.hpp): it recovers the true parameters on the paper's simulated pairs and finds them exactly
  * in noise-free tables; tables with too few sites are not fitted; the pairs it draws; the fit of an alignment.
  */
-#include <omp.h>
-
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -268,16 +266,13 @@ TEST(GtrFit, FitsTheCountsOfTheDrawnPairs) {
     const GtrFit expected = fit_gtr_gc_counts(tables);
     ASSERT_EQ(expected.n_pairs, n_pairs);
 
-    const int threads = omp_get_max_threads();
     for (int t : {1, 3}) {
-        omp_set_num_threads(t);
-        const GtrFit fit = fit_gtr_gc(aln, n_pairs, seed);
+        const GtrFit fit = fit_gtr_gc(aln, n_pairs, seed, t);
         EXPECT_EQ(fit.alpha, expected.alpha) << t << " threads";
         for (int k = 0; k < N_GTR_RATES; ++k)
             EXPECT_EQ(fit.rates[k], expected.rates[k]) << t << " threads, rate " << k;
         EXPECT_EQ(fit.log_lik, expected.log_lik) << t << " threads";
         EXPECT_GT(fit.time, 0.0);
     }
-    omp_set_num_threads(threads);
     EXPECT_THROW(fit_gtr_gc(aln, 0, seed), std::invalid_argument);
 }

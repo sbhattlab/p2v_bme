@@ -8,6 +8,9 @@
  */
 #include "gtr_fit.hpp"
 
+#include <omp.h>
+
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -68,6 +71,12 @@ constexpr int STALL_ITERATIONS = 2;
 constexpr double START_ALPHAS[] = {148.0, 16.0, 6.0, 3.0, 1.6, 0.9, 0.5, 0.25, 0.1};
 constexpr int START_MAX_ITERATIONS = 60;
 constexpr int32_t START_PAIRS = 20000;
+// Pairs per thread, at least, in each parallel loop.
+// Measured on a 64-core machine (128 hardware threads) under load, all threads allowed: a fit of 100,000 pairs took
+// 0.48 s every time with 1,000, 0.37-0.74 s with 250 or 500, and 0.77-3 s with no minimum.
+// Small inputs would gain from a lower minimum (4,000 pairs: 0.13 s with 250, 0.43 s with 1,000), but stay below 0.5 s.
+constexpr int64_t MIN_PAIRS_PER_THREAD = 1000;
+
 // BFGS iterations of each search of the exchangeabilities, at most.
 constexpr int MAX_ITERATIONS = 200;
 
@@ -252,11 +261,19 @@ double pair_solve(const CellModel *md, const double *c, double *d_io) {
 
 // ---- The objective and its search ---------------------------------------------------------------------------
 
-// The pairs' data: their ten cell counts, their current distances and a buffer for their log-likelihoods.
+// Threads for a loop over `items` pairs: at most `threads`, and at least MIN_PAIRS_PER_THREAD pairs each (as
+// device_cpu.cpp's threads_for).
+int threads_for(int threads, int64_t items) {
+    return (int)std::max<int64_t>(1, std::min<int64_t>(threads, items / MIN_PAIRS_PER_THREAD));
+}
+
+// The pairs' data: their ten cell counts, their current distances and a buffer for their log-likelihoods, and the
+// threads the fit may use.
 struct Pairs {
     std::vector<double> cells; // 10 per pair
     std::vector<double> dist;
     std::vector<double> ll;
+    int threads = 1;
 };
 
 // Computes the penalised composite log-likelihood: (theta, pi, the first n pairs) -> objective.
@@ -268,7 +285,7 @@ double objective(const double theta[N_PARAMS], const double pi[N_BASES], Pairs &
     build_model(theta, pi, &md);
     const double *all_cells = pairs.cells.data();
     double *dist = pairs.dist.data(), *ll = pairs.ll.data();
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static) num_threads(threads_for(pairs.threads, n))
     for (int32_t p = 0; p < n; ++p) {
         const double *c = &all_cells[(size_t)p * N_CELLS];
         ll[p] = solve ? pair_solve(&md, c, &dist[p]) : pair_loglik(&md, c, dist[p]);
@@ -453,10 +470,11 @@ template <class G> double brent_max(G &&g, double lo, double x, double gx, doubl
 
 // ---- The fit -----------------------------------------------------------------------------------------------
 
-GtrFit fit_gtr_gc_counts(const std::vector<PairCounts> &tables) {
+GtrFit fit_gtr_gc_counts(const std::vector<PairCounts> &tables, int threads) {
     GtrFit out;
     const int32_t n_tables = (int32_t)tables.size();
     Pairs pairs;
+    pairs.threads = threads > 0 ? threads : omp_get_max_threads();
     pairs.cells.resize((size_t)n_tables * N_CELLS);
     pairs.dist.resize(n_tables);
     pairs.ll.resize(n_tables);
@@ -594,18 +612,19 @@ std::vector<std::pair<int32_t, int32_t>> draw_fit_pairs(int32_t n_taxa, int32_t 
     return pairs;
 }
 
-GtrFit fit_gtr_gc(const Alignment &aln, int32_t n_pairs, uint64_t seed) {
+GtrFit fit_gtr_gc(const Alignment &aln, int32_t n_pairs, uint64_t seed, int threads) {
     if (n_pairs < 1)
         throw std::invalid_argument("GTR+GC fit: the number of pairs must be >= 1");
     const double t0 = wall_sec();
     const auto pairs = draw_fit_pairs(aln.n_taxa, n_pairs, seed);
     const size_t row_words = (size_t)N_PLANES * aln.n_words;
     std::vector<PairCounts> tables(pairs.size());
-#pragma omp parallel for schedule(static)
+    const int max_threads = threads > 0 ? threads : omp_get_max_threads();
+#pragma omp parallel for schedule(static) num_threads(threads_for(max_threads, (int64_t)pairs.size()))
     for (int64_t m = 0; m < (int64_t)pairs.size(); ++m)
         tables[m] = count_pair(&aln.packed[(size_t)pairs[m].first * row_words],
                                &aln.packed[(size_t)pairs[m].second * row_words], aln.n_words);
-    GtrFit fit = fit_gtr_gc_counts(tables);
+    GtrFit fit = fit_gtr_gc_counts(tables, threads);
     fit.time = wall_sec() - t0;
     return fit;
 }

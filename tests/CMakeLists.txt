@@ -35,7 +35,7 @@ gtest_discover_tests(test_eigen_dist)
 
 add_executable(test_gtr_fit test_gtr_fit.cpp)
 target_compile_options(test_gtr_fit PRIVATE -O2 -Wall -Wextra)
-target_link_libraries(test_gtr_fit PRIVATE p2vbme_gtr_fit p2vbme_simulations OpenMP::OpenMP_CXX GTest::gtest_main)
+target_link_libraries(test_gtr_fit PRIVATE p2vbme_gtr_fit p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_gtr_fit)
 
 # infer() on the CPU (any build): brute force at small N, SPR optimality by the reference library, workers;
