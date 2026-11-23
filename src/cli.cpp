@@ -95,7 +95,10 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value<std::string>()->default_value("auto"))
         ("d,devices", "GPU: auto (the first GPU), N (the first N) or a list such as 0,2; CPU: auto (all "
          "cores but one, or OMP_NUM_THREADS if set) or N threads", cxxopts::value<std::string>()->default_value("auto"))
-        ("seed", "seed of the start tree and of the GTR+GC fit's pairs", cxxopts::value(opt.seed), "N")
+        ("b,bootstrap", "replicates of the standard bootstrap (0 = none); the supports of the tree's branches "
+         "(TBE/exact, in %) go to <prefix>.support.nwk", cxxopts::value(result.report.bootstrap), "B")
+        ("seed", "seed of the start tree, of the GTR+GC fit's pairs and of the bootstrap", cxxopts::value(opt.seed),
+         "N")
         ("q,quiet", "print no progress (warnings and errors still go to stderr)")
         ("v,version", "print the version")
         ("h,help", "print the core options")
@@ -173,6 +176,8 @@ CommandLine parse_command_line(int argc, char **argv) {
     result.devices = args["devices"].as<std::string>();
     run.tree_init = args["tree"].as<std::string>();
     run.dedup = !args.count("no-dedup");
+    if (run.bootstrap < 0)
+        throw std::runtime_error("bootstrap replicates must be >= 0");
     run.full = args.count("report-full") > 0;
     return result;
 }

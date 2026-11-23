@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "bootstrap.hpp"
 #include "cli.hpp"
 #include "device.hpp"
 #include "inference.hpp"
@@ -56,7 +57,10 @@ int main(int argc, char **argv) {
         parse_devices_option(args.devices, on_gpu, opt);
 
         // Output: fail now if the outputs cannot be written
-        for (const char *ext : {".nwk", ".json"}) {
+        std::vector<std::string> outputs = {".nwk", ".json"};
+        if (run.bootstrap > 0)
+            outputs.push_back(".support.nwk");
+        for (const std::string &ext : outputs) {
             std::ofstream f(run.prefix + ext, std::ios::app);
             if (!f)
                 throw std::runtime_error("cannot write " + run.prefix + ext);
@@ -148,14 +152,30 @@ int main(int argc, char **argv) {
             run.warnings.push_back(w);
             std::cerr << "p2v-bme: warning: " << w << '\n';
         }
+        // Bootstrap: replicates of the searched alignment's columns, each searched as the main tree with the model's
+        // parameters as fitted, and the supports of the main tree's branches over them
+        p2vbme::BootstrapResult boot;
+        if (run.bootstrap > 0) {
+            p2vbme::LogCallback boot_log;
+            if (progress)
+                boot_log = [](const std::string &line) { std::cout << "p2v-bme: " << line << std::endl; };
+            boot = p2vbme::bootstrap(aln, opt, devices, res.tree, run.bootstrap, boot_log);
+            run.mean_tbe = boot.mean_tbe;
+            run.mean_exact = boot.mean_exact;
+            run.time_bootstrap = boot.time;
+        }
         // Device: record the largest memory in use on the devices (GPU-wide, other processes included)
         for (const auto &dev : devices)
             run.gpu_memory_in_use_at_end_mib = std::max(run.gpu_memory_in_use_at_end_mib, dev->memory_in_use_mb());
         // Data: put back the identical sequences set aside, with zero-length branches
-        p2vbme::restore_copies(res.tree, dd);
+        std::vector<int32_t> node_map;
+        p2vbme::restore_copies(res.tree, dd, &node_map);
 
-        // Output: write the unrooted tree
+        // Output: write the unrooted tree, and with -b the same tree with the supports
         p2vbme::write_newick_unrooted(run.prefix + ".nwk", all_names, res.tree, run.neg_as_zero);
+        if (run.bootstrap > 0)
+            p2vbme::write_newick_unrooted(run.prefix + ".support.nwk", all_names, res.tree, run.neg_as_zero,
+                                          p2vbme::support_labels(boot, node_map, res.tree));
         // Time: end of main
         run.time_total = omp_get_wtime() - t0;
         // Output: write the report
@@ -163,8 +183,8 @@ int main(int argc, char **argv) {
         if (progress)
             std::cout << "p2v-bme: " << run.tree_init << " start, " << res.rounds_run << " rounds, BME length "
                       << std::fixed << std::setprecision(6) << res.bme_length << "; " << std::setprecision(2)
-                      << run.time_total << " s in total; wrote " << run.prefix << ".nwk, " << run.prefix << ".json"
-                      << std::endl;
+                      << run.time_total << " s in total; wrote " << run.prefix << ".nwk, "
+                      << (run.bootstrap > 0 ? run.prefix + ".support.nwk, " : "") << run.prefix << ".json" << std::endl;
     } catch (const std::exception &e) {
         std::cerr << "p2v-bme: error: " << e.what() << '\n';
         return 1;
