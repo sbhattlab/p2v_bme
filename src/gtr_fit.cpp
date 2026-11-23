@@ -58,7 +58,8 @@ constexpr double PI_MIN = 1e-12;
 
 // BFGS: the central-difference step of the gradient, the Armijo constant and halvings of the line search, the
 // curvature condition's relative tolerance, and the stop: STALL_ITERATIONS successive gains below
-// STALL_REL |f| + STALL_ABS, once the curvature estimate holds nd + 2 updates.
+// STALL_REL |f| + STALL_ABS once the curvature estimate holds nd + 2 updates, or FLAT_ITERATIONS of them whatever it
+// holds.
 constexpr double GRADIENT_STEP = 1e-4;
 constexpr double ARMIJO = 1e-4;
 constexpr int LINE_SEARCH_HALVINGS = 40;
@@ -66,6 +67,7 @@ constexpr double CURVATURE_TOL = 1e-10;
 constexpr double STALL_REL = 1e-12;
 constexpr double STALL_ABS = 1e-9;
 constexpr int STALL_ITERATIONS = 2;
+constexpr int FLAT_ITERATIONS = 10;
 
 // The start: the alpha values scanned, BFGS iterations per value, and the tables the scan uses (the first ones).
 constexpr double START_ALPHAS[] = {148.0, 16.0, 6.0, 3.0, 1.6, 0.9, 0.5, 0.25, 0.1};
@@ -310,14 +312,14 @@ void gradient(const double theta[N_PARAMS], int nd, const double pi[N_BASES], Pa
 
 // Maximises the objective over the first nd parameters by BFGS ascent: theta -> theta (in place), *f_out its value.
 // The fit uses nd = N_FREE_RATES: the exchangeabilities at fixed alpha.
-// Stops after STALL_ITERATIONS successive iterations that gain less than STALL_REL |f| + STALL_ABS, counted only once
-// the curvature estimate holds nd + 2 updates (before that, a weakly determined alpha moves too slowly to tell flat
-// from converged), or when no ascent step exists.
+// Stops after STALL_ITERATIONS successive iterations that gain less than STALL_REL |f| + STALL_ABS once the curvature
+// estimate holds nd + 2 updates, after FLAT_ITERATIONS such iterations whatever it holds (a search that starts at the
+// maximum never collects the updates), or when no ascent step exists.
 // Returns true if it stopped that way, false if it used all max_iters iterations.
 bool bfgs(double theta[N_PARAMS], int nd, const double pi[N_BASES], Pairs &pairs, int32_t n, int max_iters,
           double *f_out, int *iters_out) {
     double grad[N_PARAMS], H[N_PARAMS * N_PARAMS], f = objective(theta, pi, pairs, n, true);
-    int fresh = 1, small = 0, iter = 0, done = 0, updates = 0;
+    int fresh = 1, small = 0, flat = 0, iter = 0, done = 0, updates = 0;
     gradient(theta, nd, pi, pairs, n, grad);
     for (; iter < max_iters && !done; ++iter) {
         double p[N_PARAMS], dir = 0.0, pmax = 0.0, gmax = 0.0;
@@ -393,11 +395,12 @@ bool bfgs(double theta[N_PARAMS], int nd, const double pi[N_BASES], Pairs &pairs
             fresh = 0;
             ++updates;
         }
-        small = (fn - f <= STALL_REL * std::fabs(f) + STALL_ABS && updates >= nd + 2) ? small + 1 : 0;
+        flat = (fn - f <= STALL_REL * std::fabs(f) + STALL_ABS) ? flat + 1 : 0;
+        small = (flat > 0 && updates >= nd + 2) ? small + 1 : 0;
         std::memcpy(theta, tn, sizeof(tn));
         std::memcpy(grad, gn, sizeof(grad));
         f = fn;
-        if (small >= STALL_ITERATIONS)
+        if (small >= STALL_ITERATIONS || flat >= FLAT_ITERATIONS)
             done = 1;
     }
     *f_out = f;
@@ -532,13 +535,17 @@ GtrFit fit_gtr_gc_counts(const std::vector<PairCounts> &tables, int threads) {
         }
     }
 
-    // The profile: the objective maximised over the exchangeabilities at a given log alpha, on all tables, each search
-    // warm-started from the previous one's exchangeabilities and distances.
+    // The profile: the objective maximised over the exchangeabilities at a given log alpha, on all tables.
     // A joint search over all six parameters can stop short in alpha, which pairs determine far less well than the
     // exchangeabilities, so alpha is searched on its own.
+    // Each search starts from the exchangeabilities of the best point evaluated so far (and the last search's
+    // distances), never from the last point's: at a fixed alpha the objective can have a second, lower maximum in the
+    // exchangeabilities, which a search started from a distant alpha's (a bracket's end) can reach.
     double best_theta[N_PARAMS], f = -std::numeric_limits<double>::infinity();
+    std::memcpy(best_theta, theta, sizeof(theta)); // the scan's best point
     bool all_stopped = true;
     auto profile = [&](double log_alpha) {
+        std::memcpy(theta, best_theta, sizeof(theta));
         theta[LOG_ALPHA] = log_alpha;
         double fp;
         int iters = 0;
