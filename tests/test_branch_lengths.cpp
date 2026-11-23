@@ -1,10 +1,10 @@
 // O(N) BME branch lengths (branch_lengths.cpp and the devices' edge-length pass) against the exact O(N^2) branch
 // lengths of Pauplin (2000) / FastME (Desper & Gascuel 2002) in double precision, with tolerances:
-//   - complete profiles (cap >= N): every branch length equal to the exact one (float or double precision);
-//   - capped profiles (cap 32, the default): the approximation error stays within measured bounds;
+//   - complete representatives (cap >= N): every branch length equal to the exact one (float or double precision);
+//   - capped representatives (cap 32, the default): the approximation error stays within measured bounds;
 //   - Pauplin's identity: the exact lengths sum to the tree's BME length (0.5 sum_x d({x}, outside x)), and so do the
-//     O(N) lengths with complete profiles (also the returned total); the root's right child gets 0;
-//   - infer() on a given tree (no search, complete profiles): its BME length equals Pauplin's formula for every
+//     O(N) lengths with complete representatives (also the returned total); the root's right child gets 0;
+//   - infer() on a given tree (no search, complete representatives): its BME length equals Pauplin's formula for every
 //     model, to float precision in single and to 1e-9 in double precision.
 // Also: a failing device's error leaves the edge-length pass (a fake device); the pass called from inside a parallel
 // region still computes every chunk.
@@ -61,7 +61,7 @@ Case make_case(int32_t N, Model model, uint64_t seed) {
     return c;
 }
 
-// Exact branch lengths with uncapped dyadic profiles in double (the program's reference, any distance matrix):
+// Exact branch lengths with uncapped dyadic representatives in double (the program's reference, any distance matrix):
 // edge above u = d(in u, out u) - (d(children of u) + d(sibling of u, out parent)) / 2. Also the direct Pauplin
 // score 0.5 sum_x d({x}, out x).
 std::vector<double> exact_lengths(const Tree &t, int32_t N, const std::vector<double> &D, double *direct) {
@@ -137,15 +137,15 @@ void run_all(Devices &devices, bool double_precision, const char *what) {
             dm.model = model;
             for (auto &dev : devices)
                 dev->load(c.aln.packed.data(), N, c.aln.n_words);
-            /* complete profiles: exact up to the precision */
+            /* complete representatives: exact up to the precision */
             {
                 for (auto &dev : devices)
                     dev->set_distance(dm);
                 double direct = 0.0;
                 const std::vector<double> exact = exact_lengths(c.tree, N, c.D, &direct);
                 std::vector<double> bl;
-                const double total = compute_bme_branch_lengths(c.tree, devices, bl, PROFILE_CAP_MAX, nullptr, nullptr,
-                                                                double_precision);
+                const double total = compute_bme_branch_lengths(c.tree, devices, bl, REPRESENTATIVE_CAP_MAX, nullptr,
+                                                                nullptr, double_precision);
                 double sum_exact = 0.0, sum_bl = 0.0;
                 for (double x : exact)
                     sum_exact += x;
@@ -162,9 +162,9 @@ void run_all(Devices &devices, bool double_precision, const char *what) {
                     if (u != r_right)
                         max_err = std::max(max_err, fabs(bl[u] - exact[u]));
                 EXPECT_LT(max_err, double_precision ? 1e-10 : 2e-5)
-                    << what << " " << model_name(model) << " N=" << N << " complete profiles";
+                    << what << " " << model_name(model) << " N=" << N << " complete representatives";
             }
-            /* capped profiles (cap 32): the measured approximation, with a margin */
+            /* capped representatives (cap 32): the measured approximation, with a margin */
             if (N > 32) {
                 for (auto &dev : devices)
                     dev->set_distance(dm);
@@ -210,7 +210,7 @@ TEST(BranchLengths, BmeLengthOfAGivenTree) {
             Settings opt = cpu_settings(model, precision);
             opt.tree_init = TreeInit::Given;
             opt.max_rounds = 0;
-            opt.bl_profile_cap = PROFILE_CAP_MAX;
+            opt.bl_representative_cap = REPRESENTATIVE_CAP_MAX;
             const Result res = run_infer(aln, opt, &tree);
             const double exact =
                 pauplin(unrooted(tree, N), N, distance_matrix(aln, with_base_frequencies(aln, opt).substitution_model));
@@ -236,7 +236,7 @@ TEST(BranchLengthsGpu, BmeLengthOfAGivenTree) {
         Settings opt;
         opt.tree_init = TreeInit::Given;
         opt.max_rounds = 0;
-        opt.bl_profile_cap = PROFILE_CAP_MAX;
+        opt.bl_representative_cap = REPRESENTATIVE_CAP_MAX;
         opt.devices = {0};
         opt.substitution_model = distance_model(model);
         const Result res = run_infer(aln, opt, &tree);
@@ -251,7 +251,7 @@ TEST(BranchLengths, EdgeLengthFailureLeavesTheBranchLengths) {
     const Tree tree = build_random_tree(500, 1);
     std::vector<double> bl;
     const std::string msg =
-        thrown_message([&] { compute_bme_branch_lengths(tree, devices, bl, DEFAULT_BL_PROFILE_CAP); });
+        thrown_message([&] { compute_bme_branch_lengths(tree, devices, bl, DEFAULT_BL_REPRESENTATIVE_CAP); });
     EXPECT_EQ(msg, "injected failure in edge_lengths");
 }
 

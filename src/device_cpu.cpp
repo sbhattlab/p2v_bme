@@ -72,10 +72,10 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
     CpuWindowKernels(const uint64_t *rows, int32_t W, const DistanceParams<T> &dm, int threads)
         : rows_(rows), W_(W), dm_(dm), threads_(threads), owned_(new CpuWorkspace<T>()), ws_(*owned_) {}
 
-    // Computes the distances between the window's pieces: profiles (CSR) -> D (K x K, kept for score).
-    // Piece a's profile holds the leaves leaves[p] with weights weights[p], for p from off[a] to off[a + 1] - 1.
-    // D[a][b] is the sum, over p in a's profile and q in b's, of weights[p] * weights[q] * d(leaves[p], leaves[q]),
-    // summed in the GPU's order (over q first, then over p).
+    // Computes the distances between the window's pieces: representatives (CSR) -> D (K x K, kept for score).
+    // Piece a's representatives are the leaves leaves[p] with weights weights[p], for p from off[a] to off[a + 1] - 1.
+    // D[a][b] is the sum, over p in a's representatives and q in b's, of weights[p] * weights[q] * d(leaves[p],
+    // leaves[q]), summed in the GPU's order (over q first, then over p).
     void distances(int32_t K, const int32_t *off, const int32_t *leaves, const float *weights) override {
         // Step 1: set the window's sizes for score and best_moves: K pieces, M = 2K - 2 skeleton nodes.
         K_ = K;
@@ -226,7 +226,7 @@ template <class T> class CpuWindowKernels final : public WindowKernels {
         T pow, dkc, dist;
     };
 
-    // Returns the model's distance between two leaves of a profile: (x, y) -> d(x, y), 0 when x == y.
+    // Returns the model's distance between two representative leaves: (x, y) -> d(x, y), 0 when x == y.
     // x and y are rows of the current alignment (rows_); each row is N_PLANES bitplanes of W_ words (as in Alignment:
     // A, C, G, T/U, valid), so row x starts at word x * N_PLANES * W_.
     T leaf_distance(int32_t x, int32_t y) const {
@@ -420,7 +420,7 @@ template <class T> class CpuDevice final : public Device {
     }
 
     // Per internal node and kind (0: the two child subtrees, 1 and 2: each child and the rest of the tree), the
-    // profile-weighted distance, as k_eval_internal_node_triples_tiled.
+    // distance weighted by the representatives, as k_eval_internal_node_triples_tiled.
     void edge_lengths(int32_t n_leaves, int32_t cap, int32_t count, const int32_t *c1, const int32_t *c2, int32_t,
                       const int32_t *in_len, const int32_t *in_leaves, const float *in_weights, const int32_t *out_len,
                       const int32_t *out_leaves, const float *out_weights, double *dAB, double *dAO,
@@ -430,7 +430,8 @@ template <class T> class CpuDevice final : public Device {
 #pragma omp parallel for schedule(dynamic, 16) num_threads(threads_for(step_threads(), 3 * (int64_t)count, 64))
         for (int32_t job = 0; job < 3 * count; ++job) {
             const int32_t i = job / 3, kind = job % 3;
-            // one side: a single leaf or a node's inside profile; the other: the sibling's or the outside profile
+            // one side: a single leaf or a node's inside representatives; the other: the sibling's or the outside
+            // representatives
             const int32_t node1 = (kind == 2) ? c2[i] : c1[i];
             int32_t len1, len2, leaf1 = -1, leaf2 = -1;
             const int32_t *l1 = nullptr, *l2 = nullptr;

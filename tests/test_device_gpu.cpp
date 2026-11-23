@@ -3,8 +3,8 @@
  *
  * The GPU device (device_gpu.cu) on GPU 0. Label gpu.
  *   - its distances under every model against the CPU formulas (distances.hpp) on the same pair counts, through the
- *     edge-length pass: single pairs and profile-weighted sums (the JC69 tiled path and the per-pair path of the
- *     other models), on an alignment with missing sites and a pair without shared sites;
+ *     edge-length pass: single pairs and sums weighted by representatives (the JC69 tiled path and the per-pair path of
+ * the other models), on an alignment with missing sites and a pair without shared sites;
  *   - the window matrix's packed kernel against the earlier kernels, bit for bit, under every model;
  *   - its errors: a workspace beyond the GPU's memory, a GPU that does not exist.
  */
@@ -48,7 +48,7 @@ size_t gpu_free_bytes() {
 
 } // namespace
 
-// Single pairs (one leaf on each side) and weighted profiles (the JC69 tiled path; the per-pair path otherwise).
+// Single pairs (one leaf on each side) and weighted representatives (the JC69 tiled path; the per-pair path otherwise).
 TEST(DeviceGpu, EdgeLengthPassMatchesCpu) {
     const int32_t N = 60;
     const Tree tree = random_tree(N, 0.01, 0.3, 11);
@@ -65,7 +65,7 @@ TEST(DeviceGpu, EdgeLengthPassMatchesCpu) {
         c2[i] = (i + 1) % N;
         out_leaves[i] = (i + 2) % N;
     }
-    // job N: two "internal nodes" with profiles of 40 and 30 leaves and an outside profile of 25 leaves
+    // job N: two "internal nodes" with 40 and 30 representatives and 25 outside representatives
     const int32_t cap = 40;
     std::vector<int32_t> in_leaves(2 * cap, 0), out_leaves_p(cap, 0);
     std::vector<float> in_w(2 * cap, 0.0f), out_w_p(cap, 0.0f);
@@ -88,7 +88,7 @@ TEST(DeviceGpu, EdgeLengthPassMatchesCpu) {
         dev->set_distance(dm);
         std::vector<double> dAB(N), dAO(N), dBO(N);
         const double tol = model == Model::GTR_GC ? 2e-4 : 2e-5; /* float on the GPU, double here */
-        // single pairs: cap 1 for the outside profiles (in_* unused)
+        // single pairs: cap 1 for the outside representatives (in_* unused)
         dev->edge_lengths(N, 1, N, c1.data(), c2.data(), 2, in_len.data(), in_leaves.data(), in_w.data(),
                           out_len.data(), out_leaves.data(), out_w.data(), dAB.data(), dAO.data(), dBO.data());
         for (int32_t i = 0; i < N; ++i) {
@@ -98,7 +98,7 @@ TEST(DeviceGpu, EdgeLengthPassMatchesCpu) {
         }
         EXPECT_EQ(dAB[0], (float)NO_OVERLAP_DISTANCE) << model_name(model) << ": leaves 0 and 1 share no site";
 
-        // profiles
+        // representatives
         const int32_t pc1 = N, pc2 = N + 1;
         double pAB, pAO, pBO;
         dev->edge_lengths(N, cap, 1, &pc1, &pc2, 2, in_len.data(), in_leaves.data(), in_w.data(),
@@ -120,12 +120,11 @@ TEST(DeviceGpu, EdgeLengthPassMatchesCpu) {
 }
 
 // The window matrix's packed kernel against the earlier kernels, entry by entry, under every model.
-// A profile of more than 64 leaves sends a window to the earlier kernels, so the same K components are built twice:
-// alone (packed), then with a profile of 65 leaves after them (earlier kernels); the K x K entries must be equal to
-// the bit.
-// Profiles of 1 to 64 leaves (JC69: short ones on the per-pair path, from 8 leaves on the tiled path), leaves shared
-// within and across profiles, unequal weights, a pair of leaves without shared sites, and 1 to 27 words (the JC69
-// kernels stage 5 words at a time, the 16-count path 25).
+// A piece with more than 64 representatives sends a window to the earlier kernels, so the same K components are built
+// twice: alone (packed), then with a piece of 65 representatives after them (earlier kernels); the K x K entries must
+// be equal to the bit. Pieces of 1 to 64 representatives (JC69: short ones on the per-pair path, from 8 leaves on the
+// tiled path), leaves shared within and across pieces, unequal weights, a pair of leaves without shared sites, and 1 to
+// 27 words (the JC69 kernels stage 5 words at a time, the 16-count path 25).
 TEST(DeviceGpu, PackedWindowMatrixMatchesTheEarlierKernels) {
     const int32_t N = 500, K = 150, LONG = 65;
     for (int32_t n_sites : {40, 300, 1000, 1700}) {

@@ -2,7 +2,7 @@
  * search.hpp
  *
  * The minibatch BME search on the host: rounds of windows (backbone, leaf-covering waves, multi-scale V-cycle),
- * each window a skeleton of K <= 1,500 pieces summarised by weighted leaf profiles and solved by a Device.
+ * each window a skeleton of K <= 1,500 pieces summarised by weighted representative leaves and solved by a Device.
  * Also the Phylo2Vec encoding helpers the windows and the devices share. Internal to the package.
  */
 #ifndef P2VBME_SEARCH_HPP
@@ -48,9 +48,9 @@ struct SearchSettings {
     // Rounds >= 1 are a deterministic function of the tree, so that stop is lossless (the same tree as running all
     // rounds).
     double stop_tol = p2vbme::DEFAULT_TOL;
-    double deadline = 0.0;                             // absolute wall_sec(): no new round after it; 0 = none
-    double time_cap = p2vbme::DEFAULT_TIME_LIMIT;      // the time limit behind the deadline, for reporting only
-    int32_t profile_cap = p2vbme::DEFAULT_PROFILE_CAP; // leaves kept per clade profile
+    double deadline = 0.0;                        // absolute wall_sec(): no new round after it; 0 = none
+    double time_cap = p2vbme::DEFAULT_TIME_LIMIT; // the time limit behind the deadline, for reporting only
+    int32_t representative_cap = p2vbme::DEFAULT_REPRESENTATIVE_CAP; // representatives kept per clade
     // progress of every search (main and start tree), for printing and diagnostics; empty = none
     std::function<void(const SearchEvent &)> on_event;
 };
@@ -97,9 +97,10 @@ void from_skeleton_tables(std::vector<int64_t> &v, const SkeletonTables &sk, int
 class WindowKernels {
   public:
     virtual ~WindowKernels() = default;
-    // Computes the distances between the window's pieces, kept for the window: profiles (CSR) -> K x K distances.
-    virtual void distances(int32_t K, const int32_t *profile_offsets, const int32_t *profile_leaves,
-                           const float *profile_weights) = 0;
+    // Computes the distances between the window's pieces, kept for the window: representatives (CSR) -> K x K
+    // distances.
+    virtual void distances(int32_t K, const int32_t *representative_offsets, const int32_t *representative_leaves,
+                           const float *representative_weights) = 0;
     // Scores a skeleton: (s, perm) -> its BME length (Pauplin's formula, sum of 2^(1 - tau_ij) d_ij over the piece
     // pairs).
     // Keeps the average distances between all its node pairs for best_moves (perm: the piece of each skeleton leaf).
@@ -114,16 +115,14 @@ class WindowKernels {
 // Solves a window with a device's kernels: shortens its skeleton's BME length, (v, perm) -> (v, perm) and the BME
 // change.
 // A window is part of the tree cut into K pieces.
-// Each piece is summarised as a weighted leaf profile (CSR: profile_offsets[K + 1], profile_leaves,
-// profile_weights).
-// Its skeleton, the tree connecting the pieces, is the Phylo2Vec vector v over the leaf permutation perm (phylo2vec's
-// label mapping: perm[a] is the piece of tip a).
-// Runs up to max_iters sweeps of batched moves on the skeleton (Algorithm S1, batch cap max_batch_cap) to shorten its
-// BME length.
-// Updates v and perm and returns the BME change (0 and the input tree if nothing improved).
-// The caller writes the new skeleton back into the full tree.
-double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const int32_t *profile_offsets,
-                    const int32_t *profile_leaves, const float *profile_weights, std::vector<int64_t> &v,
+// Each piece is summarised by weighted representative leaves (CSR: representative_offsets[K + 1],
+// representative_leaves, representative_weights). Its skeleton, the tree connecting the pieces, is the Phylo2Vec vector
+// v over the leaf permutation perm (phylo2vec's label mapping: perm[a] is the piece of tip a). Runs up to max_iters
+// sweeps of batched moves on the skeleton (Algorithm S1, batch cap max_batch_cap) to shorten its BME length. Updates v
+// and perm and returns the BME change (0 and the input tree if nothing improved). The caller writes the new skeleton
+// back into the full tree.
+double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const int32_t *representative_offsets,
+                    const int32_t *representative_leaves, const float *representative_weights, std::vector<int64_t> &v,
                     std::vector<int32_t> &perm, WindowKernels &kernels);
 
 // Creates the CPU device's window kernels on their own, one thread (tests): alignment rows read in place.
@@ -138,7 +137,7 @@ struct TreeSummary {
     std::vector<int32_t> order;      // the N - 1 internal nodes, BFS from the root
     std::vector<int32_t> parent;     // parent of each node, -1 for the root
     std::vector<int32_t> leaf_count; // leaves under each node, 1 for a leaf
-    std::vector<int32_t> stand_in;   // the leaf that takes the node's weight when a capped profile collapses it
+    std::vector<int32_t> stand_in;   // the leaf that takes the node's weight when capped representatives collapse it
 };
 
 // Rebuilds the summary of the tree in full: tree -> summary.

@@ -1,18 +1,18 @@
 /*
  * branch_lengths.cpp
  *
- * BME branch lengths in O(N): bottom-up inside and top-down outside profiles of every internal node, capped at
+ * BME branch lengths in O(N): bottom-up inside and top-down outside representatives of every internal node, capped at
  * `cap` leaves with dyadic weights, then the three subtree-pair distances per node on the devices.
- * Total profile-pair evaluations for the whole tree: 3 (N - 2).
+ * Distances between two sets of representatives, for the whole tree: 3 (N - 2).
  *
- * A profile stands for a subtree in distance sums: some of its leaves, with weights that sum to 1.
- * The distance between two profiles is d(P, Q) = sum over leaves x of P and y of Q of P(x) Q(y) D(x, y).
+ * A subtree's representatives stand for it in distance sums: some of its leaves, with weights that sum to 1.
+ * The distance between two sets of representatives is d(P, Q) = sum over leaves x of P and y of Q of P(x) Q(y) D(x, y).
  * In the unrooted tree (the root's two children joined by one edge), each node u but the root has two:
  *   - in(u), inside: the leaves below u, leaf x weighted 2^-(edges from u to x); a leaf's is itself, with weight 1.
  *   - out(u), outside: all other leaves, leaf x weighted 2^-(edges from v to x), with v the neighbour of u towards the
  *     root (its parent, or its sibling when the parent is the root).
- * They are search.cpp's clade and outgroup profiles of u, capped differently (merge_profiles_capped).
- * Each comes from two profiles one edge further away: in(u) from its children's, out(u) from its parent's.
+ * They are search.cpp's clade and outgroup representatives of u, capped differently (merge_representatives_capped).
+ * Each comes from two sets one edge further away: in(u) from its children's, out(u) from its parent's.
  * The length of an edge combines the distances between the four subtrees around it (assemble_lengths).
  */
 #include "branch_lengths.hpp"
@@ -29,23 +29,22 @@ namespace p2vbme {
 
 namespace {
 
-// One entry of a profile.
+// One representative: a leaf and its weight.
 struct LeafWeight {
     int32_t leaf;
     float weight;
 };
 
-// Merges two subtrees' profiles into the profile of both, seen from the node they hang from:
+// Merges two subtrees' representatives into those of both, seen from the node they hang from:
 // (p1, p2) -> merged = (p1 + p2) / 2, at most cap leaves.
 // Every weight is halved: each subtree is one edge further away.
 // For in(u) = (in(c1) + in(c2)) / 2 and out(c1) = (out(u) + in(c2)) / 2: p1 and p2 never share a leaf.
-// Profiles are sorted by decreasing weight: from two sorted inputs, the merge keeps the cap heaviest leaves (p1's on
-// ties), sorted.
-// If it drops leaves, the kept weights are rescaled to sum to 1: each kept leaf gets a share of the dropped weight in
-// proportion to its own.
-// Returns the number of leaves in merged.
-inline int32_t merge_profiles_capped(const LeafWeight *__restrict__ p1, int32_t n1, const LeafWeight *__restrict__ p2,
-                                     int32_t n2, LeafWeight *__restrict__ merged, int32_t cap) {
+// Representatives are sorted by decreasing weight: from two sorted inputs, the merge keeps the cap heaviest leaves
+// (p1's on ties), sorted. If it drops leaves, the kept weights are rescaled to sum to 1: each kept leaf gets a share of
+// the dropped weight in proportion to its own. Returns the number of leaves in merged.
+inline int32_t merge_representatives_capped(const LeafWeight *__restrict__ p1, int32_t n1,
+                                            const LeafWeight *__restrict__ p2, int32_t n2,
+                                            LeafWeight *__restrict__ merged, int32_t cap) {
     int32_t i = 0, j = 0, k = 0; // next entry of p1, p2 and merged
     double kept_weight = 0.0;    // weight kept in merged
     while (k < cap && (i < n1 || j < n2)) {
@@ -76,7 +75,7 @@ inline int32_t merge_profiles_capped(const LeafWeight *__restrict__ p1, int32_t 
 // Returns their sum.
 // Step 4 of compute_bme_branch_lengths in precision T (float: the GPU's single precision).
 // Row v - N of dAB, dAO, dBO holds, for internal node v with children A = c1, B = c2 and the rest O, the
-// distances d(A, B), d(A, O) and d(B, O) (two subtrees' distance is their profiles' distance; O's profile is out(v)).
+// distances d(A, B), d(A, O) and d(B, O) (two subtrees' distance is their representatives' distance; O's are out(v)).
 // The edge above u has u's children A and B below it and, at its upper end p, u's sibling S and the rest O above:
 //
 //          O               in(u)  = (in(A) + in(B)) / 2
@@ -88,10 +87,11 @@ inline int32_t merge_profiles_capped(const LeafWeight *__restrict__ p1, int32_t 
 //      A   B
 //
 // cross is the distance across the edge; div, the distance between the two subtrees at one end (0 at a leaf).
-// d is linear in each profile, so each internal end writes cross with its own distances:
+// d is linear in each set of representatives, so each internal end writes cross with its own distances:
 // from p, (d(u, S) + d(u, O)) / 2; from u, (d(A, out(u)) + d(B, out(u))) / 2, the mean of u's dAO and dBO.
-// With complete profiles the two are equal; with capped ones they differ, and the length takes their mean.
-// The root edge joins r_left and r_right (out(r_left) = in(r_right)): its length goes above r_left; r_right gets 0.
+// With complete representatives (every leaf) the two are equal; with capped ones they differ, and the length takes
+// their mean. The root edge joins r_left and r_right (out(r_left) = in(r_right)): its length goes above r_left; r_right
+// gets 0.
 template <class T>
 double assemble_lengths(int32_t n_leaves, const int32_t *c1, const int32_t *c2, const std::vector<int32_t> &parent,
                         int32_t r_left, int32_t r_right, const std::vector<double> &dAB, const std::vector<double> &dAO,
@@ -149,17 +149,18 @@ double assemble_lengths(int32_t n_leaves, const int32_t *c1, const int32_t *c2, 
 
 // Computes the lengths in four steps:
 // 1. orders the internal nodes, children before parents, and records each node's parent;
-// 2. builds the inside profiles bottom-up, then the outside profiles top-down (host);
+// 2. builds the inside representatives bottom-up, then the outside ones top-down (host);
 // 3. computes the three distances of each internal node but the root (devices);
 // 4. combines them into the lengths (host, assemble_lengths).
 double compute_bme_branch_lengths(const Tree &tree, Devices &devices, std::vector<double> &branch_lengths, int32_t cap,
-                                  double *profile_sec_out, double *kernel_sec_out, bool double_precision) {
+                                  double *representatives_sec_out, double *kernel_sec_out, bool double_precision) {
     const int32_t n_leaves = tree.n_leaves(); // N: leaves 0..N-1, internal nodes N..2N-2
     const int32_t *c1 = tree.c1.data(), *c2 = tree.c2.data();
     const int32_t n_devices = (int32_t)devices.size();
     const double t0 = omp_get_wtime();
     const int32_t root = 2 * n_leaves - 2;
-    // The internal nodes but the root, N .. 2N-3, have profiles and distances: node N + i in row i of each table.
+    // The internal nodes but the root, N .. 2N-3, have representatives and distances: node N + i in row i of each
+    // table.
     const int32_t n_int = n_leaves - 2;
     branch_lengths.assign(2 * n_leaves - 2, 0.0);
     if (n_leaves <= 2) // lengths left at 0 (infer() needs N >= 4)
@@ -189,9 +190,9 @@ double compute_bme_branch_lengths(const Tree &tree, Devices &devices, std::vecto
         std::reverse(postorder.begin(), postorder.end());
     }
 
-    // 2. Inside and outside profiles of the internal nodes N .. 2N-3, in flat tables (the layout the devices read).
-    // Node N + i's profile is in row i: its in_len[i] entries in in_leaves and in_weights from i * cap on, sorted by
-    // decreasing weight (out_* alike).
+    // 2. Inside and outside representatives of the internal nodes N .. 2N-3, in flat tables (the layout the devices
+    // read). Node N + i's representatives are in row i: its in_len[i] entries in in_leaves and in_weights from i * cap
+    // on, sorted by decreasing weight (out_* alike).
     std::vector<int32_t> in_len(n_int, 0), out_len(n_int, 0);
     std::vector<int32_t> in_leaves((size_t)n_int * cap, 0), out_leaves((size_t)n_int * cap, 0);
     std::vector<float> in_weights((size_t)n_int * cap, 0.0f), out_weights((size_t)n_int * cap, 0.0f);
@@ -199,8 +200,8 @@ double compute_bme_branch_lengths(const Tree &tree, Devices &devices, std::vecto
     std::vector<LeafWeight> side_a(cap), side_b(cap), merged(cap); // one merge's two inputs and its result
 
     // Copies in(u) into buf; returns its length.
-    // A leaf has no row: its profile is itself, with weight 1.
-    auto get_in_profile = [&](int32_t u, LeafWeight *buf) -> int32_t {
+    // A leaf has no row: it represents itself, with weight 1.
+    auto get_in_representatives = [&](int32_t u, LeafWeight *buf) -> int32_t {
         if (u < n_leaves) {
             buf[0] = {u, 1.0f};
             return 1;
@@ -214,15 +215,15 @@ double compute_bme_branch_lengths(const Tree &tree, Devices &devices, std::vecto
         return l;
     };
 
-    // 2a. Inside profiles, children before parents: in(u) = (in(c1) + in(c2)) / 2.
+    // 2a. Inside representatives, children before parents: in(u) = (in(c1) + in(c2)) / 2.
     // The root has no row: it is the lower end of no edge.
     for (int32_t u : postorder) {
         if (u == root)
             continue;
         int32_t row = u - n_leaves;
-        int32_t na = get_in_profile(c1[u], side_a.data());
-        int32_t nb = get_in_profile(c2[u], side_b.data());
-        int32_t nm = merge_profiles_capped(side_a.data(), na, side_b.data(), nb, merged.data(), cap);
+        int32_t na = get_in_representatives(c1[u], side_a.data());
+        int32_t nb = get_in_representatives(c2[u], side_b.data());
+        int32_t nm = merge_representatives_capped(side_a.data(), na, side_b.data(), nb, merged.data(), cap);
         in_len[row] = nm;
         int32_t *lv = &in_leaves[(size_t)row * cap];
         float *wv = &in_weights[(size_t)row * cap];
@@ -235,8 +236,8 @@ double compute_bme_branch_lengths(const Tree &tree, Devices &devices, std::vecto
     const int32_t r_left = c1[root];
     const int32_t r_right = c2[root];
     // Stores buf (l entries) as out(u).
-    // A leaf has no row: the edge above it uses its parent's distances, not its own outside profile.
-    auto set_out_profile = [&](int32_t u, const LeafWeight *buf, int32_t l) {
+    // A leaf has no row: the edge above it uses its parent's distances, not its own outside representatives.
+    auto set_out_representatives = [&](int32_t u, const LeafWeight *buf, int32_t l) {
         if (u < n_leaves)
             return;
         int32_t row = u - n_leaves;
@@ -249,14 +250,14 @@ double compute_bme_branch_lengths(const Tree &tree, Devices &devices, std::vecto
         }
     };
 
-    // 2b. Outside profiles, parents before children (postorder read backwards).
+    // 2b. Outside representatives, parents before children (postorder read backwards).
     // The root's children are joined by one edge, so each sees the other's subtree: out(r_left) = in(r_right) and
     // out(r_right) = in(r_left).
     {
-        int32_t nr = get_in_profile(r_right, side_a.data());
-        set_out_profile(r_left, side_a.data(), nr);
-        int32_t nl = get_in_profile(r_left, side_b.data());
-        set_out_profile(r_right, side_b.data(), nl);
+        int32_t nr = get_in_representatives(r_right, side_a.data());
+        set_out_representatives(r_left, side_a.data(), nr);
+        int32_t nl = get_in_representatives(r_left, side_b.data());
+        set_out_representatives(r_right, side_b.data(), nl);
     }
 
     // Below them, for each internal child: out(c1) = (out(u) + in(c2)) / 2 and out(c2) = (out(u) + in(c1)) / 2.
@@ -273,20 +274,20 @@ double compute_bme_branch_lengths(const Tree &tree, Devices &devices, std::vecto
         int32_t c_left = c1[u];
         int32_t c_right = c2[u];
         if (c_left >= n_leaves) {
-            int32_t nb = get_in_profile(c_right, side_b.data());
-            int32_t nm = merge_profiles_capped(side_a.data(), no, side_b.data(), nb, merged.data(), cap);
-            set_out_profile(c_left, merged.data(), nm);
+            int32_t nb = get_in_representatives(c_right, side_b.data());
+            int32_t nm = merge_representatives_capped(side_a.data(), no, side_b.data(), nb, merged.data(), cap);
+            set_out_representatives(c_left, merged.data(), nm);
         }
         if (c_right >= n_leaves) {
-            int32_t na = get_in_profile(c_left, side_b.data());
-            int32_t nm = merge_profiles_capped(side_a.data(), no, side_b.data(), na, merged.data(), cap);
-            set_out_profile(c_right, merged.data(), nm);
+            int32_t na = get_in_representatives(c_left, side_b.data());
+            int32_t nm = merge_representatives_capped(side_a.data(), no, side_b.data(), na, merged.data(), cap);
+            set_out_representatives(c_right, merged.data(), nm);
         }
     }
 
     const double t1 = omp_get_wtime();
-    if (profile_sec_out)
-        *profile_sec_out = t1 - t0;
+    if (representatives_sec_out)
+        *representatives_sec_out = t1 - t0;
 
     // 3. Edge-length pass on the devices: the three distances of each internal node but the root.
     // Node N + i, with children A = c1 and B = c2 and the rest O: dAB[i] = d(in(A), in(B)),
@@ -309,8 +310,8 @@ double compute_bme_branch_lengths(const Tree &tree, Devices &devices, std::vecto
 
         if (count > 0) {
             try {
-                // c1, c2, the outside profiles and the distances from row start on; the inside profiles in full, since
-                // the children of the block's nodes can be in any row.
+                // c1, c2, the outside representatives and the distances from row start on; the inside ones in full,
+                // since the children of the block's nodes can be in any row.
                 devices[d]->edge_lengths(n_leaves, cap, count, c1 + n_leaves + start, c2 + n_leaves + start, n_int,
                                          in_len.data(), in_leaves.data(), in_weights.data(), out_len.data() + start,
                                          out_leaves.data() + (size_t)start * cap,

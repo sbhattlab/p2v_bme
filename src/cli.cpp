@@ -113,8 +113,8 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value(opt.tol), "TOL")
         ("time-limit", "seconds after which no new round starts (0 = none)",
          cxxopts::value(opt.time_limit), "S")
-        ("profile-cap", "leaves kept per clade profile in a window (1-256)",
-         cxxopts::value(opt.profile_cap), "N")
+        ("representative-cap", "representatives kept per clade in a window (1-256)",
+         cxxopts::value(opt.representative_cap), "N")
         ("precision", "single or double; double runs on the CPU only (the GPU computes in single precision)",
          cxxopts::value<std::string>()->default_value("single"));
     cli.add_options("Start tree")
@@ -124,8 +124,8 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value(opt.sample_size), "N");
     cli.add_options("Branch lengths and output")
         ("no-branch-lengths", "do not estimate BME branch lengths")
-        ("bl-profile-cap", "leaves kept per subtree profile for branch lengths (1-256)",
-         cxxopts::value(opt.bl_profile_cap), "N")
+        ("bl-representative-cap", "representatives kept per subtree for branch lengths (1-256)",
+         cxxopts::value(opt.bl_representative_cap), "N")
         ("no-neg-as-zero", "write negative branch lengths as they are (default: as 0)")
         ("report-full", "add the details to <prefix>.json: input, settings as used, devices, time per stage, "
          "memory, gain of each round");

@@ -59,9 +59,9 @@ void detail_settings(JsonWriter &w, const Report &run, const Settings &opt, cons
     w.field("max_rounds", opt.max_rounds);
     w.field("tol", opt.tol);
     w.field("time_limit", opt.time_limit);
-    w.field("profile_cap", opt.profile_cap);
+    w.field("representative_cap", opt.representative_cap);
     w.field("branch_lengths", opt.branch_lengths);
-    w.field("bl_profile_cap", opt.bl_profile_cap);
+    w.field("bl_representative_cap", opt.bl_representative_cap);
     w.field("neg_as_zero", run.neg_as_zero);
     w.field("dedup", run.dedup);
     w.field("gtr_fit_pairs", run.gtr_fit_pairs);

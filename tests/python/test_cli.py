@@ -145,7 +145,8 @@ def test_options_reach_the_run(data, tmp_path):
         ),
         *("--max-rounds", "3", "--tol", "0", "--time-limit", "100"),
         *("--gtr-fit-pairs", "1000"),
-        *("--profile-cap", "8", "--bl-profile-cap", "8", "--no-neg-as-zero"),
+        *("--representative-cap", "8", "--bl-representative-cap", "8"),
+        *("--no-neg-as-zero",),
     )
     assert p.returncode == 0, p.stderr
     # double precision without --accelerator: the CPU, with a warning
@@ -158,9 +159,9 @@ def test_options_reach_the_run(data, tmp_path):
         "max_rounds": 3,
         "tol": 0,
         "time_limit": 100,
-        "profile_cap": 8,
+        "representative_cap": 8,
         "branch_lengths": True,
-        "bl_profile_cap": 8,
+        "bl_representative_cap": 8,
         "neg_as_zero": False,
         "accelerator": "cpu",
         "precision": "double",
