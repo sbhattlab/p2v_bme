@@ -67,7 +67,7 @@ void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, d
         }
     const uint64_t total = counts[0] + counts[1] + counts[2] + counts[3];
     for (int b = 0; b < N_BASES; ++b)
-        freqs[b] = total > 0 ? (double)counts[b] / (double)total : 0.25;
+        freqs[b] = total > 0 ? (double)counts[b] / (double)total : 1.0 / N_BASES;
 }
 
 PairCounts count_pair(const uint64_t *row_a, const uint64_t *row_b, int32_t n_words) {

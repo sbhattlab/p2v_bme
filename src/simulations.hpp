@@ -19,7 +19,7 @@ namespace p2vbme {
 // have rate 1.
 struct SimulationModel {
     double rates[N_GTR_RATES] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
-    double freqs[N_BASES] = {0.25, 0.25, 0.25, 0.25};
+    double freqs[N_BASES] = {1.0 / N_BASES, 1.0 / N_BASES, 1.0 / N_BASES, 1.0 / N_BASES};
     double alpha = 0.0;
 };
 
