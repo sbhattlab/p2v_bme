@@ -1,43 +1,20 @@
 #include "bme_reference.h"
 
+#include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-#ifdef __cplusplus
-#define restrict __restrict__
-extern "C" {
-#endif
-
 /*
- * Ultra-optimized Matrix-Based O(N^2) Phylo2Vec BME Discrete Gradient & Tree Optimizer in C99.
- *
- * Exports:
- *   - calculate_discrete_gradient_c      : Lower-triangular j < i discrete gradient (N-1 x N-2)
- *   - calculate_discrete_gradient_full_c : Full 0 <= j <= 2i discrete gradient (N-1 x (2N-3))
- *   - queue_shuffle_c                    : O(N) relabeling to an ordered vector (v_pi[i] <= i)
- *   - encode_unrooted_to_v_c             : Exact O(N) inverse bijection from unrooted tree to v
- *   - optimize_phylo2vec_bme_c           : End-to-end Phylo2Vec BME tree optimizer
+ * The BME method on a stored N x N distance matrix, in C11 with POSIX threads and clocks: the discrete gradient,
+ * queue shuffle and tree encoding, subtree condensation, and the reference optimisers.
+ * The API is documented in bme_reference.h.
  */
 
-#if !defined(_WIN32)
-#include <pthread.h>
-#endif
-
-#if defined(_MSC_VER)
-#define P2V_THREAD_LOCAL __declspec(thread)
-#elif defined(__cplusplus)
-#define P2V_THREAD_LOCAL thread_local
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_THREADS__)
-#define P2V_THREAD_LOCAL _Thread_local
-#else
-#define P2V_THREAD_LOCAL __thread
-#endif
-
-static P2V_THREAD_LOCAL int32_t *g_iwork = NULL;
-static P2V_THREAD_LOCAL double *g_dwork = NULL;
-static P2V_THREAD_LOCAL int32_t g_cap_leaves = 0;
+static _Thread_local int32_t *g_iwork = NULL;
+static _Thread_local double *g_dwork = NULL;
+static _Thread_local int32_t g_cap_leaves = 0;
 
 void free_phylo2vec_workspace_c(void) {
     free(g_iwork);
@@ -47,7 +24,6 @@ void free_phylo2vec_workspace_c(void) {
     g_cap_leaves = 0;
 }
 
-#if !defined(_WIN32)
 static pthread_key_t g_tls_cleanup_key;
 static pthread_once_t g_tls_key_once = PTHREAD_ONCE_INIT;
 
@@ -60,7 +36,6 @@ static void init_tls_key(void) { pthread_key_create(&g_tls_cleanup_key, tls_work
 
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((destructor)) static void cleanup_main_thread_workspace(void) { free_phylo2vec_workspace_c(); }
-#endif
 #endif
 
 static int ensure_workspace(int32_t n_leaves) {
@@ -75,8 +50,8 @@ static int ensure_workspace(int32_t n_leaves) {
     size_t n_nodes_r = 2 * nl - 1;
     size_t n_nodes_u = 2 * nl - 2;
 
-    size_t i_count = 2 * n_pairs + 5 * n_nodes_r + nl + n_pairs * nl + n_nodes_u * 4 + n_nodes_u * 3 + n_nodes_u * 2 +
-                     2 * n_pairs + 4 * n_nodes_r + 3 * n_nodes_u + 4 * n_nodes_r + 12 * nl;
+    size_t i_count = 2 * n_pairs + 5 * n_nodes_r + nl + n_nodes_u * 4 + n_nodes_u * 3 + n_nodes_u * 2 + 2 * n_pairs +
+                     4 * n_nodes_r + 3 * n_nodes_u + 4 * n_nodes_r + 12 * nl;
     size_t d_count =
         n_nodes_u * n_nodes_u + n_nodes_u * 3 + n_nodes_u * 4 + nl * nl + n_nodes_r * nl + n_nodes_r + 4 * nl;
 
@@ -87,10 +62,8 @@ static int ensure_workspace(int32_t n_leaves) {
         return -1;
     }
     g_cap_leaves = n_leaves;
-#if !defined(_WIN32)
     pthread_once(&g_tls_key_once, init_tls_key);
     pthread_setspecific(g_tls_cleanup_key, (void *)1);
-#endif
     return 0;
 }
 
@@ -101,7 +74,7 @@ static inline double now_ms(void) {
 }
 
 /* ============================================================================
- * Half-Tree Non-Recursive BFS & Heavy-First Register-Stack DFS
+ * Half-Tree Heavy-First Register-Stack DFS
  * for O(N^2) Pauplin / FastME SPR Edge Deltas
  * ============================================================================ */
 typedef struct {
@@ -122,7 +95,6 @@ static inline void run_half_tree_dfs(int32_t start_node, int32_t orig_node, int3
 
     int32_t n0 = adj_u[3 * start_node + 0];
     int32_t n1 = adj_u[3 * start_node + 1];
-    int32_t n2 = adj_u[3 * start_node + 2];
 
     int32_t k_in = (n0 == parent_node) ? 0 : ((n1 == parent_node) ? 1 : 2);
     int32_t k0 = (k_in == 0) ? 1 : 0;
@@ -210,116 +182,6 @@ static inline void run_half_tree_dfs(int32_t start_node, int32_t orig_node, int3
             stack[sp++] = (HeavyStackFrame){b0, u, pow_neg_len * 0.5, 0.5 * (d_kc + r_b1), ndist0};
         } else if (p1) {
             stack[sp++] = (HeavyStackFrame){b1, u, pow_neg_len * 0.5, 0.5 * (d_kc + r_b0), ndist1};
-        }
-    }
-}
-
-static inline void run_half_tree_bfs(int32_t start_node, int32_t orig_node, int32_t parent_node, int32_t n_leaves,
-                                     const int32_t *restrict adj_u, const int32_t *restrict parent_u,
-                                     const double *restrict nd_u, const double *restrict row_root,
-                                     const double *restrict row_orig, double *restrict edge_delta,
-                                     int32_t *restrict q_node, int32_t *restrict q_prev, double *restrict q_pow,
-                                     double *restrict q_dkc, double *restrict q_dist) {
-    if (start_node < n_leaves)
-        return;
-
-    int32_t n0 = adj_u[3 * start_node + 0];
-    int32_t n1 = adj_u[3 * start_node + 1];
-    int32_t n2 = adj_u[3 * start_node + 2];
-
-    int32_t k_in = (n0 == parent_node) ? 0 : ((n1 == parent_node) ? 1 : 2);
-    int32_t k0 = (k_in == 0) ? 1 : 0;
-    int32_t k1 = (k_in == 2) ? 1 : 2;
-
-    int32_t B0 = adj_u[3 * start_node + k0];
-    int32_t B1 = adj_u[3 * start_node + k1];
-    double D_AB = nd_u[3 * start_node + k_in];
-    double d_kc_init = row_root[orig_node];
-
-    int32_t head = 0, tail = 0;
-
-    // Branch 0 at start_node: B = B0, A = B1, C = orig_node
-    {
-        double D_AC = row_orig[B1];
-        double D_kB = row_root[B0];
-        double new_dist = 0.25 * (D_AC + D_kB - D_AB - d_kc_init);
-        int32_t child_end = (parent_u[start_node] == B0) ? start_node : B0;
-        edge_delta[child_end] = new_dist;
-        if (B0 >= n_leaves) {
-            q_node[tail] = B0;
-            q_prev[tail] = start_node;
-            q_pow[tail] = 0.25;
-            q_dkc[tail] = 0.5 * (d_kc_init + row_root[B1]);
-            q_dist[tail] = new_dist;
-            tail++;
-        }
-    }
-    // Branch 1 at start_node: B = B1, A = B0, C = orig_node
-    {
-        double D_AC = row_orig[B0];
-        double D_kB = row_root[B1];
-        double new_dist = 0.25 * (D_AC + D_kB - D_AB - d_kc_init);
-        int32_t child_end = (parent_u[start_node] == B1) ? start_node : B1;
-        edge_delta[child_end] = new_dist;
-        if (B1 >= n_leaves) {
-            q_node[tail] = B1;
-            q_prev[tail] = start_node;
-            q_pow[tail] = 0.25;
-            q_dkc[tail] = 0.5 * (d_kc_init + row_root[B0]);
-            q_dist[tail] = new_dist;
-            tail++;
-        }
-    }
-
-    while (head < tail) {
-        int32_t u = q_node[head];
-        int32_t C = q_prev[head];
-        double pow_neg_len = q_pow[head];
-        double d_kc = q_dkc[head];
-        double curr_dist = q_dist[head];
-        head++;
-
-        const int32_t *adj = &adj_u[3 * u];
-        const double *nd = &nd_u[3 * u];
-
-        int32_t ki = (adj[0] == C) ? 0 : ((adj[1] == C) ? 1 : 2);
-        int32_t idx0 = (ki == 0) ? 1 : 0;
-        int32_t idx1 = (ki == 2) ? 1 : 2;
-
-        int32_t b0 = adj[idx0];
-        int32_t b1 = adj[idx1];
-        double d_ab = nd[ki];
-
-        double r_b0 = row_root[b0];
-        double r_b1 = row_root[b1];
-
-        {
-            double d_ac = nd[idx0] + (row_orig[b1] - r_b1) * pow_neg_len;
-            double ndist0 = curr_dist + 0.25 * (d_ac + r_b0 - d_ab - d_kc);
-            int32_t c_end0 = (parent_u[u] == b0) ? u : b0;
-            edge_delta[c_end0] = ndist0;
-            if (b0 >= n_leaves) {
-                q_node[tail] = b0;
-                q_prev[tail] = u;
-                q_pow[tail] = pow_neg_len * 0.5;
-                q_dkc[tail] = 0.5 * (d_kc + r_b1);
-                q_dist[tail] = ndist0;
-                tail++;
-            }
-        }
-        {
-            double d_ac = nd[idx1] + (row_orig[b0] - r_b0) * pow_neg_len;
-            double ndist1 = curr_dist + 0.25 * (d_ac + r_b1 - d_ab - d_kc);
-            int32_t c_end1 = (parent_u[u] == b1) ? u : b1;
-            edge_delta[c_end1] = ndist1;
-            if (b1 >= n_leaves) {
-                q_node[tail] = b1;
-                q_prev[tail] = u;
-                q_pow[tail] = pow_neg_len * 0.5;
-                q_dkc[tail] = 0.5 * (d_kc + r_b0);
-                q_dist[tail] = ndist1;
-                tail++;
-            }
         }
     }
 }
@@ -825,7 +687,7 @@ void calculate_discrete_gradient_full_c(const int64_t *restrict v, const double 
 }
 
 /* ============================================================================
- * 3. O(N) Queue Shuffle: Relabeling to an Ordered Vector (v_new[i] <= i)
+ * 3. Queue Shuffle: Relabeling to an Ordered Vector (v_new[i] <= i)
  * ============================================================================ */
 static void queue_shuffle_rooted(const int32_t *restrict child1_r, const int32_t *restrict child2_r,
                                  const int32_t *restrict min_leaf, int32_t n_leaves, int32_t flip_mode,
@@ -1250,7 +1112,7 @@ static void apply_unrooted_spr(int32_t *restrict adj_u, int32_t prune_node, int3
 }
 
 /* ============================================================================
- * 6. Full Phylo2Vec BME Tree Optimizer in C99
+ * 5. Full Phylo2Vec BME Tree Optimizer
  * ============================================================================ */
 double optimize_phylo2vec_bme_c(const int64_t *restrict v_init, const double *restrict D, int32_t n_leaves,
                                 int64_t *restrict v_out, int32_t *restrict n_grad_evals_out,
@@ -1326,8 +1188,7 @@ double optimize_phylo2vec_bme_c(const int64_t *restrict v_init, const double *re
     int32_t *child1_r = pairs + 2 * n_pairs;
     int32_t *child2_r = child1_r + n_nodes_r;
     int32_t *parents_uf = child2_r + n_nodes_r;
-    int32_t *siblings_uf = parents_uf + n_nodes_r;
-    int32_t *min_leaf = siblings_uf + n_nodes_r;
+    int32_t *min_leaf = parents_uf + n_nodes_r;
     int32_t *v_map = min_leaf + n_nodes_r;
     int32_t *dest_row = v_map + n_leaves;
     int32_t *parent_u = dest_row + n_leaves;
@@ -2000,7 +1861,7 @@ double optimize_phylo2vec_bme_c(const int64_t *restrict v_init, const double *re
 }
 
 /* ============================================================================
- * 7. Exact Clade-Condensed Minibatch BME Gradient & Optimizer
+ * 6. Exact Clade-Condensed Minibatch BME Gradient & Optimizer
  * ============================================================================ */
 
 static void decode_v_to_rooted_children(const int64_t *restrict v, int32_t n_leaves, int32_t *restrict child1_r,
@@ -2392,7 +2253,3 @@ double optimize_phylo2vec_bme_minibatch_c(const int64_t *restrict v_init, const 
     free(is_cond);
     return final_L;
 }
-
-#ifdef __cplusplus
-}
-#endif
