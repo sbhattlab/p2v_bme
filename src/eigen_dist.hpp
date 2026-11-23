@@ -42,6 +42,11 @@ namespace p2vbme {
 constexpr double EIGEN_PSEUDOCOUNT = 1e-5;
 constexpr double EIGEN_SIGMA_MIN = 1e-4;
 constexpr double EIGEN_SIGMA_MAX = 0.999999;
+// ln(EIGEN_SIGMA_MIN) = ln(1e-4) = -4 ln(10): the floor of ln(mu_k) in the reweighting passes.
+// The float path keeps the paper's GPU literal, one float step above this value rounded to float, so that it matches
+// the paper's code bit for bit.
+constexpr double LOG_EIGEN_SIGMA_MIN = -9.2103403719761836;
+constexpr float LOG_EIGEN_SIGMA_MIN_FLOAT = -9.21034f;
 // SymWLS refits after the first fit, each with the weights at the fitted singular values (the manuscript's two): they
 // reduce the first fit's downward bias, since weights at the observed values favour the modes that look least diverged.
 constexpr int32_t EIGEN_REWEIGHT_PASSES = 2;
@@ -82,14 +87,16 @@ P2V_HD inline void gtr_symmetric_rate_matrix(const T s[N_GTR_RATES], const T xi[
 
 // ---- 4 x 4 symmetric eigenvalues ------------------------------------------------------------------------
 
+// 2 pi / 3, the spacing of the eigenvalues' angles in the trigonometric solution below.
+// Writing an eigenvalue as mu + 2 sqrt(p) cos(phi) turns the cubic into cos(3 phi) = r.
+// Since cos repeats every 2 pi, 3 phi = acos(r) + 2 pi k, so the three solutions are phi = acos(r) / 3 + 2 pi k / 3,
+// k = 0, 1, 2: 2 pi / 3 apart.
+// Rounded to float it is the paper's GPU literal 2.09439510239f.
+constexpr double TWO_PI_OVER_3 = 2.0943951023931955;
+
 // The three eigenvalues of a symmetric 4 x 4 matrix M on the complement of its unit null vector v (M v = 0), in
 // decreasing order, by the trigonometric solution of the deflated cubic (as the paper's GPU implementation).
 // Both callers satisfy M v = 0: K~ sqrt(F^b) = 0 and R sqrt(xi) = 0.
-// Constants: the float path keeps the literals of the paper's GPU implementation; the double path the exact values.
-template <class T> P2V_HD inline T two_pi_over_3() {
-    return sizeof(T) == 4 ? T(2.09439510239f) : T(2.0943951023931955);
-}
-template <class T> P2V_HD inline T log_sigma_min() { return sizeof(T) == 4 ? T(-9.21034f) : T(-9.2103403719761836); }
 template <class T> P2V_HD inline void sym4x4_rank3_eigenvalues(const T M[16], const T v[4], T evals3[3]) {
     T mu = (M[0] + M[5] + M[10] + M[15]) * (T(1) / T(3));
     T B[16];
@@ -126,9 +133,10 @@ template <class T> P2V_HD inline void sym4x4_rank3_eigenvalues(const T M[16], co
         r = T(1);
     T theta = std::acos(r) * (T(1) / T(3));
     T two_sp = T(2) * sp;
+    // phi = theta, theta - 2 pi / 3 and theta + 2 pi / 3 (k = 0, 2, 1): the three solutions of cos(3 phi) = r
     evals3[0] = mu + two_sp * std::cos(theta);
-    evals3[1] = mu + two_sp * std::cos(theta - two_pi_over_3<T>());
-    evals3[2] = mu + two_sp * std::cos(theta + two_pi_over_3<T>());
+    evals3[1] = mu + two_sp * std::cos(theta - T(TWO_PI_OVER_3));
+    evals3[2] = mu + two_sp * std::cos(theta + T(TWO_PI_OVER_3));
 }
 
 // ---- The eigenvalue GTR+GC distance ----------------------------------------------------------------------
@@ -239,6 +247,7 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
     if (d_ab < T(0))
         d_ab = T(0);
 
+    const T log_sigma_min = sizeof(T) == 4 ? T(LOG_EIGEN_SIGMA_MIN_FLOAT) : T(LOG_EIGEN_SIGMA_MIN);
     for (int it = 0; it < EIGEN_REWEIGHT_PASSES; ++it) {
         T d_curr = (d_ab > T(MAX_DISTANCE)) ? T(MAX_DISTANCE) : d_ab;
         max_lw = T(-1e30);
@@ -249,8 +258,8 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
             T log_mu = -alpha * std::log(base);
             if (log_mu > T(-1e-6))
                 log_mu = T(-1e-6);
-            if (log_mu < log_sigma_min<T>())
-                log_mu = log_sigma_min<T>();
+            if (log_mu < log_sigma_min)
+                log_mu = log_sigma_min;
             T mu_k = std::exp(log_mu);
             lw[k] = (T(2) + T(2) * inv_alpha) * log_mu - std::log(T(1) - mu_k * mu_k + T(1e-4));
             if (lw[k] > max_lw)
