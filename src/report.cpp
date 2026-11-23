@@ -65,6 +65,7 @@ void detail_settings(JsonWriter &w, const Report &run, const Settings &opt, cons
     w.field("neg_as_zero", run.neg_as_zero);
     w.field("dedup", run.dedup);
     w.field("gtr_fit_pairs", run.gtr_fit_pairs);
+    w.field("bootstrap", run.bootstrap);
     w.field("accelerator", accelerator_name(run.on_gpu ? Accelerator::Gpu : Accelerator::Cpu));
     w.field("precision", precision_name(opt.precision));
     w.end_object();
@@ -90,6 +91,7 @@ void detail_time(JsonWriter &w, const Report &run, const Result &res) {
     w.field("start_tree", res.time_start);
     w.field("search", res.time_search);
     w.field("branch_lengths", res.time_branch_lengths);
+    w.field("bootstrap", run.time_bootstrap);
     w.end_object();
 }
 
@@ -148,6 +150,14 @@ std::string report_json(const Report &run, const Settings &opt, const Result &re
         w.null();
     w.field("rounds_run", res.rounds_run);
     w.field("stop_reason", stop_reason_name(res.stop_reason));
+    if (run.bootstrap > 0) { // the mean supports of the internal branches (each branch's are in <prefix>.support.nwk)
+        w.key("bootstrap");
+        w.begin_object();
+        w.field("replicates", run.bootstrap);
+        w.field("mean_tbe", run.mean_tbe);
+        w.field("mean_exact", run.mean_exact);
+        w.end_object();
+    }
     w.field("time", run.time_total);
     w.array_field("warnings", run.warnings);
     if (run.full) {

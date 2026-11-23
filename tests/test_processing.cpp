@@ -179,6 +179,38 @@ TEST(Dedup, ReattachAndPrune) {
     EXPECT_TRUE(c2.count({0, 3, 5, 2}));
     EXPECT_TRUE(c2.count({0, 3, 5, 2, 1}));
     EXPECT_EQ(p2vbme::prune(full2, dd).c1.size(), 7u);
+
+    // the node map: each node of the reduced tree stands for the node of the full tree below which are its kept
+    // sequences and their copies
+    std::vector<int32_t> map;
+    const p2vbme::Tree full3 = p2vbme::reattach(shuffled, dd, &map);
+    ASSERT_EQ(map.size(), shuffled.c1.size());
+    auto below = [](const p2vbme::Tree &t, int32_t n, int32_t u) {
+        std::set<int> out;
+        std::vector<int32_t> st = {u};
+        while (!st.empty()) {
+            const int32_t v = st.back();
+            st.pop_back();
+            if (v < n)
+                out.insert(v);
+            else
+                st.insert(st.end(), {t.c1[v], t.c2[v]});
+        }
+        return out;
+    };
+    for (int32_t u = 0; u < 7; ++u) {
+        std::set<int> want;
+        for (int k : below(shuffled, 4, u))
+            for (int x = 0; x < 6; ++x)
+                if (x == dd.kept[k] || dd.copy_of[x] == k)
+                    want.insert(x);
+        EXPECT_EQ(below(full3, 6, map[u]), want) << "reduced node " << u;
+    }
+    // without copies set aside, the map is the identity
+    p2vbme::Deduplication none;
+    p2vbme::Tree same = shuffled;
+    p2vbme::restore_copies(same, none, &map);
+    EXPECT_EQ(map, (std::vector<int32_t>{0, 1, 2, 3, 4, 5, 6}));
 }
 
 // A start tree on all names is pruned to the kept sequences, and the copies come back after; without copies set

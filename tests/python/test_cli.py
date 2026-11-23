@@ -283,6 +283,45 @@ def test_duplicates_are_put_back(data, tmp_path, dedup):
     )
 
 
+def test_bootstrap(data, tmp_path):
+    """
+    -b 3: the replicates are reported, the report gives the mean supports, and <prefix>.support.nwk is the tree of
+    <prefix>.nwk with "TBE/exact" on each of its N - 3 internal branches, the copies' groups at "100/100".
+    """
+    p = run(
+        "-s",
+        data / "input_dups.fa",
+        "-m",
+        "JC69",
+        "-a",
+        "cpu",
+        "-b",
+        "3",
+        "-p",
+        tmp_path / "out",
+        "--report-full",
+    )
+    assert (p.returncode, p.stderr) == (0, "")
+    assert "p2v-bme: bootstrap replicate 3/3:" in p.stdout
+    r = report(tmp_path / "out")
+    assert list(r) == SUMMARY_KEYS[:7] + ["bootstrap"] + SUMMARY_KEYS[7:] + ["details"]
+    assert r["bootstrap"]["replicates"] == 3
+    assert 0 <= r["bootstrap"]["mean_exact"] <= r["bootstrap"]["mean_tbe"] <= 100
+    assert (
+        r["details"]["settings"]["bootstrap"] == 3
+        and r["details"]["time"]["bootstrap"] > 0
+    )
+    supported = Path(f"{tmp_path / 'out'}.support.nwk").read_text()
+    labels = re.findall(r"\)([0-9.]+)/([0-9.]+):", supported)
+    assert len(labels) == len(NAMES_DUPS) - 3
+    assert all(0 <= float(b) <= float(a) <= 100 for a, b in labels)
+    assert ("100", "100") in labels  # among them the copies' groups
+    assert (
+        re.sub(r"\)[0-9.]+/[0-9.]+:", "):", supported)
+        == (tmp_path / "out.nwk").read_text()
+    )
+
+
 def test_maple_gives_the_fasta_tree(data, tmp_path):
     """The same alignment as .maple and as FASTA gives the same tree."""
     for ext in ("fa", "maple"):
@@ -382,6 +421,11 @@ ERRORS = {
         [*INPUT, "-m", "JC69", "-a", "gpu", "--precision", "double"],
         1,
         "p2v-bme: error: the GPU computes in single precision; double precision runs on the CPU (--accelerator cpu)",
+    ),
+    "negative bootstrap": (
+        [*INPUT, "-m", "JC69", "-b", "-1"],
+        1,
+        "p2v-bme: error: bootstrap replicates must be >= 0",
     ),
     # checked by the GTR+GC fit and by infer(), after the read: -q and the CPU keep stdout and stderr to the error
     "no GTR+GC fit pairs": (

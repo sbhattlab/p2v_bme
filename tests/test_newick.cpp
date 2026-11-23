@@ -76,6 +76,24 @@ TEST(Newick, UnrootedOutputMergesTheRootEdgesAndClampsNegatives) {
     EXPECT_EQ(read_file(out), "(a:0.1,b:0,(c:0.3,d:0.4):0.75);\n");
 }
 
+TEST(Newick, LabelsAfterInternalNodes) {
+    // (((a,b),c),(d,e)): leaves 0..4, node 5 = (0,1), node 6 = (5,2), node 7 = (3,4), root 8 = (6,7)
+    p2vbme::Tree t;
+    t.c1 = {-1, -1, -1, -1, -1, 0, 5, 3, 6};
+    t.c2 = {-1, -1, -1, -1, -1, 1, 2, 4, 7};
+    t.branch_lengths = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.25f, 0.75f, 0.0f};
+    const std::string out = temp_path("labels.nwk");
+    // node 6 becomes the trifurcation (no label of its own); node 7 carries the merged root edge and its label
+    p2vbme::write_newick_unrooted(out, {"a", "b", "c", "d", "e"}, t, true,
+                                  {"", "", "", "", "", "97.33/85", "x", "100/100", "root"});
+    EXPECT_EQ(read_file(out), "((a:0.1,b:0.2)97.33/85:0.6,c:0.3,(d:0.4,e:0.5)100/100:1);\n");
+    // no labels: as before
+    p2vbme::write_newick_unrooted(out, {"a", "b", "c", "d", "e"}, t);
+    EXPECT_EQ(read_file(out), "((a:0.1,b:0.2):0.6,c:0.3,(d:0.4,e:0.5):1);\n");
+    // one label per node, or none
+    EXPECT_THROW(p2vbme::write_newick_unrooted(out, {"a", "b", "c", "d", "e"}, t, true, {"1"}), std::runtime_error);
+}
+
 TEST(Newick, LengthsAreShortestRoundTripFloats) {
     p2vbme::Tree t;
     t.c1 = {-1, -1, -1, -1, 0, 2, 4};

@@ -6,6 +6,7 @@
  * Tree traversals are iterative so that trees with millions of leaves do not overflow the stack.
  */
 #include <algorithm>
+#include <numeric>
 #include <stdexcept>
 #include <string.h>
 #include <string>
@@ -150,7 +151,7 @@ void prepare_start_tree(Tree &tree, const Deduplication &dd) {
         tree = prune(tree, dd);
 }
 
-Tree reattach(const Tree &tree, const Deduplication &dd) {
+Tree reattach(const Tree &tree, const Deduplication &dd, std::vector<int32_t> *node_map) {
     const int32_t M = (int32_t)dd.kept.size(), N = (int32_t)dd.copy_of.size();
     if ((int32_t)tree.c1.size() != 2 * M - 1)
         throw std::invalid_argument("reattach: the tree is not on the kept sequences");
@@ -189,12 +190,18 @@ Tree reattach(const Tree &tree, const Deduplication &dd) {
             full.branch_lengths[next] = tree.branch_lengths[u];
         ++next;
     }
+    if (node_map)
+        *node_map = top;
     return full;
 }
 
-void restore_copies(Tree &tree, const Deduplication &dd) {
-    if (dd.n_removed() > 0)
-        tree = reattach(tree, dd);
+void restore_copies(Tree &tree, const Deduplication &dd, std::vector<int32_t> *node_map) {
+    if (dd.n_removed() > 0) {
+        tree = reattach(tree, dd, node_map);
+    } else if (node_map) {
+        node_map->resize(tree.c1.size());
+        std::iota(node_map->begin(), node_map->end(), 0);
+    }
 }
 
 } // namespace p2vbme

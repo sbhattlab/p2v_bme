@@ -5,7 +5,7 @@
  *
  * {
  *   "version", "command_line", "date", "substitution_model" (name and parameters; GTR+GC: its fit),
- *   "bme_length", "rounds_run", "stop_reason", "time", "warnings",
+ *   "bme_length", "rounds_run", "stop_reason", "bootstrap" (with -b only), "time", "warnings",
  *   "details": {                                   with --report-full only
  *     "input", "settings" (as used), "devices",
  *     "time" (per stage), "memory", "round_gains"
@@ -37,14 +37,17 @@ struct Report {
     bool neg_as_zero = true; // negative branch lengths written as 0 (--no-neg-as-zero turns it off)
     bool full = false;       // --report-full: add "details"
     int32_t gtr_fit_pairs = DEFAULT_GTR_FIT_PAIRS; // GTR+GC: sequence pairs drawn for the fit (--gtr-fit-pairs)
+    int32_t bootstrap = 0;                         // -b: bootstrap replicates (0 = none)
 
     // Recorded during the run.
-    std::vector<std::string> warnings; // also printed on stderr
-    int32_t n_taxa = 0, n_sites = 0;   // as read, before identical sequences are set aside
-    int32_t n_identical_removed = 0;   // sequences set aside and put back at the end
-    GtrFit gtr_fit;                    // GTR+GC: the fit of the rates and alpha (n_pairs = 0: none)
-    double time_read = 0.0;            // seconds
-    double time_total = 0.0;           // seconds, from start to the report
+    std::vector<std::string> warnings;       // also printed on stderr
+    int32_t n_taxa = 0, n_sites = 0;         // as read, before identical sequences are set aside
+    int32_t n_identical_removed = 0;         // sequences set aside and put back at the end
+    GtrFit gtr_fit;                          // GTR+GC: the fit of the rates and alpha (n_pairs = 0: none)
+    double mean_tbe = 0.0, mean_exact = 0.0; // bootstrap: mean supports of the internal branches, in %
+    double time_bootstrap = 0.0;             // seconds
+    double time_read = 0.0;                  // seconds
+    double time_total = 0.0;                 // seconds, from start to the report
 
     // The devices of the run (select_devices) and their memory when it ends.
     std::vector<std::string> devices;          // the devices used, e.g. "GPU 0: NVIDIA RTX A6000"

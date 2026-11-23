@@ -193,7 +193,7 @@ Tree read_newick(const std::string &path, const std::vector<std::string> &names)
 }
 
 void write_newick_unrooted(const std::string &path, const std::vector<std::string> &names, const Tree &tree,
-                           bool neg_as_zero) {
+                           bool neg_as_zero, const std::vector<std::string> &labels) {
     const int32_t N = (int32_t)names.size();
     if (N < 3)
         throw std::runtime_error("an unrooted tree needs at least 3 leaves");
@@ -202,6 +202,8 @@ void write_newick_unrooted(const std::string &path, const std::vector<std::strin
         throw std::runtime_error("cannot write " + path);
     const bool with_bl = !tree.branch_lengths.empty();
     const int32_t root = 2 * N - 2;
+    if (!labels.empty() && labels.size() != tree.c1.size())
+        throw std::runtime_error("one label per node of the tree is needed");
     const int32_t a = tree.c1[root], b = tree.c2[root];
     // The root's internal child becomes the trifurcation; its sibling hangs from it by the merged edge.
     const int32_t centre = a >= N ? a : b;
@@ -247,6 +249,8 @@ void write_newick_unrooted(const std::string &path, const std::vector<std::strin
                 st.push_back(std::make_pair(tree.c2[u], 0));
             } else {
                 out.put(')');
+                if (!labels.empty())
+                    out << labels[u];
                 if (with_bl)
                     put_length(edge(u));
                 st.pop_back();
