@@ -107,6 +107,8 @@ class WindowKernels {
     // Finds each row's best move, from the last score: rows i = 1 .. K - 2 -> (best_delta[i], best_j[i]).
     // best_j[i]: the best regraft edge of the subtree pruned at row i; best_delta[i]: the BME change of that move.
     virtual void best_moves(const SkeletonTables &s, std::vector<double> &best_delta, std::vector<int32_t> &best_j) = 0;
+    // Reads the distances of the last distances() back: -> D (K x K, as doubles), for the tests.
+    virtual void read_distances(std::vector<double> &D) = 0;
 };
 
 // Solves a window with a device's kernels: shortens its skeleton's BME length, (v, perm) -> (v, perm) and the BME

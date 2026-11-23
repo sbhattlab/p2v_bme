@@ -6,7 +6,8 @@
  * moves), the nearest-sample search and the edge-length pass. Distances: the run's
  * model (set_distance; JC69 by default) from the 5-bitplane alignment, by the per-pair formulas of
  * distances.hpp and eigen_dist.hpp. JC69 needs two counts per pair (shared valid sites, matches) and
- * has tiled kernels; the other models need the 16 pair counts and take the per-pair path of each kernel.
+ * has tiled kernels; the other models need the 16 pair counts and take the per-pair path of each kernel. The window
+ * matrix has one packed kernel for every model (k_build_condensed_D_packed).
  */
 #include <cuda_runtime.h>
 #include <stdint.h>
@@ -319,6 +320,265 @@ __global__ __launch_bounds__(256) void k_build_condensed_D_heavy_tiled(
     }
 }
 
+// Packed condensed matrix: the window's components are packed, in index order, into groups of at most HB_T profile
+// leaves (whole components only), and one block handles one pair of groups gi <= gj.
+// The block fills the HB_T x HB_T tile of leaf-pair distances once, then forms the sum of every component pair in it.
+// The earlier kernels above gave each pair of components its own thread or its own tile.
+// Each sum is taken in their order, so the matrix is bit-identical to theirs:
+//   row_sum(p) = sum over q in prof(b), in profile order, of w_q * d(p, q)
+//   D[a, b]    = sum over p in prof(a), in profile order, of w_p * row_sum(p),      a < b.
+// Groups hold consecutive components, so the component taken from gi has the smaller index and supplies the rows.
+// A window with a component of no leaf or of more than HB_T leaves (--profile-cap > 64) uses the earlier kernels.
+
+constexpr int32_t PK_COUNTS_CW = 25; // words per staged chunk of the 16-count path (16 rows x 4 bitplanes)
+
+// Packs the K components, in index order, into groups of at most HB_T profile leaves.
+// grp_first receives the first component of each group and K at the end.
+// Returns false if a component has no leaf or more than HB_T.
+bool pack_groups(int32_t K, const int32_t *prof_offsets, std::vector<int32_t> &grp_first) {
+    grp_first.clear();
+    if (K < 1)
+        return false;
+    int32_t fill = 0;
+    grp_first.push_back(0);
+    for (int32_t a = 0; a < K; ++a) {
+        const int32_t len = prof_offsets[a + 1] - prof_offsets[a];
+        if (len < 1 || len > HB_T)
+            return false;
+        if (fill + len > HB_T) {
+            grp_first.push_back(a);
+            fill = 0;
+        }
+        fill += len;
+    }
+    grp_first.push_back(K);
+    return true;
+}
+
+// Groups (gi <= gj) of block bid, the G (G + 1) / 2 pairs being numbered row by row.
+__device__ __forceinline__ void pk_block_groups(int32_t bid, int32_t G, int32_t *gi_out, int32_t *gj_out) {
+    const double b = 2.0 * (double)G + 1.0;
+    int32_t gi = (int32_t)((b - sqrt(b * b - 8.0 * (double)bid)) * 0.5);
+    if (gi < 0)
+        gi = 0;
+    if (gi > G - 1)
+        gi = G - 1;
+    // Row g starts at block g * G - g * (g - 1) / 2; corrects the rounded estimate.
+    while (gi > 0 && (int64_t)gi * G - (int64_t)gi * (gi - 1) / 2 > (int64_t)bid)
+        --gi;
+    while (gi + 1 < G && (int64_t)(gi + 1) * G - (int64_t)(gi + 1) * gi / 2 <= (int64_t)bid)
+        ++gi;
+    *gi_out = gi;
+    *gj_out = gi + (int32_t)((int64_t)bid - ((int64_t)gi * G - (int64_t)gi * (gi - 1) / 2));
+}
+
+// One block of 256 threads per pair of groups (pack_groups); JC69 (template JC) or the model dm.
+// The leaf-pair distances of the tile come from the alignment's bitplanes, staged in shared memory in word chunks:
+//   JC69: two counts per pair (shared valid sites, matches); each thread keeps a 4x4 tile of pairs, as in
+//         k_build_condensed_D_heavy_tiled;
+//   other models: the 16 pair counts, too many registers for a tile of pairs, so each thread evaluates one pair of a
+//         16 x 16 sub-tile at a time, with the count loop and the formula of dev_model_dist.
+// In a block that pairs a group with itself only component pairs sa < sb are needed, whose entries all lie above the
+// tile's diagonal, so the 16-count path skips the sub-tiles entirely below it.
+template <bool JC>
+__global__ __launch_bounds__(256, 2) void k_build_condensed_D_packed(int32_t K, int32_t W, int32_t G,
+                                                                     const int32_t *__restrict__ d_grp_first,
+                                                                     const int32_t *__restrict__ d_prof_offsets,
+                                                                     const int32_t *__restrict__ d_prof_leaves,
+                                                                     const float *__restrict__ d_prof_weights,
+                                                                     const uint64_t *__restrict__ d_packed_seqs,
+                                                                     float *__restrict__ d_D_cond, DeviceDistance dm) {
+    constexpr int32_t STAGE = 5 * HB_CW * HB_T; // JC69: [channel][word][row]; 16 counts: [row][bitplane][word]
+    static_assert(16 * 4 * PK_COUNTS_CW <= STAGE, "the 16-count chunk must fit the staging buffers");
+    __shared__ uint64_t sA[STAGE];
+    __shared__ uint64_t sB[STAGE];
+    __shared__ float s_dist[HB_T][HB_T + 1];
+    __shared__ int32_t s_leaf_a[HB_T], s_leaf_b[HB_T];
+    __shared__ float s_wa[HB_T], s_wb[HB_T];
+    __shared__ int32_t s_seg_a[HB_T + 1], s_seg_b[HB_T + 1]; // first leaf of each component, then the leaf count
+
+    int32_t gi, gj;
+    pk_block_groups((int32_t)blockIdx.x, G, &gi, &gj);
+    const int32_t ka0 = d_grp_first[gi], nsa = d_grp_first[gi + 1] - ka0;
+    const int32_t kb0 = d_grp_first[gj], nsb = d_grp_first[gj + 1] - kb0;
+    const int32_t ea0 = d_prof_offsets[ka0], na = d_prof_offsets[ka0 + nsa] - ea0;
+    const int32_t eb0 = d_prof_offsets[kb0], nb = d_prof_offsets[kb0 + nsb] - eb0;
+    const int32_t tid = (int32_t)threadIdx.x, tx = tid & 15, ty = tid >> 4;
+
+    if (tid <= nsa)
+        s_seg_a[tid] = d_prof_offsets[ka0 + tid] - ea0;
+    if (tid <= nsb)
+        s_seg_b[tid] = d_prof_offsets[kb0 + tid] - eb0;
+    if (tid < na) {
+        s_leaf_a[tid] = d_prof_leaves[ea0 + tid];
+        s_wa[tid] = d_prof_weights[ea0 + tid];
+    }
+    if (tid < nb) {
+        s_leaf_b[tid] = d_prof_leaves[eb0 + tid];
+        s_wb[tid] = d_prof_weights[eb0 + tid];
+    }
+    __syncthreads();
+
+    if constexpr (JC) {
+        int32_t nv[4][4], nm[4][4];
+#pragma unroll
+        for (int32_t i = 0; i < 4; ++i)
+#pragma unroll
+            for (int32_t j = 0; j < 4; ++j) {
+                nv[i][j] = 0;
+                nm[i][j] = 0;
+            }
+        for (int32_t w0 = 0; w0 < W; w0 += HB_CW) {
+            // Stage words w0..w0+HB_CW-1 of all 5 channels; consecutive threads read consecutive words of one
+            // sequence.
+            for (int32_t e = tid; e < STAGE; e += 256) {
+                const int32_t cw = e % HB_CW, ch = (e / HB_CW) % 5, r = e / (5 * HB_CW);
+                const int32_t s_idx = (ch * HB_CW + cw) * HB_T + r;
+                const int32_t w = w0 + cw;
+                const size_t g_off = (size_t)ch * W + w;
+                sA[s_idx] = (r < na && w < W) ? d_packed_seqs[(size_t)s_leaf_a[r] * 5 * W + g_off] : 0ull;
+                sB[s_idx] = (r < nb && w < W) ? d_packed_seqs[(size_t)s_leaf_b[r] * 5 * W + g_off] : 0ull;
+            }
+            __syncthreads();
+#pragma unroll
+            for (int32_t cw = 0; cw < HB_CW; ++cw) {
+                uint64_t ra[4], rb[4], m[4][4];
+#pragma unroll
+                for (int32_t i = 0; i < 4; ++i)
+                    ra[i] = sA[(4 * HB_CW + cw) * HB_T + ty + 16 * i];
+#pragma unroll
+                for (int32_t j = 0; j < 4; ++j)
+                    rb[j] = sB[(4 * HB_CW + cw) * HB_T + tx + 16 * j];
+#pragma unroll
+                for (int32_t i = 0; i < 4; ++i)
+#pragma unroll
+                    for (int32_t j = 0; j < 4; ++j)
+                        nv[i][j] += __popcll(ra[i] & rb[j]);
+#pragma unroll
+                for (int32_t c = 0; c < 4; ++c) {
+#pragma unroll
+                    for (int32_t i = 0; i < 4; ++i)
+                        ra[i] = sA[(c * HB_CW + cw) * HB_T + ty + 16 * i];
+#pragma unroll
+                    for (int32_t j = 0; j < 4; ++j)
+                        rb[j] = sB[(c * HB_CW + cw) * HB_T + tx + 16 * j];
+#pragma unroll
+                    for (int32_t i = 0; i < 4; ++i)
+#pragma unroll
+                        for (int32_t j = 0; j < 4; ++j)
+                            m[i][j] = (c == 0) ? (ra[i] & rb[j]) : (m[i][j] | (ra[i] & rb[j]));
+                }
+#pragma unroll
+                for (int32_t i = 0; i < 4; ++i)
+#pragma unroll
+                    for (int32_t j = 0; j < 4; ++j)
+                        nm[i][j] += __popcll(m[i][j]);
+            }
+            __syncthreads();
+        }
+#pragma unroll
+        for (int32_t i = 0; i < 4; ++i) {
+#pragma unroll
+            for (int32_t j = 0; j < 4; ++j) {
+                const int32_t p = ty + 16 * i, q = tx + 16 * j;
+                if (p < na && q < nb)
+                    s_dist[p][q] = (s_leaf_a[p] == s_leaf_b[q]) ? 0.0f : dev_jc69_from_counts(nv[i][j], nm[i][j]);
+            }
+        }
+    } else {
+        const int32_t n_chunks = (W + PK_COUNTS_CW - 1) / PK_COUNTS_CW;
+        const int32_t row_words = 4 * PK_COUNTS_CW;
+        for (int32_t pa0 = 0; pa0 < na; pa0 += 16) {
+            bool a_staged = false; // with one chunk, the 16 A rows are staged once for all sub-tiles of the row
+            for (int32_t qb0 = 0; qb0 < nb; qb0 += 16) {
+                if (gi == gj && qb0 + 16 <= pa0)
+                    continue;
+                const int32_t p = pa0 + ty, q = qb0 + tx;
+                const bool live = (p < na && q < nb) && s_leaf_a[p] != s_leaf_b[q];
+                uint32_t c[16];
+#pragma unroll
+                for (int k = 0; k < 16; ++k)
+                    c[k] = 0u;
+                for (int32_t ch = 0; ch < n_chunks; ++ch) {
+                    const int32_t w0 = ch * PK_COUNTS_CW;
+                    __syncthreads();
+                    if (!a_staged || n_chunks > 1) {
+                        for (int32_t idx = tid; idx < 16 * row_words; idx += 256) {
+                            const int32_t r = idx / row_words, k = idx - r * row_words;
+                            const int32_t pl = k / PK_COUNTS_CW, w = w0 + (k - pl * PK_COUNTS_CW), pp = pa0 + r;
+                            sA[idx] = (pp < na && w < W)
+                                          ? __ldg(&d_packed_seqs[(size_t)s_leaf_a[pp] * (5 * W) + (size_t)pl * W + w])
+                                          : 0ull;
+                        }
+                    }
+                    for (int32_t idx = tid; idx < 16 * row_words; idx += 256) {
+                        const int32_t r = idx / row_words, k = idx - r * row_words;
+                        const int32_t pl = k / PK_COUNTS_CW, w = w0 + (k - pl * PK_COUNTS_CW), qq = qb0 + r;
+                        sB[idx] = (qq < nb && w < W)
+                                      ? __ldg(&d_packed_seqs[(size_t)s_leaf_b[qq] * (5 * W) + (size_t)pl * W + w])
+                                      : 0ull;
+                    }
+                    __syncthreads();
+                    if (live) {
+                        const int32_t cl = min(PK_COUNTS_CW, W - w0);
+                        const uint64_t *pa = &sA[ty * row_words];
+                        const uint64_t *pb = &sB[tx * row_words];
+#pragma unroll 5
+                        for (int32_t w = 0; w < cl; ++w) {
+                            uint64_t a[4], b[4];
+#pragma unroll
+                            for (int i = 0; i < 4; ++i) {
+                                a[i] = pa[i * PK_COUNTS_CW + w];
+                                b[i] = pb[i * PK_COUNTS_CW + w];
+                            }
+#pragma unroll
+                            for (int i = 0; i < 4; ++i)
+#pragma unroll
+                                for (int j = 0; j < 4; ++j)
+                                    c[4 * i + j] += __popcll(a[i] & b[j]);
+                        }
+                    }
+                }
+                a_staged = true;
+                if (p < na && q < nb)
+                    s_dist[p][q] = live ? pair_distance<float>(dm, c) : 0.0f;
+            }
+        }
+    }
+    __syncthreads();
+
+    // Row sums over each component sb of the group gj, in place: the row sum over sb overwrites column sb of the
+    // row, which lies at or before sb's first leaf (every component has one), so nothing unread is overwritten.
+    if (tid < na) {
+        for (int32_t sb = 0; sb < nsb; ++sb) {
+            float row_sum = 0.0f;
+            const int32_t q1 = s_seg_b[sb + 1];
+            for (int32_t q = s_seg_b[sb]; q < q1; ++q)
+                row_sum += s_wb[q] * s_dist[tid][q];
+            s_dist[tid][sb] = row_sum;
+        }
+    }
+    __syncthreads();
+    for (int32_t idx = tid; idx < nsa * nsb; idx += 256) {
+        const int32_t sa = idx / nsb, sb = idx - sa * nsb;
+        const int32_t a = ka0 + sa, b = kb0 + sb;
+        if (gi == gj) {
+            if (sa > sb)
+                continue;
+            if (sa == sb) {
+                d_D_cond[(size_t)a * K + a] = 0.0f;
+                continue;
+            }
+        }
+        float d_val = 0.0f;
+        const int32_t p1 = s_seg_a[sa + 1];
+        for (int32_t p = s_seg_a[sa]; p < p1; ++p)
+            d_val += s_wa[p] * s_dist[p][sb];
+        d_D_cond[(size_t)a * K + b] = d_val;
+        d_D_cond[(size_t)b * K + a] = d_val;
+    }
+}
+
 // ---- 3. Exact GPU Discrete Gradient Kernels ----
 
 __global__ void k_copy_leaf_rows_perm(const float *__restrict__ D_orig, const int32_t *__restrict__ d_perm,
@@ -332,15 +592,82 @@ __global__ void k_copy_leaf_rows_perm(const float *__restrict__ D_orig, const in
     }
 }
 
-__global__ void k_bottom_up_leaves(float *__restrict__ subdist, const int32_t *__restrict__ c1_r,
-                                   const int32_t *__restrict__ c2_r, int32_t N, int32_t M, int32_t root_u) {
-    int32_t v = blockIdx.x * blockDim.x + threadIdx.x;
-    if (v >= N)
+constexpr int32_t BU_BATCH = 4; // vertices of one height per step of k_bottom_up_levels
+
+// Bottom-up part of the subtree-average table for the columns [col0, col0 + n_cols), one thread per column: every
+// internal vertex u below the root gets subdist[u][v] = (subdist[c1][v] + subdist[c2][v]) / 2.
+// The vertices are taken level by level, up to BU_BATCH of one height per step (build_bottom_up_steps).
+// No vertex of a step is a child of another, so their children's rows are all read before any is written, which
+// overlaps the memory latency a one-vertex-at-a-time walk waits for at every vertex.
+// Every entry is still half the sum of the same two entries, so the table does not depend on the order.
+// Layout of bu: (u, c1, c2) per vertex in level order, then, from index 3 * n_int, the first vertex of each step and
+// n_int at the end.
+__global__ void k_bottom_up_levels(float *__restrict__ subdist, const int32_t *__restrict__ bu, int32_t n_int,
+                                   int32_t n_steps, int32_t col0, int32_t n_cols, int32_t M) {
+    const int32_t v = col0 + blockIdx.x * blockDim.x + threadIdx.x;
+    if (v >= col0 + n_cols)
         return;
-    for (int32_t u = N; u < root_u; ++u) {
-        int32_t c1 = c1_r[u], c2 = c2_r[u];
-        subdist[(size_t)u * M + v] = 0.5f * (subdist[(size_t)c1 * M + v] + subdist[(size_t)c2 * M + v]);
+    const int32_t *step = bu + 3 * n_int;
+    for (int32_t s = 0; s < n_steps; ++s) {
+        const int32_t k0 = step[s], cnt = step[s + 1] - k0;
+        if (cnt == BU_BATCH) {
+            float a[BU_BATCH], b[BU_BATCH];
+#pragma unroll
+            for (int32_t t = 0; t < BU_BATCH; ++t) {
+                a[t] = subdist[(size_t)bu[3 * (k0 + t) + 1] * M + v];
+                b[t] = subdist[(size_t)bu[3 * (k0 + t) + 2] * M + v];
+            }
+#pragma unroll
+            for (int32_t t = 0; t < BU_BATCH; ++t)
+                subdist[(size_t)bu[3 * (k0 + t)] * M + v] = 0.5f * (a[t] + b[t]);
+        } else {
+            for (int32_t k = k0; k < k0 + cnt; ++k)
+                subdist[(size_t)bu[3 * k] * M + v] =
+                    0.5f * (subdist[(size_t)bu[3 * k + 1] * M + v] + subdist[(size_t)bu[3 * k + 2] * M + v]);
+        }
     }
+}
+
+// Steps of k_bottom_up_levels for a K-leaf skeleton: the internal vertices K .. 2K - 4 sorted by height (one more
+// than the higher child's) and cut into steps of at most BU_BATCH vertices of one height.
+// bu receives the layout k_bottom_up_levels reads.
+// Returns the number of steps.
+int32_t build_bottom_up_steps(const std::vector<int32_t> &c1, const std::vector<int32_t> &c2, int32_t K,
+                              std::vector<int32_t> &bu) {
+    const int32_t root_u = 2 * K - 3;
+    const int32_t n_int = root_u - K;
+    bu.clear();
+    if (n_int <= 0) {
+        bu.push_back(0);
+        return 0;
+    }
+    std::vector<int32_t> height(root_u, 0), first;
+    int32_t h_max = 0;
+    for (int32_t u = K; u < root_u; ++u) {
+        height[u] = 1 + std::max(height[c1[u]], height[c2[u]]);
+        h_max = std::max(h_max, height[u]);
+    }
+    first.assign(h_max + 2, 0); // first[h] = vertices lower than h
+    for (int32_t u = K; u < root_u; ++u)
+        first[height[u] + 1]++;
+    for (int32_t h = 1; h <= h_max + 1; ++h)
+        first[h] += first[h - 1];
+    bu.resize((size_t)3 * n_int);
+    std::vector<int32_t> next(first.begin(), first.end() - 1);
+    for (int32_t u = K; u < root_u; ++u) {
+        const int32_t k = next[height[u]]++;
+        bu[3 * k] = u;
+        bu[3 * k + 1] = c1[u];
+        bu[3 * k + 2] = c2[u];
+    }
+    int32_t n_steps = 0;
+    for (int32_t h = 1; h <= h_max; ++h)
+        for (int32_t k = first[h]; k < first[h + 1]; k += BU_BATCH) {
+            bu.push_back(k);
+            ++n_steps;
+        }
+    bu.push_back(n_int);
+    return n_steps;
 }
 
 __global__ void k_transpose_leaf_block(float *__restrict__ subdist, int32_t N, int32_t M, int32_t root_u) {
@@ -354,17 +681,6 @@ __global__ void k_transpose_leaf_block(float *__restrict__ subdist, int32_t N, i
     int32_t u_t = N + blockIdx.y * 16 + threadIdx.x;
     if (v_t < N && u_t < root_u)
         subdist[(size_t)v_t * M + u_t] = tile[threadIdx.x][threadIdx.y];
-}
-
-__global__ void k_bottom_up_internals(float *__restrict__ subdist, const int32_t *__restrict__ c1_r,
-                                      const int32_t *__restrict__ c2_r, int32_t N, int32_t M, int32_t root_u) {
-    int32_t v = N + blockIdx.x * blockDim.x + threadIdx.x;
-    if (v >= root_u)
-        return;
-    for (int32_t u = N; u < root_u; ++u) {
-        int32_t c1 = c1_r[u], c2 = c2_r[u];
-        subdist[(size_t)u * M + v] = 0.5f * (subdist[(size_t)c1 * M + v] + subdist[(size_t)c2 * M + v]);
-    }
 }
 
 __global__ void k_top_down_and_root(float *__restrict__ subdist, const int32_t *__restrict__ c1_r,
@@ -1197,6 +1513,12 @@ struct RnaSimGpuWorkspace {
     int32_t *d_heavy_b = NULL;
     size_t heavy_cap;
     std::vector<int32_t> h_heavy_a, h_heavy_b;
+    // Group boundaries for k_build_condensed_D_packed (pack_groups).
+    int32_t *d_grp_first = NULL;
+    std::vector<int32_t> h_grp_first;
+    // Steps of k_bottom_up_levels (build_bottom_up_steps).
+    int32_t *d_bu = NULL;
+    std::vector<int32_t> h_bu;
 
     void init(int32_t gpu_id, int32_t K_cap) {
         dev_id = gpu_id;
@@ -1228,6 +1550,8 @@ struct RnaSimGpuWorkspace {
         gpu_alloc(&d_best_delta, (size_t)K_cap * sizeof(float));
         gpu_alloc(&d_best_j, (size_t)K_cap * sizeof(int32_t));
         gpu_alloc(&d_curr_L, sizeof(double));
+        gpu_alloc(&d_grp_first, (size_t)(K_cap + 1) * sizeof(int32_t));
+        gpu_alloc(&d_bu, ((size_t)4 * M + 2) * sizeof(int32_t));
         CUDA_CHECK(cudaFuncSetAttribute(k_spr_rows_top1, cudaFuncAttributeMaxDynamicSharedMemorySize, 90112));
     }
 
@@ -1260,6 +1584,10 @@ struct RnaSimGpuWorkspace {
         cudaFree(d_heavy_b);
         d_heavy_a = d_heavy_b = NULL;
         heavy_cap = 0;
+        cudaFree(d_grp_first);
+        d_grp_first = NULL;
+        cudaFree(d_bu);
+        d_bu = NULL;
     }
 };
 
@@ -1283,6 +1611,23 @@ class GpuWindowKernels final : public WindowKernels {
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
         CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_prof_weights, profile_weights, (size_t)total_prof * sizeof(float),
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
+        // The packed kernel if every profile has 1 to HB_T leaves (always at --profile-cap <= 64).
+        if (W > 0 && pack_groups(K, profile_offsets, gpu_ws.h_grp_first)) {
+            const int32_t G = (int32_t)gpu_ws.h_grp_first.size() - 1;
+            const int32_t n_blocks = (int32_t)((int64_t)G * (G + 1) / 2);
+            CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_grp_first, gpu_ws.h_grp_first.data(), (size_t)(G + 1) * sizeof(int32_t),
+                                       cudaMemcpyHostToDevice, gpu_ws.stream));
+            if (jc69)
+                k_build_condensed_D_packed<true><<<n_blocks, 256, 0, gpu_ws.stream>>>(
+                    K, W, G, gpu_ws.d_grp_first, gpu_ws.d_prof_offsets, gpu_ws.d_prof_leaves, gpu_ws.d_prof_weights,
+                    d_packed_seqs, gpu_ws.d_D, dm);
+            else
+                k_build_condensed_D_packed<false><<<n_blocks, 256, 0, gpu_ws.stream>>>(
+                    K, W, G, gpu_ws.d_grp_first, gpu_ws.d_prof_offsets, gpu_ws.d_prof_leaves, gpu_ws.d_prof_weights,
+                    d_packed_seqs, gpu_ws.d_D, dm);
+            CUDA_CHECK(cudaGetLastError());
+            return;
+        }
         dim3 blk2d(16, 16);
         dim3 grd2d((K + 15) / 16, (K + 15) / 16);
         // JC69: pairs whose profiles both have >= HB_HEAVY_MIN leaves go to the tiled kernel; the rest (singletons,
@@ -1357,16 +1702,19 @@ class GpuWindowKernels final : public WindowKernels {
                                    gpu_ws.stream));
         CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_adj_u, s.adj_u.data(), (size_t)3 * M_sk * sizeof(int32_t),
                                    cudaMemcpyHostToDevice, gpu_ws.stream));
+        const int32_t n_steps = build_bottom_up_steps(s.c1, s.c2, K, gpu_ws.h_bu);
+        CUDA_CHECK(cudaMemcpyAsync(gpu_ws.d_bu, gpu_ws.h_bu.data(), gpu_ws.h_bu.size() * sizeof(int32_t),
+                                   cudaMemcpyHostToDevice, gpu_ws.stream));
 
         k_copy_leaf_rows_perm<<<grd2d, blk2d, 0, gpu_ws.stream>>>(gpu_ws.d_D, gpu_ws.d_perm, gpu_ws.d_subdist, K, M_sk);
-        k_bottom_up_leaves<<<(K + 255) / 256, 256, 0, gpu_ws.stream>>>(gpu_ws.d_subdist, gpu_ws.d_c1_r, gpu_ws.d_c2_r,
-                                                                       K, M_sk, root_u_sk);
         int32_t n_int = root_u_sk - K;
+        k_bottom_up_levels<<<(K + 255) / 256, 256, 0, gpu_ws.stream>>>(gpu_ws.d_subdist, gpu_ws.d_bu, n_int, n_steps, 0,
+                                                                       K, M_sk);
         if (n_int > 0) {
             dim3 grd_tr((K + 15) / 16, (n_int + 15) / 16);
             k_transpose_leaf_block<<<grd_tr, blk2d, 0, gpu_ws.stream>>>(gpu_ws.d_subdist, K, M_sk, root_u_sk);
-            k_bottom_up_internals<<<(n_int + 255) / 256, 256, 0, gpu_ws.stream>>>(gpu_ws.d_subdist, gpu_ws.d_c1_r,
-                                                                                  gpu_ws.d_c2_r, K, M_sk, root_u_sk);
+            k_bottom_up_levels<<<(n_int + 255) / 256, 256, 0, gpu_ws.stream>>>(gpu_ws.d_subdist, gpu_ws.d_bu, n_int,
+                                                                               n_steps, K, n_int, M_sk);
         }
         k_top_down_and_root<<<(M_sk + 255) / 256, 256, 0, gpu_ws.stream>>>(
             gpu_ws.d_subdist, gpu_ws.d_c1_r, gpu_ws.d_c2_r, gpu_ws.d_tin, gpu_ws.d_sub_size, K, M_sk, root_u_sk, rc0,
@@ -1397,6 +1745,14 @@ class GpuWindowKernels final : public WindowKernels {
         // rows 0 and K - 1 have no move (the kernel leaves them unwritten)
         best_delta[0] = best_delta[K - 1] = 1e30;
         h_best_j[0] = h_best_j[K - 1] = -1;
+    }
+
+    void read_distances(std::vector<double> &D) override {
+        std::vector<float> h_D((size_t)K * K);
+        CUDA_CHECK(cudaMemcpyAsync(h_D.data(), gpu_ws.d_D, (size_t)K * K * sizeof(float), cudaMemcpyDeviceToHost,
+                                   gpu_ws.stream));
+        CUDA_CHECK(cudaStreamSynchronize(gpu_ws.stream));
+        D.assign(h_D.begin(), h_D.end()); // exact: float to double
     }
 
   private:

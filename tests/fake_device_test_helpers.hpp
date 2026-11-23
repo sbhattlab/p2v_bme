@@ -32,6 +32,7 @@ class NoMoveKernels : public WindowKernels {
         std::fill(best_delta.begin(), best_delta.end(), 1e30);
         std::fill(best_j.begin(), best_j.end(), -1);
     }
+    void read_distances(std::vector<double> &D) override { D.clear(); }
 };
 
 class FailingDevice : public Device {
