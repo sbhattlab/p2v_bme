@@ -23,9 +23,12 @@ Tree read_newick(const std::string &path, const std::vector<std::string> &names)
 // Branch lengths (when present) are the shortest decimals that read back to the same value of their type (float, or
 // double with tree.double_precision_lengths); negative lengths are written as 0 unless neg_as_zero is false.
 // Names that need it are single-quoted.
+// labels (optional, one per node): written after the closing parenthesis of each internal node that is not empty, as
+// the bootstrap's supports ("97.33/85"); the root and its child that becomes the trifurcation have no parenthesis of
+// their own, so the merged root edge carries the other child's label.
 // Throws std::runtime_error.
 void write_newick_unrooted(const std::string &path, const std::vector<std::string> &names, const Tree &tree,
-                           bool neg_as_zero = true);
+                           bool neg_as_zero = true, const std::vector<std::string> &labels = {});
 
 } // namespace p2vbme
 
