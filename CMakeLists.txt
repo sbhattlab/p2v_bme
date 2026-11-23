@@ -69,11 +69,12 @@ target_include_directories(p2vbme_gtr_fit PUBLIC src)
 target_compile_options(p2vbme_gtr_fit PRIVATE -O3 -Wall -Wextra -ffp-contract=off)
 target_link_libraries(p2vbme_gtr_fit PUBLIC p2vbme_core p2vbme_distances PRIVATE OpenMP::OpenMP_CXX)
 
-# Before and after inference: base frequencies, identical sequences, the start tree (plain C++, no CUDA)
+# Before and after inference: base frequencies, the GTR+GC fit, identical sequences, the start tree (plain C++, no
+# CUDA)
 add_library(p2vbme_processing STATIC src/processing.cpp)
 target_include_directories(p2vbme_processing PUBLIC src)
 target_compile_options(p2vbme_processing PRIVATE -O3)
-target_link_libraries(p2vbme_processing PUBLIC p2vbme_core p2vbme_distances)
+target_link_libraries(p2vbme_processing PUBLIC p2vbme_core p2vbme_distances p2vbme_gtr_fit)
 
 # JSON writer for the run report (plain C++, no CUDA)
 add_library(p2vbme_json STATIC src/json_writer.cpp)

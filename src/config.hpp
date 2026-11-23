@@ -25,9 +25,10 @@ constexpr double DEFAULT_TOL = 1e-6;           // stop once a round gains <= thi
 constexpr double DEFAULT_TIME_LIMIT = 0.0;     // seconds after which no new round starts (0 = none)
 constexpr int32_t DEFAULT_PROFILE_CAP = 64;    // leaves kept per clade profile in a window (1..PROFILE_CAP_MAX)
 constexpr int32_t DEFAULT_SAMPLE_SIZE = 0;     // sample-and-place start: 0 = the default size (see "Start tree")
-constexpr uint64_t DEFAULT_SEED = 1;           // seeds the start tree
+constexpr uint64_t DEFAULT_SEED = 1;           // seeds the start tree and the GTR+GC fit's pairs
 constexpr bool DEFAULT_BRANCH_LENGTHS = true;  // estimate BME branch lengths
 constexpr int32_t DEFAULT_BL_PROFILE_CAP = 32; // leaves kept per subtree profile for branch lengths
+constexpr int32_t DEFAULT_GTR_FIT_PAIRS = 100000; // GTR+GC: sequence pairs drawn to fit the rates and alpha
 
 // ---- Limits ------------------------------------------------------------------------------------------
 

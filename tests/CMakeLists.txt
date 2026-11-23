@@ -11,7 +11,7 @@ target_link_libraries(test_maple PRIVATE p2vbme_io GTest::gtest_main)
 gtest_discover_tests(test_maple)
 
 add_executable(test_processing test_processing.cpp)
-target_link_libraries(test_processing PRIVATE p2vbme_io p2vbme_processing GTest::gtest_main)
+target_link_libraries(test_processing PRIVATE p2vbme_io p2vbme_processing p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_processing)
 
 add_executable(test_newick test_newick.cpp)

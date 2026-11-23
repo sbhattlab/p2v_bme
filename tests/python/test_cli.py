@@ -144,6 +144,7 @@ def test_options_reach_the_run(data, tmp_path):
             "40",
         ),
         *("--max-rounds", "3", "--tol", "0", "--time-limit", "100"),
+        *("--gtr-fit-pairs", "1000"),
         *("--profile-cap", "8", "--bl-profile-cap", "8", "--no-neg-as-zero"),
     )
     assert p.returncode == 0, p.stderr
@@ -163,6 +164,7 @@ def test_options_reach_the_run(data, tmp_path):
         "neg_as_zero": False,
         "accelerator": "cpu",
         "precision": "double",
+        "gtr_fit_pairs": 1000,
     }
     settings = r["details"]["settings"]
     assert {k: settings[k] for k in expected} == expected
@@ -172,6 +174,29 @@ def test_options_reach_the_run(data, tmp_path):
         and len(r["substitution_model"]["base_frequencies"]) == 4
     )
     assert 1 <= r["rounds_run"] <= 3
+
+
+def test_gtr_gc_fit(data, tmp_path):
+    """GTR+GC: the rates and alpha are fitted on every pair of the 300 sequences (fewer than 100,000), shown on stdout
+    and in the report; on these JC69 data, equal rates and alpha at its upper end (no rate variation).
+    """
+    p = run(
+        "-s", data / "input.fa", "-m", "GTR+GC", "-a", "cpu", "-p", tmp_path / "out"
+    )
+    assert (p.returncode, p.stderr) == (0, "")
+    assert any(
+        line.startswith("p2v-bme: GTR+GC fit on 44850 pairs in ")
+        for line in p.stdout.splitlines()
+    )
+    m = report(tmp_path / "out")["substitution_model"]
+    assert list(m) == ["name", "rates", "alpha", "fit"]
+    assert m["name"] == "GTR+GC"
+    assert len(m["rates"]) == 6 and sum(m["rates"]) == pytest.approx(6.0)
+    assert all(abs(r - 1.0) < 0.1 for r in m["rates"]) and m["alpha"] > 100
+    fit = m["fit"]
+    assert (fit["pairs_used"], fit["converged"]) == (44850, True)
+    assert fit["iterations"] > 0 and fit["log_likelihood"] < 0
+    assert len(fit["base_frequencies"]) == 4
 
 
 def test_random_start_without_branch_lengths(data, tmp_path):
@@ -290,6 +315,7 @@ def test_help_all():
         line.strip() for line in p.stdout.splitlines() if line.endswith("options:")
     ]
     assert headings == [
+        "Substitution model options:",
         "Search options:",
         "Start tree options:",
         "Branch lengths and output options:",
@@ -326,11 +352,6 @@ ERRORS = {
         1,
         "p2v-bme: error: unknown value for model: 'XYZ' (JC69, K80, F81, F84, TN93, LogDet or GTR+GC)",
     ),
-    "GTR+GC": (
-        [*INPUT, "-m", "GTR+GC"],
-        1,
-        "p2v-bme: error: model 'GTR+GC' is not available in this version (models: JC69, K80, F81, F84, TN93, LogDet)",
-    ),
     "GTR": (
         [*INPUT, "-m", "GTR"],
         1,
@@ -362,7 +383,12 @@ ERRORS = {
         1,
         "p2v-bme: error: the GPU computes in single precision; double precision runs on the CPU (--accelerator cpu)",
     ),
-    # checked by infer(), after the read: -q and the CPU keep stdout and stderr to the error
+    # checked by the GTR+GC fit and by infer(), after the read: -q and the CPU keep stdout and stderr to the error
+    "no GTR+GC fit pairs": (
+        [*INPUT, "-m", "GTR+GC", "-a", "cpu", "-q", "--gtr-fit-pairs", "0"],
+        1,
+        "p2v-bme: error: GTR+GC fit: the number of pairs must be >= 1",
+    ),
     "negative time limit": (
         [*INPUT, "-m", "JC69", "-a", "cpu", "-q", "--time-limit", "-5"],
         1,

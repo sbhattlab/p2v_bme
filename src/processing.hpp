@@ -2,8 +2,8 @@
  * processing.hpp
  *
  * The alignment before inference and the trees around it.
- * The alignment: the base frequencies of the whole input (F81, F84, TN93), then identical sequences set aside (at most
- * two copies of each go into the search).
+ * The alignment: the base frequencies (F81, F84, TN93) and the GTR+GC fit of the whole input, then identical
+ * sequences set aside (at most two copies of each go into the search).
  * The trees: a given start tree restricted to the sequences kept and, after inference, the copies joined back.
  */
 #ifndef P2VBME_PROCESSING_HPP
@@ -14,15 +14,23 @@
 
 #include "core.hpp"
 #include "distances.hpp"
+#include "gtr_fit.hpp"
 
 namespace p2vbme {
 
-// ---- The alignment: base frequencies, identical sequences set aside ----
+// ---- The alignment: base frequencies, GTR+GC fit, identical sequences set aside ----
 
 // F81, F84 and TN93 without given base frequencies (all 0): those of the alignment (each base's share of all valid
 // sites, as FastME and ape count them).
 // Other models are left as they are.
 void count_base_frequencies(const Alignment &aln, SubstitutionModel &model);
+
+// Fits GTR+GC's exchangeabilities and alpha to the alignment and sets them in the model: (aln, model) -> fit.
+// The fit draws n_pairs pairs (fit_gtr_gc) from a stream of its own derived from seed (SALT_GTR_FIT_PAIRS), on at most
+// `threads` threads (0: omp_get_max_threads()).
+// Other models are left as they are, and the fit is empty (n_pairs = 0).
+GtrFit fit_model_parameters(const Alignment &aln, SubstitutionModel &model, int32_t n_pairs, uint64_t seed,
+                            int threads);
 
 // Identical sequences: copies with the same bases and the same missing sites.
 struct Deduplication {
@@ -36,9 +44,12 @@ struct Deduplication {
 // dd records what was removed.
 void deduplicate(Alignment &aln, Deduplication &dd);
 
-// Before inference: count_base_frequencies on the whole input, then, with dedup, deduplicate (in place).
+// Before inference: count_base_frequencies and fit_model_parameters (fit_pairs pairs, seed, threads) on the whole
+// input, then, with dedup, deduplicate (in place): (aln, model) -> fit.
+// Both see every copy, so dedup changes no distance.
 // dd records the copies set aside; it stays empty without dedup.
-void prepare_alignment(Alignment &aln, SubstitutionModel &model, bool dedup, Deduplication &dd);
+GtrFit prepare_alignment(Alignment &aln, SubstitutionModel &model, int32_t fit_pairs, uint64_t seed, int threads,
+                         bool dedup, Deduplication &dd);
 
 // ---- Trees: a given start tree restricted, the copies put back ----
 

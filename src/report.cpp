@@ -64,6 +64,7 @@ void detail_settings(JsonWriter &w, const Report &run, const Settings &opt, cons
     w.field("bl_profile_cap", opt.bl_profile_cap);
     w.field("neg_as_zero", run.neg_as_zero);
     w.field("dedup", run.dedup);
+    w.field("gtr_fit_pairs", run.gtr_fit_pairs);
     w.field("accelerator", accelerator_name(run.on_gpu ? Accelerator::Gpu : Accelerator::Cpu));
     w.field("precision", precision_name(opt.precision));
     w.end_object();
@@ -85,6 +86,7 @@ void detail_time(JsonWriter &w, const Report &run, const Result &res) {
     w.key("time");
     w.begin_object();
     w.field("read", run.time_read);
+    w.field("gtr_fit", run.gtr_fit.time);
     w.field("start_tree", res.time_start);
     w.field("search", res.time_search);
     w.field("branch_lengths", res.time_branch_lengths);
@@ -100,9 +102,11 @@ void detail_memory(JsonWriter &w, const Report &run) {
     w.end_object();
 }
 
-// The substitution model of the distances: its name and, for F81, F84 and TN93, the input alignment's base
-// frequencies (A, C, G, T).
-void substitution_model(JsonWriter &w, const Settings &opt) {
+// The substitution model of the distances: its name and parameters.
+// F81, F84 and TN93: the input alignment's base frequencies (A, C, G, T).
+// GTR+GC: the exchangeabilities (AC, AG, AT, CG, CT, GT) and alpha, and how their fit went (the base frequencies
+// pooled over its pairs are the fit's, not the distance's, which uses each pair's own).
+void substitution_model(JsonWriter &w, const Report &run, const Settings &opt) {
     const SubstitutionModel &m = opt.substitution_model;
     w.key("substitution_model");
     w.begin_object();
@@ -110,6 +114,19 @@ void substitution_model(JsonWriter &w, const Settings &opt) {
     if (m.model == Model::F81 || m.model == Model::F84 || m.model == Model::TN93) {
         std::vector<double> freqs(m.base_freqs, m.base_freqs + N_BASES);
         w.array_field("base_frequencies", freqs);
+    }
+    if (m.model == Model::GTR_GC) {
+        const GtrFit &fit = run.gtr_fit;
+        w.array_field("rates", std::vector<double>(m.rates, m.rates + N_GTR_RATES));
+        w.field("alpha", m.alpha);
+        w.key("fit");
+        w.begin_object();
+        w.field("pairs_used", fit.n_pairs);
+        w.field("iterations", fit.n_iterations);
+        w.field("converged", fit.converged);
+        w.field("log_likelihood", fit.log_lik);
+        w.array_field("base_frequencies", std::vector<double>(fit.base_freqs, fit.base_freqs + N_BASES));
+        w.end_object();
     }
     w.end_object();
 }
@@ -123,7 +140,7 @@ std::string report_json(const Report &run, const Settings &opt, const Result &re
     w.field("version", version_string());
     w.array_field("command_line", run.command_line);
     w.field("date", utc_now());
-    substitution_model(w, opt);
+    substitution_model(w, run, opt);
     w.key("bme_length"); // null without branch lengths
     if (opt.branch_lengths)
         w.value(res.bme_length);
