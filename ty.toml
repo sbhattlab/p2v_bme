@@ -1,3 +1,7 @@
-# The Python code ty checks; add folders here as they get Python code
+# The Python code ty checks; add folders here as they get Python code.
+# The paper's scripts and the plots import NumPy and Matplotlib, which only the paper environment has.
 [src]
-include = ["tests"]
+include = ["tests", "paper", "plots"]
+
+[environment]
+python = ".pixi/envs/paper"
