@@ -1,4 +1,31 @@
+# `pre-commit install` installs both git hooks; hooks run on commit unless they set `stages`
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
+# pre-commit.ci runs the hooks on every pull request and pushes its fixes.
+# ty and pytest need the pixi environment and a build, so there they are skipped (the GitHub Actions workflows run them).
+ci:
+  autoupdate_commit_msg: "chore: update pre-commit hooks"
+  autofix_commit_msg: "style: pre-commit fixes"
+  skip: [ty, pytest]
+
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+
+  - repo: https://github.com/pycqa/isort
+    rev: 9.0.2
+    hooks:
+      - id: isort
+        args: [--profile, black, --lines-between-types, "1"]
+
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 26.10.0
+    hooks:
+      - id: black
+
   # Same major version as the system clang-format the editor extension uses; style from .clang-format
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: "v18.1.8"
@@ -12,3 +39,20 @@ repos:
       - id: prettier
         types_or: [markdown, json]
         args: [--prose-wrap=always, --print-width=120]
+
+  # Run in the pixi environment, so that imports resolve and the tests find the build
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty
+        entry: pixi run ty check
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: pytest
+        name: pytest (CPU tests of the command line)
+        entry: pixi run test-python -m "not gpu"
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

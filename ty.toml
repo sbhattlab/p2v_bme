@@ -1,0 +1,3 @@
+# The Python code ty checks; add folders here as they get Python code
+[src]
+include = ["tests"]
