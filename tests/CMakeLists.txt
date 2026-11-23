@@ -106,6 +106,12 @@ target_compile_options(test_config PRIVATE -Wall -Wextra)
 target_link_libraries(test_config PRIVATE GTest::gtest_main)
 gtest_discover_tests(test_config)
 
+add_executable(test_parallel_errors test_parallel_errors.cpp)
+target_include_directories(test_parallel_errors PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_compile_options(test_parallel_errors PRIVATE -Wall -Wextra)
+target_link_libraries(test_parallel_errors PRIVATE OpenMP::OpenMP_CXX GTest::gtest_main)
+gtest_discover_tests(test_parallel_errors)
+
 # The reference library (the oracle of test_inference) against brute force; no -ffast-math (NaN/Inf checks)
 add_executable(test_bme_reference test_bme_reference.cpp ${BME_REFERENCE_SOURCE})
 target_include_directories(test_bme_reference PRIVATE ${BME_REFERENCE_INCLUDE})
