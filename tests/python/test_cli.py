@@ -14,13 +14,16 @@ import json
 import os
 import re
 import subprocess
+
 from pathlib import Path
 
 import pytest
 
 BUILD = Path(__file__).resolve().parents[2] / "build"
 P2V_BME = os.environ.get("P2VBME_BIN", str(BUILD / "p2v-bme"))
-MAKE_TEST_FASTA = os.environ.get("P2VBME_MAKE_TEST_FASTA", str(BUILD / "make_test_fasta"))
+MAKE_TEST_FASTA = os.environ.get(
+    "P2VBME_MAKE_TEST_FASTA", str(BUILD / "make_test_fasta")
+)
 
 # Top-level keys of the report, in order (--report-full adds "details")
 SUMMARY_KEYS = [
@@ -36,7 +39,9 @@ SUMMARY_KEYS = [
 ]
 # Sequence names of input.fa, and of input_dups.fa (three copies of t1 and two of t2 added)
 NAMES = sorted(f"t{i}" for i in range(300))
-NAMES_DUPS = sorted(NAMES + ["t1_copy1", "t1_copy2", "t1_copy3", "t2_copy1", "t2_copy2"])
+NAMES_DUPS = sorted(
+    NAMES + ["t1_copy1", "t1_copy2", "t1_copy3", "t2_copy1", "t2_copy2"]
+)
 
 
 @pytest.fixture(scope="session")
@@ -54,7 +59,9 @@ def data(tmp_path_factory):
 
 def run(*args):
     """Runs p2v-bme with these arguments; returns the finished process (returncode, stdout, stderr)."""
-    return subprocess.run([P2V_BME, *map(str, args)], capture_output=True, text=True, check=False)
+    return subprocess.run(
+        [P2V_BME, *map(str, args)], capture_output=True, text=True, check=False
+    )
 
 
 def leaf_names(path):
@@ -67,10 +74,14 @@ def report(prefix):
     return json.loads(Path(f"{prefix}.json").read_text())
 
 
-@pytest.mark.parametrize("accelerator", ["cpu", pytest.param("auto", marks=pytest.mark.gpu)])
+@pytest.mark.parametrize(
+    "accelerator", ["cpu", pytest.param("auto", marks=pytest.mark.gpu)]
+)
 def test_default_run(data, tmp_path, accelerator):
     """Progress on stdout, nothing on stderr, a tree of every sequence and the summary report."""
-    p = run("-s", data / "input.fa", "-m", "JC69", "-a", accelerator, "-p", tmp_path / "out")
+    p = run(
+        "-s", data / "input.fa", "-m", "JC69", "-a", accelerator, "-p", tmp_path / "out"
+    )
     assert p.returncode == 0, p.stderr
     # auto: the GPU when one is visible (falling back to the CPU would print a warning)
     assert p.stderr == ""
@@ -86,7 +97,9 @@ def test_default_run(data, tmp_path, accelerator):
 
 
 def test_quiet_prints_nothing(data, tmp_path):
-    p = run("-s", data / "input.fa", "-m", "JC69", "-a", "cpu", "-p", tmp_path / "out", "-q")
+    p = run(
+        "-s", data / "input.fa", "-m", "JC69", "-a", "cpu", "-p", tmp_path / "out", "-q"
+    )
     assert (p.returncode, p.stdout, p.stderr) == (0, "", "")
     assert leaf_names(tmp_path / "out.nwk") == NAMES
     assert report(tmp_path / "out")["bme_length"] > 0
@@ -94,17 +107,42 @@ def test_quiet_prints_nothing(data, tmp_path):
 
 def test_quiet_keeps_warnings(data, tmp_path):
     """Fewer than 16 sequences: the random start, with a warning on stderr (also with -q) and in the report."""
-    p = run("-s", data / "small.fa", "-m", "JC69", "-a", "cpu", "-p", tmp_path / "out", "-q")
-    warning = "fewer than 16 sequences, using the random start instead of sample-and-place"
-    assert (p.returncode, p.stdout, p.stderr) == (0, "", f"p2v-bme: warning: {warning}\n")
+    p = run(
+        "-s", data / "small.fa", "-m", "JC69", "-a", "cpu", "-p", tmp_path / "out", "-q"
+    )
+    warning = (
+        "fewer than 16 sequences, using the random start instead of sample-and-place"
+    )
+    assert (p.returncode, p.stdout, p.stderr) == (
+        0,
+        "",
+        f"p2v-bme: warning: {warning}\n",
+    )
     assert report(tmp_path / "out")["warnings"] == [warning]
 
 
 def test_options_reach_the_run(data, tmp_path):
     """Options at non-default values are used: the full report lists them among the settings used."""
     p = run(
-        *("-s", data / "input.fa", "-m", "TN93", "-p", tmp_path / "out", "--report-full"),
-        *("--precision", "double", "--devices", "2", "--seed", "5", "--sample-size", "40"),
+        *(
+            "-s",
+            data / "input.fa",
+            "-m",
+            "TN93",
+            "-p",
+            tmp_path / "out",
+            "--report-full",
+        ),
+        *(
+            "--precision",
+            "double",
+            "--devices",
+            "2",
+            "--seed",
+            "5",
+            "--sample-size",
+            "40",
+        ),
         *("--max-rounds", "3", "--tol", "0", "--time-limit", "100"),
         *("--profile-cap", "8", "--bl-profile-cap", "8", "--no-neg-as-zero"),
     )
@@ -129,13 +167,26 @@ def test_options_reach_the_run(data, tmp_path):
     settings = r["details"]["settings"]
     assert {k: settings[k] for k in expected} == expected
     assert r["details"]["devices"] == ["CPU: 2 threads"]
-    assert r["substitution_model"]["name"] == "TN93" and len(r["substitution_model"]["base_frequencies"]) == 4
+    assert (
+        r["substitution_model"]["name"] == "TN93"
+        and len(r["substitution_model"]["base_frequencies"]) == 4
+    )
     assert 1 <= r["rounds_run"] <= 3
 
 
 def test_random_start_without_branch_lengths(data, tmp_path):
     p = run(
-        *("-s", data / "input.fa", "-m", "JC69", "-a", "cpu", "-p", tmp_path / "out", "--report-full"),
+        *(
+            "-s",
+            data / "input.fa",
+            "-m",
+            "JC69",
+            "-a",
+            "cpu",
+            "-p",
+            tmp_path / "out",
+            "--report-full",
+        ),
         *("-t", "random", "--no-branch-lengths"),
     )
     assert p.returncode == 0, p.stderr
@@ -144,19 +195,37 @@ def test_random_start_without_branch_lengths(data, tmp_path):
     r = report(tmp_path / "out")
     assert r["bme_length"] is None
     settings = r["details"]["settings"]
-    assert (settings["start_tree"], settings["sample_size"], settings["branch_lengths"]) == ("random", 0, False)
+    assert (
+        settings["start_tree"],
+        settings["sample_size"],
+        settings["branch_lengths"],
+    ) == ("random", 0, False)
 
 
 def test_given_tree_with_zero_rounds(data, tmp_path):
     """A Newick start tree and --max-rounds 0: no search; the report scores the given tree."""
     p = run(
-        *("-s", data / "input.fa", "-m", "JC69", "-a", "cpu", "-p", tmp_path / "out", "--report-full"),
+        *(
+            "-s",
+            data / "input.fa",
+            "-m",
+            "JC69",
+            "-a",
+            "cpu",
+            "-p",
+            tmp_path / "out",
+            "--report-full",
+        ),
         *("-t", data / "input_true.nwk", "--max-rounds", "0"),
     )
     assert p.returncode == 0, p.stderr
     assert leaf_names(tmp_path / "out.nwk") == NAMES
     r = report(tmp_path / "out")
-    assert (r["rounds_run"], r["stop_reason"], r["details"]["round_gains"]) == (0, "none", [])
+    assert (r["rounds_run"], r["stop_reason"], r["details"]["round_gains"]) == (
+        0,
+        "none",
+        [],
+    )
     assert r["bme_length"] > 0
 
 
@@ -168,18 +237,41 @@ def test_duplicates_are_put_back(data, tmp_path, dedup):
     Either way, every name is in the tree.
     """
     no_dedup = [] if dedup else ["--no-dedup"]
-    p = run("-s", data / "input_dups.fa", "-m", "JC69", "-a", "cpu", "-p", tmp_path / "out", "--report-full", *no_dedup)
+    p = run(
+        "-s",
+        data / "input_dups.fa",
+        "-m",
+        "JC69",
+        "-a",
+        "cpu",
+        "-p",
+        tmp_path / "out",
+        "--report-full",
+        *no_dedup,
+    )
     assert p.returncode == 0, p.stderr
     # t1's group of 4 keeps 2, t2's group of 3 keeps 2
     assert ("p2v-bme: 3 identical sequences set aside" in p.stdout) == dedup
     assert leaf_names(tmp_path / "out.nwk") == NAMES_DUPS
-    assert report(tmp_path / "out")["details"]["input"]["identical_set_aside"] == (3 if dedup else 0)
+    assert report(tmp_path / "out")["details"]["input"]["identical_set_aside"] == (
+        3 if dedup else 0
+    )
 
 
 def test_maple_gives_the_fasta_tree(data, tmp_path):
     """The same alignment as .maple and as FASTA gives the same tree."""
     for ext in ("fa", "maple"):
-        p = run("-s", data / f"input.{ext}", "-m", "JC69", "-a", "cpu", "-p", tmp_path / ext, "-q")
+        p = run(
+            "-s",
+            data / f"input.{ext}",
+            "-m",
+            "JC69",
+            "-a",
+            "cpu",
+            "-p",
+            tmp_path / ext,
+            "-q",
+        )
         assert p.returncode == 0, p.stderr
     assert (tmp_path / "fa.nwk").read_text() == (tmp_path / "maple.nwk").read_text()
 
@@ -194,8 +286,15 @@ def test_help():
 def test_help_all():
     p = run("--help-all")
     assert (p.returncode, p.stderr) == (0, "")
-    headings = [line.strip() for line in p.stdout.splitlines() if line.endswith("options:")]
-    assert headings == ["Search options:", "Start tree options:", "Branch lengths and output options:", "Input options:"]
+    headings = [
+        line.strip() for line in p.stdout.splitlines() if line.endswith("options:")
+    ]
+    assert headings == [
+        "Search options:",
+        "Start tree options:",
+        "Branch lengths and output options:",
+        "Input options:",
+    ]
     assert "--max-rounds" in p.stdout
 
 
@@ -212,8 +311,16 @@ def test_version(flag):
 # A missing required option is a usage error (exit code 2); every other error exits with 1.
 INPUT = ["-s", "{data}/input.fa", "-p", "{tmp}/out"]
 ERRORS = {
-    "missing -m": ([*INPUT], 2, "p2v-bme: -s ALIGNMENT and -m MODEL are required (see --help)"),
-    "extra argument": ([*INPUT, "-m", "JC69", "extra"], 1, "p2v-bme: error: unexpected argument 'extra' (see --help)"),
+    "missing -m": (
+        [*INPUT],
+        2,
+        "p2v-bme: -s ALIGNMENT and -m MODEL are required (see --help)",
+    ),
+    "extra argument": (
+        [*INPUT, "-m", "JC69", "extra"],
+        1,
+        "p2v-bme: error: unexpected argument 'extra' (see --help)",
+    ),
     "unknown model": (
         [*INPUT, "-m", "XYZ"],
         1,
@@ -224,7 +331,11 @@ ERRORS = {
         1,
         "p2v-bme: error: model 'GTR+GC' is not available in this version (models: JC69, K80, F81, F84, TN93, LogDet)",
     ),
-    "GTR": ([*INPUT, "-m", "GTR"], 1, "p2v-bme: error: model 'GTR' (without gamma) is not available; use GTR+GC"),
+    "GTR": (
+        [*INPUT, "-m", "GTR"],
+        1,
+        "p2v-bme: error: model 'GTR' (without gamma) is not available; use GTR+GC",
+    ),
     "GTR+G": (
         [*INPUT, "-m", "GTR+G"],
         1,
@@ -241,7 +352,11 @@ ERRORS = {
         "p2v-bme: error: unknown value for precision: 'quad' (single or double)",
     ),
     # the two GPU errors come before any GPU is used, so they need none
-    "GPU listed twice": ([*INPUT, "-m", "JC69", "-a", "gpu", "-d", "0,0"], 1, "p2v-bme: error: GPU 0 is listed twice"),
+    "GPU listed twice": (
+        [*INPUT, "-m", "JC69", "-a", "gpu", "-d", "0,0"],
+        1,
+        "p2v-bme: error: GPU 0 is listed twice",
+    ),
     "GPU in double precision": (
         [*INPUT, "-m", "JC69", "-a", "gpu", "--precision", "double"],
         1,
@@ -259,7 +374,16 @@ ERRORS = {
         "p2v-bme: error: cannot open {tmp}/missing.fa",
     ),
     "unwritable output": (
-        ["-s", "{data}/input.fa", "-p", "/nonexistent_dir/x", "-m", "JC69", "-a", "cpu"],
+        [
+            "-s",
+            "{data}/input.fa",
+            "-p",
+            "/nonexistent_dir/x",
+            "-m",
+            "JC69",
+            "-a",
+            "cpu",
+        ],
         1,
         "p2v-bme: error: cannot write /nonexistent_dir/x.nwk",
     ),
@@ -270,4 +394,8 @@ ERRORS = {
 def test_errors(data, tmp_path, args, returncode, message):
     """An error: nothing on stdout, one line on stderr and a non-zero exit code."""
     p = run(*(a.format(data=data, tmp=tmp_path) for a in args))
-    assert (p.returncode, p.stdout, p.stderr) == (returncode, "", message.format(data=data, tmp=tmp_path) + "\n")
+    assert (p.returncode, p.stdout, p.stderr) == (
+        returncode,
+        "",
+        message.format(data=data, tmp=tmp_path) + "\n",
+    )
