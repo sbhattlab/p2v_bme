@@ -89,16 +89,16 @@ target_compile_options(p2vbme_json PRIVATE -O3 -Wall -Wextra)
 
 find_package(cxxopts CONFIG REQUIRED)
 
-# The method: infer(), start tree, search, branch lengths (host), the CPU device and, with CUDA, the GPU device
-# (all CUDA code is in device_gpu.cu)
+# The method: infer(), start tree, search, branch lengths (host), the bootstrap, the CPU device and, with CUDA, the GPU
+# device (all CUDA code is in device_gpu.cu)
 add_library(p2vbme STATIC src/inference.cpp src/start_tree.cpp src/search.cpp src/phylo2vec.cpp src/branch_lengths.cpp
-            src/report.cpp src/version.cpp src/accelerator.cpp src/device.cpp src/device_cpu.cpp)
+            src/report.cpp src/version.cpp src/accelerator.cpp src/device.cpp src/device_cpu.cpp src/bootstrap.cpp)
 set_source_files_properties(src/version.cpp PROPERTIES COMPILE_DEFINITIONS
                             "P2VBME_VERSION=\"${PROJECT_VERSION}\";P2VBME_GIT=\"${P2VBME_GIT}\"")
 target_include_directories(p2vbme PUBLIC src)
 target_compile_options(p2vbme PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-O3 -Xcompiler=-fopenmp>
                                       $<$<COMPILE_LANGUAGE:CXX>:-O3>)
-target_link_libraries(p2vbme PUBLIC p2vbme_core p2vbme_distances OpenMP::OpenMP_CXX)
+target_link_libraries(p2vbme PUBLIC p2vbme_core p2vbme_distances p2vbme_support OpenMP::OpenMP_CXX)
 target_link_libraries(p2vbme PRIVATE p2vbme_json)
 if(P2VBME_CUDA)
   target_sources(p2vbme PRIVATE src/device_gpu.cu)

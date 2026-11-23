@@ -38,6 +38,11 @@ target_compile_options(test_support PRIVATE -O2 -Wall -Wextra)
 target_link_libraries(test_support PRIVATE p2vbme_support p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_support)
 
+add_executable(test_bootstrap test_bootstrap.cpp)
+target_compile_options(test_bootstrap PRIVATE -O2 -Wall -Wextra)
+target_link_libraries(test_bootstrap PRIVATE p2vbme p2vbme_processing p2vbme_simulations GTest::gtest_main)
+gtest_discover_tests(test_bootstrap DISCOVERY_TIMEOUT 60)
+
 add_executable(test_gtr_fit test_gtr_fit.cpp)
 target_compile_options(test_gtr_fit PRIVATE -O2 -Wall -Wextra)
 target_link_libraries(test_gtr_fit PRIVATE p2vbme_gtr_fit p2vbme_simulations GTest::gtest_main)

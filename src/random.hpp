@@ -72,6 +72,9 @@ constexpr uint64_t SALT_START_TREE_LEVEL = 0x9E3779B97F4A7C15ULL;
 constexpr uint64_t SALT_START_TREE_RANDOM = 0xA0761D6478BD642FULL;
 // Salt of the stream that draws the GTR+GC fit's pairs.
 constexpr uint64_t SALT_GTR_FIT_PAIRS = 0xE7037ED1A0B428DBULL;
+// Salts of the bootstrap: the stream of the replicates' seeds, and each replicate's column draw.
+constexpr uint64_t SALT_BOOTSTRAP = 0x8EBC6AF09C88C6E3ULL;
+constexpr uint64_t SALT_BOOTSTRAP_COLUMNS = 0x589965CC75374CC3ULL;
 
 } // namespace p2vbme
 
