@@ -117,22 +117,13 @@ std::vector<std::string> support_labels(const BootstrapResult &boot, const std::
     if (boot.tbe.size() != node_map.size() || boot.exact.size() != node_map.size())
         throw std::invalid_argument("support_labels: one support and one map entry per node of the searched tree");
     std::vector<std::string> labels(n_nodes);
-    std::vector<bool> from_internal(n_nodes, false); // stands for an internal node of the searched tree
-    const size_t n_searched_leaves = (node_map.size() + 1) / 2;
     for (size_t u = 0; u < node_map.size(); ++u) {
         const int32_t v = node_map[u];
         if (v < 0 || v >= n_nodes)
             throw std::invalid_argument("support_labels: the node map leaves the full tree");
-        if (u >= n_searched_leaves)
-            from_internal[v] = true;
         if (boot.tbe[u] != NO_SUPPORT)
             labels[v] = format_support(boot.tbe[u]) + "/" + format_support(boot.exact[u]);
     }
-    // the other internal nodes join identical copies (one of them stands for a searched leaf, the kept copy)
-    const std::string full = format_support(100.0) + "/" + format_support(100.0);
-    for (int32_t v = N; v < n_nodes - 1; ++v)
-        if (!from_internal[v])
-            labels[v] = full;
     const int32_t root = n_nodes - 1, a = full_tree.c1[root], b = full_tree.c2[root];
     if (labels[a].empty() && a >= N)
         labels[a] = labels[b];

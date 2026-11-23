@@ -287,7 +287,7 @@ def test_duplicates_are_put_back(data, tmp_path, dedup):
 def test_bootstrap(data, tmp_path):
     """
     -b 3: the replicates are reported, the report gives the mean supports, and <prefix>.support.nwk is the tree of
-    <prefix>.nwk with "TBE/exact" on each of its N - 3 internal branches, the copies' groups at "100/100".
+    <prefix>.nwk with "TBE/exact" on its internal branches, except the joins of the identical copies set aside.
     """
     p = run(
         "-s",
@@ -318,9 +318,10 @@ def test_bootstrap(data, tmp_path):
     assert len(trees) == 3 and ":" not in trees[0]  # topology only
     supported = Path(f"{tmp_path / 'out'}.support.nwk").read_text()
     labels = re.findall(r"\)([0-9.]+)/([0-9.]+):", supported)
-    assert len(labels) == len(NAMES_DUPS) - 3
+    assert (
+        len(labels) == len(NAMES_DUPS) - 3 - 3
+    )  # none on the 3 joins of copies set aside
     assert all(0 <= float(b) <= float(a) <= 100 for a, b in labels)
-    assert ("100", "100") in labels  # among them the copies' groups
     assert (
         re.sub(r"\)[0-9.]+/[0-9.]+:", "):", supported)
         == (tmp_path / "out.nwk").read_text()
@@ -330,7 +331,7 @@ def test_bootstrap(data, tmp_path):
 def test_bootstrap_ranges_and_supports(data, tmp_path):
     """
     -b 1-2 and -b 3-3 write the trees of -b 3, and --supports over them gives its supports: the same labels on every
-    branch of the search (the identical copies' groups, not in the replicate trees, get none) and the same means.
+    branch and the same means.
     The true tree as the one "replicate" gives the share of branches it has.
     """
     common = ["-s", data / "input_dups.fa", "-m", "JC69", "-a", "cpu", "-q"]
@@ -368,8 +369,7 @@ def test_bootstrap_ranges_and_supports(data, tmp_path):
     assert s["mean_exact"] == pytest.approx(b["mean_exact"], abs=1e-9)
     ours = re.findall(r"\)([0-9./]*)", (tmp_path / "main.support.nwk").read_text())
     saved = re.findall(r"\)([0-9./]*)", (tmp_path / "main.nwk.support.nwk").read_text())
-    differ = [(x, y) for x, y in zip(ours, saved, strict=True) if x != y]
-    assert differ == [("100/100", "")] * 3
+    assert ours == saved
     p = run(
         "-t",
         tmp_path / "main.nwk",

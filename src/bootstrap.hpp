@@ -76,9 +76,9 @@ BootstrapResult bootstrap(const Alignment &aln, const Settings &settings, Device
 
 // Writes the supports as Newick labels of the tree restore_copies builds: (supports on the searched sequences' tree,
 // its node map) -> one label per node of the full tree.
-// A branch's label is "TBE/exact" (format_support); leaves and nodes without a branch get none, and the nodes that join
-// identical copies "100/100".
-// The root's two children are one branch: if one has no label, it takes the other's.
+// A branch's label is "TBE/exact" (format_support); leaves, nodes without a branch and the nodes that join the
+// identical copies set aside get none (as --supports over the replicates' saved trees, which hold the sequences
+// searched). The root's two children are one branch: if one has no label, it takes the other's.
 std::vector<std::string> support_labels(const BootstrapResult &boot, const std::vector<int32_t> &node_map,
                                         const Tree &full_tree);
 
