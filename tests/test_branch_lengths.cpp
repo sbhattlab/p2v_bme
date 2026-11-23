@@ -3,8 +3,13 @@
 //   - complete profiles (cap >= N): every branch length equal to the exact one (float or double precision);
 //   - capped profiles (cap 32, the default): the approximation error stays within measured bounds;
 //   - Pauplin's identity: the exact lengths sum to the tree's BME length (0.5 sum_x d({x}, outside x)), and so do the
-//     O(N) lengths with complete profiles (also the returned total); the root's right child gets 0.
-// BranchLengths.* run on the CPU device; BranchLengthsGpu.* on GPU 0 (label gpu).
+//     O(N) lengths with complete profiles (also the returned total); the root's right child gets 0;
+//   - infer() on a given tree (no search, complete profiles): its BME length equals Pauplin's formula for every
+//     model, to float precision in single and to 1e-9 in double precision.
+// Also: a failing device's error leaves the edge-length pass (a fake device); the pass called from inside a parallel
+// region still computes every chunk.
+// BranchLengths.* run on the CPU device; BranchLengthsGpu.* on GPU 0 (label gpu), the given tree also on an alignment
+// with missing sites.
 #include <gtest/gtest.h>
 
 #include <math.h>
@@ -13,12 +18,15 @@
 #include <string>
 #include <vector>
 
+#include "bme_test_helpers.hpp"
 #include "branch_lengths.hpp"
 #include "device.hpp"
-#include "eigen_dist.hpp"
+#include "distances.hpp"
+#include "fake_device_test_helpers.hpp"
+#include "infer_test_helpers.hpp"
 #include "inference.hpp"
 #include "simulations.hpp"
-#include "substitution_models.hpp"
+#include "start_tree.hpp"
 
 namespace {
 
@@ -34,14 +42,14 @@ Case make_case(int32_t N, Model model, uint64_t seed) {
     Case c;
     c.tree = random_tree(N, 0.01, 0.2, seed);
     SimulationModel sim;
-    const double r[6] = {0.5, 2.0, 0.5, 0.5, 2.0, 0.5}, f[4] = {0.3, 0.2, 0.2, 0.3};
-    for (int k = 0; k < 6; ++k)
+    const double r[N_GTR_RATES] = {0.5, 2.0, 0.5, 0.5, 2.0, 0.5}, f[N_BASES] = {0.3, 0.2, 0.2, 0.3};
+    for (int k = 0; k < N_GTR_RATES; ++k)
         sim.rates[k] = r[k];
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < N_BASES; ++i)
         sim.freqs[i] = f[i];
     sim.alpha = 0.5;
     c.aln = simulate_alignment(c.tree, 1600, sim, seed + 1);
-    DistanceModel dm;
+    SubstitutionModel dm;
     dm.model = model;
     const int32_t W = c.aln.n_words;
     c.D.assign((size_t)N * N, 0.0);
@@ -125,7 +133,7 @@ void run_all(Devices &devices, bool double_precision, const char *what) {
     for (Model model : {Model::JC69, Model::TN93, Model::GTR_GC})
         for (int32_t N : {20, 64, 200}) {
             Case c = make_case(N, model, 12345 + N);
-            DistanceModel dm;
+            SubstitutionModel dm;
             dm.model = model;
             for (auto &dev : devices)
                 dev->load(c.aln.packed.data(), N, c.aln.n_words);
@@ -136,8 +144,8 @@ void run_all(Devices &devices, bool double_precision, const char *what) {
                 double direct = 0.0;
                 const std::vector<double> exact = exact_lengths(c.tree, N, c.D, &direct);
                 std::vector<double> bl;
-                const double total = compute_bme_branch_lengths(N, c.tree.c1.data(), c.tree.c2.data(), devices, bl,
-                                                                PROFILE_CAP_MAX, nullptr, nullptr, double_precision);
+                const double total = compute_bme_branch_lengths(c.tree, devices, bl, PROFILE_CAP_MAX, nullptr, nullptr,
+                                                                double_precision);
                 double sum_exact = 0.0, sum_bl = 0.0;
                 for (double x : exact)
                     sum_exact += x;
@@ -163,8 +171,7 @@ void run_all(Devices &devices, bool double_precision, const char *what) {
                 std::vector<double> bl, exact;
                 double direct = 0.0;
                 exact = exact_lengths(c.tree, N, c.D, &direct);
-                compute_bme_branch_lengths(N, c.tree.c1.data(), c.tree.c2.data(), devices, bl, 32, nullptr, nullptr,
-                                           double_precision);
+                compute_bme_branch_lengths(c.tree, devices, bl, 32, nullptr, nullptr, double_precision);
                 double max_err = 0.0, mean = 0.0;
                 const int32_t r_right = c.tree.c2[2 * N - 2];
                 for (int32_t u = 0; u < 2 * N - 2; ++u)
@@ -194,8 +201,78 @@ TEST(BranchLengths, CpuDouble) {
     run_all(devices, true, "CPU double");
 }
 
+TEST(BranchLengths, BmeLengthOfAGivenTree) {
+    const int32_t N = 48;
+    const Tree tree = random_tree(N, 0.02, 0.2, 21);
+    const Alignment aln = simulate_alignment(tree, 4000, truth(), 22);
+    for (Model model : {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC})
+        for (Precision precision : {Precision::Single, Precision::Double}) {
+            Settings opt = cpu_settings(model, precision);
+            opt.tree_init = TreeInit::Given;
+            opt.max_rounds = 0;
+            opt.bl_profile_cap = PROFILE_CAP_MAX;
+            const Result res = run_infer(aln, opt, &tree);
+            const double exact =
+                pauplin(unrooted(tree, N), N, distance_matrix(aln, with_base_frequencies(aln, opt).substitution_model));
+            const double tol = precision == Precision::Double ? 1e-9 : 1e-4;
+            EXPECT_NEAR(res.bme_length, exact, tol * exact) << model_name(model);
+            EXPECT_EQ(res.tree.double_precision_lengths, precision == Precision::Double);
+        }
+}
+
 TEST(BranchLengthsGpu, Gpu) {
     Devices devices;
     devices.push_back(make_gpu_device(0));
     run_all(devices, false, "GPU");
+}
+
+// The BME length of a given tree on the GPU, under every model, on an alignment with missing sites.
+TEST(BranchLengthsGpu, BmeLengthOfAGivenTree) {
+    const int32_t N = 48;
+    const Tree tree = random_tree(N, 0.02, 0.2, 21);
+    Alignment aln = simulate_alignment(tree, 4000, truth(), 22);
+    punch_holes(aln, 0.05, 23);
+    for (Model model : {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC}) {
+        Settings opt;
+        opt.tree_init = TreeInit::Given;
+        opt.max_rounds = 0;
+        opt.bl_profile_cap = PROFILE_CAP_MAX;
+        opt.devices = {0};
+        opt.substitution_model = distance_model(model);
+        const Result res = run_infer(aln, opt, &tree);
+        const double exact =
+            pauplin(unrooted(tree, N), N, distance_matrix(aln, with_base_frequencies(aln, opt).substitution_model));
+        EXPECT_NEAR(res.bme_length, exact, 1e-4 * exact) << model_name(model);
+    }
+}
+
+TEST(BranchLengths, EdgeLengthFailureLeavesTheBranchLengths) {
+    Devices devices = failing_devices(3, "edge_lengths");
+    const Tree tree = build_random_tree(500, 1);
+    std::vector<double> bl;
+    const std::string msg =
+        thrown_message([&] { compute_bme_branch_lengths(tree, devices, bl, DEFAULT_BL_PROFILE_CAP); });
+    EXPECT_EQ(msg, "injected failure in edge_lengths");
+}
+
+// The edge-length pass hands one chunk to each device. Called from inside a parallel region, OpenMP gives it a
+// single thread: every chunk must still be computed (it was split by thread number before).
+TEST(BranchLengthsGpu, InsideAParallelRegion) {
+    const Alignment aln = simulate_alignment(random_tree(2000, 0.005, 0.08, 31), 800, SimulationModel(), 32);
+    Devices devices;
+    for (int d = 0; d < 3; ++d)
+        devices.push_back(make_gpu_device(0));
+    for (auto &dev : devices)
+        dev->load(aln.packed.data(), aln.n_taxa, aln.n_words);
+    const Tree tree = build_random_tree(aln.n_taxa, 5);
+    std::vector<double> outside, inside;
+    const double total = compute_bme_branch_lengths(tree, devices, outside, 32);
+    double total_nested = 0.0;
+#pragma omp parallel num_threads(2)
+    {
+#pragma omp single
+        total_nested = compute_bme_branch_lengths(tree, devices, inside, 32);
+    }
+    EXPECT_EQ(inside, outside);
+    EXPECT_EQ(total_nested, total);
 }

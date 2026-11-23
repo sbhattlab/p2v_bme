@@ -3,8 +3,8 @@
 
 /**
  * @file bme_reference.h
- * @brief Public C99 API for Phylo2Vec Balanced Minimum Evolution (BME) coordinate
- *        evaluation, O(N) ordered tree encoding/relabelling, Pardi subtree
+ * @brief Public C API for Phylo2Vec Balanced Minimum Evolution (BME) coordinate
+ *        evaluation, ordered tree encoding/relabelling, Pardi subtree
  *        condensation, and reference BME/FastME tree optimization.
  *
  * Mathematical & algorithmic references refer to:
@@ -13,6 +13,14 @@
  *   - Supplementary Section S2 (Equation S1): Pardi fixed-component BME condensation
  *   - Supplementary Section S4: Consistency of condensed search & two-gauge SPR coverage
  *   - Supplementary Section S5: Implementation details (O(N) ordered decoding & relabelling)
+ *
+ * References
+ *   Desper, R. & Gascuel, O. (2002). Fast and accurate phylogeny reconstruction algorithms based on the
+ *     minimum-evolution principle. Journal of Computational Biology 9(5), 687-705. doi:10.1089/106652702761034136
+ *   Hordijk, W. & Gascuel, O. (2005). Improving the efficiency of SPR moves in phylogenetic tree search methods
+ *     based on maximum likelihood. Bioinformatics 21(24), 4338-4347. doi:10.1093/bioinformatics/bti713
+ *   Pardi, F. (2009). Algorithms on phylogenetic trees. PhD thesis, University of Cambridge.
+ *     https://www.ebi.ac.uk/sites/ebi.ac.uk/files/shared/documents/phdtheses/fabiopardithesis.pdf
  */
 
 #include <stddef.h>
@@ -32,7 +40,7 @@ extern "C" {
 /**
  * @brief Computes all (N-1)^2 exact BME coordinate differences Delta_{i,j} in O(N^2) time.
  *
- * For an ordered ("cherry-first") Phylo2Vec vector v of length N-1 satisfying
+ * For an ordered Phylo2Vec vector v of length N-1 satisfying
  * 0 <= v[i] <= i, evaluates the exact change in the unrooted Pauplin BME objective:
  *
  *   Delta_{i,j} = L(T(v^(i <- j)); D) - L(T(v); D),   for 0 <= i <= N-2, 0 <= j <= 2i,
@@ -68,15 +76,15 @@ void calculate_discrete_gradient_c(const int64_t *P2V_RESTRICT v, const double *
                                    double *P2V_RESTRICT delta_out);
 
 /* ============================================================================
- * 2. O(N) Tree Bijections & Ordered ("Cherry-First") Relabelling (Section S5)
+ * 2. Tree Bijections & Ordered Relabelling (Section S5)
  * ============================================================================ */
 
 /**
- * @brief Relabels any general Phylo2Vec vector (0 <= v_in[i] <= 2i) into an ordered
- *        Phylo2Vec vector (0 <= v_out[i] <= i) and leaf permutation in O(N) time.
+ * @brief Queue shuffle, as phylo2vec's queue_shuffle: relabels any general Phylo2Vec vector (0 <= v_in[i] <= 2i)
+ *        into an ordered Phylo2Vec vector (0 <= v_out[i] <= i) and leaf permutation.
  *
  * Every binary tree admits an ordered Phylo2Vec encoding under a suitable permutation
- * of leaf indices (Penn et al., 2023). In the standard orientation (flip_mode = 0),
+ * of leaf indices. In the standard orientation (flip_mode = 0),
  * at every internal vertex the child whose subtree contains the smallest original leaf
  * label retains the parent's label, and the other child receives the next unused label.
  * In the reversed orientation (flip_mode = 1), the roles of the two children are swapped.
@@ -86,16 +94,19 @@ void calculate_discrete_gradient_c(const int64_t *P2V_RESTRICT v, const double *
  * @param[in]  flip_mode 0 for standard orientation (gauge 0); 1 for reversed orientation (gauge 1).
  * @param[out] v_out     Output ordered Phylo2Vec vector of length N-1 (0 <= v_out[i] <= i).
  * @param[out] perm_out  Output leaf permutation of length N: computational leaf a in {0..N-1}
- *                       corresponds to original leaf perm_out[a] in {0..N-1}.
+ *                       corresponds to original leaf perm_out[a] in {0..N-1} (phylo2vec's label mapping).
  *
- * @note Complexity: O(N) time and O(N) space.
+ * @note Complexity: O(N^2) time in the worst case, as decoding moves part of the pair list for each
+ *       v_in[i] > i; linear in practice for an ordered v_in.
+ *       Space: the calling thread's workspace, which is sized for the gradients (O(N^2) doubles).
+ *       If it cannot be allocated, or N < 4 or N > 100000, v_out and perm_out are left unset.
  */
-void relabel_cherry_first_c(const int64_t *P2V_RESTRICT v_in, int32_t n_leaves, int32_t flip_mode,
-                            int64_t *P2V_RESTRICT v_out, int32_t *P2V_RESTRICT perm_out);
+void queue_shuffle_c(const int64_t *P2V_RESTRICT v_in, int32_t n_leaves, int32_t flip_mode, int64_t *P2V_RESTRICT v_out,
+                     int32_t *P2V_RESTRICT perm_out);
 
 /**
  * @brief Encodes a rooted binary tree (given as child arrays) into its unique general
- *        Phylo2Vec vector v_out (0 <= v_out[i] <= 2i) in O(N) time.
+ *        Phylo2Vec vector v_out (0 <= v_out[i] <= 2i).
  *
  * @param[in]  child1_r  Left child array of length 2N-1 (leaves are 0..N-1, internal nodes
  *                       are N..2N-2, and the root is 2N-2).
@@ -103,14 +114,14 @@ void relabel_cherry_first_c(const int64_t *P2V_RESTRICT v_in, int32_t n_leaves, 
  * @param[in]  n_leaves  Number of leaves N.
  * @param[out] v_out     Output Phylo2Vec vector of length N-1 (0 <= v_out[i] <= 2i).
  *
- * @note Complexity: O(N) time and O(N) space.
+ * @note Complexity: O(N^2) time in the worst case (a linear scan and a memmove for each v_out[i] > i), O(N) space.
  */
 void encode_rooted_to_v_c(const int32_t *P2V_RESTRICT child1_r, const int32_t *P2V_RESTRICT child2_r, int32_t n_leaves,
                           int64_t *P2V_RESTRICT v_out);
 
 /**
  * @brief Encodes an unrooted binary tree (given as a degree-3 adjacency table) into
- *        a general Phylo2Vec vector v_out (0 <= v_out[i] <= 2i) in O(N) time.
+ *        a general Phylo2Vec vector v_out (0 <= v_out[i] <= 2i).
  *
  * @param[in]  adj_u     Unrooted adjacency array of length 3 * (2N-2). Each internal node
  *                       u in {N..2N-3} has 3 neighbors at adj_u[3*u + 0..2]; each leaf
@@ -119,7 +130,7 @@ void encode_rooted_to_v_c(const int32_t *P2V_RESTRICT child1_r, const int32_t *P
  * @param[in]  n_leaves  Number of leaves N.
  * @param[out] v_out     Output Phylo2Vec vector of length N-1 (0 <= v_out[i] <= 2i).
  *
- * @note Complexity: O(N) time and O(N) space.
+ * @note Complexity: O(N^2) time in the worst case (through encode_rooted_to_v_c), O(N) space.
  */
 void encode_unrooted_to_v_c(const int32_t *P2V_RESTRICT adj_u, int32_t n_leaves, int64_t *P2V_RESTRICT v_out);
 
@@ -168,7 +179,7 @@ void condense_tree_bme_c(const int64_t *P2V_RESTRICT v, const double *P2V_RESTRI
  * @param[in]  super_node_map  Component-to-original-node map of length K from condense_tree_bme_c.
  * @param[out] v_expanded_out  Output N-leaf Phylo2Vec vector of length N-1.
  *
- * @note Complexity: O(N) time and O(N) space.
+ * @note Complexity: O(N^2) time in the worst case (through encode_rooted_to_v_c), O(N) space.
  */
 void expand_condensed_tree_to_v_c(const int64_t *P2V_RESTRICT v_orig, int32_t n_leaves,
                                   const int64_t *P2V_RESTRICT v_eff, int32_t n_eff,
@@ -225,7 +236,7 @@ double optimize_phylo2vec_bme_minibatch_c(const int64_t *P2V_RESTRICT v_init, co
                                           int64_t *P2V_RESTRICT v_out);
 
 /**
- * @brief Frees thread-local scratch buffers allocated by the C99 evaluator on the calling thread.
+ * @brief Frees thread-local scratch buffers allocated by the evaluator on the calling thread.
  */
 void free_phylo2vec_workspace_c(void);
 

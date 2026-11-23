@@ -2,11 +2,9 @@
 // permutation, equally likely outcomes, and the number of draws it takes from the stream.
 #include <gtest/gtest.h>
 
-#include <stdint.h>
-
 #include <algorithm>
-#include <math.h>
-
+#include <cmath>
+#include <cstdint>
 #include <map>
 #include <numeric>
 #include <vector>
@@ -22,8 +20,8 @@ std::vector<int32_t> iota_vec(int32_t n) {
     return v;
 }
 
-// The state after `draws` calls of splitmix64 from `state`: each call adds the same constant
-uint64_t advanced(uint64_t state, uint64_t draws) { return state + draws * 0x9E3779B97F4A7C15ULL; }
+// The state after `draws` calls of splitmix64 from `state`: each call adds SPLITMIX64_GAMMA
+uint64_t advanced(uint64_t state, uint64_t draws) { return state + draws * p2vbme::SPLITMIX64_GAMMA; }
 
 // Every one of n_outcomes outcomes was seen, each within 4 standard errors of trials / n_outcomes
 void expect_uniform(const std::map<std::vector<int32_t>, int> &count, int n_outcomes, int trials) {
@@ -35,7 +33,7 @@ void expect_uniform(const std::map<std::vector<int32_t>, int> &count, int n_outc
 
 // ---- splitmix64 ----
 
-// Outputs from states 0 and 1 equal Vigna's splitmix64.c (also computed independently in Python)
+// Outputs from states 0 and 1 equal Vigna's splitmix.c (also computed independently in Python)
 TEST(Splitmix64, ReferenceValues) {
     uint64_t s = 0;
     EXPECT_EQ(p2vbme::splitmix64(s), 0xE220A8397B1DCDAFULL);

@@ -11,16 +11,23 @@
  */
 #include "json_writer.hpp"
 
-#include <math.h>
-#include <stddef.h>
-#include <stdio.h>
-
 #include <charconv>
+#include <cmath>
+#include <cstddef>
 #include <stdexcept>
 
 namespace p2vbme {
 
 namespace {
+
+// The digits of a \uXXXX escape, lower case
+constexpr char HEX_DIGITS[] = "0123456789abcdef";
+// Characters in the longest integers, -9223372036854775808 (INT64_MIN) and 18446744073709551615 (UINT64_MAX)
+constexpr size_t MAX_INTEGER_CHARS = 20;
+// Characters in the longest double std::to_chars writes: sign, 17 digits, point and exponent, e.g.
+// -2.2250738585072014e-308.
+// Floats are shorter.
+constexpr size_t MAX_REAL_CHARS = 24;
 
 // Length of the valid UTF-8 sequence starting at s[i] (2-4), or 0 if it is not valid UTF-8.
 // length from the first byte -> must fit in s -> the next bytes must be continuation bytes (10xxxxxx) -> second-byte
@@ -79,7 +86,7 @@ void JsonWriter::value(int64_t x) { integer(x); }
 // before_value -> digits (own function: values above INT64_MAX do not fit integer()'s int64_t)
 void JsonWriter::value(uint64_t x) {
     before_value();
-    char buf[24];
+    char buf[MAX_INTEGER_CHARS];
     out_.append(buf, std::to_chars(buf, buf + sizeof(buf), x).ptr);
 }
 // -> real()
@@ -151,7 +158,7 @@ void JsonWriter::close(char kind) {
 // before_value -> digits (std::to_chars)
 void JsonWriter::integer(int64_t x) {
     before_value();
-    char buf[24];
+    char buf[MAX_INTEGER_CHARS];
     out_.append(buf, std::to_chars(buf, buf + sizeof(buf), x).ptr);
 }
 
@@ -159,11 +166,11 @@ void JsonWriter::integer(int64_t x) {
 // (std::to_chars)
 template <class F> void JsonWriter::real(F x) {
     before_value();
-    if (!isfinite(x)) {
+    if (!std::isfinite(x)) {
         out_ += "null";
         return;
     }
-    char buf[40];
+    char buf[MAX_REAL_CHARS];
     out_.append(buf, std::to_chars(buf, buf + sizeof(buf), x).ptr);
 }
 
@@ -206,10 +213,10 @@ void JsonWriter::write_string(std::string_view s) {
             out_ += "\\t";
             break;
         default:
-            if (c < 0x20) {
-                char buf[8];
-                snprintf(buf, sizeof(buf), "\\u%04x", c);
-                out_ += buf;
+            if (c < 0x20) { // \u00XX: c fits in the last two hex digits
+                out_ += "\\u00";
+                out_ += HEX_DIGITS[c >> 4];
+                out_ += HEX_DIGITS[c & 0xF];
             } else {
                 out_ += (char)c;
             }

@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "io.hpp"
+#include "newick.hpp"
 #include "simulations.hpp"
 
 static bool write_fasta(const std::string &path, const std::vector<std::string> &names,
@@ -32,13 +32,13 @@ int main(int argc, char **argv) {
     const uint64_t seed = strtoull(argv[4], NULL, 10);
     const p2vbme::Tree tree = p2vbme::random_tree(n, 0.01, 0.1, seed);
     const p2vbme::Alignment aln = p2vbme::simulate_alignment(tree, sites, p2vbme::SimulationModel(), seed + 1);
-    const char bases[4] = {'A', 'C', 'G', 'T'};
+    const char bases[p2vbme::N_BASES] = {'A', 'C', 'G', 'T'};
     std::vector<std::string> seqs(n, std::string(sites, '-'));
     for (int32_t i = 0; i < n; ++i) {
-        const uint64_t *row = &aln.packed[(size_t)i * 5 * aln.n_words];
+        const uint64_t *row = &aln.packed[(size_t)i * p2vbme::N_PLANES * aln.n_words];
         for (int32_t s = 0; s < sites; ++s)
-            for (int b = 0; b < 4; ++b)
-                if ((row[(size_t)b * aln.n_words + s / 64] >> (s % 64)) & 1ULL)
+            for (int b = 0; b < p2vbme::N_BASES; ++b)
+                if ((row[(size_t)b * aln.n_words + s / p2vbme::WORD_BITS] >> (s % p2vbme::WORD_BITS)) & 1ULL)
                     seqs[i][s] = bases[b];
     }
     seqs[3][5] = 'N'; /* a few missing sites, so the .maple file has runs of n and - */
