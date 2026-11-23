@@ -63,8 +63,7 @@ void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, d
 // Each formula assumes a pair that shares a valid site and is not identical, and leaves the range to pair_distance,
 // which handles those cases for every model.
 // JC69 is the exception: the GPU's fast kernels call it directly, so it checks for itself.
-
-namespace detail {
+// First the helpers the formulas share, then one formula per model.
 
 // -ln(w) with w clamped to [1e-4, 1], and 0 when w >= 1 - 1e-12 (the homogeneous link of the paper's C distance
 // library, its alpha = 0 case).
@@ -125,31 +124,29 @@ template <class T> P2V_HD inline T f81_form(T p, const T pi[N_BASES]) {
     return E * neg_log_link(T(1) - p / E);
 }
 
-} // namespace detail
-
 // JC69 from the number of shared valid sites and of matching sites: d = -3/4 ln(1 - 4/3 p), p = mismatches / valid.
 // Two counts instead of 16, so the GPU has faster kernels for it.
 template <class T> P2V_HD inline T jc69_distance(int32_t n_valid, int32_t n_match) {
     if (n_valid <= 0)
         return T(NO_OVERLAP_DISTANCE);
     const T p = (T)(n_valid - n_match) / (T)n_valid;
-    return detail::clamp_distance(T(0.75) * detail::neg_log_link(T(1) - (T(4) / T(3)) * p));
+    return clamp_distance(T(0.75) * neg_log_link(T(1) - (T(4) / T(3)) * p));
 }
 
 // K80 (Kimura 1980): d = -1/2 ln(1 - 2P - Q) - 1/4 ln(1 - 2Q), P = transitions, Q = transversions.
 template <class T> P2V_HD inline T k80_distance(const uint32_t n[N_BASES * N_BASES]) {
-    const uint32_t total = detail::total_count(n);
-    const detail::Proportions<T> s = detail::proportions<T>(n, total);
+    const uint32_t total = total_count(n);
+    const Proportions<T> s = proportions<T>(n, total);
     const T P = s.P1 + s.P2;
-    return T(0.5) * detail::neg_log_link(T(1) - T(2) * P - s.Q) + T(0.25) * detail::neg_log_link(T(1) - T(2) * s.Q);
+    return T(0.5) * neg_log_link(T(1) - T(2) * P - s.Q) + T(0.25) * neg_log_link(T(1) - T(2) * s.Q);
 }
 
 // F81 (Felsenstein 1981; as ape's dist.dna): d = -E ln(1 - p / E), E = 1 - sum pi_i^2, pi the alignment's base
 // frequencies.
 template <class T> P2V_HD inline T f81_distance(const uint32_t n[N_BASES * N_BASES], const T pi[N_BASES]) {
-    const uint32_t total = detail::total_count(n);
-    const detail::Proportions<T> s = detail::proportions<T>(n, total);
-    return detail::f81_form(s.p, pi);
+    const uint32_t total = total_count(n);
+    const Proportions<T> s = proportions<T>(n, total);
+    return f81_form(s.p, pi);
 }
 
 // F84 (Felsenstein & Churchill 1996; as ape's dist.dna): with the alignment's base frequencies pi,
@@ -157,18 +154,18 @@ template <class T> P2V_HD inline T f81_distance(const uint32_t n[N_BASES * N_BAS
 //   d = -2A ln(1 - P / (2A) - (A - B) Q / (2AC)) - 2(C + B - A) ln(1 - Q / (2C)).
 // Falls back to F81's form when A or C is below 1e-6.
 template <class T> P2V_HD inline T f84_distance(const uint32_t n[N_BASES * N_BASES], const T pi[N_BASES]) {
-    const uint32_t total = detail::total_count(n);
-    const detail::Proportions<T> s = detail::proportions<T>(n, total);
+    const uint32_t total = total_count(n);
+    const Proportions<T> s = proportions<T>(n, total);
     const T piA = pi[0], piC = pi[1], piG = pi[2], piT = pi[3];
     const T piR = piA + piG, piY = piC + piT;
     const T A = (piR > T(1e-6) ? piA * piG / piR : T(0)) + (piY > T(1e-6) ? piC * piT / piY : T(0));
     const T B = piA * piG + piC * piT;
     const T C = piR * piY;
     if (A < T(1e-6) || C < T(1e-6))
-        return detail::f81_form(s.p, pi);
+        return f81_form(s.p, pi);
     const T P = s.P1 + s.P2;
-    const T g1 = detail::neg_log_link(T(1) - P / (T(2) * A) - ((A - B) * s.Q) / (T(2) * A * C));
-    const T g2 = detail::neg_log_link(T(1) - s.Q / (T(2) * C));
+    const T g1 = neg_log_link(T(1) - P / (T(2) * A) - ((A - B) * s.Q) / (T(2) * A * C));
+    const T g2 = neg_log_link(T(1) - s.Q / (T(2) * C));
     return T(2) * A * g1 + T(2) * (C + B - A) * g2;
 }
 
@@ -178,18 +175,18 @@ template <class T> P2V_HD inline T f84_distance(const uint32_t n[N_BASES * N_BAS
 //   w1 = 1 - P1 / k1 - Q / (2 pi_R),  w2 = 1 - P2 / k2 - Q / (2 pi_Y),  w3 = 1 - Q / k3.
 // Falls back to F81's form when k1, k2 or k3 is below 1e-6.
 template <class T> P2V_HD inline T tn93_distance(const uint32_t n[N_BASES * N_BASES], const T pi[N_BASES]) {
-    const uint32_t total = detail::total_count(n);
-    const detail::Proportions<T> s = detail::proportions<T>(n, total);
+    const uint32_t total = total_count(n);
+    const Proportions<T> s = proportions<T>(n, total);
     const T piA = pi[0], piC = pi[1], piG = pi[2], piT = pi[3];
     const T piR = piA + piG, piY = piC + piT;
     const T k1 = (piR > T(1e-6)) ? T(2) * piA * piG / piR : T(0);
     const T k2 = (piY > T(1e-6)) ? T(2) * piC * piT / piY : T(0);
     const T k3 = T(2) * piR * piY;
     if (k1 < T(1e-6) || k2 < T(1e-6) || k3 < T(1e-6))
-        return detail::f81_form(s.p, pi);
-    const T g1 = detail::neg_log_link(T(1) - s.P1 / k1 - s.Q / (T(2) * piR));
-    const T g2 = detail::neg_log_link(T(1) - s.P2 / k2 - s.Q / (T(2) * piY));
-    const T g3 = detail::neg_log_link(T(1) - s.Q / k3);
+        return f81_form(s.p, pi);
+    const T g1 = neg_log_link(T(1) - s.P1 / k1 - s.Q / (T(2) * piR));
+    const T g2 = neg_log_link(T(1) - s.P2 / k2 - s.Q / (T(2) * piY));
+    const T g3 = neg_log_link(T(1) - s.Q / k3);
     return k1 * g1 + k2 * g2 + (k3 - k1 * piY - k2 * piR) * g3;
 }
 
@@ -198,7 +195,7 @@ template <class T> P2V_HD inline T tn93_distance(const uint32_t n[N_BASES * N_BA
 // Undefined (MAX_DISTANCE here; NaN in the paper's C distance library) when a base has frequency below 1e-3 in either
 // sequence or det J <= 1e-30.
 template <class T> P2V_HD inline T logdet_distance(const uint32_t n[N_BASES * N_BASES]) {
-    const uint32_t total = detail::total_count(n);
+    const uint32_t total = total_count(n);
     const T inv = T(1) / (T)total;
     T J[N_BASES * N_BASES];
     for (int k = 0; k < N_BASES * N_BASES; ++k)
@@ -255,8 +252,8 @@ template <class T> inline DistanceParams<T> distance_params(const SubstitutionMo
 // What every model shares is handled here: no shared valid site gives NO_OVERLAP_DISTANCE, identical sequences 0, and
 // every distance is kept in [0, MAX_DISTANCE].
 template <class T> P2V_HD inline T pair_distance(const DistanceParams<T> &p, const uint32_t n[N_BASES * N_BASES]) {
-    const uint32_t total = detail::total_count(n);
-    const uint32_t same = detail::diagonal_count(n);
+    const uint32_t total = total_count(n);
+    const uint32_t same = diagonal_count(n);
     if (total == 0)
         return T(NO_OVERLAP_DISTANCE);
     if (same == total)
@@ -285,7 +282,7 @@ template <class T> P2V_HD inline T pair_distance(const DistanceParams<T> &p, con
         d = eigen_distance<T>(n, p.rates, p.alpha, p.inv_alpha);
         break;
     }
-    return detail::clamp_distance(d);
+    return clamp_distance(d);
 }
 
 } // namespace p2vbme
