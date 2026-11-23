@@ -2,9 +2,9 @@
  * gtr_fit.cpp
  *
  * The GTR+GC fit (gtr_fit.hpp): in order, the model's ten cell probabilities, one pair's distance, the objective, BFGS,
- * the optimality check, the fit, and the pairs it uses.
- * Every expression keeps the order of operations of the paper's code, so that both give the same bits; the numerical
- * constants below are its values (no reason for them is recorded).
+ * Brent's method, the fit, and the pairs it uses.
+ * The model, the pair's distance, the objective and BFGS keep the order of operations of the paper's code, and the
+ * numerical constants below its values (no reason for them is recorded); the search over alpha is new (gtr_fit.hpp).
  */
 #include "gtr_fit.hpp"
 
@@ -64,23 +64,20 @@ constexpr double STALL_REL = 1e-12;
 constexpr double STALL_ABS = 1e-9;
 constexpr int STALL_ITERATIONS = 2;
 
-// The optimality check: the step of each parameter (log units, 1%), the largest accepted distance to the optimum in
-// the same units (0.1%), the objective's noise level (NOISE_REL |f| + NOISE_ABS) and the curvature that counts as
-// measurable (CURVATURE_NOISES noise levels).
-constexpr double PROBE = 0.01;
-constexpr double PROBE_TOL = 1e-3;
-constexpr double NOISE_REL = 1e-11;
-constexpr double NOISE_ABS = 1e-8;
-constexpr double CURVATURE_NOISES = 100.0;
-
 // The start: the alpha values scanned, BFGS iterations per value, and the tables the scan uses (the first ones).
 constexpr double START_ALPHAS[] = {148.0, 16.0, 6.0, 3.0, 1.6, 0.9, 0.5, 0.25, 0.1};
 constexpr int START_MAX_ITERATIONS = 60;
 constexpr int32_t START_PAIRS = 20000;
-// Joint searches at most: the first, and restarts after a failed optimality check.
-constexpr int MAX_SEARCHES = 8;
-// BFGS iterations of each joint search, at most.
+// BFGS iterations of each search of the exchangeabilities, at most.
 constexpr int MAX_ITERATIONS = 200;
+
+// The search over log alpha (Brent's method): the width of the final bracket (0.1% in alpha, the paper's check's
+// tolerance), its iterations at most, the step that widens the start bracket, and the golden-section ratio (3 - sqrt 5)
+// / 2 of its fallback steps.
+constexpr double LOG_ALPHA_TOL = 1e-3;
+constexpr int BRENT_MAX_ITERATIONS = 100;
+constexpr double LOG_ALPHA_WIDEN = 1.0;
+constexpr double GOLDEN_SECTION = 0.3819660112501051;
 
 // ---- The model's cell probabilities ----------------------------------------------------------------------
 
@@ -295,7 +292,7 @@ void gradient(const double theta[N_PARAMS], int nd, const double pi[N_BASES], Pa
 }
 
 // Maximises the objective over the first nd parameters by BFGS ascent: theta -> theta (in place), *f_out its value.
-// nd = N_FREE_RATES: the exchangeabilities at fixed alpha; nd = N_PARAMS: all parameters.
+// The fit uses nd = N_FREE_RATES: the exchangeabilities at fixed alpha.
 // Stops after STALL_ITERATIONS successive iterations that gain less than STALL_REL |f| + STALL_ABS, counted only once
 // the curvature estimate holds nd + 2 updates (before that, a weakly determined alpha moves too slowly to tell flat
 // from converged), or when no ascent step exists.
@@ -392,46 +389,64 @@ bool bfgs(double theta[N_PARAMS], int nd, const double pi[N_BASES], Pairs &pairs
     return done != 0;
 }
 
-// Checks theta without relying on the search: (theta, f) -> passes, else a corrected point in better.
-// Each parameter is stepped up and down by PROBE (distances re-optimised at every probe).
-// Neither step may raise the objective, and the parabola through the three values must place the maximum within
-// PROBE_TOL of theta.
-// A direction without measurable curvature (alpha not determined) passes.
-bool is_optimum(const double theta[N_PARAMS], double f, const double pi[N_BASES], Pairs &pairs, int32_t n,
-                double better[N_PARAMS]) {
-    const double noise = NOISE_REL * std::fabs(f) + NOISE_ABS;
-    double best = f + noise;
-    int pass = 1, higher = 0;
-    std::memcpy(better, theta, N_PARAMS * sizeof(double));
-    for (int k = 0; k < N_PARAMS; ++k) {
-        double t[N_PARAMS], fp, fm, curv;
-        std::memcpy(t, theta, sizeof(t));
-        t[k] = theta[k] + PROBE;
-        fp = objective(t, pi, pairs, n, true);
-        if (fp > best) {
-            best = fp;
-            higher = 1;
-            pass = 0;
-            std::memcpy(better, t, sizeof(t));
+// Maximises g over [lo, hi] by Brent's method: (g, lo, x, hi) -> the maximum's position, to within tol / 2.
+// x is inside [lo, hi] with g(x) = gx.
+// Steps are parabolic through the three best points when that is safe, golden-section otherwise.
+// *converged is false if BRENT_MAX_ITERATIONS ran out first.
+template <class G> double brent_max(G &&g, double lo, double x, double gx, double hi, double tol, bool *converged) {
+    double w = x, v = x, gw = gx, gv = gx, d = 0.0, e = 0.0;
+    const double tol1 = 0.5 * tol, tol2 = 2.0 * tol1;
+    *converged = false;
+    for (int it = 0; it < BRENT_MAX_ITERATIONS; ++it) {
+        const double xm = 0.5 * (lo + hi);
+        if (std::fabs(x - xm) <= tol2 - 0.5 * (hi - lo)) {
+            *converged = true;
+            break;
         }
-        t[k] = theta[k] - PROBE;
-        fm = objective(t, pi, pairs, n, true);
-        if (fm > best) {
-            best = fm;
-            higher = 1;
-            pass = 0;
-            std::memcpy(better, t, sizeof(t));
+        bool golden = true;
+        if (std::fabs(e) > tol1) { // the vertex of the parabola through (x, gx), (w, gw), (v, gv)
+            const double r = (x - w) * (gx - gv);
+            double q = (x - v) * (gx - gw);
+            double p = (x - v) * q - (x - w) * r;
+            q = 2.0 * (q - r);
+            if (q > 0.0) // then the step p / q is the vertex's offset from x (the same for a maximum as a minimum)
+                p = -p;
+            q = std::fabs(q);
+            const double e_prev = e;
+            e = d;
+            if (std::fabs(p) < std::fabs(0.5 * q * e_prev) && p > q * (lo - x) && p < q * (hi - x)) {
+                d = p / q;
+                const double u = x + d;
+                if (u - lo < tol2 || hi - u < tol2)
+                    d = (xm >= x) ? tol1 : -tol1;
+                golden = false;
+            }
         }
-        curv = 2.0 * f - fp - fm;
-        if (!higher && curv > CURVATURE_NOISES * noise) {
-            const double shift = PROBE * (fp - fm) / (2.0 * curv);
-            if (std::fabs(shift) > PROBE_TOL) {
-                pass = 0;
-                better[k] = theta[k] + shift;
+        if (golden) {
+            e = (x >= xm) ? lo - x : hi - x;
+            d = GOLDEN_SECTION * e;
+        }
+        const double u = (std::fabs(d) >= tol1) ? x + d : x + (d >= 0.0 ? tol1 : -tol1);
+        const double gu = g(u);
+        if (gu >= gx) {
+            if (u >= x)
+                lo = x;
+            else
+                hi = x;
+            v = w, gv = gw, w = x, gw = gx, x = u, gx = gu;
+        } else {
+            if (u < x)
+                lo = u;
+            else
+                hi = u;
+            if (gu >= gw || w == x) {
+                v = w, gv = gw, w = u, gw = gu;
+            } else if (gu >= gv || v == x || v == w) {
+                v = u, gv = gu;
             }
         }
     }
-    return pass != 0;
+    return x;
 }
 
 } // namespace
@@ -483,34 +498,71 @@ GtrFit fit_gtr_gc_counts(const std::vector<PairCounts> &tables) {
     // The likelihood can have a second, lower maximum at "no rate variation", where distorted exchangeabilities stand
     // in for the missing variation.
     // So alpha is first scanned over START_ALPHAS with the exchangeabilities optimised at each value (on at most
-    // START_PAIRS tables, warm-started from the previous value), and the joint search starts from the best.
+    // START_PAIRS tables, warm-started from the previous value); the best value and its neighbours bracket the maximum.
     const int32_t n_start = (n < START_PAIRS) ? n : START_PAIRS;
+    constexpr int n_grid = sizeof(START_ALPHAS) / sizeof(START_ALPHAS[0]);
     double theta[N_PARAMS] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, scan[N_PARAMS] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    double f = -std::numeric_limits<double>::infinity(), fg;
-    for (double alpha_start : START_ALPHAS) {
-        scan[LOG_ALPHA] = std::log(alpha_start);
+    double f_scan = -std::numeric_limits<double>::infinity(), fg;
+    int g_best = 0;
+    for (int g = 0; g < n_grid; ++g) {
+        scan[LOG_ALPHA] = std::log(START_ALPHAS[g]);
         bfgs(scan, N_FREE_RATES, pi, pairs, n_start, START_MAX_ITERATIONS, &fg, nullptr);
-        if (fg > f) {
-            f = fg;
+        if (fg > f_scan) {
+            f_scan = fg;
+            g_best = g;
             std::memcpy(theta, scan, sizeof(theta));
         }
     }
-    // The joint search, checked, and restarted from the check's point if the check fails.
-    for (int search = 0; search < MAX_SEARCHES && !out.converged; ++search) {
-        double better[N_PARAMS];
+
+    // The profile: the objective maximised over the exchangeabilities at a given log alpha, on all tables, each search
+    // warm-started from the previous one's exchangeabilities and distances.
+    // A joint search over all six parameters can stop short in alpha, which pairs determine far less well than the
+    // exchangeabilities, so alpha is searched on its own.
+    double best_theta[N_PARAMS], f = -std::numeric_limits<double>::infinity();
+    bool all_stopped = true;
+    auto profile = [&](double log_alpha) {
+        theta[LOG_ALPHA] = log_alpha;
+        double fp;
         int iters = 0;
-        const bool stopped = bfgs(theta, N_PARAMS, pi, pairs, n, MAX_ITERATIONS, &f, &iters);
+        all_stopped = bfgs(theta, N_FREE_RATES, pi, pairs, n, MAX_ITERATIONS, &fp, &iters) && all_stopped;
         out.n_iterations += iters;
-        if (!stopped)
+        if (fp > f) {
+            f = fp;
+            std::memcpy(best_theta, theta, sizeof(theta));
+        }
+        return fp;
+    };
+    // The bracket a < b < c: the scan's best alpha and its neighbours on the grid (the grid decreases), or the bounds;
+    // widened by LOG_ALPHA_WIDEN towards the higher end while the profile rises towards an end that is not a bound.
+    // The best point evaluated is kept throughout, so a higher end left behind is not lost.
+    double a = (g_best + 1 < n_grid) ? std::log(START_ALPHAS[g_best + 1]) : GTR_FIT_LOG_ALPHA_MIN;
+    double b = std::log(START_ALPHAS[g_best]);
+    double c = (g_best > 0) ? std::log(START_ALPHAS[g_best - 1]) : GTR_FIT_LOG_ALPHA_MAX;
+    double fb = profile(b), fa = profile(a), fc = profile(c);
+    bool at_bound = false;
+    while (fa > fb || fc > fb) {
+        const bool left = fa > fb && a > GTR_FIT_LOG_ALPHA_MIN, right = fc > fb && c < GTR_FIT_LOG_ALPHA_MAX;
+        if (left && (!right || fa >= fc)) {
+            c = b, fc = fb, b = a, fb = fa;
+            a = std::fmax(GTR_FIT_LOG_ALPHA_MIN, b - LOG_ALPHA_WIDEN);
+            fa = profile(a);
+        } else if (right) {
+            a = b, fa = fb, b = c, fb = fc;
+            c = std::fmin(GTR_FIT_LOG_ALPHA_MAX, b + LOG_ALPHA_WIDEN);
+            fc = profile(c);
+        } else { // the maximum is at a bound, already evaluated
+            at_bound = true;
             break;
-        if (is_optimum(theta, f, pi, pairs, n, better))
-            out.converged = true;
-        else
-            std::memcpy(theta, better, sizeof(theta));
+        }
     }
+    bool brent_converged = true;
+    if (!at_bound)
+        brent_max(profile, a, b, fb, c, LOG_ALPHA_TOL, &brent_converged);
+    out.converged = brent_converged && all_stopped;
+    std::memcpy(theta, best_theta, sizeof(theta));
     unpack(theta, out.rates, &out.alpha);
     std::memcpy(out.base_freqs, pi, sizeof(pi));
-    out.log_lik = f + GTR_FIT_RATE_VARIANCE_PENALTY / out.alpha;
+    out.log_lik = f + GTR_FIT_RATE_VARIANCE_PENALTY / out.alpha; // f: the objective at theta
     out.n_pairs = n;
     return out;
 }
