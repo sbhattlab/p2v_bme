@@ -1,5 +1,9 @@
 """Plot constants: folders, output formats, the method colours shared by every figure, and the figure styles."""
 
+from typing import Any, TypedDict
+
+from matplotlib.typing import RcKeyType
+
 DEFAULT_TABLES_DIR = "data/tables"  # figure data written by paper/make_tables.py
 DEFAULT_IMG_DIR = "img"  # figure outputs (git-ignored)
 FIGURE_FORMATS = ("pdf", "svg")  # every figure is saved once per format
@@ -9,7 +13,7 @@ STYLE = "plots/figure.mplstyle"  # supplementary figures
 SAVE_METADATA = {"pdf": {"CreationDate": None}, "svg": {"Date": None}}
 
 # Main figures: font sizes of the 180 mm wide page
-MAIN_RC = {
+MAIN_RC: dict[RcKeyType, Any] = {
     "font.family": "DejaVu Sans",
     "font.size": 8,
     "axes.labelsize": 8,
@@ -36,8 +40,20 @@ METHODS = [
     ("DIPPER", "DIPPER", "#8856A7", "X", True, "-"),
     ("P2V", "Phylo2VecME", "#D55E00", "o", True, "-"),
 ]
+
+
+class Method(TypedDict):
+    """How a method is drawn: legend label, colour, marker, filled marker, line style."""
+
+    label: str
+    color: str
+    marker: str
+    filled: bool
+    ls: str
+
+
 SPEC = {
-    m[0]: dict(label=m[1], color=m[2], marker=m[3], filled=m[4], ls=m[5])
+    m[0]: Method(label=m[1], color=m[2], marker=m[3], filled=m[4], ls=m[5])
     for m in METHODS
 }
 

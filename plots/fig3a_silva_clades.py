@@ -327,7 +327,7 @@ def main() -> None:
     )
 
     fig = plt.figure(figsize=(6.0, 6.3))
-    ax = fig.add_axes([0.02, 0.02, 0.96, 0.93])
+    ax = fig.add_axes((0.02, 0.02, 0.96, 0.93))
     for spine in ax.spines.values():
         spine.set_visible(False)
     ax.set_xticks([])

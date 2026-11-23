@@ -8,13 +8,17 @@ Outputs: img/figS5a_sarscov2_variants.{pdf,svg}
     pixi run -e paper python -m plots.figS5a_sarscov2_variants
 """
 
+from typing import Any
+
 import matplotlib.pyplot as plt
+
+from matplotlib.typing import RcKeyType
 
 from plots._config import OURS_COLOUR, STYLE
 from plots.utils import parser, read_tsv, save
 
 FIGSIZE = (84 / 25.4, 66 / 25.4)  # panel a of the 150 mm wide figure
-RC = {
+RC: dict[RcKeyType, Any] = {
     "font.size": 8,
     "axes.labelsize": 8,
     "xtick.labelsize": 7.5,

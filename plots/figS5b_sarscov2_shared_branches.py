@@ -8,13 +8,17 @@ Outputs: img/figS5b_sarscov2_shared_branches.{pdf,svg}
     pixi run -e paper python -m plots.figS5b_sarscov2_shared_branches
 """
 
+from typing import Any
+
 import matplotlib.pyplot as plt
+
+from matplotlib.typing import RcKeyType
 
 from plots._config import MAPLE_COLOUR, OURS_COLOUR, STYLE
 from plots.utils import parser, read_tsv, save
 
 FIGSIZE = (66 / 25.4, 66 / 25.4)  # panel b of the 150 mm wide figure
-RC = {
+RC: dict[RcKeyType, Any] = {
     "font.size": 8,
     "axes.labelsize": 8,
     "xtick.labelsize": 7.5,
