@@ -33,6 +33,47 @@ std::set<std::set<int>> splits(const p2vbme::Tree &t, int n) {
 
 } // namespace
 
+// A tree read with its own names and lengths is written back as it was.
+TEST(Newick, ReadWithNamesKeepsTheLengths) {
+    const std::string in = temp_path("named.nwk"), out = temp_path("named_out.nwk");
+    const std::string text = "((b:0.1,'x y':0.25):0.5,a:1e-05,(d:0,c:3):0.125);\n";
+    write_file(in, text);
+    std::vector<std::string> names;
+    const p2vbme::Tree t = p2vbme::read_newick_with_names(in, names);
+    EXPECT_EQ(names, (std::vector<std::string>{"b", "x y", "a", "d", "c"}));
+    EXPECT_TRUE(t.double_precision_lengths);
+    p2vbme::write_newick_unrooted(out, names, t);
+    EXPECT_EQ(read_file(out), text);
+    write_file(in, "((a,b),(c,d));");
+    EXPECT_TRUE(p2vbme::read_newick_with_names(in, names).branch_lengths.empty());      // no lengths: none kept
+    EXPECT_EQ(p2vbme::read_newick(in, {"d", "c", "b", "a"}).branch_lengths.size(), 0u); // a start tree's are ignored
+}
+
+// Several trees in one file, one or more per line or over several lines: the first sets the leaves.
+TEST(Newick, ReadsSeveralTrees) {
+    const std::string p = temp_path("trees.nwk");
+    write_file(p, "((a,b),(c,d));((a,c),(b,d));\n(a,b,\n(c,d));\n");
+    std::vector<std::string> names;
+    std::vector<std::set<std::set<int>>> got;
+    EXPECT_EQ(p2vbme::read_newick_trees(p, names, [&](const p2vbme::Tree &t) { got.push_back(splits(t, 4)); }), 3);
+    EXPECT_EQ(names, (std::vector<std::string>{"a", "b", "c", "d"}));
+    EXPECT_EQ(got, (std::vector<std::set<std::set<int>>>{{{2, 3}}, {{1, 3}}, {{2, 3}}}));
+    const std::vector<std::pair<std::string, std::string>> bad = {
+        {"((a,b),(c,d));((a,b),(c,e));", "(tree 2): leaf 'e' is not in the alignment"},
+        {"((a,b),(c,d));((a,b),c);", "(tree 2): alignment sequence 'd' is not in the tree"},
+        {"((a,b),(c,d));((a,b),(c,d))", "Newick ends before ';'"},
+    };
+    for (const auto &[text, message] : bad) {
+        write_file(p, text);
+        try {
+            p2vbme::read_newick_trees(p, names, [](const p2vbme::Tree &) {});
+            ADD_FAILURE() << "no error for: " << text;
+        } catch (const std::runtime_error &e) {
+            EXPECT_NE(std::string(e.what()).find(message), std::string::npos) << e.what();
+        }
+    }
+}
+
 TEST(Newick, RoundTripKeepsTheTopology) {
     const std::vector<std::string> names = {"t0", "t1", "t2", "t3", "t4", "t5"};
     const std::string in = temp_path("in.nwk"), out = temp_path("out.nwk");

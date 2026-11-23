@@ -6,6 +6,8 @@
 #ifndef P2VBME_NEWICK_HPP
 #define P2VBME_NEWICK_HPP
 
+#include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -18,6 +20,20 @@ namespace p2vbme {
 // Branch lengths are ignored.
 // Throws std::runtime_error.
 Tree read_newick(const std::string &path, const std::vector<std::string> &names);
+
+// Reads a binary Newick tree with its own leaf names: path -> the tree; names receives the leaf names in the order they
+// appear (leaf i of the tree is names[i]).
+// Branch lengths, if the tree has them, are kept as double values (double_precision_lengths).
+// Throws std::runtime_error.
+Tree read_newick_with_names(const std::string &path, std::vector<std::string> &names);
+
+// Reads the binary Newick trees of a file, one after another (each ends with ';'), all on the same leaves: calls fn on
+// each, in order, and returns their number; names receives the first tree's leaf names (as read_newick_with_names),
+// which the other trees must have.
+// Branch lengths are ignored.
+// Throws std::runtime_error.
+int32_t read_newick_trees(const std::string &path, std::vector<std::string> &names,
+                          const std::function<void(const Tree &)> &fn);
 
 // Writes the tree unrooted: the root's two child edges become one edge with their summed length.
 // Branch lengths (when present) are the shortest decimals that read back to the same value of their type (float, or
