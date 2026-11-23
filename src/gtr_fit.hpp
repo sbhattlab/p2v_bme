@@ -4,8 +4,8 @@
  * The GTR+GC parameters of an alignment, fitted without a tree: the six exchangeabilities and the gamma shape alpha
  * that eigen_distance (eigen_dist.hpp) needs, by maximum composite likelihood over the base-count tables of random
  * sequence pairs.
- * The paper's estimator (its supplement's penalised composite likelihood), ported from its code with the same
- * arithmetic; the search over alpha differs (below).
+ * The paper's fit (its supplement's penalised composite likelihood), ported from its code with the same arithmetic, so
+ * that it returns the same bits on the same tables.
  *
  * Model: a reversible GTR process with exchangeabilities S (mean 1) and base frequencies pi (pooled over the tables),
  * scaled to one expected substitution per unit distance, with Gamma(alpha, alpha) rates across sites.
@@ -19,11 +19,13 @@
  * The sum over pairs, minus GTR_FIT_RATE_VARIANCE_PENALTY / alpha, is maximised over the five free log exchangeability
  * ratios and log alpha.
  * Alpha is found by Brent's method on the profile (the objective maximised over the exchangeabilities by BFGS at each
- * alpha) to 0.1%, in a bracket from a scan over alpha.
+ * alpha, from those of the best point found so far) to 0.1%, in a bracket from a scan over alpha.
  * The BFGS gradient is by central differences at fixed distances, exact to second order since every distance is at
  * its optimum (envelope theorem).
- * The paper's code searched all six parameters jointly instead: pairs determine alpha far less well than the
- * exchangeabilities, and on its own simulations of little divergence that search stopped up to ~40% short in alpha.
+ * Alpha is not searched jointly with the exchangeabilities: pairs determine it far less well, and a joint search then
+ * stops short in alpha (up to ~40% on the paper's own simulations of little divergence).
+ * Nor is each search of the exchangeabilities started from the last alpha's: at a fixed alpha the objective can have
+ * a second, lower maximum in them, which a start from a distant alpha's reaches.
  *
  * The penalty: pairs cannot determine alpha when the three non-trivial eigenvalues coincide (equal exchangeabilities
  * and base frequencies, as under JC69 or F81), since the likelihood is then flat in alpha.

@@ -1,8 +1,9 @@
 /*
  * test_gtr_fit.cpp
  *
- * The GTR+GC fit (gtr_fit.hpp): it recovers the true parameters on the paper's simulated pairs and finds them exactly
- * in noise-free tables; tables with too few sites are not fitted; the pairs it draws; the fit of an alignment.
+ * The GTR+GC fit (gtr_fit.hpp): on tables of simulated pairs it returns the same bits as the paper's fit and recovers
+ * the true parameters, and it finds them exactly in noise-free tables; tables with too few sites are not fitted; the
+ * pairs it draws; the fit of an alignment.
  */
 #include <algorithm>
 #include <cmath>
@@ -121,53 +122,124 @@ uint64_t tables_hash(const std::vector<PairCounts> &tables) {
     return h;
 }
 
-// ---- The paper's check of its fit -------------------------------------------------------------------------
+// ---- The paper's check of its fit ----------------------------------------------------------------------------
 
 const double S_TRUE[N_GTR_RATES] = {0.5, 2.0, 0.5, 0.5, 2.0, 0.5}, PI_TRUE[N_BASES] = {0.30, 0.20, 0.27, 0.23};
 const double S_FLAT[N_GTR_RATES] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}, PI_FLAT[N_BASES] = {0.25, 0.25, 0.25, 0.25};
-constexpr int32_t N_PAIRS = 4000, N_SITES = 2000;
+// Very unequal rates and base frequencies: a search of the exchangeabilities started from those fitted at a distant
+// alpha ends in a second, lower maximum (the paper's reproducer).
+const double S_UNEQUAL[N_GTR_RATES] = {2.2, 4.5, 0.4, 1.6, 4.8, 0.5}, PI_UNEQUAL[N_BASES] = {0.10, 0.40, 0.35, 0.15};
 
-// A case: the simulation (alpha <= 0: equal rates; seed: the stream's), the hash of its tables (those the paper's code
-// was checked on, one seed per case), and what recovering the truth means: |ln(alpha_hat / alpha)| below alpha_tol
-// (alpha > 0), or alpha_hat above alpha_min (equal rates).
+// A case: the simulation (alpha <= 0: equal rates; seed: the stream's) and what recovering the truth means:
+// |ln(alpha_hat / alpha)| below alpha_tol (alpha > 0), or alpha_hat above alpha_min (equal rates), and every
+// exchangeability within rate_tol (log units).
 struct Case {
     const char *name;
     const double *s, *pi;
     double alpha, d_hi;
-    uint64_t seed, tables_hash;
-    double alpha_tol, alpha_min;
+    uint64_t seed;
+    int32_t n_pairs, n_sites;
+    double alpha_tol, alpha_min, rate_tol;
 };
 
 const Case CASES[] = {
-    {"alpha 0.5", S_TRUE, PI_TRUE, 0.5, 1.5, 1, 0x91e6582054af53b1ULL, 0.08, 0.0},
-    {"alpha 1.5", S_TRUE, PI_TRUE, 1.5, 1.5, 2, 0x1a62f75ca0578527ULL, 0.08, 0.0},
-    {"alpha 8", S_TRUE, PI_TRUE, 8.0, 1.5, 3, 0x370dc62d6f0f9505ULL, 0.25, 0.0},
+    {"alpha 0.5", S_TRUE, PI_TRUE, 0.5, 1.5, 1, 4000, 2000, 0.08, 0.0, 0.05},
+    {"alpha 1.5", S_TRUE, PI_TRUE, 1.5, 1.5, 2, 4000, 2000, 0.08, 0.0, 0.05},
+    {"alpha 8", S_TRUE, PI_TRUE, 8.0, 1.5, 3, 4000, 2000, 0.25, 0.0, 0.05},
     // without rate variation, alpha goes to its upper end
-    {"no rate variation", S_TRUE, PI_TRUE, -1.0, 1.0, 4, 0x19aacdcc0ff51e19ULL, 0.0, 15.0},
+    {"no rate variation", S_TRUE, PI_TRUE, -1.0, 1.0, 4, 4000, 2000, 0.0, 15.0, 0.05},
     // equal rates and frequencies: pairs do not determine alpha, and the penalty selects equal rates across sites
-    {"equal rates and frequencies", S_FLAT, PI_FLAT, -1.0, 1.0, 5, 0x5b8e9cc7d236a5c5ULL, 0.0, 100.0},
+    {"equal rates and frequencies", S_FLAT, PI_FLAT, -1.0, 1.0, 5, 4000, 2000, 0.0, 100.0, 0.05},
+    // the fit must not stop at a grid value of the start scan (0.5 here)
+    {"unequal rates, alpha 0.6", S_UNEQUAL, PI_UNEQUAL, 0.6, 1.5, 1, 1225, 2500, 0.05, 0.0, 0.1},
 };
+
+// What the paper's fit returned on each case's tables (its code at the time of the port, run once; hexadecimal, so
+// exact), with the hash of the tables it was run on.
+struct PapersFit {
+    uint64_t tables_hash;
+    double rates[N_GTR_RATES], base_freqs[N_BASES], alpha, log_lik;
+    int32_t n_iterations;
+};
+
+const PapersFit PAPERS_FITS[] = {
+    {0x91e6582054af53b1ULL,
+     {0x1.ffa4b2d6d3eb9p-2, 0x1.008f56ed2efb8p+1, 0x1.fce26dba1635p-2, 0x1.01a07cd58b78ep-1, 0x1.ff887b73d91adp+0,
+      0x1.fd9b408b22a61p-2},
+     {0x1.335f78359bc34p-2, 0x1.9951b4fe79eep-3, 0x1.146d82ba5a038p-2, 0x1.d71455219a848p-3},
+     0x1.00f3933d6e5a8p-1,
+     -0x1.ec1d2e9ae3269p+23,
+     123},
+    {0x1a62f75ca0578527ULL,
+     {0x1.01254d367c854p-1, 0x1.fe76bb866d9a4p+0, 0x1.ffadc742debb9p-2, 0x1.0021badc21371p-1, 0x1.006fcc669c4c3p+1,
+      0x1.00356ba4a6807p-1},
+     {0x1.336ffc115df65p-2, 0x1.995eaee2003acp-3, 0x1.147e0ac7da1ecp-2, 0x1.d6c5436b8f9b1p-3},
+     0x1.80bb5020bce12p+0,
+     -0x1.f977ad52cc8p+23,
+     123},
+    {0x370dc62d6f0f9505ULL,
+     {0x1.007257a017899p-1, 0x1.006f5bf6fec01p+1, 0x1.019c12fae75f8p-1, 0x1.0099714264746p-1, 0x1.fe1a6ee1aa63p+0,
+      0x1.fecbad0699b91p-2},
+     {0x1.333b8e4b87bddp-2, 0x1.99c105186db51p-3, 0x1.147b4a2339c0fp-2, 0x1.d6d14a0a0f4d8p-3},
+     0x1.0c408d80a0712p+3,
+     -0x1.035588a6bea93p+24,
+     130},
+    {0x19aacdcc0ff51e19ULL,
+     {0x1.fc5f26d43c1b3p-2, 0x1.0073be25ed05fp+1, 0x1.015236107b95cp-1, 0x1.002d56f6c4a86p-1, 0x1.003db154be427p+1,
+      0x1.fb164347e9259p-2},
+     {0x1.32fe60c38f367p-2, 0x1.99c50ce4ead0cp-3, 0x1.1485553ef6b5dp-2, 0x1.d73387160956cp-3},
+     0x1.28d389970338fp+7,
+     -0x1.f69f4470c43f1p+23,
+     33},
+    {0x5b8e9cc7d236a5c5ULL,
+     {0x1.00047074c00d8p+0, 0x1.ffd70fa55e5f7p-1, 0x1.ff38db4c3dd9ap-1, 0x1.002ab20bab36ep+0, 0x1.0070ed3853519p+0,
+      0x1.ffaff59ce69aap-1},
+     {0x1.000a8d21bc127p-2, 0x1.00286f8ad2568p-2, 0x1.ffa3f4666ec9ep-3, 0x1.fff6124074645p-3},
+     0x1.28d389970338fp+7,
+     -0x1.037e1ee0272ecp+24,
+     28},
+    {0x64749fc5865d3457ULL,
+     {0x1.dfd02a6fe1fd3p-1, 0x1.ed160e2a3514ap+0, 0x1.75da956930b68p-3, 0x1.5cd8a6c59aee4p-1, 0x1.073ec20e3667p+1,
+      0x1.bae5938bcc869p-3},
+     {0x1.997c5352012d2p-4, 0x1.99230100898e6p-2, 0x1.66e26385ea19dp-2, 0x1.33370d4a18191p-3},
+     0x1.349be88cd2255p-1,
+     -0x1.5e7e6ec8ed8c1p+22,
+     193},
+};
+static_assert(sizeof(CASES) / sizeof(CASES[0]) == sizeof(PAPERS_FITS) / sizeof(PAPERS_FITS[0]), "one fit per case");
 
 } // namespace
 
-/* On the pairs of the paper's check, the fit recovers the simulated parameters as that check asks: alpha within its
- * tolerance (or large without rate variation), every exchangeability within 5%. */
-TEST(GtrFit, RecoversTheTruth) {
-    for (const Case &c : CASES) {
+/* The fit returns the paper's bits on the same tables, and recovers the simulated parameters as the paper's check
+ * asks: alpha within its tolerance (or large without rate variation), every exchangeability within its tolerance. */
+TEST(GtrFit, SameBitsAsThePapersFitAndRecoversTheTruth) {
+    for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); ++i) {
+        const Case &c = CASES[i];
+        const PapersFit &paper = PAPERS_FITS[i];
         SCOPED_TRACE(c.name);
         JumpSimulator sim{c.seed};
-        const std::vector<PairCounts> tables = sim.simulate(c.s, c.pi, c.alpha, 0.05, c.d_hi, N_PAIRS, N_SITES);
-        ASSERT_EQ(tables_hash(tables), c.tables_hash) << "not the tables of the paper's check";
+        const std::vector<PairCounts> tables = sim.simulate(c.s, c.pi, c.alpha, 0.05, c.d_hi, c.n_pairs, c.n_sites);
+        ASSERT_EQ(tables_hash(tables), paper.tables_hash) << "not the tables the paper's fit was run on";
 
         const GtrFit fit = fit_gtr_gc_counts(tables);
-        EXPECT_EQ(fit.n_pairs, N_PAIRS);
-        EXPECT_TRUE(fit.converged);
-        double rate_error = 0.0;
         for (int k = 0; k < N_GTR_RATES; ++k)
-            rate_error = std::max(rate_error, std::fabs(std::log(fit.rates[k] / c.s[k])));
-        EXPECT_LT(rate_error, 0.05);
+            EXPECT_EQ(fit.rates[k], paper.rates[k]) << "rate " << k;
+        for (int b = 0; b < N_BASES; ++b)
+            EXPECT_EQ(fit.base_freqs[b], paper.base_freqs[b]) << "base " << b;
+        EXPECT_EQ(fit.alpha, paper.alpha);
+        EXPECT_EQ(fit.log_lik, paper.log_lik);
+        EXPECT_EQ(fit.n_pairs, c.n_pairs);
+        EXPECT_EQ(fit.n_iterations, paper.n_iterations);
+        EXPECT_TRUE(fit.converged);
+
+        double rate_sum = 0.0, rate_error = 0.0;
+        for (int k = 0; k < N_GTR_RATES; ++k)
+            rate_sum += c.s[k];
+        for (int k = 0; k < N_GTR_RATES; ++k)
+            rate_error = std::max(rate_error, std::fabs(std::log(fit.rates[k] / (c.s[k] * N_GTR_RATES / rate_sum))));
+        EXPECT_LT(rate_error, c.rate_tol);
         if (c.alpha > 0.0)
-            EXPECT_LT(std::fabs(std::log(fit.alpha / c.alpha)), c.alpha_tol);
+            EXPECT_LT(std::fabs(std::log(fit.alpha / c.alpha)), c.alpha_tol) << "alpha_hat " << fit.alpha;
         else
             EXPECT_GT(fit.alpha, c.alpha_min);
     }
