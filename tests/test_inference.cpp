@@ -152,7 +152,7 @@ RunResult run(const Alignment &aln, int n_devices, bool sample_start) {
         r.tree = build_random_tree(N, 1);
     }
     r.delta = run_minibatch_bme(r.tree, devices, settings, 0, &r.stats);
-    r.bme_length = compute_bme_branch_lengths(r.tree, devices, r.tree.branch_lengths, DEFAULT_BL_PROFILE_CAP);
+    r.bme_length = compute_bme_branch_lengths(r.tree, devices, r.tree.branch_lengths, DEFAULT_BL_REPRESENTATIVE_CAP);
     return r;
 }
 
@@ -265,7 +265,7 @@ TEST(Inference, SameTreeForAnyWorkerCount) {
     }
 }
 
-// A search ends no longer than the true tree (same branch-length pass, profile cap 32); near it in RF.
+// A search ends no longer than the true tree (same branch-length pass, the default representative cap); near it in RF.
 TEST(InferenceGpu, SearchUnderEachModel) {
     const int32_t N = 3000;
     const Tree tree = random_tree(N, 0.005, 0.08, 31);
@@ -329,9 +329,9 @@ TEST(Inference, InferRejectsBadInput) {
     const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
     Devices devices = failing_devices(1, "none");
     Settings opt;
-    opt.profile_cap = 0;
-    EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("profile cap"), std::string::npos);
-    opt.profile_cap = DEFAULT_PROFILE_CAP;
+    opt.representative_cap = 0;
+    EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("representative cap"), std::string::npos);
+    opt.representative_cap = DEFAULT_REPRESENTATIVE_CAP;
     opt.tree_init = TreeInit::Given;
     EXPECT_NE(thrown_message([&] { infer(aln, opt, devices); }).find("start tree"), std::string::npos);
     const Alignment three = simulate_alignment(random_tree(3, 0.1, 0.1, 1), 50, SimulationModel(), 2);

@@ -28,10 +28,11 @@ namespace {
 // Throws std::runtime_error if a setting is out of range.
 // The device settings (devices, threads) are checked by select_devices, which uses them.
 void check_settings(const Settings &opt) {
-    if (opt.profile_cap < 1 || opt.profile_cap > PROFILE_CAP_MAX)
-        throw std::runtime_error("profile cap must be in 1.." + std::to_string(PROFILE_CAP_MAX));
-    if (opt.bl_profile_cap < 1 || opt.bl_profile_cap > PROFILE_CAP_MAX)
-        throw std::runtime_error("branch-length profile cap must be in 1.." + std::to_string(PROFILE_CAP_MAX));
+    if (opt.representative_cap < 1 || opt.representative_cap > REPRESENTATIVE_CAP_MAX)
+        throw std::runtime_error("representative cap must be in 1.." + std::to_string(REPRESENTATIVE_CAP_MAX));
+    if (opt.bl_representative_cap < 1 || opt.bl_representative_cap > REPRESENTATIVE_CAP_MAX)
+        throw std::runtime_error("branch-length representative cap must be in 1.." +
+                                 std::to_string(REPRESENTATIVE_CAP_MAX));
     if (opt.max_rounds < 0)
         throw std::runtime_error("max rounds must be >= 0");
     if (opt.sample_size < 0)
@@ -127,7 +128,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     settings.rounds = opt.max_rounds;
     settings.stop_tol = opt.tol;
     settings.time_cap = opt.time_limit;
-    settings.profile_cap = opt.profile_cap;
+    settings.representative_cap = opt.representative_cap;
 
     Result res;
     warn_gtr_precision(opt, res.warnings);
@@ -152,7 +153,7 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
             t_start = t_last = wall_sec();
             dL_last = 0.0;
             line << "[DIAG] N=" << e.n_leaves << " n_gpus=" << e.n_devices << " n_rounds=" << e.rounds_planned
-                 << " max_prof_leaves=" << settings.profile_cap << " stop_tol=" << settings.stop_tol
+                 << " max_prof_leaves=" << settings.representative_cap << " stop_tol=" << settings.stop_tol
                  << " time_cap=" << settings.time_cap;
         } else if (e.kind == SearchEvent::Stop) {
             line << std::fixed << std::setprecision(6) << "[DIAG] stopping after round " << e.round << " (gain "
@@ -207,11 +208,11 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
 
     // Compute the BME branch lengths of the final tree
     if (opt.branch_lengths) {
-        double prof_s = 0.0, kern_s = 0.0;
-        res.bme_length = compute_bme_branch_lengths(tree, devices, tree.branch_lengths, opt.bl_profile_cap, &prof_s,
-                                                    &kern_s, double_precision);
+        double repr_s = 0.0, kern_s = 0.0;
+        res.bme_length = compute_bme_branch_lengths(tree, devices, tree.branch_lengths, opt.bl_representative_cap,
+                                                    &repr_s, &kern_s, double_precision);
         tree.double_precision_lengths = double_precision;
-        res.time_branch_lengths = prof_s + kern_s;
+        res.time_branch_lengths = repr_s + kern_s;
     }
     return res;
 }

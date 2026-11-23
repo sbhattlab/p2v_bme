@@ -4,12 +4,12 @@
  * In brief: each pass of a round picks window roots.
  * A window is a connected set of internal nodes under its root.
  * Its skeleton is a small tree whose tips are pieces (each clade the window does not open, and the outgroup), each
- * summarised by a profile.
+ * summarised by its representatives.
  * The waves cover the tree with components, one window per component; the V-cycle and the backbone grow their
  * windows from a root.
  *
  * The minibatch BME search (host side): Phylo2Vec encoding of skeletons, tree summaries, clade and outside
- * profiles, window extraction, the leaf-covering waves and the rounds. Window solves run on the devices.
+ * representatives, window extraction, the leaf-covering waves and the rounds. Window solves run on the devices.
  */
 #include "search.hpp"
 
@@ -160,25 +160,24 @@ static inline int32_t up_neighbour(int32_t u, const Tree &tree, const TreeSummar
     return (tree.c1[root_r] == u) ? tree.c2[root_r] : tree.c1[root_r];
 }
 
-// The dyadic profile of one side of an edge of the unrooted tree: the part that start reaches without passing through
-// from (a neighbour of start), each leaf x weighted 2^-d(start, x), so the weights sum to 1.
-// profile_cap < 0: every leaf, exact (a plain stack).
-// Otherwise the walk opens the heaviest nodes first (a priority queue); once it holds profile_cap entries (if
-// > 0), each part not yet opened collapses onto one stand-in leaf with its whole weight: the node's stand_in, or for a
-// part reached from below, the stand_in of the other child.
-static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tree, const TreeSummary &summary,
-                                    int32_t profile_cap, std::vector<int32_t> &profile_leaves_out,
-                                    std::vector<float> &profile_weights_out) {
+// The dyadic representatives of one side of an edge of the unrooted tree: the part that start reaches without passing
+// through from (a neighbour of start), each leaf x weighted 2^-d(start, x), so the weights sum to 1. representative_cap
+// < 0: every leaf, exact (a plain stack). Otherwise the walk opens the heaviest nodes first (a priority queue); once it
+// holds representative_cap entries (if > 0), each part not yet opened collapses onto one stand-in leaf with its whole
+// weight: the node's stand_in, or for a part reached from below, the stand_in of the other child.
+static void directed_dyadic_representatives(int32_t start, int32_t from, const Tree &tree, const TreeSummary &summary,
+                                            int32_t representative_cap, std::vector<int32_t> &representative_leaves_out,
+                                            std::vector<float> &representative_weights_out) {
     const int32_t n_leaves = tree.n_leaves();
     const int32_t *c1_r = tree.c1.data(), *c2_r = tree.c2.data();
     // A leaf: the side is that leaf alone.
     if (start < n_leaves) {
-        profile_leaves_out.push_back(start);
-        profile_weights_out.push_back(1.0f);
+        representative_leaves_out.push_back(start);
+        representative_weights_out.push_back(1.0f);
         return;
     }
     // Exact: visit every node of the side (a stack) and emit every leaf.
-    if (profile_cap < 0) {
+    if (representative_cap < 0) {
         struct DirectedStackEntry {
             int32_t node;
             int32_t from;
@@ -197,15 +196,15 @@ static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tre
             int32_t n2 = up_neighbour(node, tree, summary);
             int32_t nbs[3] = {n0, n1, n2};
             // Each node passes half its weight on to each of its neighbours except the one the walk came from.
-            // The order (up, c2, c1) sets the order of the leaves in the profile.
+            // The order (up, c2, c1) sets the order of the representatives.
             double hw = 0.5 * top.weight;
             for (int k = 2; k >= 0; --k) {
                 int32_t nb = nbs[k];
                 if (nb == top.from || nb < 0)
                     continue;
                 if (nb < n_leaves) {
-                    profile_leaves_out.push_back(nb);
-                    profile_weights_out.push_back((float)hw);
+                    representative_leaves_out.push_back(nb);
+                    representative_weights_out.push_back((float)hw);
                 } else {
                     st.push_back({nb, node, hw});
                 }
@@ -214,7 +213,7 @@ static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tre
         return;
     }
     // Capped: open the heaviest node first (ties: the smaller id), while the leaves emitted plus the nodes waiting in
-    // the queue are fewer than profile_cap (each waiting node becomes at least one entry).
+    // the queue are fewer than representative_cap (each waiting node becomes at least one entry).
     struct DirectedWeightedNode {
         double weight;
         int32_t node;
@@ -227,10 +226,10 @@ static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tre
     };
     std::priority_queue<DirectedWeightedNode> pq;
     pq.push({1.0, start, from});
-    int32_t start_leaves = (int32_t)profile_leaves_out.size();
+    int32_t start_leaves = (int32_t)representative_leaves_out.size();
     while (!pq.empty()) {
-        int32_t curr_total = ((int32_t)profile_leaves_out.size() - start_leaves) + (int32_t)pq.size();
-        if (profile_cap > 0 && curr_total >= profile_cap)
+        int32_t curr_total = ((int32_t)representative_leaves_out.size() - start_leaves) + (int32_t)pq.size();
+        if (representative_cap > 0 && curr_total >= representative_cap)
             break;
         DirectedWeightedNode top = pq.top();
         pq.pop();
@@ -248,8 +247,8 @@ static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tre
             if (nb == top.from || nb < 0)
                 continue;
             if (nb < n_leaves) {
-                profile_leaves_out.push_back(nb);
-                profile_weights_out.push_back((float)hw);
+                representative_leaves_out.push_back(nb);
+                representative_weights_out.push_back((float)hw);
             } else {
                 pq.push({hw, nb, node});
             }
@@ -269,31 +268,33 @@ static void directed_dyadic_profile(int32_t start, int32_t from, const Tree &tre
             int32_t sib = (top.from == c1_r[node]) ? c2_r[node] : c1_r[node];
             rep_leaf = summary.stand_in[sib];
         }
-        profile_leaves_out.push_back(rep_leaf);
-        profile_weights_out.push_back((float)top.weight);
+        representative_leaves_out.push_back(rep_leaf);
+        representative_weights_out.push_back((float)top.weight);
     }
 }
 
-// The dyadic profile of the clade below u: each leaf x below u weighted 2^-depth_u(x).
+// The dyadic representatives of the clade below u: each leaf x below u weighted 2^-depth_u(x).
 // u is never the root (a window always opens the root).
-static void compute_clade_dyadic_profile(int32_t u, const Tree &tree, const TreeSummary &summary, int32_t profile_cap,
-                                         std::vector<int32_t> &profile_leaves_out,
-                                         std::vector<float> &profile_weights_out) {
+static void compute_clade_dyadic_representatives(int32_t u, const Tree &tree, const TreeSummary &summary,
+                                                 int32_t representative_cap,
+                                                 std::vector<int32_t> &representative_leaves_out,
+                                                 std::vector<float> &representative_weights_out) {
     if (u == (int32_t)tree.c1.size() - 1)
-        throw std::logic_error("clade profile of the root: a window always opens the root");
-    directed_dyadic_profile(u, up_neighbour(u, tree, summary), tree, summary, profile_cap, profile_leaves_out,
-                            profile_weights_out);
+        throw std::logic_error("clade representatives of the root: a window always opens the root");
+    directed_dyadic_representatives(u, up_neighbour(u, tree, summary), tree, summary, representative_cap,
+                                    representative_leaves_out, representative_weights_out);
 }
 
-// The dyadic profile of everything outside the clade below window_root (the window's outgroup), seen from the node
-// window_root hangs from; empty for the root.
-static void compute_outgroup_dyadic_profile(int32_t window_root, const Tree &tree, const TreeSummary &summary,
-                                            int32_t profile_cap, std::vector<int32_t> &profile_leaves_out,
-                                            std::vector<float> &profile_weights_out) {
+// The dyadic representatives of everything outside the clade below window_root (the window's outgroup), seen from the
+// node window_root hangs from; empty for the root.
+static void compute_outgroup_dyadic_representatives(int32_t window_root, const Tree &tree, const TreeSummary &summary,
+                                                    int32_t representative_cap,
+                                                    std::vector<int32_t> &representative_leaves_out,
+                                                    std::vector<float> &representative_weights_out) {
     if (window_root == (int32_t)tree.c1.size() - 1 || summary.parent[window_root] == -1)
         return;
-    directed_dyadic_profile(up_neighbour(window_root, tree, summary), window_root, tree, summary, profile_cap,
-                            profile_leaves_out, profile_weights_out);
+    directed_dyadic_representatives(up_neighbour(window_root, tree, summary), window_root, tree, summary,
+                                    representative_cap, representative_leaves_out, representative_weights_out);
 }
 
 // Chooses a window's pieces and the nodes it opens, and encodes its skeleton as an ordered vector.
@@ -691,16 +692,17 @@ struct CandidateMove {
 
 // Optimize one K-leaf skeleton with path-disjoint SPR batching and a monotonic condensed-skeleton BME check.
 // The device does the arithmetic.
-double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const int32_t *profile_offsets,
-                    const int32_t *profile_leaves, const float *profile_weights, std::vector<int64_t> &v,
+double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const int32_t *representative_offsets,
+                    const int32_t *representative_leaves, const float *representative_weights, std::vector<int64_t> &v,
                     std::vector<int32_t> &perm, WindowKernels &kernels) {
     const int32_t M_sk = 2 * K - 2;              // nodes of the unrooted skeleton (the rooted one without its root)
     const int32_t root_u_sk = M_sk - 1;          // the node the unrooted skeleton hangs from (2K - 3)
     const std::vector<int64_t> init_v = v;       // the skeleton before the solve: kept if nothing improves
     const std::vector<int32_t> init_perm = perm; // its leaf permutation
 
-    // The K x K distances between the pieces, from their profiles: computed once per window, kept for every sweep.
-    kernels.distances(K, profile_offsets, profile_leaves, profile_weights);
+    // The K x K distances between the pieces, from their representatives: computed once per window, kept for every
+    // sweep.
+    kernels.distances(K, representative_offsets, representative_leaves, representative_weights);
 
     SkeletonTables sk;
     std::vector<double> h_best_delta(K);
@@ -851,12 +853,10 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
     return best_L - init_L;
 }
 
-// A 64-bit hash of what a window solve reads: K, max_iters, the skeleton (v, perm) and the profiles (offsets, leaves
-// and the bits of the weights).
-// The rest is fixed within one search: the devices' alignment, distance model and precision, and the solve's
-// constants.
-// Two different inputs share a hash with probability about 2^-64; such a collision would skip a solve that might have
-// improved the tree.
+// A 64-bit hash of what a window solve reads: K, max_iters, the skeleton (v, perm) and the representatives (offsets,
+// leaves and the bits of the weights). The rest is fixed within one search: the devices' alignment, distance model and
+// precision, and the solve's constants. Two different inputs share a hash with probability about 2^-64; such a
+// collision would skip a solve that might have improved the tree.
 static uint64_t window_input_hash(int32_t K, int32_t max_iters, const std::vector<int64_t> &v,
                                   const std::vector<int32_t> &perm, const std::vector<int32_t> &offsets,
                                   const std::vector<int32_t> &leaves, const std::vector<float> &weights) {
@@ -967,7 +967,7 @@ static void write_back_skeleton(const Skeleton &skel, int32_t window_root, Tree 
 }
 
 // Optimize the window below window_root and write the result into the tree.
-// The window collapses clades into K pieces, each with a dyadic-weighted leaf profile, and optimizes them as an
+// The window collapses clades into K pieces, each with dyadic-weighted representative leaves, and optimizes them as an
 // unrooted BME tree.
 // A subtree window (window_root != root_r) also sees the rest of the tree, as one extra piece, the outgroup,
 // because BME sums over all leaf pairs: moves inside the subtree change its distances to the leaves outside.
@@ -975,7 +975,7 @@ static void write_back_skeleton(const Skeleton &skel, int32_t window_root, Tree 
 // The whole-tree window (window_root == root_r) has no outgroup and BME does not fix a root, so it re-roots on the
 // centroid edge.
 // Windows of one wave run in parallel: they pass a snapshot of the tree and its summary (snapshot, snapshot_summary),
-// read their profiles from it; run_windows rebuilds the summary after the wave.
+// read their representatives from it; run_windows rebuilds the summary after the wave.
 // fruitless: the input hashes (window_input_hash) of this search's solves that found no improvement.
 // The solve is deterministic, so a window with one of these inputs would again find none: it is skipped.
 // fruitless_hash: set to the input hash when the solve runs and finds no improvement, for the caller to add to
@@ -990,7 +990,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
                                            const TreeSummary *snapshot_summary = NULL) {
     const int32_t n_leaves = tree.n_leaves();
     const int32_t root_r = 2 * n_leaves - 2;
-    const int32_t profile_cap = settings.profile_cap;
+    const int32_t representative_cap = settings.representative_cap;
     // A subtree window also sees the rest of the tree, as one extra piece (the outgroup).
     const bool has_outgroup = window_root != root_r;
     // Decide what a window contains and return its skeleton
@@ -1009,31 +1009,33 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
     const Tree &otree = (snapshot != NULL) ? *snapshot : tree;
     const TreeSummary &osum = (snapshot_summary != NULL) ? *snapshot_summary : summary;
 
-    // Build the window's K profiles in one CSR layout
-    std::vector<int32_t> profile_offsets(K + 1, 0), profile_leaves;
-    std::vector<float> profile_weights;
-    profile_leaves.reserve(4 * K);
-    profile_weights.reserve(4 * K);
+    // Build the representatives of the window's K pieces in one CSR layout
+    std::vector<int32_t> representative_offsets(K + 1, 0), representative_leaves;
+    std::vector<float> representative_weights;
+    representative_leaves.reserve(4 * K);
+    representative_weights.reserve(4 * K);
     for (int32_t a = 0; a < K_in; ++a) {
-        profile_offsets[a] = (int32_t)profile_leaves.size();
-        compute_clade_dyadic_profile(piece_roots[a], otree, osum, profile_cap, profile_leaves, profile_weights);
+        representative_offsets[a] = (int32_t)representative_leaves.size();
+        compute_clade_dyadic_representatives(piece_roots[a], otree, osum, representative_cap, representative_leaves,
+                                             representative_weights);
     }
-    profile_offsets[K_in] = (int32_t)profile_leaves.size();
+    representative_offsets[K_in] = (int32_t)representative_leaves.size();
     if (has_outgroup) {
-        profile_leaves.insert(profile_leaves.end(), outgroup_leaves.begin(), outgroup_leaves.end());
-        profile_weights.insert(profile_weights.end(), outgroup_weights.begin(), outgroup_weights.end());
-        profile_offsets[K] = (int32_t)profile_leaves.size();
+        representative_leaves.insert(representative_leaves.end(), outgroup_leaves.begin(), outgroup_leaves.end());
+        representative_weights.insert(representative_weights.end(), outgroup_weights.begin(), outgroup_weights.end());
+        representative_offsets[K] = (int32_t)representative_leaves.size();
     }
 
     // Skip a solve whose input already found no improvement.
-    const uint64_t input_hash =
-        window_input_hash(K, max_iters, skel.v, skel.perm, profile_offsets, profile_leaves, profile_weights);
+    const uint64_t input_hash = window_input_hash(K, max_iters, skel.v, skel.perm, representative_offsets,
+                                                  representative_leaves, representative_weights);
     if (fruitless.count(input_hash) != 0)
         return 0.0;
     // Core device-powered search through the skeleton with SPR sweeps
     // Returns the gain, and the new skeleton in skel.v, skel.perm
-    double dL = solve_window(K, max_iters, p2vbme::MOVE_BATCH_CAP, profile_offsets.data(), profile_leaves.data(),
-                             profile_weights.data(), skel.v, skel.perm, *dev.window_kernels());
+    double dL =
+        solve_window(K, max_iters, p2vbme::MOVE_BATCH_CAP, representative_offsets.data(), representative_leaves.data(),
+                     representative_weights.data(), skel.v, skel.perm, *dev.window_kernels());
     if (dL == 0.0) {
         fruitless_hash = input_hash;
         return 0.0;
@@ -1087,7 +1089,7 @@ static void emit_stage(const SearchState &s, int32_t round, const char *stage, i
 // A single window runs on the first device.
 // The search changes the tree only here, so the summary is rebuilt here, whenever a window rewrote the tree.
 static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots, const uint8_t *stop_at_comp_root) {
-    const int32_t profile_cap = s.settings.profile_cap;
+    const int32_t representative_cap = s.settings.representative_cap;
     if (window_roots.size() > 1) {
         const Tree snapshot = s.tree;
         const TreeSummary snapshot_summary = s.summary;
@@ -1104,12 +1106,12 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots
                 std::vector<int32_t> out_leaves;
                 std::vector<float> out_weights;
                 if (window_root != s.root_r) {
-                    // Build the profile of everything outside the window's clade
+                    // Build the representatives of everything outside the window's clade
                     // so the window can include the rest of the tree as one extra piece (the outgroup).
-                    compute_outgroup_dyadic_profile(window_root, snapshot, snapshot_summary, profile_cap, out_leaves,
-                                                    out_weights);
+                    compute_outgroup_dyadic_representatives(window_root, snapshot, snapshot_summary, representative_cap,
+                                                            out_leaves, out_weights);
                 }
-                // Turn the window into a skeleton of pieces with profiles
+                // Turn the window into a skeleton of pieces with representatives
                 // Optimize it
                 // Write results back into the tree if it got shorter
                 window_dL[idx] = run_subtree_minibatch_window(
@@ -1137,12 +1139,13 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots
             out_leaves.clear();
             out_weights.clear();
             if (window_root != s.root_r) {
-                // Build the profile of everything outside the window's clade
+                // Build the representatives of everything outside the window's clade
                 // so the window can include the rest of the tree as one extra piece (the outgroup).
-                compute_outgroup_dyadic_profile(window_root, s.tree, s.summary, profile_cap, out_leaves, out_weights);
+                compute_outgroup_dyadic_representatives(window_root, s.tree, s.summary, representative_cap, out_leaves,
+                                                        out_weights);
             }
             std::optional<uint64_t> fruitless_hash;
-            // Turn the window into a skeleton of pieces with profiles
+            // Turn the window into a skeleton of pieces with representatives
             // Optimize it
             // Write results back into the tree if it got shorter
             double dL = run_subtree_minibatch_window(window_root, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves,

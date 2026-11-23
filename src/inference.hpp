@@ -29,23 +29,24 @@ enum class TreeInit { Sample, Random, Given };
 // The settings of a run; defaults in config.hpp.
 struct Settings {
     TreeInit tree_init = TreeInit::Sample;
-    int32_t sample_size = DEFAULT_SAMPLE_SIZE;       // sample-and-place start: 0 = min(100000, N / 10)
-    uint64_t seed = DEFAULT_SEED;                    // seeds the sample-and-place or random start (and, in
-                                                     // prepare_alignment, the GTR+GC fit's pairs)
-    int32_t max_rounds = DEFAULT_MAX_ROUNDS;         // rounds of the search; 0 = no search (score the start)
-    double tol = DEFAULT_TOL;                        // stop once a round gains <= this x the total gain;
-                                                     // 0 = only when a round changes nothing (always on)
-    double time_limit = DEFAULT_TIME_LIMIT;          // seconds; no new round after this (0 = none)
-    int32_t profile_cap = DEFAULT_PROFILE_CAP;       // leaves kept per clade profile (1..256)
-    bool branch_lengths = DEFAULT_BRANCH_LENGTHS;    // estimate BME branch lengths
-    int32_t bl_profile_cap = DEFAULT_BL_PROFILE_CAP; // leaves kept per subtree profile for branch lengths
-    SubstitutionModel substitution_model;            // the model of the distances (JC69 by default);
-                                                     // GTR+GC with given parameters (prepare_alignment fits them)
-    Accelerator accelerator = Accelerator::Auto;     // auto: the GPU if one is visible, else the CPU
-    std::vector<int> devices;                        // GPU numbers; empty = all visible
-    int32_t threads = 0;                             // CPU: workers (threads); 0 = all (omp_get_max_threads)
-    Precision precision = Precision::Single;         // CPU only: single (the GPU's) or double;
-                                                     // double with accelerator auto selects the CPU
+    int32_t sample_size = DEFAULT_SAMPLE_SIZE;               // sample-and-place start: 0 = min(100000, N / 10)
+    uint64_t seed = DEFAULT_SEED;                            // seeds the sample-and-place or random start (and, in
+                                                             // prepare_alignment, the GTR+GC fit's pairs)
+    int32_t max_rounds = DEFAULT_MAX_ROUNDS;                 // rounds of the search; 0 = no search (score the start)
+    double tol = DEFAULT_TOL;                                // stop once a round gains <= this x the total gain;
+                                                             // 0 = only when a round changes nothing (always on)
+    double time_limit = DEFAULT_TIME_LIMIT;                  // seconds; no new round after this (0 = none)
+    int32_t representative_cap = DEFAULT_REPRESENTATIVE_CAP; // representatives kept per clade (1..256)
+    bool branch_lengths = DEFAULT_BRANCH_LENGTHS;            // estimate BME branch lengths
+    // representatives kept per subtree for branch lengths
+    int32_t bl_representative_cap = DEFAULT_BL_REPRESENTATIVE_CAP;
+    SubstitutionModel substitution_model;        // the model of the distances (JC69 by default);
+                                                 // GTR+GC with given parameters (prepare_alignment fits them)
+    Accelerator accelerator = Accelerator::Auto; // auto: the GPU if one is visible, else the CPU
+    std::vector<int> devices;                    // GPU numbers; empty = all visible
+    int32_t threads = 0;                         // CPU: workers (threads); 0 = all (omp_get_max_threads)
+    Precision precision = Precision::Single;     // CPU only: single (the GPU's) or double;
+                                                 // double with accelerator auto selects the CPU
 };
 
 struct Result {

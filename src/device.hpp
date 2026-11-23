@@ -71,12 +71,12 @@ class Device {
 
     // 4. Edge-length pass (branch lengths)
 
-    // Computes the edge-length distances of `count` internal nodes: profiles -> (dAB, dAO, dBO).
+    // Computes the edge-length distances of `count` internal nodes: representatives -> (dAB, dAO, dBO).
     // Node i has children c1[i] (A) and c2[i] (B); O is the rest of the tree, outside node i.
-    // dAB[i], dAO[i], dBO[i]: the profile-weighted distances between A and B, A and O, B and O.
-    // Inside profiles: all n_int internal nodes, node n_leaves + j in row j (in_len[j] entries, rows cap apart).
-    // A leaf child is its own profile (weight 1).
-    // Outside profiles: node i in row i (out_len[i] entries, rows cap apart).
+    // dAB[i], dAO[i], dBO[i]: the distances weighted by the representatives between A and B, A and O, B and O.
+    // Inside representatives: all n_int internal nodes, node n_leaves + j in row j (in_len[j] entries, rows cap apart).
+    // A leaf child represents itself (weight 1).
+    // Outside representatives: node i in row i (out_len[i] entries, rows cap apart).
     // The sums are in the device's precision (GPU: float).
     virtual void edge_lengths(int32_t n_leaves, int32_t cap, int32_t count, const int32_t *c1, const int32_t *c2,
                               int32_t n_int, const int32_t *in_len, const int32_t *in_leaves, const float *in_weights,

@@ -1158,7 +1158,7 @@ TEST_F(BmeReference, GuardThreadsAndWaves) {
             test9_ok = 0;
     }
 
-    /* 9e. Cross-window wave interaction counterexample: frozen outside profiles vs sequential live rebuilding */
+    /* 9e. Cross-window wave interaction counterexample: frozen outside representatives vs sequential live rebuilding */
     {
         const int32_t N10 = 10;
         const double D10[10 * 10] = {0.0,
@@ -1315,7 +1315,8 @@ TEST_F(BmeReference, GuardThreadsAndWaves) {
             test9_ok = 0;
         if (fabs(d_joint - (dA_init + dB_init + interaction)) > 1e-12)
             test9_ok = 0;
-        /* Under sequential outside-profile rebuilding, only the first window is accepted and the second is rejected
+        /* Under sequential rebuilding of the outside representatives, only the first window is accepted and the second
+         * is rejected
          * (+0.07597 / +0.05382 >= -1e-6) */
         if (!(dA_after_B > 0.075 && dB_after_A > 0.053))
             test9_ok = 0;
