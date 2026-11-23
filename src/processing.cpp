@@ -120,7 +120,7 @@ GtrFit prepare_alignment(Alignment &aln, SubstitutionModel &model, int32_t fit_p
 
 // ---- Trees: a given start tree restricted, the copies put back ----
 
-Tree prune(const Tree &tree, const Deduplication &dd) {
+Tree prune(const Tree &tree, const Deduplication &dd, std::vector<int32_t> *node_map) {
     const int32_t N = (int32_t)dd.copy_of.size(), M = (int32_t)dd.kept.size();
     if ((int32_t)tree.c1.size() != 2 * N - 1)
         throw std::invalid_argument("prune: the tree is not on all sequences");
@@ -130,12 +130,16 @@ Tree prune(const Tree &tree, const Deduplication &dd) {
     Tree out;
     out.c1.assign(2 * M - 1, -1);
     out.c2.assign(2 * M - 1, -1);
+    if (node_map)
+        node_map->assign(dd.kept.begin(), dd.kept.end());
     int32_t next = M;
     for (int32_t u : internal_postorder(tree, N)) { // children before parents
         const int32_t a = new_id[tree.c1[u]], b = new_id[tree.c2[u]];
         if (a >= 0 && b >= 0) {
             out.c1[next] = a;
             out.c2[next] = b;
+            if (node_map)
+                node_map->push_back(u);
             new_id[u] = next++;
         } else {
             new_id[u] = a >= 0 ? a : b; // a node with a removed child is replaced by the other child

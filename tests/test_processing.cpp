@@ -163,9 +163,38 @@ TEST(Dedup, ReattachAndPrune) {
         sum_full += x;
     EXPECT_FLOAT_EQ(sum_full, sum_red);
     // prune removes the copies again: the same clades as the reduced tree
-    const p2vbme::Tree back = p2vbme::prune(full, dd);
+    std::vector<int32_t> back_map;
+    const p2vbme::Tree back = p2vbme::prune(full, dd, &back_map);
     ASSERT_TRUE(valid_tree(back, 4));
     EXPECT_EQ(clades(back, 4), clades(red, 4));
+    // its node map: each node of the pruned tree stands for the node of the full tree with the same kept leaves below
+    ASSERT_EQ(back_map.size(), back.c1.size());
+    for (int32_t u = 0; u < 7; ++u) {
+        std::set<int> kept_below; // the full tree's kept leaves below back_map[u], as pruned leaves
+        std::vector<int32_t> st = {back_map[u]};
+        while (!st.empty()) {
+            const int32_t v = st.back();
+            st.pop_back();
+            if (v < 6) {
+                for (int k = 0; k < 4; ++k)
+                    if (dd.kept[k] == v)
+                        kept_below.insert(k);
+            } else {
+                st.insert(st.end(), {full.c1[v], full.c2[v]});
+            }
+        }
+        std::set<int> below_u;
+        st = {u};
+        while (!st.empty()) {
+            const int32_t v = st.back();
+            st.pop_back();
+            if (v < 4)
+                below_u.insert(v);
+            else
+                st.insert(st.end(), {back.c1[v], back.c2[v]});
+        }
+        EXPECT_EQ(kept_below, below_u) << "pruned node " << u;
+    }
 
     // a search result reuses internal ids: here node 4 is the parent of node 5 (child id > parent id)
     p2vbme::Tree shuffled;

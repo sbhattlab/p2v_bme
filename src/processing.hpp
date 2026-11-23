@@ -53,8 +53,10 @@ GtrFit prepare_alignment(Alignment &aln, SubstitutionModel &model, int32_t fit_p
 
 // ---- Trees: a given start tree restricted, the copies put back ----
 
-// A tree on all input sequences restricted to the kept ones (a given start tree with dedup on).
-Tree prune(const Tree &tree, const Deduplication &dd);
+// A tree on all input sequences restricted to the kept ones (a given start tree with dedup on): leaf k of the result is
+// sequence dd.kept[k].
+// node_map (optional) receives, for each node of the result, the node of the input tree that stands for it.
+Tree prune(const Tree &tree, const Deduplication &dd, std::vector<int32_t> *node_map = nullptr);
 
 // A given start tree on all input sequences, restricted in place to the sequences prepare_alignment kept.
 void prepare_start_tree(Tree &tree, const Deduplication &dd);
