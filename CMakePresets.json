@@ -11,18 +11,23 @@
       }
     },
     {
-      "name": "cpu",
+      "name": "ci",
       "inherits": "default",
-      "displayName": "CPU only (no CUDA)",
-      "binaryDir": "${sourceDir}/build-cpu",
-      "cacheVariables": { "P2VBME_CUDA": "OFF" }
+      "displayName": "CPU only (no CUDA), warnings as errors, as in CI",
+      "binaryDir": "${sourceDir}/build-ci",
+      "cacheVariables": {
+        "P2VBME_CUDA": "OFF",
+        "CMAKE_C_FLAGS": "-Werror",
+        "CMAKE_CXX_FLAGS": "-Werror"
+      }
     },
     {
       "name": "asan",
-      "inherits": "cpu",
+      "inherits": "default",
       "displayName": "CPU only, AddressSanitizer and UndefinedBehaviorSanitizer",
       "binaryDir": "${sourceDir}/build-asan",
       "cacheVariables": {
+        "P2VBME_CUDA": "OFF",
         "CMAKE_C_FLAGS": "-g -fsanitize=address,undefined -fno-omit-frame-pointer",
         "CMAKE_CXX_FLAGS": "-g -fsanitize=address,undefined -fno-omit-frame-pointer",
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
@@ -32,12 +37,12 @@
   ],
   "buildPresets": [
     { "name": "default", "configurePreset": "default" },
-    { "name": "cpu", "configurePreset": "cpu" },
+    { "name": "ci", "configurePreset": "ci" },
     { "name": "asan", "configurePreset": "asan" }
   ],
   "testPresets": [
     { "name": "default", "configurePreset": "default", "output": { "outputOnFailure": true } },
-    { "name": "cpu", "configurePreset": "cpu", "output": { "outputOnFailure": true } },
+    { "name": "ci", "configurePreset": "ci", "output": { "outputOnFailure": true } },
     { "name": "asan", "configurePreset": "asan", "output": { "outputOnFailure": true } }
   ]
 }

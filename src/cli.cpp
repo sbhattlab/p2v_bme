@@ -6,6 +6,7 @@
  * Note: most options follow IQ-TREE names where the tools overlap
  *       Device and precision options follow lightning names.
  */
+#include <cstdint> // cxxopts.hpp 3.2.1 uses uint8_t without including <cstdint>, which GCC 15 needs
 #include <exception>
 #include <iostream>
 #include <stdexcept>

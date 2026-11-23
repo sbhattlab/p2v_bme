@@ -1121,7 +1121,9 @@ static void apply_unrooted_spr(int32_t *restrict adj_u, int32_t prune_node, int3
 double optimize_phylo2vec_bme_c(const int64_t *restrict v_init, const double *restrict D, int32_t n_leaves,
                                 int64_t *restrict v_out, int32_t *restrict n_grad_evals_out,
                                 double *restrict elapsed_ms_out) {
-    if (ensure_workspace(n_leaves) != 0)
+    // ensure_workspace also refuses n_leaves < 4.
+    // Testing it here shows the compiler that the sizes below are positive (GCC 15 warns on a memset otherwise).
+    if (n_leaves < 4 || ensure_workspace(n_leaves) != 0)
         return -1.0;
     double t0 = now_ms();
     const int32_t n_pairs = n_leaves - 1;
