@@ -55,30 +55,52 @@ Alignment resample_columns(const Alignment &aln, const std::vector<int32_t> &col
     return out;
 }
 
-BootstrapResult bootstrap(const Alignment &aln, const Settings &settings, Devices &devices, const Tree &reference,
-                          int32_t n_replicates, const LogCallback &log) {
-    if (n_replicates < 1)
-        throw std::invalid_argument("bootstrap: the number of replicates must be >= 1");
-    const double t0 = wall_sec();
-    SupportCounter counter(reference);
+Result bootstrap_replicate(const Alignment &aln, const Settings &settings, Devices &devices, int32_t replicate,
+                           const LogCallback &log) {
+    if (replicate < 1)
+        throw std::invalid_argument("bootstrap: replicates are numbered from 1");
     Settings rep = settings;
     rep.branch_lengths = false;
     if (rep.tree_init == TreeInit::Given)
         rep.tree_init = TreeInit::Sample;
-    for (int32_t r = 1; r <= n_replicates; ++r) {
+    rep.seed = replicate_seed(settings.seed, replicate);
+    const Alignment columns =
+        resample_columns(aln, draw_columns(aln.n_sites, derive_seed(rep.seed, SALT_BOOTSTRAP_COLUMNS)));
+    return infer(columns, rep, devices, nullptr, log);
+}
+
+void bootstrap_replicates(const Alignment &aln, const Settings &settings, Devices &devices, int32_t first, int32_t last,
+                          const ReplicateCallback &on_replicate, const LogCallback &log) {
+    if (first < 1 || last < first)
+        throw std::invalid_argument("bootstrap: replicates are numbered from 1, the first no later than the last");
+    for (int32_t r = first; r <= last; ++r) {
         const double t_rep = wall_sec();
-        rep.seed = replicate_seed(settings.seed, r);
-        const Alignment replicate =
-            resample_columns(aln, draw_columns(aln.n_sites, derive_seed(rep.seed, SALT_BOOTSTRAP_COLUMNS)));
-        const Result res = infer(replicate, rep, devices, nullptr, nullptr);
-        counter.add(res.tree);
+        const Result res = bootstrap_replicate(aln, settings, devices, r);
+        if (on_replicate)
+            on_replicate(r, res);
         if (log) {
             char line[128];
-            std::snprintf(line, sizeof(line), "bootstrap replicate %d/%d: %d rounds in %.2f s", r, n_replicates,
-                          res.rounds_run, wall_sec() - t_rep);
+            std::snprintf(line, sizeof(line), "bootstrap replicate %d/%d: %d rounds in %.2f s", r, last, res.rounds_run,
+                          wall_sec() - t_rep);
             log(line);
         }
     }
+}
+
+BootstrapResult bootstrap(const Alignment &aln, const Settings &settings, Devices &devices, const Tree &reference,
+                          int32_t n_replicates, const LogCallback &log, const ReplicateCallback &on_replicate) {
+    if (n_replicates < 1)
+        throw std::invalid_argument("bootstrap: the number of replicates must be >= 1");
+    const double t0 = wall_sec();
+    SupportCounter counter(reference);
+    bootstrap_replicates(
+        aln, settings, devices, 1, n_replicates,
+        [&](int32_t r, const Result &res) {
+            counter.add(res.tree);
+            if (on_replicate)
+                on_replicate(r, res);
+        },
+        log);
     BootstrapResult out;
     out.n_replicates = n_replicates;
     out.tbe = counter.tbe();

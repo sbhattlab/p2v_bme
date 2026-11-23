@@ -150,12 +150,18 @@ std::string report_json(const Report &run, const Settings &opt, const Result &re
         w.null();
     w.field("rounds_run", res.rounds_run);
     w.field("stop_reason", stop_reason_name(res.stop_reason));
-    if (run.bootstrap > 0) { // the mean supports of the internal branches (each branch's are in <prefix>.support.nwk)
+    if (run.bootstrap_last > 0) { // the replicates' trees; -b B: the mean supports of the internal branches (each
+                                  // branch's are in <prefix>.support.nwk)
         w.key("bootstrap");
         w.begin_object();
-        w.field("replicates", run.bootstrap);
-        w.field("mean_tbe", run.mean_tbe);
-        w.field("mean_exact", run.mean_exact);
+        w.field("replicates", run.bootstrap_last - run.bootstrap_first + 1);
+        w.field("first", run.bootstrap_first);
+        w.field("last", run.bootstrap_last);
+        w.field("trees", run.prefix + ".boottrees");
+        if (!run.bootstrap_only) {
+            w.field("mean_tbe", run.mean_tbe);
+            w.field("mean_exact", run.mean_exact);
+        }
         w.end_object();
     }
     w.field("time", run.time_total);
@@ -183,6 +189,35 @@ void write_report(const std::string &path, const Report &run, const Settings &se
         throw std::runtime_error("cannot write " + path);
     out << text;
     // close() flushes; a failed write or flush leaves the stream failed.
+    out.close();
+    if (!out)
+        throw std::runtime_error("cannot write " + path);
+}
+
+void write_supports_report(const std::string &path, const Report &run, const SupportsReport &supports) {
+    std::string text;
+    JsonWriter w(text);
+    w.begin_object();
+    w.field("version", version_string());
+    w.array_field("command_line", run.command_line);
+    w.field("date", utc_now());
+    w.key("supports");
+    w.begin_object();
+    w.field("tree", run.tree_init);
+    w.field("replicates", run.supports);
+    w.field("n_replicates", supports.n_replicates);
+    w.field("leaves", supports.n_leaves);
+    w.field("leaves_supported", supports.n_leaves_supported);
+    w.field("mean_tbe", supports.mean_tbe);
+    w.field("mean_exact", supports.mean_exact);
+    w.end_object();
+    w.field("time", run.time_total);
+    w.end_object();
+    w.finish();
+    std::ofstream out(path);
+    if (!out)
+        throw std::runtime_error("cannot write " + path);
+    out << text;
     out.close();
     if (!out)
         throw std::runtime_error("cannot write " + path);

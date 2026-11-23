@@ -306,12 +306,16 @@ def test_bootstrap(data, tmp_path):
     assert "p2v-bme: bootstrap replicate 3/3:" in p.stdout
     r = report(tmp_path / "out")
     assert list(r) == SUMMARY_KEYS[:7] + ["bootstrap"] + SUMMARY_KEYS[7:] + ["details"]
-    assert r["bootstrap"]["replicates"] == 3
-    assert 0 <= r["bootstrap"]["mean_exact"] <= r["bootstrap"]["mean_tbe"] <= 100
+    b = r["bootstrap"]
+    assert (b["replicates"], b["first"], b["last"]) == (3, 1, 3)
+    assert b["trees"] == f"{tmp_path / 'out'}.boottrees"
+    assert 0 <= b["mean_exact"] <= b["mean_tbe"] <= 100
     assert (
-        r["details"]["settings"]["bootstrap"] == 3
+        r["details"]["settings"]["bootstrap"] == "3"
         and r["details"]["time"]["bootstrap"] > 0
     )
+    trees = Path(b["trees"]).read_text().splitlines()
+    assert len(trees) == 3 and ":" not in trees[0]  # topology only
     supported = Path(f"{tmp_path / 'out'}.support.nwk").read_text()
     labels = re.findall(r"\)([0-9.]+)/([0-9.]+):", supported)
     assert len(labels) == len(NAMES_DUPS) - 3
@@ -321,6 +325,63 @@ def test_bootstrap(data, tmp_path):
         re.sub(r"\)[0-9.]+/[0-9.]+:", "):", supported)
         == (tmp_path / "out.nwk").read_text()
     )
+
+
+def test_bootstrap_ranges_and_supports(data, tmp_path):
+    """
+    -b 1-2 and -b 3-3 write the trees of -b 3, and --supports over them gives its supports: the same labels on every
+    branch of the search (the identical copies' groups, not in the replicate trees, get none) and the same means.
+    The true tree as the one "replicate" gives the share of branches it has.
+    """
+    common = ["-s", data / "input_dups.fa", "-m", "JC69", "-a", "cpu", "-q"]
+    assert run(*common, "-b", "3", "-p", tmp_path / "main").returncode == 0
+    for b in ("1-2", "3-3"):
+        p = run(*common, "-b", b, "--report-full", "-p", tmp_path / f"reps{b}")
+        assert (p.returncode, p.stderr) == (0, "")
+    first = report(tmp_path / "reps1-2")
+    assert first["bootstrap"] == {
+        "replicates": 2,
+        "first": 1,
+        "last": 2,
+        "trees": f"{tmp_path / 'reps1-2'}.boottrees",
+    }
+    assert (
+        first["bme_length"] is None
+        and first["details"]["settings"]["bootstrap"] == "1-2"
+    )
+    assert not (tmp_path / "reps1-2.nwk").exists()  # no tree of their own
+    assert leaf_names(tmp_path / "reps3-3.boottrees") == sorted(
+        NAMES + ["t1_copy1", "t2_copy1"]
+    )  # the sequences searched
+    ranges = "".join(
+        (tmp_path / f"reps{b}.boottrees").read_text() for b in ("1-2", "3-3")
+    )
+    assert ranges == (tmp_path / "main.boottrees").read_text()
+    p = run(
+        "-t", tmp_path / "main.nwk", "--supports", tmp_path / "main.boottrees", "-q"
+    )
+    assert (p.returncode, p.stdout, p.stderr) == (0, "", "")
+    b = report(tmp_path / "main")["bootstrap"]
+    s = report(tmp_path / "main.nwk")["supports"]  # default prefix: the tree
+    assert (s["n_replicates"], s["leaves"], s["leaves_supported"]) == (3, 305, 302)
+    assert s["mean_tbe"] == pytest.approx(b["mean_tbe"], abs=1e-9)
+    assert s["mean_exact"] == pytest.approx(b["mean_exact"], abs=1e-9)
+    ours = re.findall(r"\)([0-9./]*)", (tmp_path / "main.support.nwk").read_text())
+    saved = re.findall(r"\)([0-9./]*)", (tmp_path / "main.nwk.support.nwk").read_text())
+    differ = [(x, y) for x, y in zip(ours, saved, strict=True) if x != y]
+    assert differ == [("100/100", "")] * 3
+    p = run(
+        "-t",
+        tmp_path / "main.nwk",
+        "--supports",
+        data / "input_true.nwk",
+        "-p",
+        tmp_path / "vs_true",
+    )
+    assert p.returncode == 0, p.stderr
+    s = report(tmp_path / "vs_true")["supports"]
+    assert (s["n_replicates"], s["leaves_supported"]) == (1, 300)
+    assert 50 < s["mean_exact"] <= s["mean_tbe"] <= 100
 
 
 def test_maple_gives_the_fasta_tree(data, tmp_path):
@@ -359,6 +420,7 @@ def test_help_all():
         "Search options:",
         "Start tree options:",
         "Branch lengths and output options:",
+        "Bootstrap options:",
         "Input options:",
     ]
     assert "--max-rounds" in p.stdout
@@ -426,7 +488,27 @@ ERRORS = {
     "negative bootstrap": (
         [*INPUT, "-m", "JC69", "-b", "-1"],
         1,
-        "p2v-bme: error: bootstrap replicates must be >= 0",
+        "p2v-bme: error: -b takes B or A-B (replicates A to B), e.g. -b 100 or -b 26-50, not '-1'",
+    ),
+    "bootstrap range backwards": (
+        [*INPUT, "-m", "JC69", "-b", "3-2"],
+        1,
+        "p2v-bme: error: -b A-B needs 1 <= A <= B, not '3-2'",
+    ),
+    "bootstrap range from 0": (
+        [*INPUT, "-m", "JC69", "-b", "0-2"],
+        1,
+        "p2v-bme: error: -b A-B needs 1 <= A <= B, not '0-2'",
+    ),
+    "supports without a tree": (
+        ["--supports", "{tmp}/reps.nwk"],
+        2,
+        "p2v-bme: --supports needs -t TREE, and no -s, -m or -b (see --help-all)",
+    ),
+    "supports with an alignment": (
+        [*INPUT, "-t", "{tmp}/t.nwk", "--supports", "{tmp}/reps.nwk"],
+        2,
+        "p2v-bme: --supports needs -t TREE, and no -s, -m or -b (see --help-all)",
     ),
     # checked by the GTR+GC fit and by infer(), after the read: -q and the CPU keep stdout and stderr to the error
     "no GTR+GC fit pairs": (

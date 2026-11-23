@@ -46,6 +46,11 @@ int32_t read_newick_trees(const std::string &path, std::vector<std::string> &nam
 void write_newick_unrooted(const std::string &path, const std::vector<std::string> &names, const Tree &tree,
                            bool neg_as_zero = true, const std::vector<std::string> &labels = {});
 
+// Appends the tree, unrooted, to path as one more line (write_newick_unrooted without labels), e.g. a bootstrap
+// replicate's tree to <prefix>.boottrees.
+// Throws std::runtime_error.
+void append_newick_unrooted(const std::string &path, const std::vector<std::string> &names, const Tree &tree);
+
 } // namespace p2vbme
 
 #endif // P2VBME_NEWICK_HPP

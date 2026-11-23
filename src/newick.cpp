@@ -275,14 +275,14 @@ int32_t read_newick_trees(const std::string &path, std::vector<std::string> &nam
     return n_trees;
 }
 
-void write_newick_unrooted(const std::string &path, const std::vector<std::string> &names, const Tree &tree,
-                           bool neg_as_zero, const std::vector<std::string> &labels) {
+namespace {
+
+// Writes the tree unrooted to a stream, as write_newick_unrooted describes, ending with ";\n".
+void put_newick_unrooted(std::ostream &out, const std::vector<std::string> &names, const Tree &tree, bool neg_as_zero,
+                         const std::vector<std::string> &labels) {
     const int32_t N = (int32_t)names.size();
     if (N < 3)
         throw std::runtime_error("an unrooted tree needs at least 3 leaves");
-    std::ofstream out(path);
-    if (!out)
-        throw std::runtime_error("cannot write " + path);
     const bool with_bl = !tree.branch_lengths.empty();
     const int32_t root = 2 * N - 2;
     if (!labels.empty() && labels.size() != tree.c1.size())
@@ -347,10 +347,30 @@ void write_newick_unrooted(const std::string &path, const std::vector<std::strin
     out.put(',');
     write_subtree(sibling);
     out << ");\n";
+}
+
+// Writes the tree to path, appending or not: (path, mode, tree...) -> the file.
+void put_newick_file(const std::string &path, std::ios::openmode mode, const std::vector<std::string> &names,
+                     const Tree &tree, bool neg_as_zero, const std::vector<std::string> &labels) {
+    std::ofstream out(path, mode);
+    if (!out)
+        throw std::runtime_error("cannot write " + path);
+    put_newick_unrooted(out, names, tree, neg_as_zero, labels);
     // close() flushes; a failed write or flush leaves the stream failed.
     out.close();
     if (!out)
         throw std::runtime_error("cannot write " + path);
+}
+
+} // namespace
+
+void write_newick_unrooted(const std::string &path, const std::vector<std::string> &names, const Tree &tree,
+                           bool neg_as_zero, const std::vector<std::string> &labels) {
+    put_newick_file(path, std::ios::out, names, tree, neg_as_zero, labels);
+}
+
+void append_newick_unrooted(const std::string &path, const std::vector<std::string> &names, const Tree &tree) {
+    put_newick_file(path, std::ios::app, names, tree, true, {});
 }
 
 } // namespace p2vbme

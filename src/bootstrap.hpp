@@ -18,6 +18,7 @@
 #define P2VBME_BOOTSTRAP_HPP
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -46,15 +47,32 @@ struct BootstrapResult {
     double time = 0.0;                       // seconds
 };
 
+// Receives bootstrap replicate r's search result (its tree is on the alignment's sequences, without branch lengths).
+using ReplicateCallback = std::function<void(int32_t replicate, const Result &result)>;
+
+// Runs bootstrap replicate r (1..) alone: (aln, settings, devices, r) -> its search's result, as bootstrap() gets it.
+// aln and settings as bootstrap()'s; the tree has no branch lengths.
+// Throws std::invalid_argument if replicate < 1, and what infer() throws.
+Result bootstrap_replicate(const Alignment &aln, const Settings &settings, Devices &devices, int32_t replicate,
+                           const LogCallback &log = nullptr);
+
+// Runs bootstrap replicates first..last (1-based, inclusive) one after another, as bootstrap() runs them:
+// on_replicate receives each result, in order; log receives one line per replicate.
+// Replicate r depends only on the settings (seed) and r, so ranges run as separate jobs give the trees of one run.
+// Throws std::invalid_argument if first < 1 or last < first, and what infer() throws.
+void bootstrap_replicates(const Alignment &aln, const Settings &settings, Devices &devices, int32_t first, int32_t last,
+                          const ReplicateCallback &on_replicate, const LogCallback &log = nullptr);
+
 // Runs the bootstrap: (aln, settings, devices, reference, B) -> the supports of the reference tree's branches.
 // aln: the alignment the main tree was searched on (identical sequences set aside); settings: the main search's, with
 // the model's parameters as it used them; reference: the main tree, on aln's sequences.
-// Each replicate runs infer() with settings except its seed, no branch lengths, and the sample-and-place start when
-// the main search started from a given tree.
-// log receives one line per replicate.
+// Each replicate (bootstrap_replicate) runs infer() with settings except its seed, no branch lengths, and the
+// sample-and-place start when the main search started from a given tree.
+// log receives one line per replicate; on_replicate (optional) each replicate's result, e.g. to save its tree.
 // Throws std::invalid_argument if n_replicates < 1, and what infer() throws.
 BootstrapResult bootstrap(const Alignment &aln, const Settings &settings, Devices &devices, const Tree &reference,
-                          int32_t n_replicates, const LogCallback &log = nullptr);
+                          int32_t n_replicates, const LogCallback &log = nullptr,
+                          const ReplicateCallback &on_replicate = nullptr);
 
 // Writes the supports as Newick labels of the tree restore_copies builds: (supports on the searched sequences' tree,
 // its node map) -> one label per node of the full tree.
