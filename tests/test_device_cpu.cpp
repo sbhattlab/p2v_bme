@@ -21,7 +21,7 @@ using namespace p2vbme;
 
 // The move scores: for each pruned subtree (row) of a skeleton, the best regraft and its score equal the smallest
 // exact BME change over every regraft the recursion covers (each move applied and the tree scored anew).
-TEST(CpuDevice, MoveScoresAreExactBmeChanges) {
+TEST(DeviceCpu, MoveScoresAreExactBmeChanges) {
     const int32_t K = 14, M = 2 * K - 2, root_u = M - 1;
     const Tree tree = random_tree(K, 0.02, 0.3, 91);
     const Alignment aln = simulate_alignment(tree, 2000, truth(), 92);
@@ -100,7 +100,7 @@ TEST(CpuDevice, MoveScoresAreExactBmeChanges) {
 
 // Ties: with identical sequences every regraft changes nothing (all scores exactly 0), and each row's best move is
 // the smallest edge the recursion scores (the GPU reduction's tie-break).
-TEST(CpuDevice, MoveTiesGoToTheSmallestEdge) {
+TEST(DeviceCpu, MoveTiesGoToTheSmallestEdge) {
     const int32_t K = 12, M = 2 * K - 2, root_u = M - 1;
     Alignment aln = simulate_alignment(random_tree(K, 0.1, 0.1, 111), 200, truth(), 112);
     for (int32_t x = 1; x < K; ++x) /* every sequence a copy of the first */
