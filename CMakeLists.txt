@@ -112,6 +112,8 @@ target_link_libraries(p2v-bme PRIVATE p2vbme_cli p2vbme p2vbme_io p2vbme_process
 install(TARGETS p2v-bme)
 
 # ---- reference library (C99), as a shared library for the Python helpers --------------------------------
+# Off by default, so that a build does not depend on the CPU of the machine that runs it (CI runners differ).
+option(P2VBME_NATIVE "Build the reference library and its test for this machine's CPU (-march=native)" OFF)
 add_subdirectory(src/reference)
 
 # ---- tests ----------------------------------------------------------------------------------------------
