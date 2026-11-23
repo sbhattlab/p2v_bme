@@ -28,6 +28,8 @@ void transition_matrix(const SimulationModel &model, double t, double P[N_BASES]
 
 // Random rooted binary tree on n >= 2 leaves (Tree layout: post-order, root 2n-2): pairs of subtrees are joined
 // uniformly at random; each branch length is drawn uniformly from [min_length, max_length] (the root's is 0).
+// The topologies follow the Yule-Harding distribution, as build_random_tree's (start_tree.hpp).
+// It does not call build_random_tree, so that the simulations the tests rely on do not depend on the library they test.
 Tree random_tree(int32_t n, double min_length, double max_length, uint64_t seed);
 
 // Simulates n_sites aligned sites along the tree's branch lengths (expected substitutions per site): the root's bases
