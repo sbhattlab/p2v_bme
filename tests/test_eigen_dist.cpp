@@ -37,21 +37,3 @@ TEST(EigenDist, GtrGcConsistent) {
                     << "alpha=" << alpha << " t=" << t << " (float)";
             }
 }
-
-// Only the ratios of the exchangeabilities matter: scaling them all gives the same distance.
-// Before they were scaled to mean 1, a scale of 1e-25 skipped the rate matrix's normalisation (distance about 500x).
-TEST(EigenDist, GtrGcScaleFree) {
-    const SimulationModel m = model_gtr();
-    for (double t : TIMES) {
-        const PairCounts c = expected_counts_gamma(m, t, 1.0);
-        const double d = gtr_distance<double>(c, m, 1.0);
-        const float f = gtr_distance<float>(c, m, 1.0);
-        for (double scale : {1e-25, 1e-6, 1e6, 1e25}) {
-            SimulationModel scaled = m;
-            for (int k = 0; k < N_GTR_RATES; ++k)
-                scaled.rates[k] *= scale;
-            EXPECT_NEAR(gtr_distance<double>(c, scaled, 1.0), d, 1e-12 * d) << "t=" << t << " scale=" << scale;
-            EXPECT_NEAR(gtr_distance<float>(c, scaled, 1.0), f, 1e-6f * f) << "t=" << t << " scale=" << scale;
-        }
-    }
-}

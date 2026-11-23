@@ -6,6 +6,7 @@
  *   - consistency: on the expected pair counts of a model at distance t (L = 10^9 sites, from the simulator's
  *     transition probabilities), each model's estimator returns t when the data follow it;
  *   - one asymmetric count table, evaluated by an independent numpy script with the textbook formulas;
+ *   - GTR+GC's exchangeabilities: scaling them all gives the same distance;
  *   - edge cases (no shared site, identical, saturated, undefined LogDet) and the model names.
  */
 #include <math.h>
@@ -33,6 +34,15 @@ template <class T> T distance(Model model, const PairCounts &c, const double *fr
         for (int i = 0; i < N_BASES; ++i)
             m.base_freqs[i] = freqs[i];
     return pair_distance<T>(distance_params<T>(m), c.n);
+}
+
+template <class T> T gtr_distance(const PairCounts &c, const SimulationModel &m, double alpha) {
+    SubstitutionModel dm;
+    dm.model = Model::GTR_GC;
+    for (int k = 0; k < N_GTR_RATES; ++k)
+        dm.rates[k] = m.rates[k];
+    dm.alpha = alpha;
+    return pair_distance<T>(distance_params<T>(dm), c.n);
 }
 
 /* Each closed form is consistent under its model and under the models it contains. */
@@ -115,6 +125,24 @@ TEST(Distances, LogDetUnderGtr) {
             const PairCounts c = expected_counts(m, t);
             EXPECT_NEAR(distance<double>(Model::LogDet, c), scale * t, 1e-6 * t);
             EXPECT_NEAR(distance<float>(Model::LogDet, c), scale * t, 3e-4 * t);
+        }
+    }
+}
+
+// GTR+GC: only the ratios of the exchangeabilities matter (distance_params scales them to mean 1).
+// Before they were scaled to mean 1, a scale of 1e-25 skipped the rate matrix's normalisation (distance about 500x).
+TEST(Distances, GtrGcScaleFree) {
+    const SimulationModel m = model_gtr();
+    for (double t : TIMES) {
+        const PairCounts c = expected_counts_gamma(m, t, 1.0);
+        const double d = gtr_distance<double>(c, m, 1.0);
+        const float f = gtr_distance<float>(c, m, 1.0);
+        for (double scale : {1e-25, 1e-6, 1e6, 1e25}) {
+            SimulationModel scaled = m;
+            for (int k = 0; k < N_GTR_RATES; ++k)
+                scaled.rates[k] *= scale;
+            EXPECT_NEAR(gtr_distance<double>(c, scaled, 1.0), d, 1e-12 * d) << "t=" << t << " scale=" << scale;
+            EXPECT_NEAR(gtr_distance<float>(c, scaled, 1.0), f, 1e-6f * f) << "t=" << t << " scale=" << scale;
         }
     }
 }
