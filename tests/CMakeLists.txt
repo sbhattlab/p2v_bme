@@ -33,6 +33,11 @@ target_compile_options(test_eigen_dist PRIVATE -Wall -Wextra)
 target_link_libraries(test_eigen_dist PRIVATE p2vbme_distances p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_eigen_dist)
 
+add_executable(test_support test_support.cpp)
+target_compile_options(test_support PRIVATE -O2 -Wall -Wextra)
+target_link_libraries(test_support PRIVATE p2vbme_support p2vbme_simulations GTest::gtest_main)
+gtest_discover_tests(test_support)
+
 add_executable(test_gtr_fit test_gtr_fit.cpp)
 target_compile_options(test_gtr_fit PRIVATE -O2 -Wall -Wextra)
 target_link_libraries(test_gtr_fit PRIVATE p2vbme_gtr_fit p2vbme_simulations GTest::gtest_main)

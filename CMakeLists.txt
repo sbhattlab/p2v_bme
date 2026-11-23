@@ -76,6 +76,12 @@ target_include_directories(p2vbme_processing PUBLIC src)
 target_compile_options(p2vbme_processing PRIVATE -O3)
 target_link_libraries(p2vbme_processing PUBLIC p2vbme_core p2vbme_distances p2vbme_gtr_fit)
 
+# Bootstrap supports of a tree's branches: TBE and exact (plain C++, no CUDA)
+add_library(p2vbme_support STATIC src/support.cpp)
+target_include_directories(p2vbme_support PUBLIC src)
+target_compile_options(p2vbme_support PRIVATE -O3 -Wall -Wextra)
+target_link_libraries(p2vbme_support PUBLIC p2vbme_core)
+
 # JSON writer for the run report (plain C++, no CUDA)
 add_library(p2vbme_json STATIC src/json_writer.cpp)
 target_include_directories(p2vbme_json PUBLIC src)
