@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <optional>
 #include <queue>
 #include <stdexcept>
@@ -705,7 +706,8 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
     std::vector<double> h_best_delta(K);
     std::vector<int32_t> h_best_j(K);
 
-    double init_L = 0.0, curr_L = 0.0, best_L = 1e300, prev_L = 1e300;
+    double init_L = 0.0, curr_L = 0.0;
+    double best_L = std::numeric_limits<double>::infinity(), prev_L = std::numeric_limits<double>::infinity();
     std::vector<int64_t> best_v = v, prev_v = v;
     std::vector<int32_t> best_perm = perm, prev_perm = perm;
     bool flipped_already = false;

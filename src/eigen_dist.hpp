@@ -221,7 +221,7 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
     T r_evals[3];
     sym4x4_rank3_eigenvalues<T>(R, sxi, r_evals);
     T y[3], neg_lam[3], lw[3];
-    T max_lw = T(-1e30);
+    T max_lw = -T(INFINITY);
     for (int k = 0; k < 3; ++k) {
         T sig = sigma[k];
         T nl = -r_evals[k];
@@ -250,7 +250,7 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
     const T log_sigma_min = sizeof(T) == 4 ? T(LOG_EIGEN_SIGMA_MIN_FLOAT) : T(LOG_EIGEN_SIGMA_MIN);
     for (int it = 0; it < EIGEN_REWEIGHT_PASSES; ++it) {
         T d_curr = (d_ab > T(MAX_DISTANCE)) ? T(MAX_DISTANCE) : d_ab;
-        max_lw = T(-1e30);
+        max_lw = -T(INFINITY);
         for (int k = 0; k < 3; ++k) {
             T base = T(1) + (d_curr * neg_lam[k]) * inv_alpha;
             if (base < T(1))
