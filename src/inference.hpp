@@ -30,7 +30,8 @@ enum class TreeInit { Sample, Random, Given };
 struct Settings {
     TreeInit tree_init = TreeInit::Sample;
     int32_t sample_size = DEFAULT_SAMPLE_SIZE;       // sample-and-place start: 0 = min(100000, N / 10)
-    uint64_t seed = DEFAULT_SEED;                    // seeds the sample-and-place or random start
+    uint64_t seed = DEFAULT_SEED;                    // seeds the sample-and-place or random start (and, in
+                                                     // prepare_alignment, the GTR+GC fit's pairs)
     int32_t max_rounds = DEFAULT_MAX_ROUNDS;         // rounds of the search; 0 = no search (score the start)
     double tol = DEFAULT_TOL;                        // stop once a round gains <= this x the total gain;
                                                      // 0 = only when a round changes nothing (always on)
@@ -39,7 +40,7 @@ struct Settings {
     bool branch_lengths = DEFAULT_BRANCH_LENGTHS;    // estimate BME branch lengths
     int32_t bl_profile_cap = DEFAULT_BL_PROFILE_CAP; // leaves kept per subtree profile for branch lengths
     SubstitutionModel substitution_model;            // the model of the distances (JC69 by default);
-                                                     // GTR+GC with given parameters (the fit comes later)
+                                                     // GTR+GC with given parameters (prepare_alignment fits them)
     Accelerator accelerator = Accelerator::Auto;     // auto: the GPU if one is visible, else the CPU
     std::vector<int> devices;                        // GPU numbers; empty = all visible
     int32_t threads = 0;                             // CPU: workers (threads); 0 = all (omp_get_max_threads)

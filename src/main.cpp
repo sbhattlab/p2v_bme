@@ -82,10 +82,35 @@ int main(int argc, char **argv) {
         // Data: if identical sequences, two of each group stay in the search, the rest are put back after it.
         // F81, F84, TN93: base frequencies are counted on the whole input, before the copies are set aside
         //   so dedup does not change any distance (FastME and ape count them on the whole input too).
+        // GTR+GC: the rates and alpha are fitted on the whole input too, for the same reason.
         const std::vector<std::string> all_names = aln.names;
         p2vbme::Deduplication dd;
-        // Data: count base frequencies and deduplicate
-        p2vbme::prepare_alignment(aln, opt.substitution_model, run.dedup, dd);
+        // Data: count base frequencies, fit GTR+GC and deduplicate
+        // (the fit uses the run's CPU threads: -d N on the CPU, else all but one or OMP_NUM_THREADS)
+        run.gtr_fit = p2vbme::prepare_alignment(aln, opt.substitution_model, run.gtr_fit_pairs, opt.seed, opt.threads,
+                                                run.dedup, dd);
+        if (opt.substitution_model.model == p2vbme::Model::GTR_GC) {
+            const p2vbme::GtrFit &fit = run.gtr_fit;
+            std::string note;
+            if (fit.n_pairs == 0)
+                note = "GTR+GC: no sequence pair shares " + std::to_string((int)p2vbme::GTR_FIT_MIN_SITES) +
+                       " valid sites; the rates and alpha are not fitted (equal rates, alpha = 1)";
+            else if (!fit.converged)
+                note = "GTR+GC: the fit of the rates and alpha did not converge (" + std::to_string(fit.n_iterations) +
+                       " iterations)";
+            if (!note.empty()) {
+                run.warnings.push_back(note);
+                std::cerr << "p2v-bme: warning: " << note << '\n';
+            }
+            if (progress) {
+                std::cout << "p2v-bme: GTR+GC fit on " << fit.n_pairs << " pairs in " << std::setprecision(2)
+                          << fit.time << " s: alpha " << std::setprecision(4) << opt.substitution_model.alpha
+                          << ", rates (AC, AG, AT, CG, CT, GT)" << std::setprecision(3);
+                for (double r : opt.substitution_model.rates)
+                    std::cout << ' ' << r;
+                std::cout << std::endl;
+            }
+        }
         run.n_identical_removed = dd.n_removed();
         if (progress && dd.n_removed() > 0)
             std::cout << "p2v-bme: " << dd.n_removed()

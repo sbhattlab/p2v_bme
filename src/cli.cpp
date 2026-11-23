@@ -86,7 +86,8 @@ CommandLine parse_command_line(int argc, char **argv) {
     cli.add_options()
         ("s,alignment", "aligned DNA sequences: FASTA, or .maple (by the file extension)", cxxopts::value<std::string>(),
          "FILE")
-        ("m,model", "substitution model of the distances: JC69, K80, F81, F84, TN93 or LogDet",
+        ("m,model", "substitution model of the distances: JC69, K80, F81, F84, TN93, LogDet or GTR+GC (its rates "
+         "and alpha fitted to the alignment)",
          cxxopts::value<std::string>(), "MODEL")
         ("p,prefix", "output prefix: <prefix>.nwk, <prefix>.json (default: the alignment's file name)",
          cxxopts::value<std::string>(), "STR")
@@ -94,11 +95,14 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value<std::string>()->default_value("auto"))
         ("d,devices", "GPU: auto (the first GPU), N (the first N) or a list such as 0,2; CPU: auto (all "
          "cores but one, or OMP_NUM_THREADS if set) or N threads", cxxopts::value<std::string>()->default_value("auto"))
-        ("seed", "seed of the start tree", cxxopts::value(opt.seed), "N")
+        ("seed", "seed of the start tree and of the GTR+GC fit's pairs", cxxopts::value(opt.seed), "N")
         ("q,quiet", "print no progress (warnings and errors still go to stderr)")
         ("v,version", "print the version")
         ("h,help", "print the core options")
         ("help-all", "print all options");
+    cli.add_options("Substitution model")
+        ("gtr-fit-pairs", "GTR+GC: sequence pairs drawn to fit the rates and alpha (all pairs, once each, if there "
+         "are fewer)", cxxopts::value(result.report.gtr_fit_pairs), "N");
     cli.add_options("Search")
         ("max-rounds", "rounds of the search; 0 = no search (score the start tree)",
          cxxopts::value(opt.max_rounds), "N")
@@ -138,7 +142,8 @@ CommandLine parse_command_line(int argc, char **argv) {
         return done(0);
     }
     if (args.count("help-all")) {
-        std::cout << cli.help({"", "Search", "Start tree", "Branch lengths and output", "Input"}) << '\n';
+        std::cout << cli.help({"", "Substitution model", "Search", "Start tree", "Branch lengths and output", "Input"})
+                  << '\n';
         return done(0);
     }
     if (args.count("version")) {
@@ -158,9 +163,6 @@ CommandLine parse_command_line(int argc, char **argv) {
     run.input_path = args["alignment"].as<std::string>();
     const std::string model_name = args["model"].as<std::string>();
     const p2vbme::Model model = p2vbme::parse_model(model_name);
-    if (model == p2vbme::Model::GTR_GC) // it needs its parameters, and their fit comes later
-        throw std::runtime_error("model '" + model_name +
-                                 "' is not available in this version (models: JC69, K80, F81, F84, TN93, LogDet)");
     run.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : run.input_path;
     run.neg_as_zero = !args.count("no-neg-as-zero");
 

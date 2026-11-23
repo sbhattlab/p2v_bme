@@ -1,5 +1,5 @@
-// Unit tests for the alignment before inference and the trees around it: base frequencies, identical sequences, a
-// given start tree and the copies put back.
+// Unit tests for the alignment before inference and the trees around it: base frequencies, the GTR+GC fit,
+// identical sequences, a given start tree and the copies put back.
 #include <gtest/gtest.h>
 
 #include <set>
@@ -10,6 +10,8 @@
 #include "fasta.hpp"
 #include "io_test_helpers.hpp"
 #include "processing.hpp"
+#include "random.hpp"
+#include "simulations.hpp"
 
 namespace {
 
@@ -43,7 +45,7 @@ TEST(Processing, BaseFrequenciesOfTheWholeInput) {
     p2vbme::SubstitutionModel f81;
     f81.model = p2vbme::Model::F81;
     p2vbme::Deduplication dd;
-    p2vbme::prepare_alignment(aln, f81, true, dd);
+    p2vbme::prepare_alignment(aln, f81, p2vbme::DEFAULT_GTR_FIT_PAIRS, p2vbme::DEFAULT_SEED, 0, true, dd);
     EXPECT_EQ(dd.n_removed(), 2);
     EXPECT_EQ(aln.n_taxa, 5);
     const double expect[p2vbme::N_BASES] = {17.0 / 28, 4.0 / 28, 4.0 / 28, 3.0 / 28}; // all 7 sequences, not the 5 kept
@@ -58,6 +60,49 @@ TEST(Processing, BaseFrequenciesOfTheWholeInput) {
     p2vbme::count_base_frequencies(aln, jc);
     for (double f : jc.base_freqs)
         EXPECT_EQ(f, 0.0);
+}
+
+// GTR+GC: the rates and alpha are fitted on the whole input, before the copies are set aside (the same fit with and
+// without dedup), from the run seed's own stream, and set in the model; other models get no fit.
+TEST(Processing, GtrGcFitOfTheWholeInput) {
+    p2vbme::SimulationModel m;
+    m.rates[1] = 3.0; // transitions AG and CT
+    m.rates[4] = 3.0;
+    m.alpha = 0.8;
+    p2vbme::Alignment aln = p2vbme::simulate_alignment(p2vbme::random_tree(20, 0.02, 0.2, 5), 400, m, 6);
+    // two more copies of t0, so that dedup sets one aside
+    const size_t row_words = (size_t)p2vbme::N_PLANES * aln.n_words;
+    const std::vector<uint64_t> t0(aln.packed.begin(), aln.packed.begin() + row_words);
+    for (int c = 1; c <= 2; ++c) {
+        aln.packed.insert(aln.packed.end(), t0.begin(), t0.end());
+        aln.names.push_back("t0_copy" + std::to_string(c));
+        ++aln.n_taxa;
+    }
+    const int32_t n_pairs = 100; // fewer than the 231 pairs
+    const uint64_t seed = 9;
+    const p2vbme::GtrFit whole =
+        p2vbme::fit_gtr_gc(aln, n_pairs, p2vbme::derive_seed(seed, p2vbme::SALT_GTR_FIT_PAIRS));
+    ASSERT_EQ(whole.n_pairs, n_pairs);
+    for (bool dedup : {true, false}) {
+        p2vbme::Alignment a = aln;
+        p2vbme::SubstitutionModel gtr;
+        gtr.model = p2vbme::Model::GTR_GC;
+        p2vbme::Deduplication dd;
+        const p2vbme::GtrFit fit = p2vbme::prepare_alignment(a, gtr, n_pairs, seed, 0, dedup, dd);
+        EXPECT_EQ(dd.n_removed(), dedup ? 1 : 0);
+        EXPECT_EQ(fit.alpha, whole.alpha) << "dedup " << dedup;
+        EXPECT_EQ(gtr.alpha, whole.alpha) << "dedup " << dedup;
+        for (int k = 0; k < p2vbme::N_GTR_RATES; ++k) {
+            EXPECT_EQ(fit.rates[k], whole.rates[k]) << "dedup " << dedup << ", rate " << k;
+            EXPECT_EQ(gtr.rates[k], whole.rates[k]) << "dedup " << dedup << ", rate " << k;
+        }
+    }
+    p2vbme::Alignment a = aln;
+    p2vbme::SubstitutionModel jc;
+    p2vbme::Deduplication dd;
+    EXPECT_EQ(p2vbme::prepare_alignment(a, jc, n_pairs, seed, 0, true, dd).n_pairs, 0);
+    for (double r : jc.rates)
+        EXPECT_EQ(r, 1.0);
 }
 
 // Groups of 1..4 identical rows: the first two copies stay; same bases but different missing sites differ.
@@ -144,7 +189,7 @@ TEST(Processing, StartTreeAndCopies) {
     p2vbme::Alignment aln = p2vbme::read_fasta(fa);
     p2vbme::SubstitutionModel jc;
     p2vbme::Deduplication dd;
-    p2vbme::prepare_alignment(aln, jc, true, dd);
+    p2vbme::prepare_alignment(aln, jc, p2vbme::DEFAULT_GTR_FIT_PAIRS, p2vbme::DEFAULT_SEED, 0, true, dd);
     ASSERT_EQ(dd.n_removed(), 1); // c
     // (((a,c),b),(d,e)): leaves 0..4, nodes 5 = (0,2), 6 = (5,1), 7 = (3,4), root 8 = (6,7)
     p2vbme::Tree full;

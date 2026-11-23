@@ -62,11 +62,19 @@ add_library(p2vbme_distances STATIC src/distances.cpp)
 target_include_directories(p2vbme_distances PUBLIC src)
 target_compile_options(p2vbme_distances PRIVATE -O3 -Wall -Wextra)
 
-# Before and after inference: base frequencies, identical sequences, the start tree (plain C++, no CUDA)
+# GTR+GC fit: the exchangeabilities and alpha from sampled sequence pairs (plain C++, OpenMP, no CUDA).
+# -ffp-contract=off: no fused multiply-adds (the default on ARM), so the fit gives the same bits on every CPU.
+add_library(p2vbme_gtr_fit STATIC src/gtr_fit.cpp)
+target_include_directories(p2vbme_gtr_fit PUBLIC src)
+target_compile_options(p2vbme_gtr_fit PRIVATE -O3 -Wall -Wextra -ffp-contract=off)
+target_link_libraries(p2vbme_gtr_fit PUBLIC p2vbme_core p2vbme_distances PRIVATE OpenMP::OpenMP_CXX)
+
+# Before and after inference: base frequencies, the GTR+GC fit, identical sequences, the start tree (plain C++, no
+# CUDA)
 add_library(p2vbme_processing STATIC src/processing.cpp)
 target_include_directories(p2vbme_processing PUBLIC src)
 target_compile_options(p2vbme_processing PRIVATE -O3)
-target_link_libraries(p2vbme_processing PUBLIC p2vbme_core p2vbme_distances)
+target_link_libraries(p2vbme_processing PUBLIC p2vbme_core p2vbme_distances p2vbme_gtr_fit)
 
 # JSON writer for the run report (plain C++, no CUDA)
 add_library(p2vbme_json STATIC src/json_writer.cpp)

@@ -4,7 +4,7 @@
  * The numbers the method depends on: the defaults of the user settings (Settings reads them, and the command line
  * through Settings) and the algorithm's fixed constants.
  * A few stay next to their only user: kernel tile sizes, the salts of the random streams (random.hpp), the reweighting
- * passes (eigen_dist.hpp) and the component sizes of the waves (search.cpp).
+ * passes (eigen_dist.hpp), the GTR+GC fit's (gtr_fit.hpp) and the component sizes of the waves (search.cpp).
  * Most values are the paper's.
  * Changed since: WINDOW_MIN_K 6 -> 4 (trees of 4 and 5 leaves were never searched), and JC69 now uses
  * NO_OVERLAP_DISTANCE and MAX_DISTANCE like every model (it had 1.5 and a cap at p = 0.74), so NN_P_NO_OVERLAP
@@ -25,9 +25,10 @@ constexpr double DEFAULT_TOL = 1e-6;           // stop once a round gains <= thi
 constexpr double DEFAULT_TIME_LIMIT = 0.0;     // seconds after which no new round starts (0 = none)
 constexpr int32_t DEFAULT_PROFILE_CAP = 64;    // leaves kept per clade profile in a window (1..PROFILE_CAP_MAX)
 constexpr int32_t DEFAULT_SAMPLE_SIZE = 0;     // sample-and-place start: 0 = the default size (see "Start tree")
-constexpr uint64_t DEFAULT_SEED = 1;           // seeds the start tree
+constexpr uint64_t DEFAULT_SEED = 1;           // seeds the start tree and the GTR+GC fit's pairs
 constexpr bool DEFAULT_BRANCH_LENGTHS = true;  // estimate BME branch lengths
 constexpr int32_t DEFAULT_BL_PROFILE_CAP = 32; // leaves kept per subtree profile for branch lengths
+constexpr int32_t DEFAULT_GTR_FIT_PAIRS = 100000; // GTR+GC: sequence pairs drawn to fit the rates and alpha
 
 // ---- Limits ------------------------------------------------------------------------------------------
 

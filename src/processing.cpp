@@ -1,8 +1,8 @@
 /*
  * processing.cpp
  *
- * The alignment before inference (base frequencies, identical sequences) and the trees around it (a given start
- * tree, the copies joined back).
+ * The alignment before inference (base frequencies, GTR+GC fit, identical sequences) and the trees around it (a given
+ * start tree, the copies joined back).
  * Tree traversals are iterative so that trees with millions of leaves do not overflow the stack.
  */
 #include <algorithm>
@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "processing.hpp"
+#include "random.hpp"
 
 namespace p2vbme {
 
@@ -41,12 +42,23 @@ std::vector<int32_t> internal_postorder(const Tree &tree, int32_t n) {
 
 } // namespace
 
-// ---- The alignment: base frequencies, identical sequences set aside ----
+// ---- The alignment: base frequencies, GTR+GC fit, identical sequences set aside ----
 
 void count_base_frequencies(const Alignment &aln, SubstitutionModel &model) {
     const double sum = model.base_freqs[0] + model.base_freqs[1] + model.base_freqs[2] + model.base_freqs[3];
     if ((model.model == Model::F81 || model.model == Model::F84 || model.model == Model::TN93) && !(sum > 0.0))
         base_frequencies(aln.packed.data(), aln.n_taxa, aln.n_words, model.base_freqs);
+}
+
+GtrFit fit_model_parameters(const Alignment &aln, SubstitutionModel &model, int32_t n_pairs, uint64_t seed,
+                            int threads) {
+    if (model.model != Model::GTR_GC)
+        return GtrFit{};
+    const GtrFit fit = fit_gtr_gc(aln, n_pairs, derive_seed(seed, SALT_GTR_FIT_PAIRS), threads);
+    for (int k = 0; k < N_GTR_RATES; ++k)
+        model.rates[k] = fit.rates[k];
+    model.alpha = fit.alpha;
+    return fit;
 }
 
 void deduplicate(Alignment &aln, Deduplication &dd) {
@@ -95,10 +107,14 @@ void deduplicate(Alignment &aln, Deduplication &dd) {
     aln.names.resize(aln.n_taxa);
 }
 
-void prepare_alignment(Alignment &aln, SubstitutionModel &model, bool dedup, Deduplication &dd) {
-    count_base_frequencies(aln, model); // before identical sequences are set aside (as FastME counts them)
+GtrFit prepare_alignment(Alignment &aln, SubstitutionModel &model, int32_t fit_pairs, uint64_t seed, int threads,
+                         bool dedup, Deduplication &dd) {
+    // both before identical sequences are set aside (as FastME counts the base frequencies)
+    count_base_frequencies(aln, model);
+    const GtrFit fit = fit_model_parameters(aln, model, fit_pairs, seed, threads);
     if (dedup)
         deduplicate(aln, dd);
+    return fit;
 }
 
 // ---- Trees: a given start tree restricted, the copies put back ----

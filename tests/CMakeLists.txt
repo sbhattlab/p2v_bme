@@ -11,7 +11,7 @@ target_link_libraries(test_maple PRIVATE p2vbme_io GTest::gtest_main)
 gtest_discover_tests(test_maple)
 
 add_executable(test_processing test_processing.cpp)
-target_link_libraries(test_processing PRIVATE p2vbme_io p2vbme_processing GTest::gtest_main)
+target_link_libraries(test_processing PRIVATE p2vbme_io p2vbme_processing p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_processing)
 
 add_executable(test_newick test_newick.cpp)
@@ -32,6 +32,11 @@ add_executable(test_eigen_dist test_eigen_dist.cpp)
 target_compile_options(test_eigen_dist PRIVATE -Wall -Wextra)
 target_link_libraries(test_eigen_dist PRIVATE p2vbme_distances p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_eigen_dist)
+
+add_executable(test_gtr_fit test_gtr_fit.cpp)
+target_compile_options(test_gtr_fit PRIVATE -O2 -Wall -Wextra)
+target_link_libraries(test_gtr_fit PRIVATE p2vbme_gtr_fit p2vbme_simulations GTest::gtest_main)
+gtest_discover_tests(test_gtr_fit)
 
 # infer() on the CPU (any build): brute force at small N, SPR optimality by the reference library, workers;
 # InferenceGpu.* on the GPU: a search under every model, CPU against GPU
