@@ -36,24 +36,26 @@ from pathlib import Path
 from re import findall
 
 from numpy import (
-    argsort,
     array_equal,
     column_stack,
-    empty,
     inf,
     isnan,
     loadtxt,
     ndarray,
+    rint,
+    savetxt,
+    unique,
 )
-from numpy import repeat as np_repeat
-from numpy import rint, savetxt, unique
 
 from paper._config import DEFAULT_DATASETS_DIR, DEFAULT_RESULTS_DIR, P2VBME
 from paper.utils import (
+    auc,
     branch_table,
     compare_to_truth,
+    pct,
     read_json,
     run_p2vbme,
+    span,
     supports,
 )
 
@@ -335,11 +337,6 @@ def read_branches(path: Path) -> dict[str, ndarray]:
     return {name: data[:, i] for i, name in enumerate(header)}
 
 
-def pct(x: ndarray) -> float:
-    """Gives the mean of x in percent: x -> 100 mean(x) (nan if empty)."""
-    return float(100.0 * x.mean()) if x.size else float("nan")
-
-
 def by_size(d: dict[str, ndarray]) -> dict:
     """Averages the supports per clade-size bin of the smaller side p: branches -> bins."""
     out: dict[str, list] = dict(
@@ -362,21 +359,6 @@ def by_size(d: dict[str, ndarray]) -> dict:
         ):
             out[key].append(pct(d[col][m]))
     return out
-
-
-def auc(score: ndarray, positive: ndarray) -> float:
-    """Computes the area under the ROC curve of a score for a true/false outcome: (score, outcome) -> AUC.
-
-    By rank sum, tied scores sharing their mean rank.
-    """
-    order = argsort(score, kind="stable")
-    _, first, counts = unique(score[order], return_index=True, return_counts=True)
-    ranks = empty(score.size)
-    ranks[order] = np_repeat(first + (counts + 1) / 2.0, counts)
-    n1 = int(positive.sum())
-    return float(
-        (ranks[positive].sum() - n1 * (n1 + 1) / 2) / (n1 * (positive.size - n1))
-    )
 
 
 def version_of(args: Namespace, tag: str) -> str:
@@ -544,12 +526,6 @@ def write_summary(args: Namespace, name: str, summary: dict) -> None:
     print(f"wrote {out}")
 
 
-def parse_range(text: str) -> list[int]:
-    """Parses replicates as A-B or A: text -> the list A..B."""
-    first, _, last = text.partition("-")
-    return list(range(int(first), int(last or first) + 1))
-
-
 def main() -> None:
     parser = ArgumentParser(
         description=__doc__, formatter_class=RawDescriptionHelpFormatter
@@ -569,7 +545,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--replicates",
-        type=parse_range,
+        type=span,
         help="the bootstrap replicates to run here, A-B (default: 1-B)",
     )
     parser.add_argument(

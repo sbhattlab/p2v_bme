@@ -35,6 +35,7 @@ from statistics import mean, median, stdev
 from sys import stderr
 
 from paper._config import DEFAULT_RESULTS_DIR, DEFAULT_TABLES_DIR
+from paper.utils import read_json
 
 SIZES_EXPANDED = 1_000_000  # from here on, the PASTA-tree datasets expand the 100,000-leaf alignment (backbone)
 BACKBONE_SIZE = 100_000
@@ -115,11 +116,11 @@ class MissingResults(Exception):
 # ---- Reading results ----
 
 
-def read_json(path: Path) -> dict:
+def read_record(path: Path) -> dict:
     """Reads a JSON record: path -> object; MissingResults if absent."""
     if not path.exists():
         raise MissingResults(str(path))
-    return loads(path.read_text())
+    return read_json(path)
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -611,7 +612,7 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
 def table_maple(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S3 (maple) and Fig. 2c,d's data: results -> {maple.tex, maple.tsv}."""
     ours = our_runs(results, "pandemic")
-    record = read_json(results / "baselines" / "cmaple_benchmark_summary.json")
+    record = read_record(results / "baselines" / "cmaple_benchmark_summary.json")
     rows: list[dict] = []
     for index, case in enumerate(record["simulated"]):
         n, length = case["n_taxa"], case["branch_length"]
@@ -700,9 +701,9 @@ def table_maple(results: Path) -> dict[str, list[dict] | str]:
 def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S4 (bootstrap): results -> {bootstrap.tex, bootstrap.tsv, bootstrap_by_size.tsv}."""
     folder = results / "calibration"
-    data = read_json(folder / "rnasim_bootstrap_calibration_summary.json")
-    y = read_json(folder / "calibration_1000000.json")
-    pandemic = read_json(folder / "maple_bootstrap_calibration_summary.json")
+    data = read_record(folder / "rnasim_bootstrap_calibration_summary.json")
+    y = read_record(folder / "calibration_1000000.json")
+    pandemic = read_record(folder / "maple_bootstrap_calibration_summary.json")
     scale, _ = scaling_rows(
         results
     )  # the calibration trees are searched as the scaling runs
@@ -1121,7 +1122,7 @@ def table_scaling_methods(results: Path) -> dict[str, list[dict] | str]:
 def table_silva_support(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S12 (silva_support) and Fig. 3b's data: results -> {silva_support.tex, silva_support.tsv}."""
     path = one_file(results / "silva", "silva144_dedup_tbe_B*_quantiles.json")
-    data = read_json(path)
+    data = read_record(path)
     rows: list[dict] = []
     for index, b in enumerate(data["bins"]):
         rows.append(
@@ -1173,7 +1174,7 @@ def table_silva_clades(results: Path) -> dict[str, list[dict] | str]:
     A clade's path is its best node and its ancestors up to the root, each with the branch above it (length, TBE
     and leaves below).
     """
-    bio = read_json(one_file(results / "silva", "silva144_real_biology_B*.json"))
+    bio = read_record(one_file(results / "silva", "silva144_real_biology_B*.json"))
     clades, paths = [], []
     for section, rank in (
         ("domains", "domain"),
@@ -1211,7 +1212,7 @@ def table_silva_clades(results: Path) -> dict[str, list[dict] | str]:
 
 def table_silva_gtdb(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S13 (silva_gtdb): results -> {silva_gtdb.tex}."""
-    record = read_json(results / "silva" / "gtdb_labelled_scores.json")
+    record = read_record(results / "silva" / "gtdb_labelled_scores.json")
     out, n = record["trees"], record["n_sequences"]
     rows: list[str] = []
     for tag, name in GTDB_TREES.items():
@@ -1520,7 +1521,7 @@ def table_gtr_fit(results: Path) -> dict[str, list[dict] | str]:
 
 def table_viridian(results: Path) -> dict[str, list[dict] | str]:
     """Builds Tables S9-S11 (viridian_*) and the data of Figs 3c, S5: results -> their .tex and .tsv."""
-    s = read_json(results / "viridian" / "summary.json")
+    s = read_record(results / "viridian" / "summary.json")
     months = read_tsv(results / "viridian" / "resolution_by_month.tsv")
     runs = s["runs"]
     out: dict[str, list[dict] | str] = {}

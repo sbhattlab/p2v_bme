@@ -24,6 +24,7 @@ from numpy import (
     ones,
     searchsorted,
     uint8,
+    unique,
     where,
     zeros,
 )
@@ -247,3 +248,23 @@ def span(text: str) -> list[int]:
     """Parses a range such as 1-100 or 7: text -> the integers."""
     a, _, b = text.partition("-")
     return list(range(int(a), int(b or a) + 1))
+
+
+def auc(score: ndarray, positive: ndarray) -> float:
+    """Computes the area under the ROC curve of a score for a true/false outcome: (score, outcome) -> AUC.
+
+    By rank sum, tied scores sharing their mean rank.
+    """
+    order = argsort(score, kind="stable")
+    _, first, counts = unique(score[order], return_index=True, return_counts=True)
+    ranks = empty(score.size)
+    ranks[order] = (first + (counts + 1) / 2.0).repeat(counts)
+    n1 = int(positive.sum())
+    return float(
+        (ranks[positive].sum() - n1 * (n1 + 1) / 2) / (n1 * (positive.size - n1))
+    )
+
+
+def pct(x) -> float:
+    """Averages a 0/1 or 0..1 series in per cent: series -> per cent (nan if empty; a pandas Series skips nan)."""
+    return float(100.0 * x.mean()) if len(x) else nan

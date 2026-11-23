@@ -68,7 +68,9 @@ from pandas import DataFrame, Timestamp, read_csv, to_datetime
 
 from paper._config import DEFAULT_DATASETS_DIR, DEFAULT_RESULTS_DIR, P2VBME
 from paper.utils import (
+    auc,
     concatenate_trees,
+    pct,
     read_json,
     read_tree,
     run_p2vbme,
@@ -290,11 +292,6 @@ def search_time(report: dict) -> float:
 # ---- Records ----
 
 
-def pct(x) -> float:
-    """Averages a 0/1 or 0..1 series in per cent (nan skipped): series -> per cent."""
-    return float(100.0 * x.mean()) if len(x) else nan
-
-
 def bins(d: DataFrame, column: str, edges: tuple, fields: dict[str, str]) -> list[dict]:
     """Averages the named columns over [lo, hi) bins of one column: (table, column, bins, fields) -> rows."""
     rows = []
@@ -303,18 +300,6 @@ def bins(d: DataFrame, column: str, edges: tuple, fields: dict[str, str]) -> lis
         row = {"from": lo, "to": None if isinf(hi) else hi, "branches": len(e)}
         rows.append(row | {name: pct(e[col]) for name, col in fields.items()})
     return rows
-
-
-def auc(score: ndarray, positive: ndarray) -> float:
-    """Computes the area under the ROC curve by rank sum, ties averaged: (score, outcome) -> AUC."""
-    order = argsort(score, kind="stable")
-    _, first, counts = unique(score[order], return_index=True, return_counts=True)
-    ranks = full(score.size, nan)
-    ranks[order] = (first + (counts + 1) / 2.0).repeat(counts)
-    n1 = int(positive.sum())
-    return float(
-        (ranks[positive].sum() - n1 * (n1 + 1) / 2) / (n1 * (positive.size - n1))
-    )
 
 
 def unalias(name: str, key: dict) -> str:
