@@ -1,7 +1,7 @@
 // O(N) BME branch lengths (branch_lengths.cpp and the devices' edge-length pass) against the exact O(N^2) branch
 // lengths of Pauplin (2000) / FastME (Desper & Gascuel 2002) in double precision, with tolerances:
 //   - complete representatives (cap >= N): every branch length equal to the exact one (float or double precision);
-//   - capped representatives (cap 32, the default): the approximation error stays within measured bounds;
+//   - capped representatives (cap 32): the approximation error stays within measured bounds;
 //   - Pauplin's identity: the exact lengths sum to the tree's BME length (0.5 sum_x d({x}, outside x)), and so do the
 //     O(N) lengths with complete representatives (also the returned total); the root's right child gets 0;
 //   - infer() on a given tree (no search, complete representatives): its BME length equals Pauplin's formula for every

@@ -265,7 +265,7 @@ TEST(Inference, SameTreeForAnyWorkerCount) {
     }
 }
 
-// A search ends no longer than the true tree (same branch-length pass, representative cap 32); near it in RF.
+// A search ends no longer than the true tree (same branch-length pass, the default representative cap); near it in RF.
 TEST(InferenceGpu, SearchUnderEachModel) {
     const int32_t N = 3000;
     const Tree tree = random_tree(N, 0.005, 0.08, 31);

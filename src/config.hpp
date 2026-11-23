@@ -28,8 +28,8 @@ constexpr int32_t DEFAULT_REPRESENTATIVE_CAP = 64;
 constexpr int32_t DEFAULT_SAMPLE_SIZE = 0;    // sample-and-place start: 0 = the default size (see "Start tree")
 constexpr uint64_t DEFAULT_SEED = 1;          // seeds the start tree and the GTR+GC fit's pairs
 constexpr bool DEFAULT_BRANCH_LENGTHS = true; // estimate BME branch lengths
-// Representatives kept per subtree for branch lengths.
-constexpr int32_t DEFAULT_BL_REPRESENTATIVE_CAP = 32;
+// Representatives kept per subtree for branch lengths (as in a window).
+constexpr int32_t DEFAULT_BL_REPRESENTATIVE_CAP = 64;
 constexpr int32_t DEFAULT_GTR_FIT_PAIRS = 100000; // GTR+GC: sequence pairs drawn to fit the rates and alpha
 
 // ---- Limits ------------------------------------------------------------------------------------------
