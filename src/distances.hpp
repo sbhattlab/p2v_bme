@@ -65,16 +65,14 @@ void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, d
 // JC69 is the exception: the GPU's fast kernels call it directly, so it checks for itself.
 // First the helpers the formulas share, then one formula per model.
 
-// -ln(w) with w clamped to [1e-4, 1], and 0 when w >= 1 - 1e-12 (the homogeneous link of the paper's C distance
-// library, its alpha = 0 case).
-// The floor 1e-4 bounds each term at ln(1e4) = 9.21.
+// -ln(w) with w floored at LOG_ARG_MIN, and 0 when w >= 1 (the homogeneous link of the paper's C distance library, its
+// alpha = 0 case).
+// The floor bounds each term at ln(1e4) = 9.21.
 template <class T> P2V_HD inline T neg_log_link(T w) {
-    if (w > T(1))
-        w = T(1);
-    if (w < T(1e-4))
-        w = T(1e-4);
-    if (w >= T(1) - T(1e-12))
+    if (w >= T(1))
         return T(0);
+    if (w < T(LOG_ARG_MIN))
+        w = T(LOG_ARG_MIN);
     return -std::log(w);
 }
 
@@ -152,16 +150,16 @@ template <class T> P2V_HD inline T f81_distance(const uint32_t n[N_BASES * N_BAS
 // F84 (Felsenstein & Churchill 1996; as ape's dist.dna): with the alignment's base frequencies pi,
 //   A = pi_A pi_G / pi_R + pi_C pi_T / pi_Y,  B = pi_A pi_G + pi_C pi_T,  C = pi_R pi_Y,
 //   d = -2A ln(1 - P / (2A) - (A - B) Q / (2AC)) - 2(C + B - A) ln(1 - Q / (2C)).
-// Falls back to F81's form when A or C is below 1e-6.
+// Falls back to F81's form when A or C is below FREQ_TERM_MIN.
 template <class T> P2V_HD inline T f84_distance(const uint32_t n[N_BASES * N_BASES], const T pi[N_BASES]) {
     const uint32_t total = total_count(n);
     const Proportions<T> s = proportions<T>(n, total);
     const T piA = pi[0], piC = pi[1], piG = pi[2], piT = pi[3];
     const T piR = piA + piG, piY = piC + piT;
-    const T A = (piR > T(1e-6) ? piA * piG / piR : T(0)) + (piY > T(1e-6) ? piC * piT / piY : T(0));
+    const T A = (piR > T(FREQ_TERM_MIN) ? piA * piG / piR : T(0)) + (piY > T(FREQ_TERM_MIN) ? piC * piT / piY : T(0));
     const T B = piA * piG + piC * piT;
     const T C = piR * piY;
-    if (A < T(1e-6) || C < T(1e-6))
+    if (A < T(FREQ_TERM_MIN) || C < T(FREQ_TERM_MIN))
         return f81_form(s.p, pi);
     const T P = s.P1 + s.P2;
     const T g1 = neg_log_link(T(1) - P / (T(2) * A) - ((A - B) * s.Q) / (T(2) * A * C));
@@ -173,16 +171,16 @@ template <class T> P2V_HD inline T f84_distance(const uint32_t n[N_BASES * N_BAS
 //   k1 = 2 pi_A pi_G / pi_R,  k2 = 2 pi_C pi_T / pi_Y,  k3 = 2 pi_R pi_Y,
 //   d = -k1 ln(w1) - k2 ln(w2) - (k3 - k1 pi_Y - k2 pi_R) ln(w3),
 //   w1 = 1 - P1 / k1 - Q / (2 pi_R),  w2 = 1 - P2 / k2 - Q / (2 pi_Y),  w3 = 1 - Q / k3.
-// Falls back to F81's form when k1, k2 or k3 is below 1e-6.
+// Falls back to F81's form when k1, k2 or k3 is below FREQ_TERM_MIN.
 template <class T> P2V_HD inline T tn93_distance(const uint32_t n[N_BASES * N_BASES], const T pi[N_BASES]) {
     const uint32_t total = total_count(n);
     const Proportions<T> s = proportions<T>(n, total);
     const T piA = pi[0], piC = pi[1], piG = pi[2], piT = pi[3];
     const T piR = piA + piG, piY = piC + piT;
-    const T k1 = (piR > T(1e-6)) ? T(2) * piA * piG / piR : T(0);
-    const T k2 = (piY > T(1e-6)) ? T(2) * piC * piT / piY : T(0);
+    const T k1 = (piR > T(FREQ_TERM_MIN)) ? T(2) * piA * piG / piR : T(0);
+    const T k2 = (piY > T(FREQ_TERM_MIN)) ? T(2) * piC * piT / piY : T(0);
     const T k3 = T(2) * piR * piY;
-    if (k1 < T(1e-6) || k2 < T(1e-6) || k3 < T(1e-6))
+    if (k1 < T(FREQ_TERM_MIN) || k2 < T(FREQ_TERM_MIN) || k3 < T(FREQ_TERM_MIN))
         return f81_form(s.p, pi);
     const T g1 = neg_log_link(T(1) - s.P1 / k1 - s.Q / (T(2) * piR));
     const T g2 = neg_log_link(T(1) - s.P2 / k2 - s.Q / (T(2) * piY));
@@ -193,7 +191,7 @@ template <class T> P2V_HD inline T tn93_distance(const uint32_t n[N_BASES * N_BA
 // LogDet / paralinear (Lockhart et al. 1994): d = -1/4 (ln det J - 1/2 ln prod_i F^a_i F^b_i), J the 4 x 4 matrix of
 // pair proportions.
 // Undefined (MAX_DISTANCE here; NaN in the paper's C distance library) when a base has frequency below 1e-3 in either
-// sequence or det J <= 1e-30.
+// sequence or det J <= EPS.
 template <class T> P2V_HD inline T logdet_distance(const uint32_t n[N_BASES * N_BASES]) {
     const uint32_t total = total_count(n);
     const T inv = T(1) / (T)total;
@@ -214,7 +212,7 @@ template <class T> P2V_HD inline T logdet_distance(const uint32_t n[N_BASES * N_
     const T c5 = J[10] * J[15] - J[11] * J[14], c4 = J[9] * J[15] - J[11] * J[13], c3 = J[9] * J[14] - J[10] * J[13];
     const T c2 = J[8] * J[15] - J[11] * J[12], c1 = J[8] * J[14] - J[10] * J[12], c0 = J[8] * J[13] - J[9] * J[12];
     const T det = s0 * c5 - s1 * c4 + s2 * c3 + s3 * c2 - s4 * c1 + s5 * c0;
-    if (!(det > T(1e-30)) || !(prod_f > T(1e-30)))
+    if (!(det > T(EPS)) || !(prod_f > T(EPS)))
         return T(MAX_DISTANCE);
     return T(-0.25) * (std::log(det) - T(0.5) * std::log(prod_f));
 }

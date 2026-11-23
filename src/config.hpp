@@ -43,9 +43,17 @@ constexpr int32_t PROFILE_CAP_MAX = 256; // the GPU profile buffer holds PROFILE
 // Distance of a pair without a shared valid site.
 constexpr double NO_OVERLAP_DISTANCE = 2.0;
 // Largest distance.
-// Logarithms' arguments are floored at 1e-4 (neg_log_link), which bounds each term at ln(1e4) = 9.21.
+// Logarithms' arguments are floored at LOG_ARG_MIN = 1e-4, which bounds each term at ln(1e4) = 9.21.
 // JC69, for example, reaches at most 3/4 * 9.21 = 6.91, for p >= 3/4 (the mismatch share of unrelated sequences).
 constexpr double MAX_DISTANCE = 10.0;
+
+// Smallest argument of a logarithm in the closed forms (neg_log_link), and smallest GTR+GC singular value.
+constexpr double LOG_ARG_MIN = 1e-4;
+// F84 and TN93 fall back to F81's form when a frequency term they divide by (pi_R, pi_Y, A, C, k1, k2, k3) is below
+// this.
+constexpr double FREQ_TERM_MIN = 1e-6;
+// A positive floor for divisions and logs, far below anything a real pair produces.
+constexpr double EPS = 1e-30;
 
 // GTR+GC: the range where single-precision distances (the GPU's) were checked against double precision.
 // Inside it, 99% of simulated pairs of 1,500 sites were within 0.3% of double precision.

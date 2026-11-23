@@ -67,7 +67,7 @@ TEST(Distances, ModelNames) {
 }
 
 // The float JC69 is the paper's search-core expression, value for value, wherever the core did not cap p (p <= 0.74).
-// Above, the logarithm's argument is floored at 1e-4, as for the other models.
+// Above, the logarithm's argument is floored at LOG_ARG_MIN, as for the other models.
 TEST(Distances, Jc69IsTheCoreFormula) {
     EXPECT_EQ(jc69_distance<float>(0, 0), (float)NO_OVERLAP_DISTANCE);
     for (int32_t nv : {1, 7, 100, 1500, 50000})
@@ -78,7 +78,7 @@ TEST(Distances, Jc69IsTheCoreFormula) {
                 const float core = -0.75f * logf(1.0f - (4.0f / 3.0f) * p);
                 EXPECT_EQ(d, (core > 0.0f) ? core : 0.0f) << nv << " " << nm;
             } else {
-                EXPECT_EQ(d, -0.75f * logf(std::max(1.0f - (4.0f / 3.0f) * p, 1e-4f))) << nv << " " << nm;
+                EXPECT_EQ(d, -0.75f * logf(std::max(1.0f - (4.0f / 3.0f) * p, (float)LOG_ARG_MIN))) << nv << " " << nm;
             }
         }
 }

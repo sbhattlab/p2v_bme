@@ -38,15 +38,15 @@
 
 namespace p2vbme {
 
-// The pseudocount added to each of the 16 counts, and the range of the singular values.
+// The pseudocount added to each of the 16 counts, and the largest singular value (the smallest is LOG_ARG_MIN,
+// config.hpp).
 constexpr double EIGEN_PSEUDOCOUNT = 1e-5;
-constexpr double EIGEN_SIGMA_MIN = 1e-4;
 constexpr double EIGEN_SIGMA_MAX = 0.999999;
-// ln(EIGEN_SIGMA_MIN) = ln(1e-4) = -4 ln(10): the floor of ln(mu_k) in the reweighting passes.
+// ln(LOG_ARG_MIN) = ln(1e-4) = -4 ln(10): the floor of ln(mu_k) in the reweighting passes.
 // The float path keeps the paper's GPU literal, one float step above this value rounded to float, so that it matches
 // the paper's code bit for bit.
-constexpr double LOG_EIGEN_SIGMA_MIN = -9.2103403719761836;
-constexpr float LOG_EIGEN_SIGMA_MIN_FLOAT = -9.21034f;
+constexpr double LN_LOG_ARG_MIN = -9.2103403719761836;
+constexpr float LN_LOG_ARG_MIN_FLOAT = -9.21034f;
 // SymWLS refits after the first fit, each with the weights at the fitted singular values (the manuscript's two): they
 // reduce the first fit's downward bias, since weights at the observed values favour the modes that look least diverged.
 constexpr int32_t EIGEN_REWEIGHT_PASSES = 2;
@@ -70,7 +70,7 @@ P2V_HD inline void gtr_symmetric_rate_matrix(const T s[N_GTR_RATES], const T xi[
         row_sum[i] = rs;
         mu += xi[i] * rs;
     }
-    const T inv_mu = (mu > T(1e-20)) ? (T(1) / mu) : T(1);
+    const T inv_mu = (mu > T(EPS)) ? (T(1) / mu) : T(1);
     T sxi[N_BASES];
     for (int i = 0; i < N_BASES; ++i)
         sxi[i] = std::sqrt(xi[i]);
@@ -154,14 +154,14 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
     uint32_t r3 = c[12] + c[13] + c[14] + c[15];
     uint32_t total_valid = r0 + r1 + r2 + r3;
 
-    const T eps = T(EIGEN_PSEUDOCOUNT);
-    T inv_tot = T(1) / ((T)total_valid + T(N_BASES * N_BASES) * eps);
+    const T pseudo = T(EIGEN_PSEUDOCOUNT);
+    T inv_tot = T(1) / ((T)total_valid + T(N_BASES * N_BASES) * pseudo);
     T K[N_BASES * N_BASES];
     T Fa[N_BASES] = {T(0), T(0), T(0), T(0)};
     T Fb[N_BASES] = {T(0), T(0), T(0), T(0)};
     for (int i = 0; i < N_BASES; ++i) {
         for (int j = 0; j < N_BASES; ++j) {
-            T kij = ((T)c[i * N_BASES + j] + eps) * inv_tot;
+            T kij = ((T)c[i * N_BASES + j] + pseudo) * inv_tot;
             K[i * N_BASES + j] = kij;
             Fa[i] += kij;
             Fb[j] += kij;
@@ -206,9 +206,9 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
 
     T sigma[3];
     for (int k = 0; k < 3; ++k) {
-        T sv = (g_evals[k] > T(0)) ? std::sqrt(g_evals[k]) : T(EIGEN_SIGMA_MIN);
-        if (sv < T(EIGEN_SIGMA_MIN))
-            sv = T(EIGEN_SIGMA_MIN);
+        T sv = (g_evals[k] > T(0)) ? std::sqrt(g_evals[k]) : T(LOG_ARG_MIN);
+        if (sv < T(LOG_ARG_MIN))
+            sv = T(LOG_ARG_MIN);
         if (sv > T(EIGEN_SIGMA_MAX))
             sv = T(EIGEN_SIGMA_MAX);
         sigma[k] = sv;
@@ -243,11 +243,11 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
         num += w_k * neg_lam[k] * y[k];
         den += w_k * neg_lam[k] * neg_lam[k];
     }
-    T d_ab = (den > T(1e-16)) ? (num / den) : T(0);
+    T d_ab = (den > T(EPS)) ? (num / den) : T(0);
     if (d_ab < T(0))
         d_ab = T(0);
 
-    const T log_sigma_min = sizeof(T) == 4 ? T(LOG_EIGEN_SIGMA_MIN_FLOAT) : T(LOG_EIGEN_SIGMA_MIN);
+    const T log_mu_min = sizeof(T) == 4 ? T(LN_LOG_ARG_MIN_FLOAT) : T(LN_LOG_ARG_MIN);
     for (int it = 0; it < EIGEN_REWEIGHT_PASSES; ++it) {
         T d_curr = (d_ab > T(MAX_DISTANCE)) ? T(MAX_DISTANCE) : d_ab;
         max_lw = -T(INFINITY);
@@ -258,8 +258,8 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
             T log_mu = -alpha * std::log(base);
             if (log_mu > T(-1e-6))
                 log_mu = T(-1e-6);
-            if (log_mu < log_sigma_min)
-                log_mu = log_sigma_min;
+            if (log_mu < log_mu_min)
+                log_mu = log_mu_min;
             T mu_k = std::exp(log_mu);
             lw[k] = (T(2) + T(2) * inv_alpha) * log_mu - std::log(T(1) - mu_k * mu_k + T(1e-4));
             if (lw[k] > max_lw)
@@ -272,7 +272,7 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
             num += w_k * neg_lam[k] * y[k];
             den += w_k * neg_lam[k] * neg_lam[k];
         }
-        d_ab = (den > T(1e-16)) ? (num / den) : d_ab;
+        d_ab = (den > T(EPS)) ? (num / den) : d_ab;
         if (d_ab < T(0))
             d_ab = T(0);
     }
