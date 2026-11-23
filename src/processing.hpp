@@ -62,10 +62,13 @@ void prepare_start_tree(Tree &tree, const Deduplication &dd);
 // The tree on all input sequences from a tree on the kept ones.
 // Each removed copy is joined to the first copy of its group by zero-length branches (the first copy's branch
 // length goes above them).
-Tree reattach(const Tree &tree, const Deduplication &dd);
+// node_map (optional) receives, for each node of the tree on the kept sequences, the node of the result that stands for
+// it; the result's other nodes join the copies.
+Tree reattach(const Tree &tree, const Deduplication &dd, std::vector<int32_t> *node_map = nullptr);
 
 // After inference: the tree on all input sequences, with the copies prepare_alignment set aside joined back in place.
-void restore_copies(Tree &tree, const Deduplication &dd);
+// node_map as reattach's (the identity when no copy was set aside).
+void restore_copies(Tree &tree, const Deduplication &dd, std::vector<int32_t> *node_map = nullptr);
 
 } // namespace p2vbme
 
