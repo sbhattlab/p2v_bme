@@ -138,8 +138,8 @@ N_LIST = [1000, 5000, 10000, 50000, 100000, 1000000, 10000000]
 N_LABELS = ["1k", "5k", "10k", "50k", "100k", "1M", "10M"]
 PLOTTED = [
     "FastTree-ME",
-    "VFT-ME",
     "FastTree-ML",
+    "VFT-ME",
     "VFT-ML",
     "DIPPER",
     "P2V",

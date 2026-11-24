@@ -25,22 +25,23 @@ FIGURE_FOLDERS: Final = {
 
 # One entry per method, used identically in every figure:
 # key, legend label, colour, marker, filled, line style.
-# Colour-blind safe: Okabe and Ito's colours plus two greys; each method has its own marker too.
-# Vermilion = Phylo2VecME, greys = ME searches, blues = ML searches, reddish purple = DIPPER,
-# bluish green = MAPLE, black = CMAPLE.
+# Hue = program, shade = algorithm (light: ME, dark: ML), after ColorBrewer's Paired:
+# FastTree blues, VeryFastTree greys, the MAPLE purples; DIPPER black; Phylo2VecME vermilion.
+# Checked for red-green colour blindness (Machado et al. 2009): methods drawn together stay apart.
+# Markers pair up the same way (square and diamond, the two triangles), for colour-blind readers.
 # METHODS: the methods of Figs S1-S4, in drawing order.
 # PANDEMIC_METHODS: the other programs of Figs 2c,d and S5b.
 METHODS: Final = [
-    ("FastTree-ME", "FastTree-ME", "#8A8A8A", "s", True, "-"),
-    ("VFT-ME", "VeryFastTree-ME", "#4D4D4D", "^", True, "-"),
-    ("FastTree-ML", "FastTree-ML", "#56B4E9", "v", True, "-"),
-    ("VFT-ML", "VeryFastTree-ML", "#0072B2", "D", True, "-"),
-    ("DIPPER", "DIPPER", "#CC79A7", "X", True, "-"),
+    ("FastTree-ME", "FastTree-ME", "#6BAED6", "s", True, "-"),
+    ("FastTree-ML", "FastTree-ML", "#1F78B4", "D", True, "-"),
+    ("VFT-ME", "VeryFastTree-ME", "#BDBDBD", "^", True, "-"),
+    ("VFT-ML", "VeryFastTree-ML", "#636363", "v", True, "-"),
+    ("DIPPER", "DIPPER", "#000000", "X", True, "-"),
     ("P2V", "Phylo2VecME", "#D55E00", "o", True, "-"),
 ]
 PANDEMIC_METHODS: Final = [
-    ("MAPLE", "MAPLE", "#009E73", "P", True, "--"),
-    ("CMAPLE", "CMAPLE", "#000000", "h", True, "-."),
+    ("MAPLE", "MAPLE", "#CAB2D6", "P", True, "--"),
+    ("CMAPLE", "CMAPLE", "#6A3D9A", "h", True, "-."),
 ]
 
 
