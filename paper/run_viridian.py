@@ -3,8 +3,8 @@ viridian_variants, viridian_thresholds; Supplementary Fig. viridian-support).
 
 Inputs:  data/datasets/viridian/12733488/extracted/Viridian_2Malignment_filtered_masked_noShortDeletions.maple
          data/datasets/viridian/15546527/Viridian_2M_noShortDel_deeper_SPRTA0611_tree_combined.jsonl.zip
-           (MAPLE 0.6.11's tree with each genome's Pango lineage and date)                  (download_data.py)
-         data/datasets/viridian/alias_key.json      Pango alias key (cov-lineages/pango-designation)
+           (MAPLE 0.6.11's tree with each genome's Pango lineage and date)
+         data/datasets/viridian/alias_key.json      Pango alias key (cov-lineages/pango-designation)  (download_data.py)
 Options: --steps, --replicates, --repeats, --seed, --accelerator, --devices, --min-month-genomes,
          --min-lineage-genomes, --overwrite
 Flow:    maple        MAPLE's tree with the genomes' names, and each genome's lineage and date

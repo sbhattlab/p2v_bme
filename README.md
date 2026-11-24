@@ -11,7 +11,27 @@ out.
 
 ## Installation
 
-### Prerequisites
+### Prebuilt binary
+
+Each [release](https://github.com/sbhattlab/p2v_bme/releases) has a Linux binary with its SHA-256 checksum. The latest:
+
+```bash
+curl -fsSLO https://github.com/sbhattlab/p2v_bme/releases/latest/download/p2v-bme-linux-x86_64.tar.gz
+tar xzf p2v-bme-linux-x86_64.tar.gz
+p2v-bme-linux-x86_64/p2v-bme --version
+```
+
+| Needs  |                                                                                                                                                 |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| System | Linux x86-64 with glibc 2.28 or newer (e.g. RHEL 8, Ubuntu 20.04)                                                                               |
+| GPU    | NVIDIA, compute capability 7.5 to 12.0 (Turing to Blackwell), driver 525 or newer; newer GPUs run its PTX, with a driver for CUDA 12.8 or newer |
+| CPU    | nothing more: without a usable GPU, p2v-bme says why and runs on the CPU                                                                        |
+
+Otherwise, build it from source.
+
+### From source
+
+#### Prerequisites
 
 - Linux on x86-64 (other systems: issue [#14](https://github.com/sbhattlab/p2v_bme/issues/14))
 - a C and C++17 compiler with OpenMP (e.g. GCC)
@@ -23,7 +43,7 @@ out.
 
 - optional, for the GPU code: the CUDA toolkit 12 or newer and an NVIDIA GPU; without them, p2v-bme runs on the CPU
 
-### Build
+#### Build
 
 ```bash
 git clone https://github.com/sbhattlab/p2v_bme.git

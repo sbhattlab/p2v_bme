@@ -19,7 +19,9 @@ Sources (licence; what to cite, DOIs as in the dataset check of the paper):
   viridian     Viridian's 2M SARS-CoV-2 genomes processed with MAPLE (Zenodo 10.5281/zenodo.12733488 and
                10.5281/zenodo.15546527, CC BY 4.0; De Maio et al. 2025, doi:10.1038/s41586-025-09567-x); the
                files run_viridian reads: the alignment, extracted from its zip, and MAPLE's tree with each genome's
-               lineage and date (the .jsonl zip, read as it is).
+               lineage and date (the .jsonl zip, read as it is). With it, the Pango alias key that expands the
+               lineage names (cov-lineages/pango-designation, pinned to commit dbfab0d, the version the paper's
+               records used; CC BY-NC 4.0; Rambaut et al. 2020, doi:10.1038/s41564-020-0770-5).
 
 Inputs:  the deposits' URLs (below)
 Options: --sources, --datasets-dir, --dry-run, --overwrite
@@ -57,6 +59,10 @@ APPLES2 = (
 )
 SILVA = "https://ftp.arb-silva.de/release_144"
 ZENODO = "https://zenodo.org/api/records"
+PANGO = (
+    "https://raw.githubusercontent.com/cov-lineages/pango-designation/dbfab0db6b314825d290f6ac1cf1861686c97a6c/"
+    "pango_designation"
+)
 # source -> files: (folder below the source's, name, URL, bytes, MD5); MD5 None: from the deposit's .md5 file
 FILES = {
     "rnasim": [
@@ -109,6 +115,15 @@ FILES = {
                 "2b7884b6a7f5e086eb80aaf96fcce859",
             ),
         )
+    ]
+    + [
+        (
+            "",
+            "alias_key.json",
+            f"{PANGO}/alias_key.json",
+            20126,
+            "5537e72164c5ee80c01e5bd3f2456aad",
+        ),
     ],
 }
 CMAPLE_RECORD = 11003148  # version 1.0.0; later versions lack the simulated sets
