@@ -17,9 +17,9 @@ Flow:    each experiment x set x size x run of the paper's design (dataset repli
          10^6 and 10^7 expanded sequences: also the backbone splits; pandemic sets: eval_cmaple_rf
            |
            v
-         seqlen (up to --exact-max sequences) and representatives: BME lengths of the trees, exact by bme_scores up to
-         --exact-max sequences, else p2v-bme -t <tree> --max-rounds 0 in double precision at --score-cap;
-         RF between the tree of each cap and the cap-64 tree
+         seqlen (up to --exact-max sequences): BME lengths of our and the true trees, exact by bme_scores;
+         representatives: BME lengths by bme_scores --cap, the paper's evaluator (cap: the number of sequences up to
+         --exact-max, i.e. exact, else --score-cap); RF between the tree of each cap and the cap-64 tree
 Outputs: data/results/<experiment>/<set>/<n>/<run>.{nwk,json}, <run>.vs_true.{support.nwk,json}
            <run>: rep<r>_seed<s>, + _cap<P> (representatives), + _rounds<k> (round_limit)
          <run>.true_vs.{support.nwk,json}, <run>.backbone.json        expanded alignments (10^6, 10^7)
@@ -79,9 +79,8 @@ PANDEMIC_SCALES = (
 )  # mean branch lengths, as in the CMAPLE file names
 PANDEMIC_SIZES = (100_000, 200_000, 500_000)
 PANDEMIC_SEED = 20261105
-EXACT_MAX = (
-    10_000  # sequences up to which trees are scored exactly (full distance matrix)
-)
+EXACT_MAX = 10_000  # sequences up to which trees are scored exactly
+SCORE_CAP = 1024  # representatives per clade of the paper's evaluator above EXACT_MAX
 
 # Sets and sizes of each experiment in the paper
 DESIGN = {
@@ -301,22 +300,27 @@ def compare(args: Namespace, r: Run, report: dict) -> None:
 
 
 def score(
-    args: Namespace, alignment: Path, n: int, trees: list[Path], outputs: list[Path]
+    args: Namespace,
+    alignment: Path,
+    trees: list[Path],
+    outputs: list[Path],
+    cap: int | None = None,
 ) -> list[float]:
     """Computes the BME lengths of trees on one alignment unless done: (alignment, trees, outputs) -> lengths.
 
-    Exact (bme_scores, the full distance matrix) up to --exact-max sequences; above, p2v-bme -t <tree> --max-rounds 0
-    on the CPU in double precision, with at most --score-cap representatives per subtree.
-    Each output is a JSON object with "bme_length" (bme_scores) or p2v-bme's report.
+    bme_scores: exact from the full distance matrix, or with cap, the paper's evaluator with at most cap
+    representatives per clade (exact when cap >= the number of sequences).
+    Each output is a JSON object with "bme_length".
     """
     todo = [(t, o) for t, o in zip(trees, outputs) if args.overwrite or not o.exists()]
-    if todo and n <= args.exact_max:
+    if todo:
         command = [
             args.bme_scores,
             "-s",
             str(alignment),
             "-m",
             MODEL,
+            *(["--cap", str(cap)] if cap else []),
             *(str(t) for t, _ in todo),
         ]
         lines = run(
@@ -334,29 +338,9 @@ def score(
                     "tree": str(tree),
                     "bme_length": record["bme_length"],
                     "scorer": "bme_scores",
+                    "cap": cap,
                 },
             )
-    for tree, out in todo if n > args.exact_max else []:
-        options = [
-            "-s",
-            str(alignment),
-            "-m",
-            MODEL,
-            "-t",
-            str(tree),
-            "--max-rounds",
-            "0",
-            "--no-dedup",
-        ]
-        options += [
-            "-a",
-            "cpu",
-            "--precision",
-            "double",
-            "--bl-representative-cap",
-            str(args.score_cap),
-        ]
-        run_p2vbme(args.p2vbme, options, Path(str(out).removesuffix(".json")), True)
     return [read_json(o)["bme_length"] for o in outputs]
 
 
@@ -392,14 +376,15 @@ def representative_records(args: Namespace, runs: list[Run]) -> None:
             print(f"representatives {set_name} {n} rep{rep}: trees missing, not scored")
             continue
         alignment, _ = dataset_files(args, group[0])
+        score_cap = n if n <= args.exact_max else args.score_cap
         lengths = score(
             args,
             alignment,
-            n,
             trees,
             [Path(f"{p}.score.json") for p in prefixes.values()],
+            score_cap,
         )
-        cap_key = f"L_cap{n if n <= args.exact_max else args.score_cap}"
+        cap_key = f"L_cap{score_cap}"
         base = f"{set_name}_{n}_rep{rep}_P{REFERENCE_CAP}"
         seed = min(
             r.seed for r in group
@@ -451,7 +436,6 @@ def seqlen_records(args: Namespace, runs: list[Run]) -> None:
         ours, truth = score(
             args,
             alignment,
-            r.n,
             [tree, true_tree],
             [Path(f"{prefix}.score.json"), true_score],
         )
@@ -511,8 +495,8 @@ def main() -> None:
     parser.add_argument(
         "--score-cap",
         type=int,
-        default=256,
-        help="representatives per subtree when not exact",
+        default=SCORE_CAP,
+        help=f"representatives per clade when scoring above --exact-max sequences (default: {SCORE_CAP})",
     )
     parser.add_argument("--datasets-dir", type=Path, default=Path(DEFAULT_DATASETS_DIR))
     parser.add_argument(

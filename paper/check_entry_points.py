@@ -73,7 +73,7 @@ def main() -> None:
          "--replicates", "0", "1", "--datasets-dir", str(data))  # fmt: skip
     step("paper.run_benchmarks", "--experiments", "scaling", "random_start", "representatives",
          "round_limit", "--sets", "rnasim", "jc10k", "yule10k", "--sizes", SIZE, "--replicates", "0", "1",
-         "--caps", "16", "64", *cpu, *paths)  # fmt: skip
+         "--caps", "16", "64", "--exact-max", "50", "--score-cap", "16", *cpu, *paths)  # fmt: skip
     step("paper.run_calibration", "--sets", f"rnasim_{SIZE}", f"yule10k_{SIZE}", "--bootstrap", "4",
          "--repeats", "2", *cpu, *paths)  # fmt: skip
     step(

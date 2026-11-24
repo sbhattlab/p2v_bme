@@ -9,7 +9,8 @@ target_link_libraries(sim_jc69_fast PRIVATE OpenMP::OpenMP_C m)
 add_executable(eval_cmaple_rf tools/eval_cmaple_rf.cpp)
 target_compile_options(eval_cmaple_rf PRIVATE -O3)
 
-# Exact BME lengths of given trees and FastME's distance matrix (run_fastme.py, run_benchmarks.py)
+# BME lengths of given trees, exact or as the paper's evaluator, and FastME's distance matrix (run_fastme.py,
+# run_benchmarks.py)
 add_executable(bme_scores tools/bme_scores.cpp)
 target_compile_options(bme_scores PRIVATE -O3 -Wall -Wextra)
 target_link_libraries(bme_scores PRIVATE p2vbme_io p2vbme_distances OpenMP::OpenMP_CXX)
