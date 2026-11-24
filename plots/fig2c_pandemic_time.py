@@ -15,7 +15,7 @@ import numpy as np
 
 from matplotlib.ticker import LogLocator, NullLocator
 
-from plots._config import PANDEMIC, SPEC, STYLE
+from plots._config import PANDEMIC, STYLE
 from plots.utils import OURS, method_style, parser, read_tsv, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
