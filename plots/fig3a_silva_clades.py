@@ -32,6 +32,8 @@ TBE_MARKS = (
     (85.0, "#2b6cb0", "85–95%"),
     (75.0, "#d99b26", "75–85%"),
 )
+# The legend under the tree, in x units: the first class's marker, and the step between classes
+LEGEND_FIRST, LEGEND_STEP = 0.86, 0.58
 SELECTED_CLADES = [
     ("Archaea;Halobacteriota", "Halobacteriota"),
     ("Archaea;Thermoproteota", "Thermoproteota"),
@@ -304,13 +306,13 @@ def main() -> None:
     columns = {
         "tips": tips,
         "name": tips + 0.015,
-        "k": tips + 1.565,
-        "f1": tips + 1.875,
-        "bar": tips + 1.930,
+        "k": tips + 1.625,
+        "f1": tips + 1.935,
+        "bar": tips + 1.990,
         "bar_width": 0.145,
     }
 
-    fig = plt.figure(figsize=(6.0, 6.3))
+    fig = plt.figure(figsize=(4.5, 4.6))
     ax = fig.add_axes((0.02, 0.02, 0.96, 0.93))
     for spine in ax.spines.values():
         spine.set_visible(False)
@@ -364,24 +366,13 @@ def main() -> None:
         color="#cbd5e0",
         lw=0.8,
     )
+    # one label, then a marker and its range per class
+    ax.text(0.0, -1.05, "Backbone TBE", va="center", color="#2d3748")
     for i, (_threshold, colour, label) in enumerate(TBE_MARKS):
-        ax.scatter(
-            [1.01 * i],
-            [-1.05],
-            s=24,
-            facecolor=colour,
-            edgecolor="white",
-            lw=0.6,
-            clip_on=False,
-        )
-        ax.text(
-            1.01 * i + 0.020,
-            -1.05,
-            f"Backbone TBE {label}",
-            va="center",
-            color="#2d3748",
-        )
-    ax.set_xlim(-0.50, columns["bar"] + columns["bar_width"] + 0.36)
+        x = LEGEND_FIRST + LEGEND_STEP * i
+        ax.scatter([x], [-1.05], s=24, facecolor=colour, edgecolor="white", lw=0.6, clip_on=False)
+        ax.text(x + 0.035, -1.05, label, va="center", color="#2d3748")
+    ax.set_xlim(-0.56, columns["bar"] + columns["bar_width"] + 0.36)
     ax.set_ylim(-1.35, 20.45)
     save(fig, args.img_dir, "fig3a_silva_clades")
 
