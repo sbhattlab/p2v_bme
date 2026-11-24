@@ -39,7 +39,7 @@ def main() -> None:
     bins = read_tsv(args.tables_dir, "silva_support")
     x = range(len(bins))
     fig, ax = plt.subplots(figsize=(4.3, 6.3))
-    fig.subplots_adjust(left=0.2, right=0.97, top=0.95, bottom=0.17)
+    fig.subplots_adjust(left=0.2, right=0.97, top=0.95, bottom=0.11)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     q25 = [float(b["q25_tbe_pct"]) for b in bins]
@@ -63,8 +63,8 @@ def main() -> None:
     ax.set_xlim(-0.25, len(bins) - 0.65)
     ax.set_ylim(0, 104)
     ax.set_yticks([0, 20, 40, 60, 80, 100])
-    ax.set_xlabel("Split size (branches in brackets)", fontweight="bold")
-    ax.set_ylabel("Transfer bootstrap support (%)", fontweight="bold")
+    ax.set_xlabel("Split size (branches in brackets)")
+    ax.set_ylabel("Transfer bootstrap support (%)")
     ax.grid(True, ls=":", alpha=0.45, color="#cbd5e0")
     ax.legend(
         loc="upper left",
