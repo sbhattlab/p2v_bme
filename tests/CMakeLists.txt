@@ -1,6 +1,8 @@
 # Package tests, run by ctest. GPU tests carry the label `gpu` (ctest -LE gpu runs the others).
 find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
+# GPU tests also hold the resource lock `gpu`, so ctest -j runs them one at a time (they share one card).
+set(GPU_TEST_PROPERTIES LABELS gpu RESOURCE_LOCK gpu)
 
 add_executable(test_fasta test_fasta.cpp)
 target_link_libraries(test_fasta PRIVATE p2vbme_io GTest::gtest_main)
@@ -56,7 +58,8 @@ target_compile_options(test_inference PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O2 -Wal
 target_link_libraries(test_inference PRIVATE p2vbme p2vbme_processing p2vbme_simulations GTest::gtest_main m)
 gtest_discover_tests(test_inference TEST_FILTER "-InferenceGpu.*" DISCOVERY_TIMEOUT 60)
 if(P2VBME_CUDA)
-  gtest_discover_tests(test_inference TEST_FILTER "InferenceGpu.*" PROPERTIES LABELS gpu DISCOVERY_TIMEOUT 60)
+  gtest_discover_tests(test_inference TEST_FILTER "InferenceGpu.*" PROPERTIES ${GPU_TEST_PROPERTIES}
+                       DISCOVERY_TIMEOUT 60)
 endif()
 
 # The CPU device's window kernels (any build): move scores against exact BME changes, ties
@@ -95,7 +98,8 @@ target_compile_options(test_branch_lengths PRIVATE -O2 -Wall -Wextra)
 target_link_libraries(test_branch_lengths PRIVATE p2vbme p2vbme_processing p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_branch_lengths TEST_FILTER "-BranchLengthsGpu.*" DISCOVERY_TIMEOUT 60)
 if(P2VBME_CUDA)
-  gtest_discover_tests(test_branch_lengths TEST_FILTER "BranchLengthsGpu.*" PROPERTIES LABELS gpu DISCOVERY_TIMEOUT 60)
+  gtest_discover_tests(test_branch_lengths TEST_FILTER "BranchLengthsGpu.*" PROPERTIES ${GPU_TEST_PROPERTIES}
+                       DISCOVERY_TIMEOUT 60)
 endif()
 
 add_executable(test_json_writer test_json_writer.cpp)
@@ -142,7 +146,7 @@ if(P2VBME_CUDA)
   add_executable(test_device_gpu test_device_gpu.cpp)
   target_compile_options(test_device_gpu PRIVATE -Wall -Wextra)
   target_link_libraries(test_device_gpu PRIVATE p2vbme p2vbme_simulations GTest::gtest_main CUDA::cudart)
-  gtest_discover_tests(test_device_gpu PROPERTIES LABELS gpu DISCOVERY_TIMEOUT 60)
+  gtest_discover_tests(test_device_gpu PROPERTIES ${GPU_TEST_PROPERTIES} DISCOVERY_TIMEOUT 60)
 endif()
 
 # The command line: tests/python/test_cli.py (pytest) runs p2v-bme and checks its exit code, output and files.
@@ -156,5 +160,5 @@ add_test(NAME cli COMMAND ${CLI_PYTEST} -m "not gpu")
 set_tests_properties(cli PROPERTIES ENVIRONMENT "${CLI_PYTEST_ENV}")
 if(P2VBME_CUDA)
   add_test(NAME cli_gpu COMMAND ${CLI_PYTEST} -m gpu)
-  set_tests_properties(cli_gpu PROPERTIES ENVIRONMENT "${CLI_PYTEST_ENV}" LABELS gpu)
+  set_tests_properties(cli_gpu PROPERTIES ENVIRONMENT "${CLI_PYTEST_ENV}" ${GPU_TEST_PROPERTIES})
 endif()
