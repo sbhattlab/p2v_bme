@@ -171,7 +171,7 @@ Every table of the paper (`--tables`; default: all). A table whose results are m
 | `figS1a_scaling_time`             | S1a, S2a, S3a: time of every method                            | `scaling_methods.tsv`                       |
 | `figS1b_scaling_rf_error`         | S1b, S2b, S3b: RF error of every method                        | `scaling_methods.tsv`                       |
 | `figS1c_scaling_host_memory`      | S1c, S2c, S3c: peak host memory of every method                | `scaling_methods.tsv`                       |
-| `figS1d_scaling_gpu_memory`       | S1d, S2d, S3d: GPU memory (Phylo2VecME, DIPPER)                | `scaling_methods.tsv`                       |
+| `figS1d_scaling_gpu_memory`       | S1d, S2d, S3d: peak GPU memory (Phylo2VecME, DIPPER)           | `scaling_methods.tsv`                       |
 | `figS4_seqlen_effect`             | S4: RF error on 1,000 and 10,000 sites                         | `scaling_methods.tsv`                       |
 | `figS5a_sarscov2_variants`        | S5a: supports of the named SARS-CoV-2 variants                 | `viridian_variants.tsv`                     |
 | `figS5b_sarscov2_shared_branches` | S5b: branches shared by our tree and MAPLE's                   | `viridian_substitutions.tsv`                |

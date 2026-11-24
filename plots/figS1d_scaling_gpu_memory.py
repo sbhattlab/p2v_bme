@@ -1,4 +1,4 @@
-"""Figs S1d, S2d, S3d: memory in use per GPU (Phylo2VecME and DIPPER) of every method at each size, on RNASim, JC10k and random-tree JC.
+"""Figs S1d, S2d, S3d: peak memory per GPU (Phylo2VecME and DIPPER) of every method at each size, on RNASim, JC10k and random-tree JC.
 
 Inputs:  data/tables/scaling_methods.tsv                                (make_tables.py)
 Options: --tables-dir, --img-dir
@@ -24,9 +24,9 @@ def main() -> None:
     plt.style.use(STYLE)
     rows = read_tsv(args.tables_dir, "scaling_methods")
     for dataset, figure in SCALING_FIGURES.items():
-        stats = method_stats(rows, dataset, "gpu_memory_mb", 1 / MIB_PER_GIB)
+        stats = method_stats(rows, dataset, "gpu_memory_peak_mib", 1 / MIB_PER_GIB)
         if not stats:
-            print(f"no gpu_memory_mb data for {dataset}: {figure}d not drawn")
+            print(f"no gpu_memory_peak_mib data for {dataset}: {figure}d not drawn")
             continue
         fig, ax = plt.subplots(figsize=FIGSIZE)
         fig.subplots_adjust(left=0.09, right=0.985, top=0.95, bottom=0.2)

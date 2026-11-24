@@ -597,7 +597,9 @@ def records(out: Path, alias_path: Path, min_month: int, min_lineage: int) -> No
         ),
         "reference_s": search_time(report),
         "rounds_run": report["rounds_run"],
-        "gpu_memory_gib": report["details"]["memory"]["gpu_memory_peak_mib"] / 1024,
+        # nan for a report from before gpu_memory_peak_mib (it measured the whole card)
+        "gpu_memory_gib": report["details"]["memory"].get("gpu_memory_peak_mib", nan)
+        / 1024,
         "host_memory_gib": report["details"]["memory"]["host_ram_mib"] / 1024,
         "bootstrap_trees": len(boot_s),
         "bootstrap_mean_s": float(sum(boot_s) / len(boot_s)) if boot_s else nan,
