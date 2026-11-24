@@ -6,7 +6,7 @@ from typing import Final
 DEFAULT_DATA_DIR: Final = "data"
 DEFAULT_DATASETS_DIR: Final = f"{DEFAULT_DATA_DIR}/datasets"  # downloads and simulated sets
 DEFAULT_RESULTS_DIR: Final = f"{DEFAULT_DATA_DIR}/results"  # raw results of the run_*.py scripts
-# LaTeX tables and figure data (make_tables.py)
+# Markdown tables and figure data (make_tables.py)
 DEFAULT_TABLES_DIR: Final = f"{DEFAULT_DATA_DIR}/tables"
 
 DEFAULT_BUILD_DIR: Final = "build"  # cmake --preset default

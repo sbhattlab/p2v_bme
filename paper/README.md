@@ -146,7 +146,7 @@ bootstrap; `--replicates A-B`), `repeats` (repeat searches), `supports`, `record
 - **Command:** `pixi run -e paper make_tables`
 - **Requires:** the `run_*` scripts' results
 - **Inputs:** `data/results/`
-- **Outputs:** `data/tables/<table>.tex` and `data/tables/<name>.tsv` (the rows of the tables and the figures' data)
+- **Outputs:** `data/tables/<table>.md` and `data/tables/<name>.tsv` (the rows of the tables and the figures' data)
 
 Every table of the paper (`--tables`; default: all). A table whose results are missing is skipped, with a note.
 
