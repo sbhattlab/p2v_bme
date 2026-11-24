@@ -3,7 +3,7 @@
 Inputs:  data/tables/scaling.tsv, random_tree.tsv                      (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    mean and sample SD of the time at each size, one series per dataset
-Outputs: img/fig2/fig2a_scaling_time.{pdf,svg}
+Outputs: img/fig2/fig2a_scaling_time.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig2a_scaling_time
 """
@@ -23,10 +23,9 @@ def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.86)
+    fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.96)
     scaling_series(ax, scaling_data(args.tables_dir), "time_s")
     scaling_axes(ax)
-    ax.set_title("Timed inference", loc="left", pad=8)
     ax.set_ylabel("Time (s)")
     save(fig, args.img_dir, "fig2a_scaling_time")
 

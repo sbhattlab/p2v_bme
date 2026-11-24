@@ -3,7 +3,7 @@
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    per program and size: mean over the three branch-length scales, the bar spans their range
-Outputs: img/fig2/fig2c_pandemic_time.{pdf,svg}
+Outputs: img/fig2/fig2c_pandemic_time.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig2c_pandemic_time
 """
@@ -15,8 +15,8 @@ import numpy as np
 
 from matplotlib.ticker import LogLocator, NullLocator
 
-from plots._config import PANDEMIC, STYLE
-from plots.utils import parser, read_tsv, save
+from plots._config import PANDEMIC, SPEC, STYLE
+from plots.utils import OURS, method_style, parser, read_tsv, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
 SIZES = [100000, 200000, 500000]
@@ -28,8 +28,8 @@ def main() -> None:
     plt.style.use(STYLE)
     rows = read_tsv(args.tables_dir, "maple")
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.86)
-    for method, colour, marker, style in PANDEMIC:
+    fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.96)
+    for method, key in PANDEMIC:
         means, los, his = [], [], []
         for n in SIZES:
             values = [
@@ -42,15 +42,12 @@ def main() -> None:
             SIZES,
             means,
             yerr=[los, his],
-            color=colour,
-            marker=marker,
-            markersize=3.6,
-            linestyle=style,
-            linewidth=1.1,
             elinewidth=0.75,
             capsize=2,
             capthick=0.7,
             label=method,
+            zorder=5 if key == OURS else 3,
+            **method_style(key),
         )
     ax.set_xscale("log")
     ax.set_yscale("log")
@@ -62,12 +59,11 @@ def main() -> None:
     )
     ax.yaxis.set_major_locator(LogLocator(base=10, numticks=12))  # a tick every decade
     ax.set_xticks(SIZES)
-    ax.set_xticklabels(["100k", "200k", "500k"])
+    ax.set_xticklabels([f"{n // 10**5}" for n in SIZES])  # in units of 10^5, as the x label says
     ax.xaxis.set_minor_locator(NullLocator())
     ax.tick_params(axis="x", which="minor", bottom=False)
-    ax.set_xlabel("Number of sequences")
+    ax.set_xlabel(r"Sequences ($\times10^5$)")
     ax.set_ylabel("Time (s)")
-    ax.set_title("Pandemic runtime", loc="left", pad=8)
     ax.grid(axis="y", which="major", color="#E5E5E5", linewidth=0.5)
     ax.set_axisbelow(True)
     ax.legend(loc="upper left", frameon=False, handlelength=1.5)

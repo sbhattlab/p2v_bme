@@ -1,78 +1,82 @@
-"""Fig. 3b: transfer support of every internal branch of the SILVA 144 tree,
-by the size of its split.
+"""Fig. 3b: transfer bootstrap support of the internal branches of the SILVA 144 tree,
+by the size of their split.
 
 Inputs:  data/tables/silva_support.tsv                                  (make_tables.py)
 Options: --tables-dir, --img-dir
-Flow:    per bin of split size (smaller side):
-         median TBE and interquartile range, with the bin's branch count
-Outputs: img/fig3/fig3b_silva_support.{pdf,svg}
+Flow:    per bin of split size (sequences on the smaller side): the share of its branches with at
+         least 90%, 70-90% and under 70% transfer bootstrap support, as one stacked bar;
+         the key above is a small stacked bar in the same shades
+Outputs: img/fig3/fig3b_silva_support.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig3b_silva_support
 """
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from plots._config import STYLE
 from plots.utils import parser, read_tsv, save
 
-COLOUR = "#1f6f8b"  # Bacteria's colour in Fig. 3a
+# 3a's height and the rest of the page width, so that the row 3a + 3b is as wide as 3c
+FIGSIZE = (2.7, 4.6)
 LABELS = {
-    "10001-2106464": ">10k",
-    ">10k": ">10k",
-    "1k-10k": "1,001–10k",
-    "1001-10000": "1,001–10k",
-    "101-1k": "101–1k",
-    "101-1000": "101–1k",
+    "10001-2106464": ">10,000",
+    ">10k": ">10,000",
+    "1k-10k": "1,001–10,000",
+    "1001-10000": "1,001–10,000",
+    "101-1k": "101–1,000",
+    "101-1000": "101–1,000",
     "3-10": "3–10",
     "11-100": "11–100",
 }
-
-
-def compact(n: int) -> str:
-    """Writes a branch count to three significant figures: 1290000 -> '1.29M', 826000 -> '826k'."""
-    return f"{n / 1e6:.3g}M" if n >= 1e6 else f"{n / 1e3:.3g}k"
+# Support classes, dark to light, so that the well-supported share is read from the left;
+# 70% is the threshold of Fig. 3c. Shades of Bacteria's colour in Fig. 3a.
+CLASSES = (("≥ 90%", "#1f6f8b"), ("70–90%", "#79AFC4"), ("< 70%", "#DCE9EF"))
+EDGE_COLOUR, EDGE_WIDTH = "white", 0.8  # gaps between the segments
 
 
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
     bins = read_tsv(args.tables_dir, "silva_support")
-    x = range(len(bins))
-    fig, ax = plt.subplots(figsize=(4.3, 6.3))
-    fig.subplots_adjust(left=0.2, right=0.97, top=0.95, bottom=0.17)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    q25 = [float(b["q25_tbe_pct"]) for b in bins]
-    q75 = [float(b["q75_tbe_pct"]) for b in bins]
-    ax.fill_between(x, q25, q75, color=COLOUR, alpha=0.18, label="Interquartile range")
-    ax.plot(
-        x,
-        [float(b["median_tbe_pct"]) for b in bins],
-        "-o",
-        color=COLOUR,
-        lw=2.0,
-        ms=5.5,
-        label="Median",
-    )
-    labels = [
-        f"{LABELS.get(b['split_size_bin'], b['split_size_bin'])}\n({compact(int(b['n_branches']))})"
-        for b in bins
-    ]
-    ax.set_xticks(list(x))
-    ax.set_xticklabels(labels)
-    ax.set_xlim(-0.25, len(bins) - 0.65)
-    ax.set_ylim(0, 104)
-    ax.set_yticks([0, 20, 40, 60, 80, 100])
-    ax.set_xlabel("Split size (branches in brackets)", fontweight="bold")
-    ax.set_ylabel("Transfer bootstrap support (%)", fontweight="bold")
-    ax.grid(True, ls=":", alpha=0.45, color="#cbd5e0")
-    ax.legend(
-        loc="upper left",
-        ncol=1,
-        frameon=True,
-        facecolor="white",
-        edgecolor="#cbd5e0",
-    )
+    ge90 = np.array([float(b["frac_ge90_pct"]) for b in bins])
+    ge70 = np.array([float(b["frac_ge70_pct"]) for b in bins])
+    shares = (ge90, ge70 - ge90, 100 - ge70)
+    y = np.arange(len(bins))  # one row per bin, smallest splits at the bottom
+
+    fig = plt.figure(figsize=FIGSIZE)
+    ax = fig.add_axes((0.40, 0.11, 0.55, 0.70))
+    left = np.zeros(len(bins))
+    for share, (_label, colour) in zip(shares, CLASSES):
+        ax.barh(
+            y,
+            share,
+            left=left,
+            color=colour,
+            height=0.72,
+            edgecolor=EDGE_COLOUR,
+            linewidth=EDGE_WIDTH,
+        )
+        left += share
+    ax.set_yticks(y, [LABELS.get(b["split_size_bin"], b["split_size_bin"]) for b in bins])
+    ax.set_ylim(-0.5, len(bins) - 0.5)
+    ax.set_xlim(0, 100)
+    ax.set_xticks([0, 25, 50, 75, 100])
+    ax.set_xlabel("Branches (%)")
+    ax.set_ylabel("Split size (sequences)")
+    ax.tick_params(axis="y", length=0)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+
+    # the key: the three classes as a small stacked bar, labelled underneath
+    key = fig.add_axes((0.40, 0.88, 0.55, 0.035))
+    for i, (label, colour) in enumerate(CLASSES):
+        key.barh(0, 1, left=i, color=colour, height=1, edgecolor=EDGE_COLOUR, linewidth=EDGE_WIDTH)
+        key.text(i + 0.5, -0.9, label, ha="center", va="top")
+    key.set_xlim(0, len(CLASSES))
+    key.set_ylim(-0.5, 0.5)
+    key.set_axis_off()
+    key.text(len(CLASSES) / 2, 0.9, "Transfer bootstrap support", ha="center", va="bottom")
     save(fig, args.img_dir, "fig3b_silva_support")
 
 

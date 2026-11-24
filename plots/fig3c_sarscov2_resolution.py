@@ -12,7 +12,7 @@ Flow:    the months at the 70% threshold, checked for gaps
            |
            v
          variant strip and resolution curve on a shared month axis
-Outputs: img/fig3/fig3c_sarscov2_resolution.{pdf,svg}
+Outputs: img/fig3/fig3c_sarscov2_resolution.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig3c_sarscov2_resolution
 """
@@ -25,7 +25,7 @@ from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
 from plots._config import STYLE
 from plots.utils import parser, read_tsv, save
 
-SCALE = 1.15  # line and marker scale
+SCALE = 1.0  # line and marker scale
 GROUPS = (
     ("other", "Other", "#9A9A9A"),
     ("alpha", "Alpha", "#3B7FB6"),
@@ -57,9 +57,10 @@ def main() -> None:
     def column(name: str) -> np.ndarray:
         return np.array([float(r[name]) for r in rows])
 
-    fig = plt.figure(figsize=(10.2, 3.9))
-    strip = fig.add_axes((0.15, 0.87, 0.835, 0.07))
-    ax = fig.add_axes((0.15, 0.2, 0.835, 0.65), sharex=strip)
+    # full page width, as the other figures, so that its text prints at the style's 9 pt
+    fig = plt.figure(figsize=(7.2, 3.0))
+    strip = fig.add_axes((0.17, 0.87, 0.815, 0.07))
+    ax = fig.add_axes((0.17, 0.22, 0.815, 0.63), sharex=strip)
 
     x = np.arange(len(rows))
     shares = np.array([column(f"share_{key}") for key, _name, _colour in GROUPS])
@@ -131,10 +132,7 @@ def main() -> None:
     ax.yaxis.set_major_locator(FixedLocator([10, 100, 1e3, 1e4, 1e5, 1e6]))
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _pos: f"{int(v):,}"))
     ax.yaxis.set_minor_formatter(NullFormatter())
-    ax.set_ylabel(
-        "Genomes sampled in\nthe same 31 days",
-        fontweight="bold",
-    )
+    ax.set_ylabel("Genomes sampled in\nthe same 31 days")
     ticks = [i for i, m in enumerate(months) if m[5:7] in QUARTER]
     ax.set_xticks(ticks)
     ax.set_xticklabels(
@@ -144,7 +142,7 @@ def main() -> None:
         ]
     )
     ax.set_xlim(-0.5, len(rows) - 0.5)
-    ax.set_xlabel("Sampling month", fontweight="bold")
+    ax.set_xlabel("Sampling month")
     ax.grid(axis="y", color="#EEEEEE", linewidth=0.6, zorder=0)
     ax.set_axisbelow(True)
     for side in ("top", "right"):

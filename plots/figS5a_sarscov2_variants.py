@@ -5,7 +5,7 @@ Inputs:  data/tables/viridian_variants.tsv                              (make_ta
 Options: --tables-dir, --img-dir
 Flow:    one row per variant, largest first:
          transfer support (filled), exact support (hollow), substitutions
-Outputs: img/fig3/figS5a_sarscov2_variants.{pdf,svg}
+Outputs: img/fig3/figS5a_sarscov2_variants.{pdf,svg,png}
 
     pixi run -e paper python -m plots.figS5a_sarscov2_variants
 """
@@ -14,10 +14,13 @@ Outputs: img/fig3/figS5a_sarscov2_variants.{pdf,svg}
 
 import matplotlib.pyplot as plt
 
-from plots._config import OURS_COLOUR, STYLE
+from plots._config import SPEC, STYLE
 from plots.utils import parser, read_tsv, save
 
 FIGSIZE = (84 / 25.4, 66 / 25.4)  # panel a of the 150 mm wide figure
+# The two label columns left of the axes, in axes widths:
+# names left-aligned, genome counts right-aligned
+NAME_X, COUNT_X = -0.57, -0.03
 
 
 def main() -> None:
@@ -38,7 +41,7 @@ def main() -> None:
             marker="o",
             markersize=4.4,
             markerfacecolor="white",
-            markeredgecolor=OURS_COLOUR,
+            markeredgecolor=SPEC["P2V"]["color"],
             markeredgewidth=1.1,
             linestyle="none",
             zorder=3,
@@ -48,7 +51,7 @@ def main() -> None:
             y,
             marker="o",
             markersize=4.4,
-            color=OURS_COLOUR,
+            color=SPEC["P2V"]["color"],
             linestyle="none",
             zorder=4,
         )
@@ -61,7 +64,13 @@ def main() -> None:
         )
     ax.text(116, -0.95, "subst.", ha="center", va="center")
     ax.set_yticks(range(len(rows)))
-    ax.set_yticklabels([f"{v['name']}  {float(v['genomes']):,.0f}" for v in rows])
+    ax.set_yticklabels([])
+    columns = ax.get_yaxis_transform()  # x in axes widths, y in rows
+    for y, v in enumerate(rows):
+        ax.text(NAME_X, y, v["name"], transform=columns, ha="left", va="center")
+        count = f"{float(v['genomes']):,.0f}"
+        ax.text(COUNT_X, y, count, transform=columns, ha="right", va="center")
+    ax.text(COUNT_X, -0.95, "genomes", transform=columns, ha="right", va="center")
     ax.set_ylim(len(rows) - 0.5, -1.4)
     ax.set_xlim(-4, 124)
     ax.spines["bottom"].set_bounds(-4, 104)
@@ -72,7 +81,7 @@ def main() -> None:
         plt.Line2D(
             [],
             [],
-            color=OURS_COLOUR,
+            color=SPEC["P2V"]["color"],
             marker="o",
             markersize=4.6,
             linestyle="none",
@@ -81,7 +90,7 @@ def main() -> None:
         plt.Line2D(
             [],
             [],
-            color=OURS_COLOUR,
+            color=SPEC["P2V"]["color"],
             marker="o",
             markersize=4.6,
             linestyle="none",
@@ -92,8 +101,8 @@ def main() -> None:
     ]
     fig.legend(
         handles=handles,
-        loc="upper left",
-        bbox_to_anchor=(0.02, 1.0),
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.0),
         ncol=1,
         handletextpad=0.2,
     )

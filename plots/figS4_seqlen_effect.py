@@ -5,7 +5,7 @@ Inputs:  data/tables/scaling_methods.tsv                                (make_ta
 Options: --tables-dir, --img-dir
 Flow:    per method with runs at both lengths:
          mean and range of the RF error (hollow: 1,000 sites, filled: 10,000)
-Outputs: img/fig2/figS4_seqlen_effect.{pdf,svg}
+Outputs: img/fig2/figS4_seqlen_effect.{pdf,svg,png}
 
     pixi run -e paper python -m plots.figS4_seqlen_effect
 """
@@ -20,7 +20,7 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
 
 from plots._config import METHODS, SPEC, STYLE
-from plots.utils import parser, read_tsv, save
+from plots.utils import OURS, parser, read_tsv, save
 
 N = 10000
 SHORT, LONG = "jc1k", "jc10k"
@@ -52,16 +52,18 @@ def main() -> None:
     rows.sort(key=lambda r: -r[2][0])  # worst at the bottom of the reading order -> best on top
 
     fig, ax = plt.subplots(figsize=(3.6, 2.9))
-    fig.subplots_adjust(left=0.35, right=0.94, bottom=0.19, top=0.95)
+    fig.subplots_adjust(left=0.35, right=0.94, bottom=0.19, top=0.88)
     for y, (key, (m1, lo1, hi1), (m2, lo2, hi2)) in enumerate(rows):
         s = SPEC[key]
-        ax.plot([m1, m2], [y, y], color=s["color"], lw=1.6, alpha=0.55, zorder=2)
+        ours = key == OURS  # Phylo2VecME drawn stronger; the markers are the data, so none is faded
+        size = 7 if ours else 6
+        ax.plot([m1, m2], [y, y], color=s["color"], lw=2.6 if ours else 1.6, alpha=0.55, zorder=2)
         ax.errorbar(
             [m1],
             [y],
             xerr=[[m1 - lo1], [hi1 - m1]],
             fmt=s["marker"],
-            ms=6,
+            ms=size,
             mfc="white",
             mec=s["color"],
             mew=1.3,
@@ -75,7 +77,7 @@ def main() -> None:
             [y],
             xerr=[[m2 - lo2], [hi2 - m2]],
             fmt=s["marker"],
-            ms=6,
+            ms=size,
             mfc=s["color"],
             mec=s["color"],
             ecolor=s["color"],
@@ -116,9 +118,13 @@ def main() -> None:
                 label="10,000 sites",
             ),
         ],
-        loc="upper right",
+        # above the axes, in one row: inside, it covered the best row's markers
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.0),
+        ncol=2,
         handletextpad=0.3,
-        borderaxespad=0.2,
+        columnspacing=1.5,
+        borderaxespad=0.3,
     )
     save(fig, args.img_dir, "figS4_seqlen_effect")
 

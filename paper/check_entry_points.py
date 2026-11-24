@@ -41,9 +41,7 @@ THREADS = "2"
 PLOTS_DRAWN = (
     "fig2a_scaling_time",
     "fig2b_scaling_rf_error",
-    "figS1b_scaling_rf_error",
-    "figS1c_scaling_host_memory",
-    "figS1d_scaling_gpu_memory",
+    "figS1_scaling",
 )
 
 
