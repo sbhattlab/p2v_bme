@@ -4,10 +4,9 @@
 #ifndef P2VBME_TESTS_BME_TEST_HELPERS_HPP
 #define P2VBME_TESTS_BME_TEST_HELPERS_HPP
 
-#include <math.h>
-#include <stdint.h>
-
 #include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <queue>
 #include <vector>
 
@@ -76,7 +75,7 @@ inline double pauplin(const std::vector<std::vector<int32_t>> &adj, int32_t N, c
                 }
         }
         for (int32_t j = i + 1; j < N; ++j)
-            total += ldexp(1.0, 1 - dist[j]) * D[(size_t)i * N + j];
+            total += std::ldexp(1.0, 1 - dist[j]) * D[(size_t)i * N + j];
     }
     return total;
 }

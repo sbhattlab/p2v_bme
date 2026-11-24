@@ -4,10 +4,9 @@
 // three copies of t1 and two of t2, named t1_copy1 ...).
 // Options after SEED simulate GTR+GC instead: --rates AC,AG,AT,CG,CT,GT, --freqs A,C,G,T and --alpha X (as in
 // SimulationModel; unset ones keep JC69's values).
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
 #include <vector>

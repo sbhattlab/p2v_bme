@@ -12,9 +12,8 @@
 // with missing sites.
 #include <gtest/gtest.h>
 
-#include <math.h>
-
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -160,7 +159,7 @@ void run_all(Devices &devices, bool double_precision, const char *what) {
                 const int32_t r_right = c.tree.c2[2 * N - 2];
                 for (int32_t u = 0; u < 2 * N - 2; ++u)
                     if (u != r_right)
-                        max_err = std::max(max_err, fabs(bl[u] - exact[u]));
+                        max_err = std::max(max_err, std::fabs(bl[u] - exact[u]));
                 EXPECT_LT(max_err, double_precision ? 1e-10 : 2e-5)
                     << what << " " << model_name(model) << " N=" << N << " complete representatives";
             }
@@ -176,7 +175,7 @@ void run_all(Devices &devices, bool double_precision, const char *what) {
                 const int32_t r_right = c.tree.c2[2 * N - 2];
                 for (int32_t u = 0; u < 2 * N - 2; ++u)
                     if (u != r_right) {
-                        const double err = fabs(bl[u] - exact[u]);
+                        const double err = std::fabs(bl[u] - exact[u]);
                         max_err = std::max(max_err, err);
                         mean += err;
                     }

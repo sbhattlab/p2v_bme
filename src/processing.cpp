@@ -6,9 +6,9 @@
  * Tree traversals are iterative so that trees with millions of leaves do not overflow the stack.
  */
 #include <algorithm>
+#include <cstring>
 #include <numeric>
 #include <stdexcept>
-#include <string.h>
 #include <string>
 #include <unordered_map>
 #include <vector>

@@ -14,10 +14,10 @@
  * Without CUDA this file also provides the GPU entry points of device.hpp, which then report that there is no GPU.
  */
 #include <omp.h>
-#include <stdint.h>
-#include <string.h>
 
 #include <algorithm>
+#include <cstdint>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <stdexcept>

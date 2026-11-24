@@ -17,8 +17,7 @@
 #ifndef P2VBME_REPORT_HPP
 #define P2VBME_REPORT_HPP
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 #include <vector>
 

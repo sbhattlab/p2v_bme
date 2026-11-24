@@ -9,8 +9,7 @@
 #ifndef P2VBME_JSON_WRITER_HPP
 #define P2VBME_JSON_WRITER_HPP
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>

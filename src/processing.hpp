@@ -9,7 +9,7 @@
 #ifndef P2VBME_PROCESSING_HPP
 #define P2VBME_PROCESSING_HPP
 
-#include <stdint.h>
+#include <cstdint>
 #include <vector>
 
 #include "core.hpp"

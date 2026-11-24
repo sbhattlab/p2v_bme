@@ -6,11 +6,11 @@
  */
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <iomanip>
 #include <limits>
 #include <sstream>
 #include <stdexcept>
-#include <stdlib.h>
 #include <string>
 #include <vector>
 

@@ -8,8 +8,7 @@
 #ifndef P2VBME_SEARCH_HPP
 #define P2VBME_SEARCH_HPP
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <vector>

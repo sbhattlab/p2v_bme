@@ -9,8 +9,7 @@
 #ifndef P2VBME_INFERENCE_HPP
 #define P2VBME_INFERENCE_HPP
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>

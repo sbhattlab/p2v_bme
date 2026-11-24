@@ -6,9 +6,8 @@
 
 #include <gtest/gtest.h>
 
-#include <string.h>
-
 #include <algorithm>
+#include <cstring>
 #include <memory>
 #include <stdexcept>
 #include <string>

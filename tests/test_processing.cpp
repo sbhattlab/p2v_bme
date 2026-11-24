@@ -2,8 +2,8 @@
 // identical sequences, a given start tree and the copies put back.
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <set>
-#include <stdint.h>
 #include <string>
 #include <vector>
 

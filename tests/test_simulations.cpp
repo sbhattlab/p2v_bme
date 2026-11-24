@@ -1,8 +1,7 @@
 // Tests of src/simulations: transition probabilities against closed forms, random trees, simulated alignments.
 #include <gtest/gtest.h>
 
-#include <math.h>
-
+#include <cmath>
 #include <stdexcept>
 #include <vector>
 
@@ -57,7 +56,7 @@ TEST(TransitionMatrix, Jc69ClosedForm) {
     for (double t : {0.0, 0.01, 0.1, 0.5, 2.0}) {
         double P[p2vbme::N_BASES][p2vbme::N_BASES];
         p2vbme::transition_matrix(m, t, P);
-        const double same = 0.25 + 0.75 * exp(-4.0 * t / 3.0), diff = 0.25 - 0.25 * exp(-4.0 * t / 3.0);
+        const double same = 0.25 + 0.75 * std::exp(-4.0 * t / 3.0), diff = 0.25 - 0.25 * std::exp(-4.0 * t / 3.0);
         for (int i = 0; i < p2vbme::N_BASES; ++i)
             for (int j = 0; j < p2vbme::N_BASES; ++j)
                 EXPECT_NEAR(P[i][j], i == j ? same : diff, 1e-12) << "t=" << t;
@@ -72,8 +71,8 @@ TEST(TransitionMatrix, K80ClosedForm) {
     for (double t : {0.01, 0.1, 0.5, 2.0}) {
         double P[p2vbme::N_BASES][p2vbme::N_BASES];
         p2vbme::transition_matrix(m, t, P);
-        const double transversion = 0.25 * (1.0 - exp(-4.0 * beta * t));
-        const double transition = 0.25 + 0.25 * exp(-4.0 * beta * t) - 0.5 * exp(-2.0 * (alpha + beta) * t);
+        const double transversion = 0.25 * (1.0 - std::exp(-4.0 * beta * t));
+        const double transition = 0.25 + 0.25 * std::exp(-4.0 * beta * t) - 0.5 * std::exp(-2.0 * (alpha + beta) * t);
         EXPECT_NEAR(P[0][2], transition, 1e-12);   // A -> G
         EXPECT_NEAR(P[1][3], transition, 1e-12);   // C -> T
         EXPECT_NEAR(P[0][1], transversion, 1e-12); // A -> C
@@ -91,7 +90,7 @@ TEST(TransitionMatrix, F81ClosedForm) {
     for (double t : {0.01, 0.3, 1.5}) {
         double P[p2vbme::N_BASES][p2vbme::N_BASES];
         p2vbme::transition_matrix(m, t, P);
-        const double e = exp(-t / mu);
+        const double e = std::exp(-t / mu);
         for (int i = 0; i < p2vbme::N_BASES; ++i)
             for (int j = 0; j < p2vbme::N_BASES; ++j)
                 EXPECT_NEAR(P[i][j], pi[j] * (1.0 - e) + (i == j ? e : 0.0), 1e-12);
@@ -210,8 +209,8 @@ TEST(Simulate, Jc69DistancesMatchPathLengths) {
     const p2vbme::Alignment a = p2vbme::simulate_alignment(t, L, SimulationModel(), 5);
     for (int i = 0; i < n; ++i)
         for (int j = i + 1; j < n; ++j) {
-            const double p = p_distance(a, i, j), d = -0.75 * log(1.0 - 4.0 * p / 3.0);
-            const double se = sqrt(p * (1.0 - p) / L) / (1.0 - 4.0 * p / 3.0);
+            const double p = p_distance(a, i, j), d = -0.75 * std::log(1.0 - 4.0 * p / 3.0);
+            const double se = std::sqrt(p * (1.0 - p) / L) / (1.0 - 4.0 * p / 3.0);
             EXPECT_NEAR(d, path_length(t, i, j), 4.0 * se) << i << "," << j;
         }
 }
@@ -231,7 +230,7 @@ TEST(Simulate, BaseFrequencies) {
                 count += __builtin_popcountll(a.packed[((size_t)i * p2vbme::N_PLANES + b) * a.n_words + w]);
         const double f = (double)count / ((double)n * L);
         // leaves are correlated through the tree, so allow a wider band than for independent sites
-        EXPECT_NEAR(f, pi[b], 6.0 * sqrt(pi[b] * (1.0 - pi[b]) / L)) << "base " << b;
+        EXPECT_NEAR(f, pi[b], 6.0 * std::sqrt(pi[b] * (1.0 - pi[b]) / L)) << "base " << b;
     }
 }
 
@@ -246,11 +245,11 @@ TEST(Simulate, ContinuousGammaMatchesJc69GammaPDistance) {
     m.alpha = alpha;
     const int L = 400000;
     const p2vbme::Alignment a = p2vbme::simulate_alignment(t, L, m, 17);
-    const double d = 0.6, expected = 0.75 * (1.0 - pow(1.0 + 4.0 * d / (3.0 * alpha), -alpha));
+    const double d = 0.6, expected = 0.75 * (1.0 - std::pow(1.0 + 4.0 * d / (3.0 * alpha), -alpha));
     const double p = p_distance(a, 0, 1);
-    EXPECT_NEAR(p, expected, 4.0 * sqrt(expected * (1.0 - expected) / L));
+    EXPECT_NEAR(p, expected, 4.0 * std::sqrt(expected * (1.0 - expected) / L));
     // without rate variation the p-distance is clearly larger
-    EXPECT_GT(0.75 * (1.0 - exp(-4.0 * d / 3.0)), expected + 0.05);
+    EXPECT_GT(0.75 * (1.0 - std::exp(-4.0 * d / 3.0)), expected + 0.05);
 }
 
 TEST(Simulate, RejectsBadInput) {

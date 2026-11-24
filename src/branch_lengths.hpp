@@ -1,14 +1,19 @@
 /*
  * branch_lengths.hpp
  *
- * O(N) balanced minimum evolution branch lengths (Pauplin 2000; FastME, Desper & Gascuel 2002) by exact clade
+ * O(N) balanced minimum evolution branch lengths (Pauplin 2000; FastME, Lefort et al. 2015) by exact clade
  * condensation: capped dyadic inside and outside representatives on the host, the edge-length pass on the devices.
+ *
+ * References
+ *   Lefort, V., Desper, R. & Gascuel, O. (2015). FastME 2.0: A Comprehensive, Accurate, and Fast Distance-Based
+ *     Phylogeny Inference Program. Molecular Biology and Evolution 32, 2798-2800. doi:10.1093/molbev/msv150
+ *   Pauplin, Y. (2000). Direct Calculation of a Tree Length Using a Distance Matrix. Journal of Molecular Evolution
+ *     51, 41-47. doi:10.1007/s002390010065
  */
 #ifndef P2VBME_BRANCH_LENGTHS_HPP
 #define P2VBME_BRANCH_LENGTHS_HPP
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <vector>
 
 #include "core.hpp"
