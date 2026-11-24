@@ -4,13 +4,13 @@ Both programs minimise the BME length of the same matrix (p2v-bme's JC69 distanc
 Every output tree is rescored in double precision from the full matrix by bme_scores, which shares no code with the
 search. Three arms per case:
   sample  each program's own start: p2v-bme sample-and-place (seed rep + 1); FastME BIONJ, NNI and SPR, rerun from
-          its own output until the exact length stops falling (its time: the first run alone)
-  rand    the same random start tree for both (the set's, rooted as the paper's); FastME rerun to convergence from it
-          (its time: all runs)
+          its own output until the topology stops changing, at most 5 reruns (its time: the first run alone)
+  rand    the same random start tree for both (the set's, rooted as the paper's); FastME rerun from it until the
+          topology stops changing, at most 8 runs (its time: all runs)
   polish  p2v-bme started from FastME's converged tree of the sample arm
-and an SPR check of our trees (sample, rand): FastME's SPR from our tree until the length stops falling.
-FastME rereads a start tree's branch lengths as its length and keeps the start when it finds no shorter tree, so every
-start is given uniform lengths that add up to its exact BME length (else a better tree can be thrown away).
+and an SPR check of our trees (sample, rand): FastME's SPR from our tree until the topology stops changing.
+FastME keeps a start tree unless its result is shorter than the start's branch lengths add up to, so, as in the paper's
+runs, every start is given branch lengths of 1 (far above any BME length): FastME then returns its result.
 
 Inputs:  data/datasets/fastme/<set>/<n>/rep<r>.fa, rep<r>.true.nwk, rep<r>.random_start.nwk
                                                                      (simulate_data.py --sets fastme)
@@ -38,7 +38,6 @@ Outputs: data/results/fastme/<set>/<n>/rep<r>_*.{nwk,json}       trees, p2v-bme 
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from json import dumps, loads
 from pathlib import Path
-from re import findall
 from subprocess import DEVNULL, run
 from time import perf_counter
 
@@ -69,9 +68,11 @@ ARMS = ("sample", "rand", "polish")
 MODEL = "JC69"
 FASTME_NNI_SPR = ["-n", "B", "-s"]  # BME NNI and SPR, the better of both
 FASTME_SPR = ["-s"]
-REL_TOL = (
-    1e-12  # a rerun that shortens the tree by less than this (relative) ends the reruns
-)
+# FastME to convergence, as the paper's runs: reruns until the topology stops changing, at most this many
+FASTME_RERUNS = 5  # after the run from BIONJ
+FASTME_RUNS_FROM_START = 8  # from a given start tree
+START_EDGE = 1.0  # branch length of every start tree (see the module's docstring)
+SAME_TOPOLOGY_RF = 1e-9  # RF distance (%) below which two trees have the same topology
 
 
 def exact_lengths(tool: str, fasta: Path, trees: list[Path]) -> list[float]:
@@ -107,6 +108,7 @@ def run_fastme(fastme: str, phylip: Path, args: list[str], out: Path) -> float:
 def fastme_to_convergence(
     fastme: str,
     tool: str,
+    p2vbme: str,
     fasta: Path,
     phylip: Path,
     start: Path | None,
@@ -114,44 +116,42 @@ def fastme_to_convergence(
     prefix: Path,
     overwrite: bool,
 ) -> dict:
-    """Reruns FastME from its own output until the exact length stops falling: (start, moves) -> run record.
+    """Reruns FastME from its own output until the topology stops changing: (start, moves) -> run record.
 
-    start None: BIONJ (FastME's default start), else that tree.
-    Record (also <prefix>.json): passes [{tree, wall_s, L}], tree (the shortest), L, wall_s (all passes).
+    As the paper's runs: start None, BIONJ (FastME's default start), then at most 5 reruns; else that tree, at most 8
+    runs. Every run starts from its input with branch lengths of 1. The result is the last run's tree.
+    Record (also <prefix>.json): passes [{tree, wall_s, L}], tree and L (the last run's), wall_s (all runs).
     """
     record_path = Path(f"{prefix}.json")
     if record_path.exists() and not overwrite:
         return read_json(record_path)
     passes: list[dict] = []
-    current, current_length = start, None
-    if start is not None:
-        current_length = exact_lengths(tool, fasta, [start])[0]
-    while True:
+    current = start
+    most = 1 + FASTME_RERUNS if start is None else FASTME_RUNS_FROM_START
+    while len(passes) < most:
         out = Path(f"{prefix}_pass{len(passes)}.nwk")
         if current is None:
             args = ["-m", "I", *moves]
         else:
-            assert current_length is not None
-            # uniform lengths that add up to the start's BME length: FastME takes their sum as its length
-            n_leaves = len(findall(r"[(,]([^(),;]+)", Path(current).read_text()))
-            edge = current_length / (2 * n_leaves - 3)
-            uniform = with_edge_lengths(
-                current, edge, Path(f"{prefix}_pass{len(passes)}.start.nwk")
+            unit = with_edge_lengths(
+                current, START_EDGE, Path(f"{prefix}_pass{len(passes)}.start.nwk")
             )
-            args = ["-u", str(uniform), *moves]
+            args = ["-u", str(unit), *moves]
         wall = run_fastme(fastme, phylip, args, out)
         length = exact_lengths(tool, fasta, [out])[0]
         passes.append({"tree": str(out), "wall_s": wall, "L": length})
-        if current_length is not None and length >= current_length * (1 - REL_TOL):
-            break
-        current, current_length = out, length
-    best = min(passes, key=lambda p: p["L"])
+        if current is not None:
+            vs_input = Path(f"{prefix}_pass{len(passes) - 1}.vs_input")
+            rf = rf_pct(p2vbme, Path(current), out, vs_input, overwrite)
+            if rf < SAME_TOPOLOGY_RF:
+                break
+        current = out
     record = {
         "start": str(start) if start else "BIONJ",
         "moves": moves,
         "passes": passes,
-        "tree": best["tree"],
-        "L": best["L"],
+        "tree": passes[-1]["tree"],
+        "L": passes[-1]["L"],
         "wall_s": sum(p["wall_s"] for p in passes),
     }
     write_json(record_path, record)
@@ -221,6 +221,7 @@ def score_case(
         return fastme_to_convergence(
             args.fastme,
             args.bme_scores,
+            args.p2vbme,
             fasta,
             phylip,
             start,
