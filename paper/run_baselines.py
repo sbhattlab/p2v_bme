@@ -97,9 +97,7 @@ DIPPER_THREADS = 12  # DIPPER: the CPU threads of every p2v-bme run of the paper
 FAMILIES = ("default", "random_start", "dipper", "maple")
 DEFAULT_METHODS = ("FastTree-ML", "VeryFastTree-ML", "FastTree-ME", "VeryFastTree-ME")
 JC69_SETS_PREFIXES = ("jc", "yule")  # simulated under JC69: -nocat
-RANDOM_START_EDGE = (
-    0.05  # branch length of every edge of the random start tree, as recorded
-)
+RANDOM_START_EDGE = 0.05  # branch length of every edge of the random start tree, as recorded
 DIPPER_FLAGS = ["-i", "m", "-o", "t", "-d", "2", "--force-binary"]
 # MAPLE and CMAPLE: the CMAPLE benchmark's simulated sets (sequences, mean branch length), 30,000 sites
 MAPLE_SIZES = ("100K", "200K", "500K")
@@ -278,9 +276,7 @@ def run_default(args, out: Path, tag: str, n: int, rep: int) -> None:
         tree.parent.mkdir(parents=True, exist_ok=True)
         env = dict(environ, OMP_NUM_THREADS=str(args.threads))
         if method.startswith("FastTree"):
-            binary, measured = args.fasttree, timed(
-                [args.fasttree, *flags, str(fasta)], env, tree
-            )
+            binary, measured = args.fasttree, timed([args.fasttree, *flags, str(fasta)], env, tree)
         else:
             binary = args.veryfasttree
             cmd = [
@@ -307,12 +303,8 @@ def run_default(args, out: Path, tag: str, n: int, rep: int) -> None:
             binary=which(binary) or binary,
         )
         record.update(version=version(binary), host=gethostname())
-        record.update(
-            missed(score(args.eval_cmaple_rf, true_tree, tree, alignment_sites(fasta)))
-        )
-        record["rf_reference"] = (
-            "true tree; paper/tools/eval_cmaple_rf.cpp (all splits)"
-        )
+        record.update(missed(score(args.eval_cmaple_rf, true_tree, tree, alignment_sites(fasta))))
+        record["rf_reference"] = "true tree; paper/tools/eval_cmaple_rf.cpp (all splits)"
         write_json(record_path, record)
 
 
@@ -360,9 +352,7 @@ def run_random_start(args, out: Path, tag: str, n: int, rep: int) -> None:
         work / "start",
         args.overwrite,
     )
-    start = with_edge_lengths(
-        work / "start.nwk", RANDOM_START_EDGE, work / "start_lengths.nwk"
-    )
+    start = with_edge_lengths(work / "start.nwk", RANDOM_START_EDGE, work / "start_lengths.nwk")
     record = {
         "tag": tag,
         "N": n,
@@ -473,12 +463,8 @@ def run_dipper(args, out: Path, tag: str, n: int, rep: int) -> None:
     true_tree = fasta.with_name(f"rep{rep}.true.nwk")
     tree = record_path.with_suffix(".nwk")
     tree.parent.mkdir(parents=True, exist_ok=True)
-    env = dict(
-        environ, CUDA_VISIBLE_DEVICES=args.gpu, OMP_NUM_THREADS=str(args.threads)
-    )
-    measured = timed(
-        [args.dipper, *DIPPER_FLAGS, "-I", str(fasta), "-O", str(tree)], env
-    )
+    env = dict(environ, CUDA_VISIBLE_DEVICES=args.gpu, OMP_NUM_THREADS=str(args.threads))
+    measured = timed([args.dipper, *DIPPER_FLAGS, "-I", str(fasta), "-O", str(tree)], env)
     gpu = run(
         ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader", "-i", args.gpu],
         capture_output=True,
@@ -497,9 +483,7 @@ def run_dipper(args, out: Path, tag: str, n: int, rep: int) -> None:
         "host": gethostname(),
         "gpu_name": gpu,
     }
-    record.update(
-        max_splits=n - 3, flags=" ".join(DIPPER_FLAGS), version=version(args.dipper)
-    )
+    record.update(max_splits=n - 3, flags=" ".join(DIPPER_FLAGS), version=version(args.dipper))
     record["methods"] = {"DIPPER-GPU": method}
     write_json(record_path, record)
 
@@ -512,9 +496,7 @@ def log_time_memory(log: Path) -> tuple[float | None, float | None]:
     seconds = None
     if m := search(r"Runtime:\s*([0-9.]+)s", text):
         seconds = float(m.group(1))
-    elif m := search(
-        r"Elapsed \(wall clock\) time.*?:\s*(?:(\d+):)?(\d+):([0-9.]+)", text
-    ):
+    elif m := search(r"Elapsed \(wall clock\) time.*?:\s*(?:(\d+):)?(\d+):([0-9.]+)", text):
         seconds = int(m.group(1) or 0) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
     elif m := search(
         r"Time spent in total updating the topology and branch lengths:\s*([0-9.]+)",
@@ -570,9 +552,7 @@ def collect(folder: Path, out: Path) -> None:
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument(
         "--run",
         nargs="+",
@@ -584,12 +564,8 @@ def main() -> None:
         type=Path,
         help="import: the paper's repository (with --ref) or a folder",
     )
-    parser.add_argument(
-        "--ref", help="import: git ref of --source (default: --source is a folder)"
-    )
-    parser.add_argument(
-        "--sets", nargs="+", help="--run: datasets (default: each family's)"
-    )
+    parser.add_argument("--ref", help="import: git ref of --source (default: --source is a folder)")
+    parser.add_argument("--sets", nargs="+", help="--run: datasets (default: each family's)")
     parser.add_argument(
         "--sizes", nargs="+", type=int, help="--run: sequences (default: each family's)"
     )
@@ -599,16 +575,10 @@ def main() -> None:
         type=int,
         help="--run: only these replicates (default: 0-4, only 0 from 10^6)",
     )
-    parser.add_argument(
-        "--threads", type=int, help="--run: CPU threads (default: 64, DIPPER 12)"
-    )
-    parser.add_argument(
-        "--gpu", default="0", help="--run dipper: GPU index (CUDA_VISIBLE_DEVICES)"
-    )
+    parser.add_argument("--threads", type=int, help="--run: CPU threads (default: 64, DIPPER 12)")
+    parser.add_argument("--gpu", default="0", help="--run dipper: GPU index (CUDA_VISIBLE_DEVICES)")
     parser.add_argument("--dipper", help="--run dipper: the DIPPER program")
-    parser.add_argument(
-        "--overwrite", action="store_true", help="import or run again what exists"
-    )
+    parser.add_argument("--overwrite", action="store_true", help="import or run again what exists")
     parser.add_argument("--datasets-dir", type=Path, default=Path(DEFAULT_DATASETS_DIR))
     parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
     parser.add_argument("--p2vbme", default=P2VBME)
@@ -621,9 +591,7 @@ def main() -> None:
     out = args.results_dir / "baselines"
     if not args.run:
         if args.source is None:
-            parser.error(
-                "give --source (and --ref) to import the recorded results, or --run"
-            )
+            parser.error("give --source (and --ref) to import the recorded results, or --run")
         import_records(args.source, args.ref, out, args.overwrite)
         return
     steps = {
@@ -646,9 +614,7 @@ def main() -> None:
                 )
                 for rep in replicates:
                     steps[family](family_args, out, tag, n, rep)
-                    print(
-                        f"run_baselines: {family} {tag} {n} rep{rep} done", flush=True
-                    )
+                    print(f"run_baselines: {family} {tag} {n} rep{rep} done", flush=True)
     collect(out / "default" / "runs", out / "default" / "runs.jsonl")
     collect(out / "dipper" / "runs", out / "dipper" / "runs.jsonl")
 

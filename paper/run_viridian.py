@@ -88,18 +88,18 @@ KNOWN = (
     "ERR7458074",
     4.40086731633712e-05,
 )  # leaf and its branch length (substitutions per site)
-PUBLISHED_GENOMES = 2072111  # the published tree: 1,605,004 zero-length and 458,518 (+- 5) >= 0.5-substitution
-PUBLISHED_COUNTS = (1605004, 458518)  # internal branches
-ROOT_STRAIN = (
-    "ERR7458074"  # lineage A: the stored tree is read as rooted at this genome
+PUBLISHED_GENOMES = (
+    2072111  # the published tree: 1,605,004 zero-length and 458,518 (+- 5) >= 0.5-substitution
 )
+PUBLISHED_COUNTS = (1605004, 458518)  # internal branches
+ROOT_STRAIN = "ERR7458074"  # lineage A: the stored tree is read as rooted at this genome
 MIN_SUBSTITUTIONS = 0.5  # shorter branches resolve genomes the data do not separate
 THRESHOLDS = (0.70, 0.75, 0.80, 0.90, 0.95)  # transfer support of a supported clade
-HALF_WINDOW_DAYS = (
-    15  # a genome's contemporaries: sampled at most this many days before or after
-)
+HALF_WINDOW_DAYS = 15  # a genome's contemporaries: sampled at most this many days before or after
 FIRST_DAY = "2019-12-01"  # earlier sampling dates are errors of the metadata
-TOLERANCE = 10  # genomes: a lineage's branch is the longest within this many misplaced genomes of the best
+TOLERANCE = (
+    10  # genomes: a lineage's branch is the longest within this many misplaced genomes of the best
+)
 VARIANT_GROUPS = (
     ("B.1.1.7", "alpha"),
     ("B.1.617.2", "delta"),
@@ -174,9 +174,7 @@ def alignment_names(path: Path) -> tuple[list[str], int]:
     with open(path, "rb") as fh:
         for line in fh:
             if line.startswith(b">"):
-                in_reference = (
-                    not names and not sites and line[1:].strip() == b"reference"
-                )
+                in_reference = not names and not sites and line[1:].strip() == b"reference"
                 if not in_reference:
                     names.append(line[1:].strip().decode())
             elif in_reference:
@@ -194,14 +192,10 @@ def maple_tree(jsonl_zip: Path, alignment: Path, out: Path, overwrite: bool) -> 
     if not overwrite and (out / "maple.nwk").exists() and (out / "tips.tsv").exists():
         return
     names, sites = alignment_names(alignment)
-    with ZipFile(jsonl_zip) as z, TextIOWrapper(
-        z.open(MAPLE_JSONL), encoding="utf-8"
-    ) as fh:
+    with ZipFile(jsonl_zip) as z, TextIOWrapper(z.open(MAPLE_JSONL), encoding="utf-8") as fh:
         total = loads(fh.readline())["total_nodes"]
         if total != 2 * len(names) - 1:
-            raise SystemExit(
-                f"{total} nodes for {len(names)} genomes: the tree is not binary"
-            )
+            raise SystemExit(f"{total} nodes for {len(names)} genomes: the tree is not binary")
         parent, x, is_tip = full(total, -1, int64), zeros(total), zeros(total, bool)
         label, meta = [""] * total, {}
         for line in fh:
@@ -220,9 +214,7 @@ def maple_tree(jsonl_zip: Path, alignment: Path, out: Path, overwrite: bool) -> 
                     d.get("meta_country", ""),
                 )
     if sorted(label[i] for i in flatnonzero(is_tip)) != sorted(names):
-        raise SystemExit(
-            "MAPLE's tree does not hold every genome of the alignment once"
-        )
+        raise SystemExit("MAPLE's tree does not hold every genome of the alignment once")
     roots = flatnonzero(parent == arange(total))
     if roots.size != 1:
         raise SystemExit(f"{roots.size} roots")
@@ -384,8 +376,7 @@ def lineage_rows(
     )
     index = {name: g for g, name in enumerate(tips.strain)}
     leaf_genome = {
-        tag: array([index[x] for x in t["names"]])
-        for tag, t in (("ours", ours), ("maple", maple))
+        tag: array([index[x] for x in t["names"]]) for tag, t in (("ours", ours), ("maple", maple))
     }
     trees = {"ours": (ours, o), "maple": (maple, m)}
     rows = []
@@ -419,9 +410,7 @@ def lineage_rows(
         for tag, other in (("ours", "maple"), ("maple", "ours")):
             clade = zeros(n, int64)
             clade[clades[tag]] = 1
-            row[f"{tag}_to_{other}"] = transfer_distance(
-                clade[leaf_genome[other]], trees[other][0]
-            )
+            row[f"{tag}_to_{other}"] = transfer_distance(clade[leaf_genome[other]], trees[other][0])
         row["ours_repeat"] = o.loc[row["ours_node"]].repeats_exact
         row["maple_repeat"] = m.loc[row["maple_node"]].repeats_exact
         rows.append(row)
@@ -447,18 +436,14 @@ def smallest_supported_clade(
     on_chain[chain] = True
     depth = full(total, -1, int64)
     depth[chain] = arange(len(chain))
-    near = full(
-        total, -1, int64
-    )  # lowest supported node at or above a node, off the chain
+    near = full(total, -1, int64)  # lowest supported node at or above a node, off the chain
     for node in range(total - 1, n - 1, -1):  # parents before children
         above = parent[node]
         if depth[node] < 0 and above >= 0:
             depth[node] = depth[above]
         inherited = near[above] if above >= 0 else -1
         near[node] = node if (supported[node - n] and not on_chain[node]) else inherited
-    below = full(
-        len(chain) + 1, -1, int64
-    )  # first supported chain node further down the chain
+    below = full(len(chain) + 1, -1, int64)  # first supported chain node further down the chain
     for j in range(len(chain) - 1, -1, -1):
         below[j] = chain[j] if supported[chain[j] - n] else below[j + 1]
     leaf_parent = parent[:n]
@@ -490,12 +475,8 @@ def resolution(
                 return group
         return "recombinant" if name.startswith("X") else "other"
 
-    by_leaf = tips.iloc[genome].reset_index(
-        drop=True
-    )  # one row per leaf, in leaf order
-    group = by_leaf.lineage.map(
-        {x: group_of(x) for x in by_leaf.lineage.unique()}
-    ).to_numpy()
+    by_leaf = tips.iloc[genome].reset_index(drop=True)  # one row per leaf, in leaf order
+    group = by_leaf.lineage.map({x: group_of(x) for x in by_leaf.lineage.unique()}).to_numpy()
     date = to_datetime(
         by_leaf.date.where(by_leaf.date.str.fullmatch(r"20\d\d-\d\d-\d\d")),
         errors="coerce",
@@ -522,9 +503,7 @@ def resolution(
     ]
     everyone = arange(n + 1)
     size = [members(node, far, everyone) for node, far in clades]
-    window = zeros(
-        (len(THRESHOLDS), n), int64
-    )  # contemporaries of each genome in its clade
+    window = zeros((len(THRESHOLDS), n), int64)  # contemporaries of each genome in its clade
     total = zeros(n, int64)  # all contemporaries of each genome
     by_day = argsort(day, kind="stable")
     starts = searchsorted(day[by_day], arange(day.max() + 2))
@@ -583,23 +562,18 @@ def records(out: Path, alias_path: Path, min_month: int, min_lineage: int) -> No
     tips = read_csv(out / "tips.tsv", sep="\t", dtype=str, keep_default_na=False)
     alias = loads(alias_path.read_text(encoding="utf-8"))
 
-    runs = sorted((out / "boot").glob("rep*.json")), sorted(
-        (out / "repeat").glob("seed*.json")
-    )
+    runs = sorted((out / "boot").glob("rep*.json")), sorted((out / "repeat").glob("seed*.json"))
     boot_s = [search_time(read_json(p)) for p in runs[0]]
     device = report["details"]["devices"]
     summary_runs = {
         "genomes": report["details"]["input"]["sequences"],
         "sites": sites,
         "devices": device,
-        "n_gpus": (
-            len(device) if report["details"]["settings"]["accelerator"] == "gpu" else 0
-        ),
+        "n_gpus": (len(device) if report["details"]["settings"]["accelerator"] == "gpu" else 0),
         "reference_s": search_time(report),
         "rounds_run": report["rounds_run"],
         # nan for a report from before gpu_memory_peak_mib (it measured the whole card)
-        "gpu_memory_gib": report["details"]["memory"].get("gpu_memory_peak_mib", nan)
-        / 1024,
+        "gpu_memory_gib": report["details"]["memory"].get("gpu_memory_peak_mib", nan) / 1024,
         "host_memory_gib": report["details"]["memory"]["host_ram_mib"] / 1024,
         "bootstrap_trees": len(boot_s),
         "bootstrap_mean_s": float(sum(boot_s) / len(boot_s)) if boot_s else nan,
@@ -607,9 +581,7 @@ def records(out: Path, alias_path: Path, min_month: int, min_lineage: int) -> No
         "repeat_searches": len(runs[1]),
     }
 
-    b = o.rename(
-        columns={"boot_exact": "exact", "boot_tbe": "tbe", "repeats_exact": "repeat"}
-    )
+    b = o.rename(columns={"boot_exact": "exact", "boot_tbe": "tbe", "repeats_exact": "repeat"})
     b["maple_correct"], b["maple_transfer"] = b.maple_exact, b.maple_tbe
     b["high"] = (b.exact >= 0.95).astype(float)
     real = b[b["sub"] >= MIN_SUBSTITUTIONS]
@@ -666,9 +638,7 @@ def records(out: Path, alias_path: Path, min_month: int, min_lineage: int) -> No
         "tree_length_substitutions": float(b["sub"].sum()),
     }
 
-    mm = m.rename(
-        columns={"boot_exact": "exact", "boot_tbe": "tbe", "repeats_exact": "repeat"}
-    )
+    mm = m.rename(columns={"boot_exact": "exact", "boot_tbe": "tbe", "repeats_exact": "repeat"})
     mm["in_ours"], mm["to_ours"] = mm.ours_exact, mm.ours_tbe
     mm["any"] = (mm.exact > 0).astype(float)
     for name, col, cut in (("tbe70", "tbe", 0.70),):
@@ -756,15 +726,11 @@ def records(out: Path, alias_path: Path, min_month: int, min_lineage: int) -> No
     lines = [dumps({"run": "tree"} | report)]
     lines += [dumps({"run": p.stem} | read_json(p)) for p in (*runs[0], *runs[1])]
     (out / "runs.jsonl").write_text("\n".join(lines) + "\n")
-    print(
-        f"records: {len(b)} branches of our tree ({len(real)} real), {len(lin)} lineages"
-    )
+    print(f"records: {len(b)} branches of our tree ({len(real)} real), {len(lin)} lineages")
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument(
         "--steps",
         nargs="+",
@@ -801,9 +767,7 @@ def main() -> None:
         "--replicates", default=None, help="replicates to run, e.g. 1-25 (default: 1-B)"
     )
     parser.add_argument("--repeats", default="2-9", help="seeds of the repeat searches")
-    parser.add_argument(
-        "--seed", type=int, default=1, help="seed of the tree and of the bootstrap"
-    )
+    parser.add_argument("--seed", type=int, default=1, help="seed of the tree and of the bootstrap")
     parser.add_argument("--accelerator", default="auto")
     parser.add_argument("--devices", default="auto")
     parser.add_argument(

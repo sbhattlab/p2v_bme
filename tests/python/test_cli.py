@@ -21,9 +21,7 @@ import pytest
 
 BUILD = Path(__file__).resolve().parents[2] / "build"
 P2V_BME = os.environ.get("P2VBME_BIN", str(BUILD / "p2v-bme"))
-MAKE_TEST_FASTA = os.environ.get(
-    "P2VBME_MAKE_TEST_FASTA", str(BUILD / "make_test_fasta")
-)
+MAKE_TEST_FASTA = os.environ.get("P2VBME_MAKE_TEST_FASTA", str(BUILD / "make_test_fasta"))
 
 # Top-level keys of the report, in order (--report-full adds "details")
 SUMMARY_KEYS = [
@@ -39,9 +37,7 @@ SUMMARY_KEYS = [
 ]
 # Sequence names of input.fa, and of input_dups.fa (three copies of t1 and two of t2 added)
 NAMES = sorted(f"t{i}" for i in range(300))
-NAMES_DUPS = sorted(
-    NAMES + ["t1_copy1", "t1_copy2", "t1_copy3", "t2_copy1", "t2_copy2"]
-)
+NAMES_DUPS = sorted(NAMES + ["t1_copy1", "t1_copy2", "t1_copy3", "t2_copy1", "t2_copy2"])
 
 
 @pytest.fixture(scope="session")
@@ -59,9 +55,7 @@ def data(tmp_path_factory):
 
 def run(*args):
     """Runs p2v-bme with these arguments; returns the finished process (returncode, stdout, stderr)."""
-    return subprocess.run(
-        [P2V_BME, *map(str, args)], capture_output=True, text=True, check=False
-    )
+    return subprocess.run([P2V_BME, *map(str, args)], capture_output=True, text=True, check=False)
 
 
 def leaf_names(path):
@@ -74,14 +68,10 @@ def report(prefix):
     return json.loads(Path(f"{prefix}.json").read_text())
 
 
-@pytest.mark.parametrize(
-    "accelerator", ["cpu", pytest.param("auto", marks=pytest.mark.gpu)]
-)
+@pytest.mark.parametrize("accelerator", ["cpu", pytest.param("auto", marks=pytest.mark.gpu)])
 def test_default_run(data, tmp_path, accelerator):
     """Progress on stdout, nothing on stderr, a tree of every sequence and the summary report."""
-    p = run(
-        "-s", data / "input.fa", "-m", "JC69", "-a", accelerator, "-p", tmp_path / "out"
-    )
+    p = run("-s", data / "input.fa", "-m", "JC69", "-a", accelerator, "-p", tmp_path / "out")
     assert p.returncode == 0, p.stderr
     # auto: the GPU when one is visible (falling back to the CPU would print a warning)
     assert p.stderr == ""
@@ -97,9 +87,7 @@ def test_default_run(data, tmp_path, accelerator):
 
 
 def test_quiet_prints_nothing(data, tmp_path):
-    p = run(
-        "-s", data / "input.fa", "-m", "JC69", "-a", "cpu", "-p", tmp_path / "out", "-q"
-    )
+    p = run("-s", data / "input.fa", "-m", "JC69", "-a", "cpu", "-p", tmp_path / "out", "-q")
     assert (p.returncode, p.stdout, p.stderr) == (0, "", "")
     assert leaf_names(tmp_path / "out.nwk") == NAMES
     assert report(tmp_path / "out")["bme_length"] > 0
@@ -107,12 +95,8 @@ def test_quiet_prints_nothing(data, tmp_path):
 
 def test_quiet_keeps_warnings(data, tmp_path):
     """Fewer than 16 sequences: the random start, with a warning on stderr (also with -q) and in the report."""
-    p = run(
-        "-s", data / "small.fa", "-m", "JC69", "-a", "cpu", "-p", tmp_path / "out", "-q"
-    )
-    warning = (
-        "fewer than 16 sequences, using the random start instead of sample-and-place"
-    )
+    p = run("-s", data / "small.fa", "-m", "JC69", "-a", "cpu", "-p", tmp_path / "out", "-q")
+    warning = "fewer than 16 sequences, using the random start instead of sample-and-place"
     assert (p.returncode, p.stdout, p.stderr) == (
         0,
         "",
@@ -152,9 +136,7 @@ def test_previous_run(data, tmp_path):
     assert run(*args).returncode == 0  # after the failed run's log
     before = {f.name: f.read_bytes() for f in tmp_path.iterdir()}
     p = run(*args, "--seed", "2")
-    message = (
-        "exists: --overwrite replaces a previous run's outputs, or choose another -p\n"
-    )
+    message = "exists: --overwrite replaces a previous run's outputs, or choose another -p\n"
     assert (p.returncode, p.stdout, p.stderr) == (
         1,
         "",
@@ -231,13 +213,10 @@ def test_gtr_gc_fit(data, tmp_path):
     """GTR+GC: the rates and alpha are fitted on every pair of the 300 sequences (fewer than 100,000), shown on stdout
     and in the report; on these JC69 data, equal rates and alpha at its upper end (no rate variation).
     """
-    p = run(
-        "-s", data / "input.fa", "-m", "GTR+GC", "-a", "cpu", "-p", tmp_path / "out"
-    )
+    p = run("-s", data / "input.fa", "-m", "GTR+GC", "-a", "cpu", "-p", tmp_path / "out")
     assert (p.returncode, p.stderr) == (0, "")
     assert any(
-        line.startswith("p2v-bme: GTR+GC fit on 44850 pairs in ")
-        for line in p.stdout.splitlines()
+        line.startswith("p2v-bme: GTR+GC fit on 44850 pairs in ") for line in p.stdout.splitlines()
     )
     m = report(tmp_path / "out")["substitution_model"]
     assert list(m) == ["name", "rates", "alpha", "fit"]
@@ -381,22 +360,14 @@ def test_bootstrap(data, tmp_path):
     assert (b["replicates"], b["first"], b["last"]) == (3, 1, 3)
     assert b["trees"] == f"{tmp_path / 'out'}.boottrees"
     assert 0 <= b["mean_exact"] <= b["mean_tbe"] <= 100
-    assert (
-        r["details"]["settings"]["bootstrap"] == "3"
-        and r["details"]["time"]["bootstrap"] > 0
-    )
+    assert r["details"]["settings"]["bootstrap"] == "3" and r["details"]["time"]["bootstrap"] > 0
     trees = Path(b["trees"]).read_text().splitlines()
     assert len(trees) == 3 and ":" not in trees[0]  # topology only
     supported = Path(f"{tmp_path / 'out'}.support.nwk").read_text()
     labels = re.findall(r"\)([0-9.]+)/([0-9.]+):", supported)
-    assert (
-        len(labels) == len(NAMES_DUPS) - 3 - 3
-    )  # none on the 3 joins of copies set aside
+    assert len(labels) == len(NAMES_DUPS) - 3 - 3  # none on the 3 joins of copies set aside
     assert all(0 <= float(b) <= float(a) <= 100 for a, b in labels)
-    assert (
-        re.sub(r"\)[0-9.]+/[0-9.]+:", "):", supported)
-        == (tmp_path / "out.nwk").read_text()
-    )
+    assert re.sub(r"\)[0-9.]+/[0-9.]+:", "):", supported) == (tmp_path / "out.nwk").read_text()
 
 
 def test_bootstrap_ranges_and_supports(data, tmp_path):
@@ -417,21 +388,14 @@ def test_bootstrap_ranges_and_supports(data, tmp_path):
         "last": 2,
         "trees": f"{tmp_path / 'reps1-2'}.boottrees",
     }
-    assert (
-        first["bme_length"] is None
-        and first["details"]["settings"]["bootstrap"] == "1-2"
-    )
+    assert first["bme_length"] is None and first["details"]["settings"]["bootstrap"] == "1-2"
     assert not (tmp_path / "reps1-2.nwk").exists()  # no tree of their own
     assert leaf_names(tmp_path / "reps3-3.boottrees") == sorted(
         NAMES + ["t1_copy1", "t2_copy1"]
     )  # the sequences searched
-    ranges = "".join(
-        (tmp_path / f"reps{b}.boottrees").read_text() for b in ("1-2", "3-3")
-    )
+    ranges = "".join((tmp_path / f"reps{b}.boottrees").read_text() for b in ("1-2", "3-3"))
     assert ranges == (tmp_path / "main.boottrees").read_text()
-    p = run(
-        "-t", tmp_path / "main.nwk", "--supports", tmp_path / "main.boottrees", "-q"
-    )
+    p = run("-t", tmp_path / "main.nwk", "--supports", tmp_path / "main.boottrees", "-q")
     assert (p.returncode, p.stdout, p.stderr) == (0, "", "")
     b = report(tmp_path / "main")["bootstrap"]
     s = report(tmp_path / "main.nwk")["supports"]  # default prefix: the tree
@@ -483,9 +447,7 @@ def test_help():
 def test_help_all():
     p = run("--help-all")
     assert (p.returncode, p.stderr) == (0, "")
-    headings = [
-        line.strip() for line in p.stdout.splitlines() if line.endswith("options:")
-    ]
+    headings = [line.strip() for line in p.stdout.splitlines() if line.endswith("options:")]
     assert headings == [
         "Substitution model options:",
         "Search options:",

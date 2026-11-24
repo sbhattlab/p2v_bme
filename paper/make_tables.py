@@ -37,7 +37,9 @@ from sys import stderr
 from paper._config import DEFAULT_RESULTS_DIR, DEFAULT_TABLES_DIR
 from paper.utils import read_json
 
-SIZES_EXPANDED = 1_000_000  # from here on, the PASTA-tree datasets expand the 100,000-leaf alignment (backbone)
+SIZES_EXPANDED = (
+    1_000_000  # from here on, the PASTA-tree datasets expand the 100,000-leaf alignment (backbone)
+)
 BACKBONE_SIZE = 100_000
 DATASETS = {"rnasim": "RNASim", "jc10k": "JC"}
 TIMING = "initialisation+refinement+branch estimation; excludes input conversion/loading and diagnostic RF evaluation"
@@ -169,11 +171,7 @@ def rf_from(path: Path) -> float | str:
 
     For binary trees on the same leaves, RF / (2 (n - 3)) = 1 - (shared splits) / (n - 3).
     """
-    return (
-        100.0 - loads(path.read_text())["supports"]["mean_exact"]
-        if path.exists()
-        else ""
-    )
+    return 100.0 - loads(path.read_text())["supports"]["mean_exact"] if path.exists() else ""
 
 
 # Experiments already warned about reports without gpu_memory_peak_mib (our_runs reads an experiment once per table)
@@ -204,11 +202,7 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
                 n=int(path.parent.name),
                 rep=int(m[1]),
                 seed=int(m[2]),
-                cap=(
-                    int(m[3])
-                    if m[3]
-                    else details["settings"].get("representative_cap", "")
-                ),
+                cap=(int(m[3]) if m[3] else details["settings"].get("representative_cap", "")),
                 sites=details["input"]["sites"],
                 time_s=t["start_tree"] + t["search"] + t["branch_lengths"],
                 topology_time_s=t["start_tree"] + t["search"],
@@ -225,14 +219,10 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
                 bme_length=report["bme_length"],
                 rf_pct=rf_from(side("vs_true")),
                 backbone_rf_pct=(
-                    loads(backbone.read_text())["backbone_rf_pct"]
-                    if backbone.exists()
-                    else ""
+                    loads(backbone.read_text())["backbone_rf_pct"] if backbone.exists() else ""
                 ),
                 rf_vs_cap64_pct=rf_from(side("vs_cap64")),
-                scored_length=(
-                    loads(score.read_text())["bme_length"] if score.exists() else ""
-                ),
+                scored_length=(loads(score.read_text())["bme_length"] if score.exists() else ""),
                 evaluation=loads(evaluation.read_text()) if evaluation.exists() else {},
                 source_path=str(path.relative_to(results)),
             )
@@ -280,9 +270,7 @@ def hardware(rows: list[dict], threads_too: bool = True) -> str:
     if count == 0:
         return f"{threads} CPU threads"
     model = gpus(count, one({r["gpu_model"] for r in rows}, "GPU models"))
-    return (
-        f"{model} and {threads} CPU threads" if threads_too and threads != "" else model
-    )
+    return f"{model} and {threads} CPU threads" if threads_too and threads != "" else model
 
 
 def program_hardware(records: list[dict]) -> str:
@@ -330,9 +318,7 @@ def optional(read, results: Path) -> list[dict]:
 
 def mean_sd(values: list) -> tuple[float | str, float | str]:
     """Averages values: -> (mean, sample SD); SD blank for one value, both blank for none."""
-    return (
-        (mean(values), stdev(values) if len(values) > 1 else "") if values else ("", "")
-    )
+    return (mean(values), stdev(values) if len(values) > 1 else "") if values else ("", "")
 
 
 def number(value: float | str, digits: int = 2) -> str:
@@ -352,9 +338,7 @@ def estimate(row: dict, field: str) -> str:
     result = number(mu, digits)
     if sd == "":
         return result
-    return (
-        f"${result.replace(',', '{,}')} \\pm {number(sd, digits).replace(',', '{,}')}$"
-    )
+    return f"${result.replace(',', '{,}')} \\pm {number(sd, digits).replace(',', '{,}')}$"
 
 
 def seconds(x: float) -> str:
@@ -368,9 +352,7 @@ def seconds(x: float) -> str:
     return f"{x:,.0f}"
 
 
-def booktabs(
-    name: str, caption: str, columns: str, header: str, body: list[str]
-) -> str:
+def booktabs(name: str, caption: str, columns: str, header: str, body: list[str]) -> str:
     """Builds a one-header booktabs table: (label suffix, caption, column spec, header, rows) -> LaTeX."""
     expected = len(columns.replace(" ", "")) - 1
     for line in [header, *body]:
@@ -427,9 +409,7 @@ def scaling_rows(results: Path) -> tuple[list[dict], list[dict]]:
                     )
                 )
             per_run += rows
-            row: dict = dict(
-                dataset=label, n=n, initialisation="sample", n_replicates=len(rows)
-            )
+            row: dict = dict(dataset=label, n=n, initialisation="sample", n_replicates=len(rows))
             for field in ("time_s", "rf_pct", "backbone_rf_pct"):
                 row[field + "_mean"], row[field + "_sd"] = mean_sd(
                     [r[field] for r in rows if r[field] != ""]
@@ -523,9 +503,7 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
             n_replicates=len(selected),
         )
         for field in ("time_s", "rf_pct"):
-            row[field + "_mean"], row[field + "_sd"] = mean_sd(
-                [r[field] for r in selected]
-            )
+            row[field + "_mean"], row[field + "_sd"] = mean_sd([r[field] for r in selected])
         row.update(
             gpu_count=one({r["gpu_count"] for r in selected}, "GPU counts"),
             gpu_model=one({r["gpu_model"] for r in selected}, "GPU models"),
@@ -546,9 +524,7 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
         "FastTree",
         "VeryFastTree",
     ]
-    time_s, rf_pct = defaultdict(lambda: defaultdict(list)), defaultdict(
-        lambda: defaultdict(list)
-    )
+    time_s, rf_pct = defaultdict(lambda: defaultdict(list)), defaultdict(lambda: defaultdict(list))
     for r in ours:
         time_s["P2V"][r["n"]].append(r["time_s"])
         rf_pct["P2V"][r["n"]].append(r["rf_pct"])
@@ -567,9 +543,7 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
     sd = {n: stdev(v) for n, v in rf_pct["P2V"].items() if len(v) > 1}
     replicates = one({len(v) for v in time_s["P2V"].values()}, "replicate counts")
     single = " and ".join(
-        f"$10^{len(str(n)) - 1}$"
-        for n in sorted(time_s["DIPPER"])
-        if len(time_s["DIPPER"][n]) == 1
+        f"$10^{len(str(n)) - 1}$" for n in sorted(time_s["DIPPER"]) if len(time_s["DIPPER"][n]) == 1
     )
     spread = (
         f"; its sample standard deviation of RF error is {sd[min(sd)]:.2f} points at {min(sd):,} leaves"
@@ -586,9 +560,7 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
     def block(values: dict, fmt) -> list[str]:
         return [
             f"{n:,} & "
-            + " & ".join(
-                fmt(mean(values[m][n])) if values[m].get(n) else "--" for m in methods
-            )
+            + " & ".join(fmt(mean(values[m][n])) if values[m].get(n) else "--" for m in methods)
             + r" \\"
             for n in sizes
         ]
@@ -626,22 +598,17 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
 def table_maple(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S3 (maple) and Fig. 2c,d's data: results -> {maple.tex, maple.tsv}."""
     ours = our_runs(results, "pandemic")
-    record = read_record(
-        results / "baselines" / "maple" / "cmaple_benchmark_summary.json"
-    )
+    record = read_record(results / "baselines" / "maple" / "cmaple_benchmark_summary.json")
     rows: list[dict] = []
     for index, case in enumerate(record["simulated"]):
         n, length = case["n_taxa"], case["branch_length"]
         mine = [
             r
             for r in ours
-            if r["n"] == n
-            and abs(float(r["set"].removeprefix("cmaple_")) - length) < 1e-12
+            if r["n"] == n and abs(float(r["set"].removeprefix("cmaple_")) - length) < 1e-12
         ]
         if len(mine) != 1:
-            raise MissingResults(
-                f"{results}/pandemic/cmaple_{length}/{n}: {len(mine)} runs"
-            )
+            raise MissingResults(f"{results}/pandemic/cmaple_{length}/{n}: {len(mine)} runs")
         r = mine[0]
         rows.append(
             dict(
@@ -720,9 +687,7 @@ def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
     data = read_record(folder / "rnasim_bootstrap_calibration_summary.json")
     y = read_record(folder / "calibration_1000000.json")
     pandemic = read_record(folder / "maple_bootstrap_calibration_summary.json")
-    scale, _ = scaling_rows(
-        results
-    )  # the calibration trees are searched as the scaling runs
+    scale, _ = scaling_rows(results)  # the calibration trees are searched as the scaling runs
     rows: list[dict] = []
     sizes = [(100000, "N100k"), (1000000, "N1M")]
     for n, prefix in sizes:
@@ -733,13 +698,9 @@ def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
                     dataset="RNASim",
                     n=n,
                     replicate_type=(
-                        "column bootstrap"
-                        if kind == "boot"
-                        else "fixed-alignment seeds"
+                        "column bootstrap" if kind == "boot" else "fixed-alignment seeds"
                     ),
-                    n_replicates=(
-                        CALIBRATION_BOOTSTRAPS if kind == "boot" else CALIBRATION_SEEDS
-                    ),
+                    n_replicates=(CALIBRATION_BOOTSTRAPS if kind == "boot" else CALIBRATION_SEEDS),
                     n_branches=m["n_branches"],
                     mean_tbe_pct=m["mean_tbe_pct"],
                     mean_exact_support_pct=m["mean_exact_pct"],
@@ -758,9 +719,7 @@ def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
             dict(
                 dataset="Random tree",
                 n=y["n_leaves"],
-                replicate_type=(
-                    "column bootstrap" if is_boot else "fixed-alignment seeds"
-                ),
+                replicate_type=("column bootstrap" if is_boot else "fixed-alignment seeds"),
                 n_replicates=count,
                 n_branches=y["branches"],
                 mean_tbe_pct=m["mean_tbe_pct"],
@@ -794,14 +753,10 @@ def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
                 dict(
                     dataset=label,
                     n=pandemic["N"],
-                    replicate_type=(
-                        "column bootstrap" if is_boot else "fixed-alignment seeds"
-                    ),
+                    replicate_type=("column bootstrap" if is_boot else "fixed-alignment seeds"),
                     n_replicates=count,
                     n_branches=entry["branches"],
-                    mean_tbe_pct=(
-                        entry["boot_tbe_pct"] if is_boot else entry["seed_tbe_pct"]
-                    ),
+                    mean_tbe_pct=(entry["boot_tbe_pct"] if is_boot else entry["seed_tbe_pct"]),
                     mean_exact_support_pct=(
                         entry["boot_fbp_pct"] if is_boot else entry["seed_exact_pct"]
                     ),
@@ -846,9 +801,7 @@ def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
         f"{r['n_replicates']} & " + " & ".join(number(r[field]) for field in fields)
         for r in rows
     ]
-    false_zero = (
-        100 * pandemic["wrong_branches_zero_snp"] / pandemic["wrong_branches_total"]
-    )
+    false_zero = 100 * pandemic["wrong_branches_zero_snp"] / pandemic["wrong_branches_total"]
     tex = booktabs(
         "bootstrap",
         "Bootstrap and search stability across RNASim, random-tree and simulated pandemic phylogenies. Entries are "
@@ -918,9 +871,7 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
                     sources = [
                         (str(p.relative_to(results)), loads(p.read_text()))
                         for p in sorted(
-                            (results / "baselines" / "random_start").glob(
-                                f"{tag}_N10000_rep*.json"
-                            )
+                            (results / "baselines" / "random_start").glob(f"{tag}_N10000_rep*.json")
                         )
                     ]
                 selected = []
@@ -938,9 +889,7 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
                         )
                     )
             if not selected:
-                raise MissingResults(
-                    f"baseline_10k: no {method} runs on {tag} at 10,000 leaves"
-                )
+                raise MissingResults(f"baseline_10k: no {method} runs on {tag} at 10,000 leaves")
             row: dict = dict(
                 dataset=label,
                 n=10000,
@@ -948,23 +897,15 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
                 initialisation=initialisation,
                 n_replicates=len(selected),
             )
-            row["time_s_mean"], row["time_s_sd"] = mean_sd(
-                [s["time"] for s in selected]
-            )
-            row["rf_pct_mean"], row["rf_pct_sd"] = mean_sd(
-                [s["rf_pct"] for s in selected]
-            )
+            row["time_s_mean"], row["time_s_sd"] = mean_sd([s["time"] for s in selected])
+            row["rf_pct_mean"], row["rf_pct_sd"] = mean_sd([s["rf_pct"] for s in selected])
             ours = key in ("sample", "random")
             row.update(
                 gpu_count=one({s["gpu_count"] for s in selected}, "GPU counts"),
-                cpu_threads=one(
-                    {s["cpu_threads"] for s in selected}, "CPU thread counts"
-                ),
+                cpu_threads=one({s["cpu_threads"] for s in selected}, "CPU thread counts"),
                 source_paths="|".join(s["source_path"] for s in selected),
                 source_key="p2v-bme report" if ours else f"methods.{key}",
-                timing_scope=(
-                    TIMING if ours else "archived comparator process wall time"
-                ),
+                timing_scope=(TIMING if ours else "archived comparator process wall time"),
                 interpretation="CPU ME/ML and random Phylo2VecME are random-start search stress tests; "
                 "hardware differs",
                 sd_definition="sample SD (ddof=1)",
@@ -995,17 +936,9 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
 def table_comparators(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S5 (comparators): results -> {comparators.tex}."""
     sizes_max = BACKBONE_SIZE
-    ours = [
-        r
-        for r in our_runs(results, "scaling")
-        if r["set"] in DATASETS and r["n"] <= sizes_max
-    ]
-    dipper = [
-        d for d in dipper_runs(results) if d["tag"] in DATASETS and d["N"] <= sizes_max
-    ]
-    cpu = [
-        r for r in default_runs(results) if r["tag"] in DATASETS and r["N"] <= sizes_max
-    ]
+    ours = [r for r in our_runs(results, "scaling") if r["set"] in DATASETS and r["n"] <= sizes_max]
+    dipper = [d for d in dipper_runs(results) if d["tag"] in DATASETS and d["N"] <= sizes_max]
+    cpu = [r for r in default_runs(results) if r["tag"] in DATASETS and r["N"] <= sizes_max]
     methods = ["P2V", "DIPPER", "FastTree-ME", "VFT-ME", "FastTree-ML", "VFT-ML"]
     head = [
         r"\method",
@@ -1023,9 +956,7 @@ def table_comparators(results: Path) -> dict[str, list[dict] | str]:
         runs[(d["tag"], "DIPPER", d["N"])].append((m["time"], m["rf_pct"]))
     for r in cpu:
         runs[(r["tag"], ALIAS[r["method"]], r["N"])].append((r["time"], r["rf_pct"]))
-    replicates = one(
-        {len(v) for (_, m, _), v in runs.items() if m == "P2V"}, "replicate counts"
-    )
+    replicates = one({len(v) for (_, m, _), v in runs.items() if m == "P2V"}, "replicate counts")
     hw = (
         ours_and_dipper(hardware(ours), program_hardware(dipper))
         if dipper
@@ -1038,11 +969,7 @@ def table_comparators(results: Path) -> dict[str, list[dict] | str]:
         return [
             f"{n:,} & "
             + " & ".join(
-                (
-                    fmt(mean(x[field] for x in runs[(tag, m, n)]))
-                    if runs.get((tag, m, n))
-                    else "--"
-                )
+                (fmt(mean(x[field] for x in runs[(tag, m, n)])) if runs.get((tag, m, n)) else "--")
                 for m in methods
             )
             + r" \\"
@@ -1236,9 +1163,7 @@ def table_silva_gtdb(results: Path) -> dict[str, list[dict] | str]:
             r = out[tag]
             cells = " & ".join(f"{r[k]['mean_f1']:.2f}" for k in RANKS[1:6])
             rows.append(f"{name} & {cells} & {r['branches_consistent_pct']:.0f} \\\\")
-    taxa = ", ".join(
-        f"{out['ours'][k]['taxa']:,} {RANK_PLURALS[k]}" for k in RANKS[1:6]
-    )
+    taxa = ", ".join(f"{out['ours'][k]['taxa']:,} {RANK_PLURALS[k]}" for k in RANKS[1:6])
     tex = (
         HEAD + "\\begin{table}[htbp]\n\\centering\\small\n"
         f"\\caption{{\\textbf{{Agreement with genome-based taxonomy.}} Trees of the {n:,} unique SILVA Release 144 "
@@ -1270,9 +1195,7 @@ def table_seqlen(results: Path) -> dict[str, list[dict] | str]:
     for tag, label in sites.items():
         small = [r["rf_pct"] for r in runs if r["set"] == tag and r["n"] == 10000]
         big = [
-            r["rf_pct"]
-            for r in our_runs(results, "seqlen")
-            if r["set"] == tag and r["n"] == 100000
+            r["rf_pct"] for r in our_runs(results, "seqlen") if r["set"] == tag and r["n"] == 100000
         ]
         v = exact[tag]
         if not small or not v:
@@ -1316,18 +1239,16 @@ def table_representatives(results: Path) -> dict[str, list[dict] | str]:
         # mean and SD to 3 decimals first, as the sweep's summary printed them, then to the cell's decimals
         if len(values) == 1:
             return f"${round(values[0], 3):.{decimals}f}$"
-        return f"${round(mean(values), 3):.{decimals}f} \\pm {round(stdev(values), 3):.{decimals}f}$"
+        return (
+            f"${round(mean(values), 3):.{decimals}f} \\pm {round(stdev(values), 3):.{decimals}f}$"
+        )
 
     lines = []
     previous = None
     for tag, label in DATASETS.items():
         for n in sorted({r["n"] for r in runs if r["set"] == tag}):
-            for cap in sorted(
-                {r["cap"] for r in runs if r["set"] == tag and r["n"] == n}
-            ):
-                group = [
-                    r for r in runs if (r["set"], r["n"], r["cap"]) == (tag, n, cap)
-                ]
+            for cap in sorted({r["cap"] for r in runs if r["set"] == tag and r["n"] == n}):
+                group = [r for r in runs if (r["set"], r["n"], r["cap"]) == (tag, n, cap)]
                 ref = cap == 64
                 delta = [
                     r["scored_length"] - reference[(tag, n, r["rep"])]["scored_length"]
@@ -1346,11 +1267,7 @@ def table_representatives(results: Path) -> dict[str, list[dict] | str]:
                             str(cap),
                             cell([r["rf_pct"] for r in group], 3),
                             "ref." if ref else cell(delta, 3),
-                            (
-                                "ref."
-                                if ref
-                                else cell([r["rf_vs_cap64_pct"] for r in group], 3)
-                            ),
+                            ("ref." if ref else cell([r["rf_vs_cap64_pct"] for r in group], 3)),
                             cell(time, 1 if mean(time) < 100 else 0),
                         ]
                     )
@@ -1415,9 +1332,7 @@ def table_fastme(results: Path) -> dict[str, list[dict] | str]:
             if arm in r:
                 groups.setdefault((r["tag"], r["n"]), []).append(r[arm])
         body, last = [], None
-        for (tag, n), a in sorted(
-            groups.items(), key=lambda kv: (order.index(kv[0][0]), kv[0][1])
-        ):
+        for (tag, n), a in sorted(groups.items(), key=lambda kv: (order.index(kv[0][0]), kv[0][1])):
             rel = [ppm * x["rel_diff"] for x in a]
             share = 100 * sum(x["L"] <= x["L_fastme"] * (1 + 1e-12) for x in a) / len(a)
             spr = [ppm * max(0.0, x["spr"]["rel_gain"]) for x in a]
@@ -1433,12 +1348,7 @@ def table_fastme(results: Path) -> dict[str, list[dict] | str]:
             )
         return body
 
-    solvers = [
-        r[arm]["solver"]
-        for r in rows
-        for arm in ("sample", "rand", "polish")
-        if arm in r
-    ]
+    solvers = [r[arm]["solver"] for r in rows for arm in ("sample", "rand", "polish") if arm in r]
     hw = gpus(
         one({s["n_gpus"] for s in solvers}, "GPU counts"),
         short_gpu(one({s["gpu_name"] for s in solvers}, "GPUs")),
@@ -1512,12 +1422,7 @@ def table_gtr_fit(results: Path) -> dict[str, list[dict] | str]:
         "\\midrule",
     ]
     show = lambda x: f"{x:.2f}" if x < 100 else "$>$100"  # noqa: E731
-    keys = sorted(
-        {
-            (float(r["alpha_true"]), float(r["sites"]), float(r["target_p"]))
-            for r in rows
-        }
-    )
+    keys = sorted({(float(r["alpha_true"]), float(r["sites"]), float(r["target_p"])) for r in rows})
     for alpha, sites, p in keys:
         sub = [
             r
@@ -1550,8 +1455,7 @@ def table_viridian(results: Path) -> dict[str, list[dict] | str]:
             f"{100 * v['ours_exact']:.0f} & {100 * v['ours_tbe']:.2f} & {100 * v['ours_repeat']:.0f} \\\\"
         )
     out["viridian_variants.tex"] = (
-        HEAD
-        + "\\begin{table}[htbp]\n\\centering\\footnotesize\\setlength{\\tabcolsep}{3.5pt}\n"
+        HEAD + "\\begin{table}[htbp]\n\\centering\\footnotesize\\setlength{\\tabcolsep}{3.5pt}\n"
         f"\\caption{{\\textbf{{Named variants in the tree of {runs['genomes']:,} SARS-CoV-2 genomes.}} A variant is "
         "the set of genomes with its Pango label or that of a descendant lineage. Its branch in a tree is the longest "
         "branch among those whose clade differs from that set by the fewest genomes, to within ten. Misplaced genomes "
@@ -1581,10 +1485,7 @@ def table_viridian(results: Path) -> dict[str, list[dict] | str]:
                 "ours_to_maple",
             )
         }
-        | {
-            k: v[k]
-            for k in ("ours_sub", "maple_sub", "ours_exact", "ours_tbe", "ours_repeat")
-        }
+        | {k: v[k] for k in ("ours_sub", "maple_sub", "ours_exact", "ours_tbe", "ours_repeat")}
         for v in sorted(s["variants"], key=lambda v: -v["genomes"])
     ]
 
@@ -1610,8 +1511,7 @@ def table_viridian(results: Path) -> dict[str, list[dict] | str]:
         f"{m['tbe_pct']:.0f} \\\\"
     )
     out["viridian_support.tex"] = (
-        HEAD
-        + "\\begin{table}[htbp]\n\\centering\\footnotesize\\setlength{\\tabcolsep}{3.5pt}\n"
+        HEAD + "\\begin{table}[htbp]\n\\centering\\footnotesize\\setlength{\\tabcolsep}{3.5pt}\n"
         "\\caption{\\textbf{Agreement and support on SARS-CoV-2 genomes, by the substitutions on a branch.} Branches "
         "of at least half a substitution in the \\method\\ tree and in the MAPLE tree of the same "
         f"{runs['genomes']:,} genomes. Shared is the percentage of branches whose split is also in the other tree. "
@@ -1622,9 +1522,7 @@ def table_viridian(results: Path) -> dict[str, list[dict] | str]:
         " & \\multicolumn{5}{c}{Branches of the \\method\\ tree} & \\multicolumn{4}{c}{Branches of the MAPLE tree} "
         "\\\\\n\\cmidrule(lr){2-6}\\cmidrule(lr){7-10}\n"
         "Substitutions & Branches & Shared & Exact & Transfer & Repeat & Branches & Shared & Exact & Transfer \\\\\n"
-        "\\midrule\n"
-        + "\n".join(rows)
-        + "\n\\bottomrule\n\\end{tabular}\n\\end{table}\n"
+        "\\midrule\n" + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n\\end{table}\n"
     )
     out["viridian_substitutions.tsv"] = [
         dict(
@@ -1641,11 +1539,7 @@ def table_viridian(results: Path) -> dict[str, list[dict] | str]:
     rows: list[str] = []
     analysed = 0
     for threshold in VIRIDIAN_THRESHOLDS:
-        med = {
-            m["month"]: float(m["window_median"])
-            for m in months
-            if m["threshold"] == threshold
-        }
+        med = {m["month"]: float(m["window_median"]) for m in months if m["threshold"] == threshold}
         if not med or any(month not in med for month, _ in VIRIDIAN_PEAKS):
             raise SystemExit(
                 f"resolution_by_month.tsv has no complete rows for the threshold {threshold}"
@@ -1696,17 +1590,13 @@ TABLES = {
 def write_tsv(path: Path, rows: list[dict]) -> None:
     """Writes rows as a tab-separated file with a header: (path, rows) -> None."""
     with path.open("w", newline="") as fh:
-        writer = DictWriter(
-            fh, fieldnames=list(rows[0]), delimiter="\t", lineterminator="\n"
-        )
+        writer = DictWriter(fh, fieldnames=list(rows[0]), delimiter="\t", lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
     parser.add_argument("--tables-dir", type=Path, default=Path(DEFAULT_TABLES_DIR))
     parser.add_argument(

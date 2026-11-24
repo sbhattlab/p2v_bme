@@ -23,9 +23,7 @@ FIGSIZE = (52 / 25.4, 62 / 25.4)
 def backbone_series(ax: plt.Axes, rows: list[dict[str, str]]) -> None:
     """Draws the error on the inherited splits of the expanded datasets: (axes, rows) -> None."""
     for dataset, _label, colour, marker, _style, _filled in SCALING_SERIES:
-        group = sorted(
-            (r for r in rows if r["dataset"] == dataset), key=lambda r: int(r["n"])
-        )
+        group = sorted((r for r in rows if r["dataset"] == dataset), key=lambda r: int(r["n"]))
         expanded = [i for i, r in enumerate(group) if r.get("large_scale_design")]
         if not expanded:
             continue

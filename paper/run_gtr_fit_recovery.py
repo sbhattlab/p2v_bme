@@ -56,9 +56,7 @@ from numpy.random import Generator, default_rng
 from paper._config import DEFAULT_RESULTS_DIR, P2VBME
 from paper.utils import read_json
 
-RATES = array(
-    [1.0, 4.0, 1.0, 1.0, 4.0, 1.0]
-)  # true exchangeabilities AC, AG, AT, CG, CT, GT
+RATES = array([1.0, 4.0, 1.0, 1.0, 4.0, 1.0])  # true exchangeabilities AC, AG, AT, CG, CT, GT
 PI = array([0.30, 0.20, 0.27, 0.23])  # true base frequencies A, C, G, T
 SEED = 20261115  # the paper's: alignment seed = SEED + 1000 rep + 100 alpha + sites + 1000 p
 PAIRS_FOR_SCALE = 4000  # leaf pairs whose median p-distance sets the tree's scale
@@ -125,9 +123,7 @@ def expected_p(
     return 1.0 - same
 
 
-def simulate(
-    n: int, sites: int, alpha: float, target_p: float, rng: Generator
-) -> ndarray:
+def simulate(n: int, sites: int, alpha: float, target_p: float, rng: Generator) -> ndarray:
     """Simulates an alignment on a Yule tree scaled to a median p-distance: -> n x sites codes 0..3."""
     lam, vr, vl = gtr_eigen(RATES, PI)
     parent, height = yule_tree(n, rng)
@@ -192,9 +188,7 @@ def fit(p2vbme: str, fasta: Path, prefix: Path, pairs: int, threads: int) -> dic
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument("--sequences", type=int, default=1000)
     parser.add_argument("--replicates", type=int, nargs="+", default=[0, 1, 2, 3, 4])
     parser.add_argument("--alphas", type=float, nargs="+", default=[0.5, 2.0])
@@ -206,9 +200,7 @@ def main() -> None:
         default=[0.10, 0.45],
         help="median p-distances",
     )
-    parser.add_argument(
-        "--pairs", type=int, default=100000, help="p2v-bme --gtr-fit-pairs"
-    )
+    parser.add_argument("--pairs", type=int, default=100000, help="p2v-bme --gtr-fit-pairs")
     parser.add_argument(
         "--threads", type=int, default=16, help="OMP_NUM_THREADS of each p2v-bme run"
     )
@@ -239,14 +231,10 @@ def main() -> None:
                     prefix = runs / name
                     report_path = Path(f"{prefix}.json")
                     if args.overwrite or not report_path.exists():
-                        seed = (
-                            SEED + 1000 * rep + int(100 * alpha) + sites + int(1000 * p)
-                        )
+                        seed = SEED + 1000 * rep + int(100 * alpha) + sites + int(1000 * p)
                         fasta = runs / f"{name}.fa"
                         write_fasta(
-                            simulate(
-                                args.sequences, sites, alpha, p, default_rng(seed)
-                            ),
+                            simulate(args.sequences, sites, alpha, p, default_rng(seed)),
                             fasta,
                         )
                         fit(args.p2vbme, fasta, prefix, args.pairs, args.threads)
@@ -270,9 +258,7 @@ def main() -> None:
                         flush=True,
                     )
     (out_dir / "recovery.tsv").write_text("\n".join(lines) + "\n")
-    print(
-        f"run_gtr_fit_recovery: {len(lines) - 1} alignments in {out_dir / 'recovery.tsv'}"
-    )
+    print(f"run_gtr_fit_recovery: {len(lines) - 1} alignments in {out_dir / 'recovery.tsv'}")
 
 
 if __name__ == "__main__":

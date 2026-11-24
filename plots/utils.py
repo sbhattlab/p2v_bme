@@ -40,9 +40,7 @@ def parser(doc: str) -> ArgumentParser:
         default=Path(DEFAULT_TABLES_DIR),
         help="figure data (make_tables.py)",
     )
-    p.add_argument(
-        "--img-dir", type=Path, default=Path(DEFAULT_IMG_DIR), help="output folder"
-    )
+    p.add_argument("--img-dir", type=Path, default=Path(DEFAULT_IMG_DIR), help="output folder")
     return p
 
 
@@ -60,9 +58,7 @@ def save(fig: plt.Figure, img_dir: Path, name: str, **kwargs) -> None:
     img_dir/<FIGURE_FOLDERS>/name.{pdf,svg}."""
     figure = match(r"figS?\d+", name)
     if figure is None or figure[0] not in FIGURE_FOLDERS:
-        raise SystemExit(
-            f"{name}: no folder for this figure in FIGURE_FOLDERS (plots/_config.py)"
-        )
+        raise SystemExit(f"{name}: no folder for this figure in FIGURE_FOLDERS (plots/_config.py)")
     img_dir = img_dir / FIGURE_FOLDERS[figure[0]]
     img_dir.mkdir(parents=True, exist_ok=True)
     for ext in FIGURE_FORMATS:
@@ -82,9 +78,7 @@ def save(fig: plt.Figure, img_dir: Path, name: str, **kwargs) -> None:
 def scaling_series(ax: plt.Axes, rows: list[dict[str, str]], field: str) -> None:
     """Draws a field's mean and SD per size for every dataset of SCALING_SERIES: (axes, rows, field) -> None."""
     for dataset, label, colour, marker, linestyle, filled in SCALING_SERIES:
-        group = sorted(
-            (r for r in rows if r["dataset"] == dataset), key=lambda r: int(r["n"])
-        )
+        group = sorted((r for r in rows if r["dataset"] == dataset), key=lambda r: int(r["n"]))
         if not group:
             print(f"no data for {dataset}: its series is not drawn")
             continue
@@ -155,16 +149,12 @@ TOPS = {"time": 3e4, "rf": 130, "host": 1000, "gpu": 100}
 MIB_PER_GIB = 1024.0
 
 
-def method_stats(
-    rows: list[dict[str, str]], dataset: str, field: str, scale: float
-) -> dict:
+def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: float) -> dict:
     """Summarises one field per method and size: (rows, dataset, field) -> {(n, method): (mean, min, max)}."""
     values: dict[tuple[int, str], list[float]] = {}
     for r in rows:
         if r["dataset"] == dataset and r["method"] in PLOTTED and r[field] != "":
-            values.setdefault((int(r["n"]), r["method"]), []).append(
-                float(r[field]) * scale
-            )
+            values.setdefault((int(r["n"]), r["method"]), []).append(float(r[field]) * scale)
     return {k: (mean(v), min(v), max(v)) for k, v in values.items()}
 
 

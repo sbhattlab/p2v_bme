@@ -44,10 +44,7 @@ class Method(TypedDict):
     ls: str
 
 
-SPEC = {
-    m[0]: Method(label=m[1], color=m[2], marker=m[3], filled=m[4], ls=m[5])
-    for m in METHODS
-}
+SPEC = {m[0]: Method(label=m[1], color=m[2], marker=m[3], filled=m[4], ls=m[5]) for m in METHODS}
 
 # The datasets of the scaling figures (S1-S3) and their figure numbers
 SCALING_FIGURES = {"rnasim": "figS1", "jc10k": "figS2", "yule10k": "figS3"}

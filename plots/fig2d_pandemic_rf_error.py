@@ -22,9 +22,9 @@ def main() -> None:
     plt.style.use(STYLE)
     paired: dict[tuple[int, float], dict[str, float]] = {}
     for r in read_tsv(args.tables_dir, "maple"):
-        paired.setdefault((int(r["n"]), float(r["mean_branch_length"])), {})[
-            r["method"]
-        ] = float(r["rf_pct"])
+        paired.setdefault((int(r["n"]), float(r["mean_branch_length"])), {})[r["method"]] = float(
+            r["rf_pct"]
+        )
     colours = {method: colour for method, colour, _marker, _style in PANDEMIC}
     fig, ax = plt.subplots(figsize=FIGSIZE)
     fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.86)
@@ -56,9 +56,7 @@ def main() -> None:
                 color=colours[method],
                 zorder=4,
             )
-    ax.plot(
-        [0, LIMIT], [0, LIMIT], color="#AAAAAA", linewidth=0.8, linestyle="--", zorder=1
-    )
+    ax.plot([0, LIMIT], [0, LIMIT], color="#AAAAAA", linewidth=0.8, linestyle="--", zorder=1)
     ax.set(xlim=(0, LIMIT), ylim=(0, LIMIT), xticks=[0, 10, 20], yticks=[0, 10, 20])
     ax.set_xlabel("Baseline RF error (%)")
     ax.set_ylabel("Phylo2VecME RF error (%)")

@@ -58,9 +58,7 @@ from paper.utils import (
 
 MODEL = "JC69"  # the distances of every simulated set
 SIZES = (1_000, 5_000, 10_000, 50_000, 100_000, 1_000_000, 10_000_000)
-N_REPLICATES = (
-    5  # datasets per size, or seeds on one dataset for the expanded alignments
-)
+N_REPLICATES = 5  # datasets per size, or seeds on one dataset for the expanded alignments
 EXPANDED_SETS = (
     "rnasim",
     "jc10k",
@@ -69,9 +67,7 @@ EXPANDED_FROM = 1_000_000
 BACKBONE_N = 100_000  # sequences of the alignment that the expanded ones grow from
 CAPS = (16, 32, 64, 128, 256)
 REFERENCE_CAP = 64  # the default cap, which the others are compared with
-SECOND_SAMPLE = (
-    10  # the second cap-64 run of the sweep: seed s + 10 (the paper's replicate + 11)
-)
+SECOND_SAMPLE = 10  # the second cap-64 run of the sweep: seed s + 10 (the paper's replicate + 11)
 ROUND_LIMITS = (1, 2)
 PANDEMIC_SCALES = (
     "0.00005",
@@ -93,9 +89,7 @@ DESIGN = {
         "jc1000k": (10_000, 100_000),
     },
     "representatives": {s: (10_000, 100_000, 1_000_000) for s in ("rnasim", "jc10k")},
-    "round_limit": {
-        s: (100_000, 1_000_000, 10_000_000) for s in ("rnasim", "jc10k", "yule10k")
-    },
+    "round_limit": {s: (100_000, 1_000_000, 10_000_000) for s in ("rnasim", "jc10k", "yule10k")},
     "pandemic": {f"cmaple_{scale}": PANDEMIC_SIZES for scale in PANDEMIC_SCALES},
 }
 
@@ -127,9 +121,7 @@ def runs_of(
 ) -> list[Run]:
     """Lists the paper's runs of one experiment, set and size: (experiment, set, n) -> runs."""
     if experiment == "pandemic":
-        return [
-            Run(experiment, set_name, n, 0, PANDEMIC_SEED, f"rep0_seed{PANDEMIC_SEED}")
-        ]
+        return [Run(experiment, set_name, n, 0, PANDEMIC_SEED, f"rep0_seed{PANDEMIC_SEED}")]
     pairs = paper_seeds(set_name, n)
     # One run (replicate 0, seed 1) for the sweep at 10^6 and the round limits at 10^7
     if (experiment == "representatives" and n >= EXPANDED_FROM) or (
@@ -178,9 +170,7 @@ def runs_of(
                     )
                 )
         elif experiment == "random_start":
-            runs.append(
-                Run(experiment, set_name, n, r, s, f"rep{r}_seed{s}", ("-t", "random"))
-            )
+            runs.append(Run(experiment, set_name, n, r, s, f"rep{r}_seed{s}", ("-t", "random")))
         else:
             runs.append(Run(experiment, set_name, n, r, s, f"rep{r}_seed{s}"))
     return runs
@@ -217,9 +207,7 @@ def prefix_of(args: Namespace, r: Run) -> Path:
 
     The seqlen runs on 10^4 sites are the scaling runs of jc10k.
     """
-    experiment = (
-        "scaling" if r.experiment == "seqlen" and r.set == "jc10k" else r.experiment
-    )
+    experiment = "scaling" if r.experiment == "seqlen" and r.set == "jc10k" else r.experiment
     return args.results_dir / experiment / r.set / str(r.n) / r.name
 
 
@@ -326,9 +314,7 @@ def score(
             *(["--cap", str(cap)] if cap else []),
             *(str(t) for t, _ in todo),
         ]
-        lines = run(
-            command, check=True, capture_output=True, text=True
-        ).stdout.splitlines()
+        lines = run(command, check=True, capture_output=True, text=True).stdout.splitlines()
         assert len(lines) == len(
             todo
         ), f"bme_scores gave {len(lines)} lengths for {len(todo)} trees"
@@ -389,9 +375,7 @@ def representative_records(args: Namespace, runs: list[Run]) -> None:
         )
         cap_key = f"L_cap{score_cap}"
         base = f"{set_name}_{n}_rep{rep}_P{REFERENCE_CAP}"
-        seed = min(
-            r.seed for r in group
-        )  # the first sample; the second is seed + SECOND_SAMPLE
+        seed = min(r.seed for r in group)  # the first sample; the second is seed + SECOND_SAMPLE
         reference = prefixes.get(f"rep{rep}_seed{seed}_cap{REFERENCE_CAP}")
         second = prefixes.get(f"rep{rep}_seed{seed + SECOND_SAMPLE}_cap{REFERENCE_CAP}")
         for r, length in zip(group, lengths):
@@ -401,16 +385,10 @@ def representative_records(args: Namespace, runs: list[Run]) -> None:
             if r.seed != seed:
                 name += "_seed2"
             elif cap != REFERENCE_CAP and reference is not None:
-                record[f"rf_vs_{base}"] = rf_between(
-                    args, prefix, reference, "vs_cap64"
-                )
+                record[f"rf_vs_{base}"] = rf_between(args, prefix, reference, "vs_cap64")
             elif cap == REFERENCE_CAP and second is not None:
-                record[f"rf_vs_{base}_seed2"] = rf_between(
-                    args, prefix, second, "vs_seed2"
-                )
-            write_json(
-                args.results_dir / "representatives" / "eval" / f"{name}.json", record
-            )
+                record[f"rf_vs_{base}_seed2"] = rf_between(args, prefix, second, "vs_seed2")
+            write_json(args.results_dir / "representatives" / "eval" / f"{name}.json", record)
 
 
 def seqlen_records(args: Namespace, runs: list[Run]) -> None:
@@ -429,13 +407,7 @@ def seqlen_records(args: Namespace, runs: list[Run]) -> None:
         if not (tree.exists() and true_tree.exists()):
             print(f"seqlen {r.set} rep{r.rep}: trees missing, not scored")
             continue
-        true_score = (
-            args.results_dir
-            / "seqlen"
-            / r.set
-            / str(r.n)
-            / f"rep{r.rep}.true.score.json"
-        )
+        true_score = args.results_dir / "seqlen" / r.set / str(r.n) / f"rep{r.rep}.true.score.json"
         ours, truth = score(
             args,
             alignment,
@@ -453,18 +425,10 @@ def seqlen_records(args: Namespace, runs: list[Run]) -> None:
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
-    parser.add_argument(
-        "--experiments", nargs="+", choices=list(DESIGN), default=list(DESIGN)
-    )
-    parser.add_argument(
-        "--sets", nargs="+", help="only these sets (default: each experiment's)"
-    )
-    parser.add_argument(
-        "--sizes", nargs="+", type=int, help="these sizes instead of each set's"
-    )
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
+    parser.add_argument("--experiments", nargs="+", choices=list(DESIGN), default=list(DESIGN))
+    parser.add_argument("--sets", nargs="+", help="only these sets (default: each experiment's)")
+    parser.add_argument("--sizes", nargs="+", type=int, help="these sizes instead of each set's")
     parser.add_argument(
         "--replicates",
         nargs="+",
@@ -485,9 +449,7 @@ def main() -> None:
         default=list(ROUND_LIMITS),
         help="round_limit: rounds",
     )
-    parser.add_argument(
-        "--accelerator", default="auto", help="p2v-bme -a (default: auto)"
-    )
+    parser.add_argument("--accelerator", default="auto", help="p2v-bme -a (default: auto)")
     parser.add_argument("--devices", default="auto", help="p2v-bme -d (default: auto)")
     parser.add_argument(
         "--exact-max",
@@ -511,9 +473,7 @@ def main() -> None:
     parser.add_argument("--p2vbme", default=P2VBME)
     parser.add_argument("--bme-scores", default=BME_SCORES)
     parser.add_argument("--eval-cmaple-rf", default=EVAL_CMAPLE_RF)
-    parser.add_argument(
-        "--overwrite", action="store_true", help="run again what exists"
-    )
+    parser.add_argument("--overwrite", action="store_true", help="run again what exists")
     args = parser.parse_args()
 
     runs = design(args)

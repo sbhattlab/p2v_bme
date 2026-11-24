@@ -33,9 +33,7 @@ def main() -> None:
         means, los, his = [], [], []
         for n in SIZES:
             values = [
-                float(r["time_s"])
-                for r in rows
-                if r["method"] == method and int(r["n"]) == n
+                float(r["time_s"]) for r in rows if r["method"] == method and int(r["n"]) == n
             ]
             means.append(mean(values))
             los.append(means[-1] - min(values))

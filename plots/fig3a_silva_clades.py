@@ -98,9 +98,7 @@ def induced_tree(clades: dict, paths: dict) -> dict:
             above[u] = edge
     euk = [int(r["node"]) for r in paths["Eukaryota"]]
     arc = {int(r["node"]) for r in paths["Archaea"]}
-    euk_node, arc_node = int(clades["Eukaryota"]["best_node"]), int(
-        clades["Archaea"]["best_node"]
-    )
+    euk_node, arc_node = int(clades["Eukaryota"]["best_node"]), int(clades["Archaea"]["best_node"])
     # The smallest clade holding both Archaea and Eukaryota: the figure is rooted on the branch above it
     ae = next(x for x in euk if x in arc)
     if ae == euk[-1]:
@@ -180,9 +178,7 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
     x0, x1, y = node["x0"], node["x"], node["y"]
     tips = columns["tips"]
     if node["node"] != -1:
-        ax.plot(
-            [x0, x1], [y, y], color="#2d3748", lw=1.35, solid_capstyle="round", zorder=2
-        )
+        ax.plot([x0, x1], [y, y], color="#2d3748", lw=1.35, solid_capstyle="round", zorder=2)
     if node["leaf"]:
         colour = domain_colour(node["key"])
         if x1 < tips - 0.010:
@@ -225,9 +221,7 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
             ha="right",
         )
         f1 = node["f1"]
-        f1_colour = (
-            "#1b7837" if f1 >= 0.95 else ("#d95f02" if f1 >= 0.85 else "#7570b3")
-        )
+        f1_colour = "#1b7837" if f1 >= 0.95 else ("#d95f02" if f1 >= 0.85 else "#7570b3")
         ax.text(
             columns["f1"],
             y,

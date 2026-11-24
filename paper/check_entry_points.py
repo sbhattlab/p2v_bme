@@ -47,9 +47,7 @@ def step(*args: str) -> None:
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument("--work-dir", type=Path, default=Path("tmp/paper_check"))
     parser.add_argument("--keep", action="store_true", help="keep the work folder")
     args = parser.parse_args()

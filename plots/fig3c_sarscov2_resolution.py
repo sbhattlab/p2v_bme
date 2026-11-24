@@ -64,9 +64,7 @@ def main() -> None:
     for (_key, name, colour), share in zip(GROUPS, shares):
         strip.bar(x, share, bottom=bottom, width=1.0, color=colour, linewidth=0)
         bottom += share
-        if (
-            share.max() > 0.5
-        ):  # name a variant on the strip where it holds most of the genomes
+        if share.max() > 0.5:  # name a variant on the strip where it holds most of the genomes
             strip.text(
                 float(average(x, weights=share)),
                 0.5,
@@ -138,8 +136,7 @@ def main() -> None:
     ax.set_xticks(ticks)
     ax.set_xticklabels(
         [
-            QUARTER[months[i][5:7]]
-            + ("\n" + months[i][:4] if months[i][5:7] == "01" else "")
+            QUARTER[months[i][5:7]] + ("\n" + months[i][:4] if months[i][5:7] == "01" else "")
             for i in ticks
         ]
     )

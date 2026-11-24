@@ -60,9 +60,7 @@ from paper.utils import (
 )
 
 MODEL = "JC69"
-REFERENCE_SEED = (
-    1  # the reference tree's seed, also the seed of every bootstrap replicate
-)
+REFERENCE_SEED = 1  # the reference tree's seed, also the seed of every bootstrap replicate
 N_BOOTSTRAP = 64
 N_REPEATS = 8  # repeat searches with seeds 2..9 on the unchanged alignment
 PANDEMIC = "cmaple_0.0001"  # 100,000 sequences, 30,000 sites, mean branch length 1e-4
@@ -130,9 +128,7 @@ def calibration(tag: str) -> tuple[str, int]:
         return CALIBRATIONS[tag]
     set_name, _, n = tag.rpartition("_")
     if set_name not in SIMULATED_SETS or not n.isdigit():
-        raise ValueError(
-            f"unknown calibration set {tag}: {', '.join(CALIBRATIONS)} or <set>_<n>"
-        )
+        raise ValueError(f"unknown calibration set {tag}: {', '.join(CALIBRATIONS)} or <set>_<n>")
     return set_name, int(n)
 
 
@@ -143,8 +139,7 @@ def files_of(args: Namespace, tag: str) -> dict[str, Path]:
         stem = args.cmaple_dir / f"aln_{n // 1000}K_{set_name.removeprefix('cmaple_')}"
         return {
             "alignment": Path(f"{stem}.maple"),
-            "true": args.cmaple_dir
-            / f"tree_{n // 1000}K_{set_name.removeprefix('cmaple_')}.nwk",
+            "true": args.cmaple_dir / f"tree_{n // 1000}K_{set_name.removeprefix('cmaple_')}.nwk",
             "cmaple": Path(f"{stem}.maple.treefile"),
             "maple": Path(f"{stem}_wo_ref_tree.tree"),
         }
@@ -241,18 +236,14 @@ def gather(trees: list[Path], out: Path, overwrite: bool) -> None:
         out.write_text("".join(t.read_text().strip() + "\n" for t in trees))
 
 
-def compared_to(
-    sup: dict[str, ndarray], against: Path, name: str
-) -> dict[str, ndarray]:
+def compared_to(sup: dict[str, ndarray], against: Path, name: str) -> dict[str, ndarray]:
     """Compares the reference's branches with another tree: (supports' branches, file against it, name) -> columns.
 
     delta_<name>: the leaves to move to obtain a split of the other tree; <name>_correct: 1 if it has the split;
     <name>_transfer: the transfer index to it (the paper's columns; "true" gives delta_true, correct, true_transfer).
     """
     _, other = branch_table(against)
-    assert array_equal(
-        sup["size"], other["size"]
-    ), f"{against} is not on the reference tree"
+    assert array_equal(sup["size"], other["size"]), f"{against} is not on the reference tree"
     assert not isnan(
         other["exact"]
     ).any(), f"{against}: a branch of the reference is not on the other tree's leaves"
@@ -269,9 +260,7 @@ def score(args: Namespace, tag: str) -> None:
     """Scores the reference's branches once every tree exists: tag -> <tag>_{boot,seed}_branches.tsv."""
     folder, files = folder_of(args, tag), files_of(args, tag)
     names = run_names(args)
-    boot_trees = [
-        folder / f"boot{r:03d}.boottrees" for r in range(1, args.bootstrap + 1)
-    ]
+    boot_trees = [folder / f"boot{r:03d}.boottrees" for r in range(1, args.bootstrap + 1)]
     seed_trees = [folder / f"{name}.nwk" for name, _ in names["seed"]]
     reference = folder / "ref.nwk"
     missing = [t for t in [reference, *boot_trees, *seed_trees] if not t.exists()]
@@ -315,9 +304,7 @@ def score(args: Namespace, tag: str) -> None:
             columns.update(compared_to(sup, folder / f"ref.vs_{k}.support.nwk", k))
             header += [f"delta_{k}", f"{k}_correct", f"{k}_transfer"]
             formats += ["%d", "%d", "%.6f"]
-        assert not isnan(
-            columns["exact"]
-        ).any(), f"{support_nwk}: a branch without support"
+        assert not isnan(columns["exact"]).any(), f"{support_nwk}: a branch without support"
         table = column_stack([columns[c] for c in header])
         savetxt(
             out,
@@ -527,9 +514,7 @@ def write_summary(args: Namespace, name: str, summary: dict) -> None:
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument(
         "--sets",
         nargs="+",
@@ -554,9 +539,7 @@ def main() -> None:
         default=N_REPEATS,
         help="repeat searches, seeds 2..repeats + 1",
     )
-    parser.add_argument(
-        "--accelerator", default="auto", help="p2v-bme -a (default: auto)"
-    )
+    parser.add_argument("--accelerator", default="auto", help="p2v-bme -a (default: auto)")
     parser.add_argument("--devices", default="auto", help="p2v-bme -d (default: auto)")
     parser.add_argument("--datasets-dir", type=Path, default=Path(DEFAULT_DATASETS_DIR))
     parser.add_argument(
@@ -566,9 +549,7 @@ def main() -> None:
     )
     parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
     parser.add_argument("--p2vbme", default=P2VBME)
-    parser.add_argument(
-        "--overwrite", action="store_true", help="run again what exists"
-    )
+    parser.add_argument("--overwrite", action="store_true", help="run again what exists")
     args = parser.parse_args()
     if args.replicates is None:
         args.replicates = list(range(1, args.bootstrap + 1))

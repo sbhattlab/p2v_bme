@@ -43,9 +43,7 @@ def main() -> None:
             print(f"skipping {key}: results for only one alignment length at N = {N}")
     if not rows:
         raise SystemExit(f"no method has both {SHORT} and {LONG} results at N = {N}")
-    rows.sort(
-        key=lambda r: -r[2][0]
-    )  # worst at the bottom of the reading order -> best on top
+    rows.sort(key=lambda r: -r[2][0])  # worst at the bottom of the reading order -> best on top
 
     fig, ax = plt.subplots(figsize=(3.6, 2.9))
     fig.subplots_adjust(left=0.35, right=0.94, bottom=0.19, top=0.95)

@@ -57,23 +57,17 @@ def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> d
         run([p2vbme, *args, "-p", str(prefix), "-q", "--overwrite"], check=True)
         if "-s" in args:
             threads = environ.get("OMP_NUM_THREADS")
-            host = {
-                "cpu_threads": int(threads) if threads else len(sched_getaffinity(0))
-            }
+            host = {"cpu_threads": int(threads) if threads else len(sched_getaffinity(0))}
             write_json(Path(f"{prefix}.host.json"), host)
     return read_json(report)
 
 
-def supports(
-    p2vbme: str, tree: Path, replicates: Path, prefix: Path, overwrite: bool
-) -> dict:
+def supports(p2vbme: str, tree: Path, replicates: Path, prefix: Path, overwrite: bool) -> dict:
     """Computes the supports of a tree's branches over replicate trees: (tree, replicates, prefix) -> report.
 
     Writes <prefix>.support.nwk (labels "TBE/exact" in %) and <prefix>.json; skipped if the report exists.
     """
-    return run_p2vbme(
-        p2vbme, ["-t", str(tree), "--supports", str(replicates)], prefix, overwrite
-    )
+    return run_p2vbme(p2vbme, ["-t", str(tree), "--supports", str(replicates)], prefix, overwrite)
 
 
 def compare_to_truth(p2vbme: str, tree: Path, true_tree: Path, overwrite: bool) -> dict:
@@ -97,8 +91,7 @@ def support_labels(path: Path) -> list[tuple[float, float]]:
     Two files written for the same tree list the same branches in the same order.
     """
     return [
-        (float(t), float(e))
-        for t, e in findall(r"\)([0-9.]+)/([0-9.]+)", Path(path).read_text())
+        (float(t), float(e)) for t, e in findall(r"\)([0-9.]+)/([0-9.]+)", Path(path).read_text())
     ]
 
 
@@ -167,9 +160,7 @@ def read_tree(path: Path) -> dict:
     depth = cumsum(is_open.astype(int64) - is_close.astype(int64))
     opens, closes = flatnonzero(is_open), flatnonzero(is_close)
     open_of = empty(closes.size, dtype=int64)
-    open_of[lexsort((closes, depth[closes] + 1))] = opens[
-        lexsort((opens, depth[opens]))
-    ]
+    open_of[lexsort((closes, depth[closes] + 1))] = opens[lexsort((opens, depth[opens]))]
     # The parent of a node is the first ")" after it that closes the level the node sits in.
     level = depth[closes] + 1  # level of each internal node's own brackets
     key = level * (chars.size + 1) + closes
@@ -183,13 +174,8 @@ def read_tree(path: Path) -> dict:
         ok = (at < order.size) & (level[found] == levels)
         return where(ok, n + found, -1)
 
-    parent = concatenate(
-        [enclosing(depth[leaf_at], leaf_at), enclosing(level - 1, closes)]
-    )
-    leaves = [
-        (name, value)
-        for name, value in findall(r"[(,]([^(),:;]+)(?::([^,();]*))?", text)
-    ]
+    parent = concatenate([enclosing(depth[leaf_at], leaf_at), enclosing(level - 1, closes)])
+    leaves = [(name, value) for name, value in findall(r"[(,]([^(),:;]+)(?::([^,();]*))?", text)]
     if len(leaves) != n:
         raise ValueError(f"{path}: {len(leaves)} leaf names for {n} leaves")
     length = concatenate([full(n, nan), full(closes.size, nan)])
@@ -204,9 +190,7 @@ def read_tree(path: Path) -> dict:
         if value:
             length[n + k] = float(value)
     first = concatenate([arange(n), leaves_before[open_of]])
-    size = concatenate(
-        [ones(n, dtype=int64), leaves_before[closes] - leaves_before[open_of]]
-    )
+    size = concatenate([ones(n, dtype=int64), leaves_before[closes] - leaves_before[open_of]])
     return {
         "names": [name.strip() for name, _ in leaves],
         "parent": parent,
@@ -226,9 +210,7 @@ def with_edge_lengths(tree: Path, edge: float, out: Path) -> Path:
     text = Path(tree).read_text().strip()
     text = sub(r":[^,();]*", "", text)
     text = sub(r"\)[^,();]*", ")", text)
-    Path(out).write_text(
-        sub(r"([^(),;]+|\))(?=[,)])", rf"\g<1>:{edge:.12g}", text) + "\n"
-    )
+    Path(out).write_text(sub(r"([^(),;]+|\))(?=[,)])", rf"\g<1>:{edge:.12g}", text) + "\n")
     return Path(out)
 
 
@@ -261,9 +243,7 @@ def auc(score: ndarray, positive: ndarray) -> float:
     ranks = empty(score.size)
     ranks[order] = (first + (counts + 1) / 2.0).repeat(counts)
     n1 = int(positive.sum())
-    return float(
-        (ranks[positive].sum() - n1 * (n1 + 1) / 2) / (n1 * (positive.size - n1))
-    )
+    return float((ranks[positive].sum() - n1 * (n1 + 1) / 2) / (n1 * (positive.size - n1)))
 
 
 def pct(x) -> float:

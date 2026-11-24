@@ -35,9 +35,7 @@ def main() -> None:
         for r in rows
     ]
     if keys != list(BINS):
-        raise SystemExit(
-            "the substitution bins of the data are not the ones this figure labels"
-        )
+        raise SystemExit("the substitution bins of the data are not the ones this figure labels")
     fig, ax = plt.subplots(figsize=FIGSIZE)
     fig.subplots_adjust(left=0.2, right=0.97, top=0.84, bottom=0.17)
     x = range(len(BINS))

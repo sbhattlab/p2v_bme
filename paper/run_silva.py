@@ -107,9 +107,7 @@ from paper.utils import (
     write_json,
 )
 
-ALIGNMENT = (
-    f"{DEFAULT_DATASETS_DIR}/silva144/SILVA_144_SSURef_tax_silva_full_align_trunc.fasta"
-)
+ALIGNMENT = f"{DEFAULT_DATASETS_DIR}/silva144/SILVA_144_SSURef_tax_silva_full_align_trunc.fasta"
 STEPS = ("distinct", "tree", "replicates", "supports", "records", "leaveout", "gtdb")
 SIZE_BINS = (("2", 2, 2), ("3-10", 3, 10), ("11-100", 11, 100), ("101-1k", 101, 1000))
 SIZE_BINS += (("1k-10k", 1001, 10000), (">10k", 10001, 2000000000))
@@ -224,9 +222,7 @@ def representatives(group: ndarray, phylum: ndarray, genus: ndarray) -> ndarray:
     return mask
 
 
-def distinct(
-    alignment: Path, out: Path, max_sites: int, min_sites: int, overwrite: bool
-) -> None:
+def distinct(alignment: Path, out: Path, max_sites: int, min_sites: int, overwrite: bool) -> None:
     """Writes the alignment p2v-bme searches: alignment -> searched.fa, left_out.fa, distinct.fa, distinct.json,
     taxonomy.tsv.
 
@@ -312,9 +308,7 @@ def check_distinct(out: Path) -> dict:
     ours = (d["searched"], d["identical_set_aside"])
     theirs = (report["sequences"], report["identical_set_aside"])
     if ours != theirs:
-        raise SystemExit(
-            f"distinct.json (searched, set aside) {ours} != p2v-bme's {theirs}"
-        )
+        raise SystemExit(f"distinct.json (searched, set aside) {ours} != p2v-bme's {theirs}")
     return d
 
 
@@ -393,9 +387,7 @@ def prune(tree: dict, keep: ndarray) -> dict:
     group_of[alive] = group
     above = parent[top]
     new_parent = where(above >= 0, new_id[group_of[above]], -1)
-    length = bincount(
-        group, weights=nan_to_num(tree["length"][alive]), minlength=n_groups
-    )
+    length = bincount(group, weights=nan_to_num(tree["length"][alive]), minlength=n_groups)
     has_length = zeros(n_groups, bool)
     logical_or.at(has_length, group, ~isnan(tree["length"][alive]))
     length[~has_length | (g_below == m)] = nan
@@ -456,9 +448,7 @@ def distinct_tree(out: Path) -> dict:
 # ---- Records ----
 
 
-def support_records(
-    tree: dict, out: Path, n_all: int, n_boot: int, version: str
-) -> None:
+def support_records(tree: dict, out: Path, n_all: int, n_boot: int, version: str) -> None:
     """Writes the supports by split size: tree of the distinct sequences -> the summary and quantile records."""
     b = branch_rows(tree)
     p, tbe, exact, length = b["p"], b["tbe"], b["exact"], b["length"]
@@ -592,10 +582,7 @@ def groups_of(labels: list[str]) -> dict[str, ndarray]:
     names, inverse, count = unique(arr, return_inverse=True, return_counts=True)
     order = argsort(inverse, kind="stable")
     bounds = concatenate([[0], cumsum(count)])
-    return {
-        str(names[i]): order[bounds[i] : bounds[i + 1]]
-        for i in argsort(-count, kind="stable")
-    }
+    return {str(names[i]): order[bounds[i] : bounds[i + 1]] for i in argsort(-count, kind="stable")}
 
 
 def biology(tree: dict, taxonomy: dict[str, str], alpha: float) -> dict:
@@ -675,9 +662,7 @@ def nearest_branch(tree: dict, mask: ndarray) -> tuple[int, ndarray]:
     total = int(mask.sum())
     below = cum[first + size] - cum[first]
     as_clade = (total - below) + (size - below)  # missed members plus strangers inside
-    as_rest = below + (
-        (k - size) - (total - below)
-    )  # the same for the other side of the branch
+    as_rest = below + ((k - size) - (total - below))  # the same for the other side of the branch
     node = int(argmin(minimum(as_clade, as_rest)))
     side = zeros(k, bool)
     side[first[node] : first[node] + size[node]] = True
@@ -700,9 +685,7 @@ def domain_distances(tree: dict) -> dict[str, float]:
         "Archaea": (code & 2) > 0,
     }
     archaea = groups["Archaea"]
-    out = {
-        "archaea_alone": nearest_branch(tree, archaea)[0] / max(1, int(archaea.sum()))
-    }
+    out = {"archaea_alone": nearest_branch(tree, archaea)[0] / max(1, int(archaea.sum()))}
     _, estar = nearest_branch(tree, eukaryota)
     for name, group in groups.items():
         distance = nearest_branch(tree, estar | group)[0]
@@ -724,9 +707,7 @@ def domains(reference: dict, boot: list[Path], workers: int) -> dict:
     counted = []
     for tolerance in TOLERANCES:
         split = [t for t in bootstrap if t["archaea_alone"] >= tolerance]
-        with_asgard_tack = sum(
-            t["eukaryota_with_Asgard+TACK"] < tolerance for t in split
-        )
+        with_asgard_tack = sum(t["eukaryota_with_Asgard+TACK"] < tolerance for t in split)
         counted.append(
             {
                 "tolerance": tolerance,
@@ -737,9 +718,7 @@ def domains(reference: dict, boot: list[Path], workers: int) -> dict:
         )
     code = array(list(CODES.values()))
     sizes = {"Eukaryota": int((code & 1).sum())}
-    sizes |= {
-        name: int(((code >> (2 + i)) & 1).sum()) for i, name in enumerate(KINGDOMS)
-    }
+    sizes |= {name: int(((code >> (2 + i)) & 1).sum()) for i, name in enumerate(KINGDOMS)}
     sizes["Asgard+TACK"] = int(
         ((code & ((1 << 2) | (1 << 3))) > 0).sum()
     )  # Asgard is bit 2, TACK bit 3
@@ -815,9 +794,7 @@ def leaveout_runs(
         wgs[i] = 1 if (m and len(m.group(1)) >= 4) else 0
         span = int(stop) - int(start) + 1
         length[i] = 0 if span < 1400 else 1 if span < 1600 else 2
-        organelle[i] = f[0] == "Bacteria" and (
-            "Chloroplast" in p or "Mitochondria" in p
-        )
+        organelle[i] = f[0] == "Bacteria" and ("Chloroplast" in p or "Mitochondria" in p)
         cpr[i] = "Minisyncoccota" in p
         dpann[i] = f[0] == "Archaea" and bool(search(DPANN_NAMES, p))
     cats = {
@@ -970,13 +947,8 @@ def leaveout(
             fasta.unlink()
         supports(exe, out / "tree.all.nwk", d / "tree.nwk", d / "cmp", overwrite)
         compared = read_tree(d / "cmp.support.nwk")
-        if (
-            compared["names"] != reference["names"]
-            or (compared["size"] != reference["size"]).any()
-        ):
-            raise SystemExit(
-                f"{d}/cmp.support.nwk is not the tree of tree.boot.support.nwk"
-            )
+        if compared["names"] != reference["names"] or (compared["size"] != reference["size"]).any():
+            raise SystemExit(f"{d}/cmp.support.nwk is not the tree of tree.boot.support.nwk")
         mask = array([x in subset for x in reference["names"]])
         ref_b = branch_rows(prune(reference, mask))
         cmp_b = branch_rows(prune(compared, mask))
@@ -987,9 +959,7 @@ def leaveout(
             "agree": cmp_b["tbe"],
         }
         branch["delta"] = (1 - branch["agree"] / 100) * (branch["p"] - 1)
-        write_json(
-            d / "summary.json", leaveout_summary(spec["name"], len(subset), branch)
-        )
+        write_json(d / "summary.json", leaveout_summary(spec["name"], len(subset), branch))
         savez_compressed(
             d / "branches.npz",
             p=branch["p"].astype("int32"),
@@ -1022,18 +992,9 @@ def gtdb_sequences(arb_dump: Path, names: set[str], out: Path) -> None:
     def flush() -> None:
         g = cur.get("tax_gtdb", "Unclassified;")
         name = f'{cur.get("acc")}.{cur.get("start")}.{cur.get("stop")}'
-        if (
-            "name" in cur
-            and not g.startswith("Unclassified")
-            and "data" in cur
-            and name in names
-        ):
-            rows.append(
-                (name, cur["name"], g, cur.get("tax_slv", ""), cur.get("tax_ltp", ""))
-            )
-            seqs.append(
-                cur["data"].upper().encode().translate(bytes.maketrans(b"U.", b"T-"))
-            )
+        if "name" in cur and not g.startswith("Unclassified") and "data" in cur and name in names:
+            rows.append((name, cur["name"], g, cur.get("tax_slv", ""), cur.get("tax_ltp", "")))
+            seqs.append(cur["data"].upper().encode().translate(bytes.maketrans(b"U.", b"T-")))
 
     with open(arb_dump, encoding="utf-8", errors="replace") as fh:
         for line in fh:
@@ -1122,11 +1083,7 @@ def score(
             cum = r_[0, cumsum(t[r] == taxon)]
             a = sizes[r][taxon]
             ins = cum[lo + size] - cum[lo]
-            best.append(
-                float(
-                    maximum(2 * ins / (size + a), 2 * (a - ins) / (n - size + a)).max()
-                )
-            )
+            best.append(float(maximum(2 * ins / (size + a), 2 * (a - ins) / (n - size + a)).max()))
         best_f1 = array(best)
         res[RANKS[r]] = {
             "taxa": int(best_f1.size),
@@ -1143,11 +1100,7 @@ def score(
         inner = 2 * a_in < na or (
             2 * a_in == na and 2 * size[j] <= n
         )  # clades read with the root between domains
-        sl = (
-            pos[lo[j] : lo[j] + size[j]]
-            if inner
-            else r_[pos[: lo[j]], pos[lo[j] + size[j] :]]
-        )
+        sl = pos[lo[j] : lo[j] + size[j]] if inner else r_[pos[: lo[j]], pos[lo[j] + size[j] :]]
         r = len(RANKS) - 1
         while r >= 0 and t[r, sl].min() != t[r, sl].max():
             r -= 1
@@ -1199,9 +1152,7 @@ def gtdb(
     trees = {"full": score(*intervals(full_tree, index), tax, sizes, archaea)}
     for tag in ("ours", "ft_me", "ft_ml"):
         if (g / f"{tag}.nwk").exists():
-            trees[tag] = score(
-                *intervals(read_tree(g / f"{tag}.nwk"), index), tax, sizes, archaea
-            )
+            trees[tag] = score(*intervals(read_tree(g / f"{tag}.nwk"), index), tax, sizes, archaea)
     write_json(
         out / "gtdb_labelled_scores.json",
         {
@@ -1217,9 +1168,7 @@ def gtdb(
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument(
         "--steps",
         nargs="+",
@@ -1259,9 +1208,7 @@ def main() -> None:
         default=1200,
         help="sequences with fewer valid sites left out",
     )
-    parser.add_argument(
-        "--seed", type=int, default=1, help="seed of the tree and of the bootstrap"
-    )
+    parser.add_argument("--seed", type=int, default=1, help="seed of the tree and of the bootstrap")
     parser.add_argument("--accelerator", default="auto")
     parser.add_argument("--devices", default="auto")
     parser.add_argument(
@@ -1317,9 +1264,7 @@ def main() -> None:
                     ow,
                 )
         elif step == "supports":
-            boot = [
-                out / f"boot/rep{r:03d}.boottrees" for r in range(1, args.bootstrap + 1)
-            ]
+            boot = [out / f"boot/rep{r:03d}.boottrees" for r in range(1, args.bootstrap + 1)]
             supports(
                 exe,
                 out / "tree.all.nwk",

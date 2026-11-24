@@ -304,9 +304,7 @@ def download(source: str, folder: Path, dry_run: bool, overwrite: bool) -> None:
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
     sources = [*FILES, "cmaple"]
     parser.add_argument(
         "--sources",

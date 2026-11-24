@@ -1,0 +1,6 @@
+# Line length of the Python formatters, read by the pre-commit hooks and by editors: 100, as pylint's default
+[tool.black]
+line-length = 100
+
+[tool.isort]
+line_length = 100

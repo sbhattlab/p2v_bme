@@ -98,9 +98,7 @@ FASTME_SEED_STEP = 1  # subset and random start seed: replicate + 1
 FASTME_1M_SETS = {"jc1m": "jc10k", "rna1m": "rnasim"}
 FASTME_1M_SUBSETS = {1000: 100, 2000: 100, 5000: 20}  # subsets per size
 FASTME_1M_SEED_STEP = 1000
-JC_SCALE = (
-    3200.0  # RNASim branch lengths / JC_SCALE = substitutions per site of the JC sets
-)
+JC_SCALE = 3200.0  # RNASim branch lengths / JC_SCALE = substitutions per site of the JC sets
 START_LENGTH = 0.05  # branch length written on the random start trees
 # Seeds of the paper's runs
 SUBSET_SEED = 42
@@ -257,9 +255,7 @@ def rooted_arrays(
             c1_list.append(curr)
             c2_list.append(nxt)
             last = k == len(kids) - 2
-            blen[node] = (
-                max(0.0, float(length[u]) / scale) if last and u != root else 0.0
-            )
+            blen[node] = max(0.0, float(length[u]) / scale) if last and u != root else 0.0
             curr = node
         mapped[u] = curr
     if len(c1_list) != n - 1:
@@ -328,9 +324,7 @@ def yule_tree(n: int, rep: int) -> tuple[ndarray, ndarray, ndarray]:
     parent[c1[n:]] = arange(n, 2 * n - 1)
     parent[c2[n:]] = arange(n, 2 * n - 1)
     blen = zeros(2 * n - 1, float32)
-    blen[: 2 * n - 2] = (height[parent[: 2 * n - 2]] - height[: 2 * n - 2]).astype(
-        float32
-    )
+    blen[: 2 * n - 2] = (height[parent[: 2 * n - 2]] - height[: 2 * n - 2]).astype(float32)
     return c1, c2, blen
 
 
@@ -457,9 +451,7 @@ def pack(seqs: ndarray, words: int) -> ndarray:
 
 def unpack(planes: ndarray, sites: int) -> ndarray:
     """Unpacks bit planes: rows x 5 x words uint64 -> rows x sites ASCII, '-' where no base is set."""
-    bits = unpackbits(
-        planes.view(uint8).reshape(planes.shape[0], 5, -1), axis=2, bitorder="little"
-    )
+    bits = unpackbits(planes.view(uint8).reshape(planes.shape[0], 5, -1), axis=2, bitorder="little")
     bits = bits[:, :, :sites].astype(bool)
     out = full((planes.shape[0], sites), GAP, dtype=uint8)
     for k in range(4):
@@ -572,17 +564,11 @@ class Rnasim:
         self.leaves: list[str] = []
         self.seqs: dict[str, str] = {}
 
-    def subset(
-        self, n: int, rep: int, scale: float
-    ) -> tuple[ndarray, ndarray, ndarray, list[str]]:
+    def subset(self, n: int, rep: int, scale: float) -> tuple[ndarray, ndarray, ndarray, list[str]]:
         """Draws a replicate's leaves: (n, replicate, scale) -> (c1, c2, lengths / scale, RNASim names of T0...)."""
         if self.tree is None:
-            self.tree = parse_newick(
-                (self.folder / "true_topo.tree").read_text().strip()
-            )
-            self.leaves = [
-                nm for kids, nm in zip(self.tree[0], self.tree[1]) if not kids
-            ]
+            self.tree = parse_newick((self.folder / "true_topo.tree").read_text().strip())
+            self.leaves = [nm for kids, nm in zip(self.tree[0], self.tree[1]) if not kids]
         chosen = Random(SUBSET_SEED + rep).sample(self.leaves, n)
         children, name, length, root = induce_subtree(*self.tree, set(chosen))
         c1, c2, blen = rooted_arrays(
@@ -595,11 +581,7 @@ class Rnasim:
         if not self.seqs:
             plain = self.folder / "aln_dna.fa"
             self.seqs = dict(
-                zip(
-                    *read_fasta(
-                        plain if plain.exists() else self.folder / "aln_dna.fa.xz"
-                    )
-                )
+                zip(*read_fasta(plain if plain.exists() else self.folder / "aln_dna.fa.xz"))
             )
         return frombuffer(
             "".join(self.seqs[nm] for nm in names).encode("ascii"), dtype=uint8
@@ -613,9 +595,7 @@ def start_seed(name: str, n: int, rep: int, expanded: bool) -> int:
     return START_SEED + n if expanded else START_SEED + START_SEED_STEP * rep + n
 
 
-def make_dataset(
-    name: str, n: int, rep: int, out: Path, rnasim: Rnasim, args: Namespace
-) -> None:
+def make_dataset(name: str, n: int, rep: int, out: Path, rnasim: Rnasim, args: Namespace) -> None:
     """Writes one dataset: (set, n, replicate) -> <out>/rep<r>.{fa,true.nwk,random_start.nwk}."""
     sites, words, _, sim_seed = SETS[name]
     out.mkdir(parents=True, exist_ok=True)
@@ -623,14 +603,8 @@ def make_dataset(
     expanded = name in EXPANDED_SETS and n > args.expansion_base
     if expanded:
         factor = n // args.expansion_base
-        if (
-            rep != 0
-            or factor not in EXPANSION_CHUNK
-            or factor * args.expansion_base != n
-        ):
-            raise SystemExit(
-                f"{name}: {n} is not 10x or 100x {args.expansion_base}, replicate 0"
-            )
+        if rep != 0 or factor not in EXPANSION_CHUNK or factor * args.expansion_base != n:
+            raise SystemExit(f"{name}: {n} is not 10x or 100x {args.expansion_base}, replicate 0")
         base = out.parent / str(args.expansion_base) / "rep0.fa"
         if not base.exists():
             make_dataset(name, args.expansion_base, 0, base.parent, rnasim, args)
@@ -660,9 +634,7 @@ def make_dataset(
                     )
     elif name == "yule10k":
         c1, c2, blen = yule_tree(n, rep)
-        simulate_jc(
-            args.sim_jc69, c1, c2, blen, sites, sim_seed + SIM_SEED_STEP * rep, fasta
-        )
+        simulate_jc(args.sim_jc69, c1, c2, blen, sites, sim_seed + SIM_SEED_STEP * rep, fasta)
         write_tree(out / f"rep{rep}.true.nwk", c1, c2, blen)
     elif name == "rnasim":
         c1, c2, _, chosen = rnasim.subset(n, rep, 1.0)
@@ -671,9 +643,7 @@ def make_dataset(
         write_tree(out / f"rep{rep}.true.nwk", c1, c2, None)
     else:
         c1, c2, blen, _ = rnasim.subset(n, rep, JC_SCALE)
-        simulate_jc(
-            args.sim_jc69, c1, c2, blen, sites, sim_seed + SIM_SEED_STEP * rep, fasta
-        )
+        simulate_jc(args.sim_jc69, c1, c2, blen, sites, sim_seed + SIM_SEED_STEP * rep, fasta)
         write_tree(out / f"rep{rep}.true.nwk", c1, c2, blen)
     write_random_start(
         out / f"rep{rep}.random_start.nwk",
@@ -695,9 +665,7 @@ def make_fastme_set(
         make_dataset(name, args.fastme_base, rep, base, rnasim, args)
     names, seqs = read_fasta(base / f"rep{rep}.fa")
     if names != [f"T{i}" for i in range(len(names))]:
-        raise ValueError(
-            f"{base / f'rep{rep}.fa'}: the names are not T0..T<N-1> in order"
-        )
+        raise ValueError(f"{base / f'rep{rep}.fa'}: the names are not T0..T<N-1> in order")
     seed = rep + FASTME_SEED_STEP
     chosen = sort(default_rng(seed).choice(len(seqs), n, replace=False))
     out.mkdir(parents=True, exist_ok=True)
@@ -730,9 +698,7 @@ def make_fastme_subsets(
     if not (source / "rep0.random_start.nwk").exists():
         make_dataset(source_set, size, 0, source, rnasim, args)
     chosen = {
-        (n, k): sort(
-            default_rng(FASTME_1M_SEED_STEP * n + k).choice(size, n, replace=False)
-        )
+        (n, k): sort(default_rng(FASTME_1M_SEED_STEP * n + k).choice(size, n, replace=False))
         for n, k in todo
     }
     takers: dict[int, list[tuple[int, int]]] = {}  # sequence -> the subsets with it
@@ -749,9 +715,7 @@ def make_fastme_subsets(
             for i, (header, seq) in enumerate(zip(fasta, fasta)):
                 for key in takers.get(i, ()):
                     if header.strip() != f">T{i}":
-                        raise ValueError(
-                            f"{source / 'rep0.fa'}: sequence {i} is {header.strip()}"
-                        )
+                        raise ValueError(f"{source / 'rep0.fa'}: sequence {i} is {header.strip()}")
                     handles[key].write(f">T{written[key]}\n{seq.strip()}\n")
                     written[key] += 1
     finally:
@@ -798,9 +762,7 @@ def make_fastme(args: Namespace, rnasim: Rnasim) -> None:
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument(
         "--sets",
         nargs="+",
@@ -826,9 +788,7 @@ def main() -> None:
         default=Path(DEFAULT_DATASETS_DIR),
         help="input/output folder",
     )
-    parser.add_argument(
-        "--sim-jc69", default=SIM_JC69, help="the sim_jc69_fast program"
-    )
+    parser.add_argument("--sim-jc69", default=SIM_JC69, help="the sim_jc69_fast program")
     parser.add_argument(
         "--expansion-base",
         type=int,
@@ -841,9 +801,7 @@ def main() -> None:
         default=FASTME_BASE,
         help="size of the sets the FastME comparison's subsets are drawn from (smaller only for tests)",
     )
-    parser.add_argument(
-        "--overwrite", action="store_true", help="make datasets that exist again"
-    )
+    parser.add_argument("--overwrite", action="store_true", help="make datasets that exist again")
     args = parser.parse_args()
 
     rnasim = Rnasim(args.datasets_dir / "rnasim")

@@ -63,7 +63,9 @@ CASES = {
     "jc1m": {1000: 100, 2000: 100, 5000: 20},
     "rna1m": {1000: 100, 2000: 100, 5000: 20},
 }
-RAND_MAX_N = 5000  # the random-start arm only up to this size (FastME from a random tree takes hours above)
+RAND_MAX_N = (
+    5000  # the random-start arm only up to this size (FastME from a random tree takes hours above)
+)
 ARMS = ("sample", "rand", "polish")
 MODEL = "JC69"
 FASTME_NNI_SPR = ["-n", "B", "-s"]  # BME NNI and SPR, the better of both
@@ -158,14 +160,9 @@ def fastme_to_convergence(
     return record
 
 
-def rf_pct(
-    p2vbme: str, tree: Path, other: Path, prefix: Path, overwrite: bool
-) -> float:
+def rf_pct(p2vbme: str, tree: Path, other: Path, prefix: Path, overwrite: bool) -> float:
     """Computes the normalised RF distance of two binary trees in %: (tree, other) -> 100 - mean exact support."""
-    return (
-        100.0
-        - supports(p2vbme, tree, other, prefix, overwrite)["supports"]["mean_exact"]
-    )
+    return 100.0 - supports(p2vbme, tree, other, prefix, overwrite)["supports"]["mean_exact"]
 
 
 def solver_entry(report: dict) -> dict:
@@ -211,9 +208,7 @@ def score_case(
     def ours(arm: str, start: Path | None) -> tuple[Path, dict]:
         """Runs p2v-bme for one arm: (arm, start tree) -> (tree, report)."""
         prefix = folder / f"{name}_seed{seed}_{arm}"
-        report = run_p2vbme(
-            args.p2vbme, [*p2v, *(["-t", str(start)] if start else [])], prefix, ow
-        )
+        report = run_p2vbme(args.p2vbme, [*p2v, *(["-t", str(start)] if start else [])], prefix, ow)
         return Path(f"{prefix}.nwk"), report
 
     def fastme(start: Path | None, moves: list[str], label: str) -> dict:
@@ -232,9 +227,7 @@ def score_case(
 
     def rf(tree: Path, other: Path, label: str) -> float:
         """RF between two of the case's trees in %."""
-        return rf_pct(
-            args.p2vbme, tree, other, folder / f"{Path(tree).stem}.vs_{label}", ow
-        )
+        return rf_pct(args.p2vbme, tree, other, folder / f"{Path(tree).stem}.vs_{label}", ow)
 
     record: dict = {
         "tag": fasta.parent.parent.name,
@@ -248,9 +241,7 @@ def score_case(
     if ow or not bionj.exists():
         run_fastme(args.fastme, phylip, ["-m", "I"], bionj)
     # FastME's first run returned its BIONJ start unchanged
-    record["kept_start"] = (
-        first["L"] == exact_lengths(args.bme_scores, fasta, [bionj])[0]
-    )
+    record["kept_start"] = first["L"] == exact_lengths(args.bme_scores, fasta, [bionj])[0]
     starts = {"sample": None, "polish": Path(converged["tree"])}
     references = {"sample": converged, "polish": converged}
     times = {"sample": first["wall_s"], "polish": first["wall_s"]}
@@ -291,9 +282,7 @@ def score_case(
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument(
         "--sets",
         nargs="+",
@@ -311,18 +300,14 @@ def main() -> None:
         help="only these replicates (default: as the paper, per set and size)",
     )
     parser.add_argument("--arms", nargs="+", default=list(ARMS), choices=ARMS)
-    parser.add_argument(
-        "--accelerator", default="auto", help="p2v-bme -a (cpu, gpu, auto)"
-    )
+    parser.add_argument("--accelerator", default="auto", help="p2v-bme -a (cpu, gpu, auto)")
     parser.add_argument("--devices", default="auto", help="p2v-bme -d")
     parser.add_argument(
         "--keep-matrix",
         action="store_true",
         help="keep the PHYLIP matrices (N^2 values each)",
     )
-    parser.add_argument(
-        "--overwrite", action="store_true", help="rerun steps whose outputs exist"
-    )
+    parser.add_argument("--overwrite", action="store_true", help="rerun steps whose outputs exist")
     parser.add_argument("--datasets-dir", type=Path, default=Path(DEFAULT_DATASETS_DIR))
     parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
     parser.add_argument("--p2vbme", default=P2VBME)
@@ -335,9 +320,7 @@ def main() -> None:
     for tag in args.sets:
         for n in args.sizes or CASES[tag]:
             replicates = (
-                args.replicates
-                if args.replicates is not None
-                else range(CASES[tag].get(n, 0))
+                args.replicates if args.replicates is not None else range(CASES[tag].get(n, 0))
             )
             for r in replicates:
                 fasta = args.datasets_dir / "fastme" / tag / str(n) / f"rep{r}.fa"
@@ -352,9 +335,7 @@ def main() -> None:
                 folder.mkdir(parents=True, exist_ok=True)
                 arms = [a for a in args.arms if a != "rand" or n <= RAND_MAX_N]
                 true_tree = fasta.with_name(f"rep{r}.true.nwk")
-                write_json(
-                    case, score_case(fasta, true_tree, folder, f"rep{r}", arms, args)
-                )
+                write_json(case, score_case(fasta, true_tree, folder, f"rep{r}", arms, args))
                 print(f"run_fastme: {tag} {n} rep{r} done", flush=True)
     cases = sorted(out_dir.glob("*/*/rep*.case.json"))
     records = [read_json(c) for c in cases]
