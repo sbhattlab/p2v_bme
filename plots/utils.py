@@ -14,7 +14,7 @@ import pandas as pd
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # pylint: disable=wrong-import-position
 
-from matplotlib.patches import Patch  # pylint: disable=wrong-import-position
+from matplotlib.lines import Line2D  # pylint: disable=wrong-import-position
 from matplotlib.ticker import (  # pylint: disable=wrong-import-position
     FixedLocator,
     FuncFormatter,
@@ -132,10 +132,8 @@ def scaling_data(tables_dir: Path) -> list[dict[str, str]]:
     return rows
 
 
-# ---- Figs S1-S3: bars per method at each size ----
+# ---- Figs S1-S3: one line per method over the number of sequences ----
 
-N_LIST = [1000, 5000, 10000, 50000, 100000, 1000000, 10000000]
-N_LABELS = ["1k", "5k", "10k", "50k", "100k", "1M", "10M"]
 PLOTTED = [
     "FastTree-ME",
     "FastTree-ML",
@@ -143,16 +141,17 @@ PLOTTED = [
     "VFT-ML",
     "DIPPER",
     "P2V",
-]  # left to right
-GROUP = 0.86  # width of one size group, in category units
-BAND = "#F3F3F3"
+]  # drawing order; the legend lists them the other way round, Phylo2VecME first
 FLOORS = {
     "time": 1e-2,
     "rf": 0.01,
     "host": 2e-2,
     "gpu": 0.1,
-}  # bar baselines = lower axis limits
+}  # lower axis limits
 TOPS = {"time": 3e4, "rf": 130, "host": 1000, "gpu": 100}
+# The new method is drawn stronger than the methods it is compared with
+OURS = "P2V"
+COMPARED_ALPHA = 0.6
 MIB_PER_GIB = 1024.0
 # Each panel's column in scaling_methods.tsv, its scale and its y label
 PANELS = {
@@ -176,65 +175,65 @@ def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: fl
     return {k: (statistics.mean(v), min(v), max(v)) for k, v in values.items()}
 
 
-def method_bars(ax: plt.Axes, stats: dict, panel: str) -> None:
-    """Draws each method's bar at each size, from the panel floor to the mean,
-    with the range as a whisker."""
+def method_style(key: str) -> dict:
+    """Gives a method's line in Figs S1-S3: key -> line keywords, Phylo2VecME's stronger."""
+    ours = key == OURS
+    return {
+        "color": SPEC[key]["color"],
+        "marker": SPEC[key]["marker"],
+        "linestyle": SPEC[key]["ls"],
+        "markersize": 4.6 if ours else 3.0,
+        "linewidth": 2.2 if ours else 0.9,
+        "alpha": 1.0 if ours else COMPARED_ALPHA,
+    }
+
+
+def method_lines(ax: plt.Axes, stats: dict, panel: str) -> None:
+    """Draws each method's mean at each size as a line on log-log axes, with the range as whiskers:
+    (axes, stats, panel) -> None."""
     for (n, key), (mu, lo, hi) in stats.items():
         if lo <= FLOORS[panel] or hi >= TOPS[panel]:
             raise SystemExit(
                 f"{key} N={n}: {lo}..{hi} outside the {panel} axis {FLOORS[panel]}..{TOPS[panel]}"
             )
-    slot = GROUP / len(PLOTTED)
-    for i, n in enumerate(N_LIST):
-        keys = [k for k in PLOTTED if (n, k) in stats]
-        for j, key in enumerate(keys):
-            x = i + (j - (len(keys) - 1) / 2) * slot
-            mu, lo, hi = stats[(n, key)]
-            ax.bar(
-                [x],
-                [mu - FLOORS[panel]],
-                bottom=FLOORS[panel],
-                width=0.9 * slot,
-                color=SPEC[key]["color"],
-                edgecolor="white",
-                linewidth=0.4,
-                zorder=3,
-            )
-            if hi > lo:
-                ax.errorbar(
-                    [x],
-                    [mu],
-                    yerr=[[mu - lo], [hi - mu]],
-                    fmt="none",
-                    ecolor="#222222",
-                    elinewidth=0.7,
-                    capsize=1.4,
-                    capthick=0.7,
-                    zorder=4,
-                )
-    ax.set_xlim(-0.55, len(N_LIST) - 0.45)
-    ax.set_xticks(range(len(N_LIST)))
-    ax.set_xticklabels(N_LABELS)
-    ax.tick_params(axis="x", length=0)
-    for i in range(0, len(N_LIST), 2):
-        ax.axvspan(i - 0.5, i + 0.5, color=BAND, lw=0, zorder=0)
+    for key in PLOTTED:
+        points = sorted((n, v) for (n, k), v in stats.items() if k == key)
+        if not points:
+            continue
+        n = [p[0] for p in points]
+        mu = [p[1][0] for p in points]
+        whiskers = [[p[1][0] - p[1][1] for p in points], [p[1][2] - p[1][0] for p in points]]
+        style = method_style(key)
+        ax.errorbar(
+            n,
+            mu,
+            yerr=whiskers,
+            elinewidth=0.9 if key == OURS else 0.6,
+            capsize=1.8,
+            zorder=5 if key == OURS else 3,
+            **style,
+        )
+    ax.set_xscale("log")
+    ax.set_xlim(650, 1.5e7)
+    ax.xaxis.set_major_locator(LogLocator(base=10))
+    ax.xaxis.set_major_formatter(LogFormatterMathtext())
+    ax.xaxis.set_minor_formatter(NullFormatter())
+    ax.set_xlabel("Number of sequences")
     ax.set_yscale("log")
     ax.yaxis.set_minor_locator(LogLocator(base=10, subs=range(2, 10)))
     ax.yaxis.set_minor_formatter(NullFormatter())
-    ax.set_xlabel("Number of taxa, N")
     ax.set_ylim(FLOORS[panel], TOPS[panel])
     if panel != "time":
         ax.yaxis.set_major_locator(FixedLocator([0.01, 0.1, 1, 10, 100, 1000]))
         ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
+    ax.grid(axis="y", which="major", color="#E5E5E5", linewidth=0.5)
+    ax.set_axisbelow(True)
 
 
 def method_legend(fig: plt.Figure, stats: dict) -> None:
     """Adds the methods drawn, as a figure legend above the panel: (figure, stats) -> None."""
     present = [k for k in PLOTTED if any(key == k for _, key in stats)]
-    handles = [
-        Patch(facecolor=SPEC[k]["color"], edgecolor="none", label=SPEC[k]["label"])
-        for k in reversed(present)
-    ]
+    handles = [Line2D([], [], label=SPEC[k]["label"], **method_style(k)) for k in reversed(present)]
     fig.legend(
         handles=handles,
         loc="upper center",
@@ -247,7 +246,7 @@ def method_legend(fig: plt.Figure, stats: dict) -> None:
 
 
 def method_figures(args: Namespace, panel: str, name: str, legend: bool = False) -> None:
-    """Draws one panel of Figs S1-S3, every method's bars at each size:
+    """Draws one panel of Figs S1-S3, every method's line over the sizes:
     (args, panel, name) -> img_dir/<folder>/figS<N><name>.{pdf,svg,png} for each dataset.
 
     name starts with the panel's letter (a_scaling_time); legend adds the methods' legend above.
@@ -261,7 +260,7 @@ def method_figures(args: Namespace, panel: str, name: str, legend: bool = False)
             continue
         fig, ax = plt.subplots(figsize=METHOD_FIGSIZE_LEGEND if legend else METHOD_FIGSIZE)
         fig.subplots_adjust(left=0.09, right=0.985, top=0.80 if legend else 0.95, bottom=0.2)
-        method_bars(ax, stats, panel)
+        method_lines(ax, stats, panel)
         ax.set_ylabel(ylabel)
         if legend:
             method_legend(fig, stats)

@@ -6,8 +6,8 @@ Options: --tables-dir, --img-dir
 Flow:    each dataset (rnasim -> S1, jc10k -> S2, yule10k -> S3)
            |
            v
-         one bar per method and size:
-         the mean, from the panel's floor (log axis); the whisker spans the replicates
+         one line per method over the sizes (log-log axes):
+         the mean at each size; the whisker spans the replicates
 Outputs: img/fig2/figS1b_scaling_rf_error.{pdf,svg,png}, figS2b_..., figS3b_...
 
     pixi run -e paper python -m plots.figS1b_scaling_rf_error
