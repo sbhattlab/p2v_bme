@@ -48,6 +48,7 @@ def main() -> None:
     )  # worst at the bottom of the reading order -> best on top
 
     fig, ax = plt.subplots(figsize=(3.6, 2.9))
+    fig.subplots_adjust(left=0.35, right=0.94, bottom=0.19, top=0.95)
     for y, (key, (m1, lo1, hi1), (m2, lo2, hi2)) in enumerate(rows):
         s = SPEC[key]
         ax.plot([m1, m2], [y, y], color=s["color"], lw=1.6, alpha=0.55, zorder=2)
