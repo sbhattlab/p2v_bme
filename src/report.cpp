@@ -106,8 +106,8 @@ void detail_memory(JsonWriter &w, const Report &run) {
 
 // The substitution model of the distances: its name and parameters.
 // F81, F84 and TN93: the input alignment's base frequencies (A, C, G, T).
-// GTR+GC: the exchangeabilities (AC, AG, AT, CG, CT, GT) and alpha, and how their fit went (the base frequencies
-// pooled over its pairs are the fit's, not the distance's, which uses each pair's own).
+// GTR, GTR+GC: the exchangeabilities (AC, AG, AT, CG, CT, GT), GTR+GC's alpha, and how their fit went (the base
+// frequencies pooled over its pairs are the fit's, not the distance's, which uses each pair's own).
 void substitution_model(JsonWriter &w, const Report &run, const Settings &opt) {
     const SubstitutionModel &m = opt.substitution_model;
     w.key("substitution_model");
@@ -117,10 +117,11 @@ void substitution_model(JsonWriter &w, const Report &run, const Settings &opt) {
         std::vector<double> freqs(m.base_freqs, m.base_freqs + N_BASES);
         w.array_field("base_frequencies", freqs);
     }
-    if (m.model == Model::GTR_GC) {
+    if (m.model == Model::GTR || m.model == Model::GTR_GC) {
         const GtrFit &fit = run.gtr_fit;
         w.array_field("rates", std::vector<double>(m.rates, m.rates + N_GTR_RATES));
-        w.field("alpha", m.alpha);
+        if (m.model == Model::GTR_GC)
+            w.field("alpha", m.alpha);
         w.key("fit");
         w.begin_object();
         w.field("pairs_used", fit.n_pairs);

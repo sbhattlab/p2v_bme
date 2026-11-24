@@ -31,8 +31,8 @@ enum class Model : int32_t { JC69, K80, F81, F84, TN93, LogDet, GTR, GTR_GC };
 // Canonical name: JC69, K80, F81, F84, TN93, LogDet, GTR, GTR+GC.
 const char *model_name(Model model);
 
-// IQ-TREE-style names, case-insensitive: JC69 (JC), K80 (K2P), F81, F84, TN93 (TN), LogDet, GTR+GC.
-// Throws std::runtime_error for an unknown name, for +G (continuous gamma is +GC) and for GTR without +GC.
+// IQ-TREE-style names, case-insensitive: JC69 (JC), K80 (K2P), F81, F84, TN93 (TN), LogDet, GTR, GTR+GC.
+// Throws std::runtime_error for an unknown name and for +G (continuous gamma is +GC).
 Model parse_model(const std::string &name);
 
 // The substitution model of a run: the model and its parameters.

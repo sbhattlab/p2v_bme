@@ -250,6 +250,27 @@ def test_gtr_gc_fit(data, tmp_path):
     assert len(fit["base_frequencies"]) == 4
 
 
+def test_gtr_fit(data, tmp_path):
+    """GTR: the rates alone are fitted on every pair, shown on stdout and in the report (no alpha); on these JC69
+    data, equal rates.
+    """
+    p = run("-s", data / "input.fa", "-m", "GTR", "-a", "cpu", "-p", tmp_path / "out")
+    assert (p.returncode, p.stderr) == (0, "")
+    assert any(
+        line.startswith("p2v-bme: GTR fit on 44850 pairs in ")
+        and ": rates (AC, AG, AT, CG, CT, GT) " in line
+        for line in p.stdout.splitlines()
+    )
+    m = report(tmp_path / "out")["substitution_model"]
+    assert list(m) == ["name", "rates", "fit"]
+    assert m["name"] == "GTR"
+    assert len(m["rates"]) == 6 and sum(m["rates"]) == pytest.approx(6.0)
+    assert all(abs(r - 1.0) < 0.1 for r in m["rates"])
+    fit = m["fit"]
+    assert (fit["pairs_used"], fit["converged"]) == (44850, True)
+    assert fit["iterations"] > 0 and fit["log_likelihood"] < 0
+
+
 def test_random_start_without_branch_lengths(data, tmp_path):
     p = run(
         *(
@@ -502,12 +523,7 @@ ERRORS = {
     "unknown model": (
         [*INPUT, "-m", "XYZ"],
         1,
-        "p2v-bme: error: unknown value for model: 'XYZ' (JC69, K80, F81, F84, TN93, LogDet or GTR+GC)",
-    ),
-    "GTR": (
-        [*INPUT, "-m", "GTR"],
-        1,
-        "p2v-bme: error: model 'GTR' (without gamma) is not available; use GTR+GC",
+        "p2v-bme: error: unknown value for model: 'XYZ' (JC69, K80, F81, F84, TN93, LogDet, GTR or GTR+GC)",
     ),
     "GTR+G": (
         [*INPUT, "-m", "GTR+G"],

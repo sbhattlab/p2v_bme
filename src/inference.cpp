@@ -47,31 +47,34 @@ void check_settings(const Settings &opt) {
     if ((int32_t)opt.substitution_model.model < (int32_t)Model::JC69 ||
         (int32_t)opt.substitution_model.model > (int32_t)Model::GTR_GC)
         throw std::runtime_error("unknown distance model");
-    if (opt.substitution_model.model == Model::GTR_GC) {
+    if (opt.substitution_model.model == Model::GTR || opt.substitution_model.model == Model::GTR_GC) {
         // What the distance needs.
-        // Single precision divides by alpha, so alpha must be a normal float.
+        // GTR+GC: single precision divides by alpha, so alpha must be a normal float.
         // The exchangeabilities are scaled to mean 1 (distance_params), so their sum must be finite.
         const SubstitutionModel &m = opt.substitution_model;
-        if (!(m.alpha >= std::numeric_limits<float>::min() && m.alpha <= std::numeric_limits<float>::max()))
-            throw std::runtime_error("GTR+GC: alpha must be > 0 and finite in single precision");
+        const std::string name = model_name(m.model);
+        if (m.model == Model::GTR_GC &&
+            !(m.alpha >= std::numeric_limits<float>::min() && m.alpha <= std::numeric_limits<float>::max()))
+            throw std::runtime_error(name + ": alpha must be > 0 and finite in single precision");
         double rate_sum = 0.0;
         for (double r : m.rates) {
             if (!(std::isfinite(r) && r > 0.0))
-                throw std::runtime_error("GTR+GC: exchangeabilities must be finite and > 0");
+                throw std::runtime_error(name + ": exchangeabilities must be finite and > 0");
             rate_sum += r;
         }
         if (!std::isfinite(rate_sum))
-            throw std::runtime_error("GTR+GC: the sum of the exchangeabilities must be finite");
+            throw std::runtime_error(name + ": the sum of the exchangeabilities must be finite");
     }
 }
 
-// Warnings for GTR+GC parameters outside the range where single precision was checked against double (config.hpp).
+// Warnings for GTR and GTR+GC parameters outside the range where single precision was checked against double
+// (config.hpp).
 void warn_gtr_precision(const Settings &opt, std::vector<std::string> &warnings) {
     const SubstitutionModel &m = opt.substitution_model;
-    if (m.model != Model::GTR_GC || opt.precision != Precision::Single)
+    if ((m.model != Model::GTR && m.model != Model::GTR_GC) || opt.precision != Precision::Single)
         return;
     const char *consequence = "; single-precision distances may be less accurate (--precision double avoids this)";
-    if (m.alpha < GTR_FLOAT_ALPHA_MIN || m.alpha > GTR_FLOAT_ALPHA_MAX) {
+    if (m.model == Model::GTR_GC && (m.alpha < GTR_FLOAT_ALPHA_MIN || m.alpha > GTR_FLOAT_ALPHA_MAX)) {
         std::ostringstream w;
         w << "GTR+GC: alpha = " << m.alpha << " is outside [" << GTR_FLOAT_ALPHA_MIN << ", " << GTR_FLOAT_ALPHA_MAX
           << "]" << consequence;
@@ -81,7 +84,7 @@ void warn_gtr_precision(const Settings &opt, std::vector<std::string> &warnings)
     const double ratio = *lo_hi.second / *lo_hi.first;
     if (ratio > GTR_FLOAT_RATE_RATIO_MAX) {
         std::ostringstream w;
-        w << "GTR+GC: the largest exchangeability is " << ratio << " times the smallest, above "
+        w << model_name(m.model) << ": the largest exchangeability is " << ratio << " times the smallest, above "
           << GTR_FLOAT_RATE_RATIO_MAX << consequence;
         warnings.push_back(w.str());
     }

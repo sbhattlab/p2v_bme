@@ -205,7 +205,8 @@ TEST(BranchLengths, BmeLengthOfAGivenTree) {
     const int32_t N = 48;
     const Tree tree = random_tree(N, 0.02, 0.2, 21);
     const Alignment aln = simulate_alignment(tree, 4000, truth(), 22);
-    for (Model model : {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC})
+    for (Model model :
+         {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR, Model::GTR_GC})
         for (Precision precision : {Precision::Single, Precision::Double}) {
             Settings opt = cpu_settings(model, precision);
             opt.tree_init = TreeInit::Given;
@@ -232,7 +233,8 @@ TEST(BranchLengthsGpu, BmeLengthOfAGivenTree) {
     const Tree tree = random_tree(N, 0.02, 0.2, 21);
     Alignment aln = simulate_alignment(tree, 4000, truth(), 22);
     punch_holes(aln, 0.05, 23);
-    for (Model model : {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC}) {
+    for (Model model :
+         {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR, Model::GTR_GC}) {
         Settings opt;
         opt.tree_init = TreeInit::Given;
         opt.max_rounds = 0;

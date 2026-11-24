@@ -63,7 +63,8 @@ TEST(Processing, BaseFrequenciesOfTheWholeInput) {
 }
 
 // GTR+GC: the rates and alpha are fitted on the whole input, before the copies are set aside (the same fit with and
-// without dedup), from the run seed's own stream, and set in the model; other models get no fit.
+// without dedup), from the run seed's own stream, and set in the model; GTR: its rates alone, from the same pairs;
+// other models get no fit.
 TEST(Processing, GtrGcFitOfTheWholeInput) {
     p2vbme::SimulationModel m;
     m.rates[1] = 3.0; // transitions AG and CT
@@ -97,9 +98,21 @@ TEST(Processing, GtrGcFitOfTheWholeInput) {
             EXPECT_EQ(gtr.rates[k], whole.rates[k]) << "dedup " << dedup << ", rate " << k;
         }
     }
+    const p2vbme::GtrFit whole_gtr =
+        p2vbme::fit_gtr(aln, n_pairs, p2vbme::derive_seed(seed, p2vbme::SALT_GTR_FIT_PAIRS));
     p2vbme::Alignment a = aln;
-    p2vbme::SubstitutionModel jc;
+    p2vbme::SubstitutionModel plain;
+    plain.model = p2vbme::Model::GTR;
     p2vbme::Deduplication dd;
+    const p2vbme::GtrFit fit = p2vbme::prepare_alignment(a, plain, n_pairs, seed, 0, true, dd);
+    EXPECT_EQ(fit.n_pairs, n_pairs);
+    EXPECT_EQ(plain.alpha, 1.0); // left as it was
+    for (int k = 0; k < p2vbme::N_GTR_RATES; ++k) {
+        EXPECT_EQ(fit.rates[k], whole_gtr.rates[k]) << "rate " << k;
+        EXPECT_EQ(plain.rates[k], whole_gtr.rates[k]) << "rate " << k;
+    }
+    a = aln;
+    p2vbme::SubstitutionModel jc;
     EXPECT_EQ(p2vbme::prepare_alignment(a, jc, n_pairs, seed, 0, true, dd).n_pairs, 0);
     for (double r : jc.rates)
         EXPECT_EQ(r, 1.0);

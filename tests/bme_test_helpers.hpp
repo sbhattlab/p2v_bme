@@ -32,7 +32,7 @@ inline p2vbme::SimulationModel truth() {
     return m;
 }
 
-// The distance model `model`, with truth()'s GTR rates and alpha (for GTR+GC).
+// The distance model `model`, with truth()'s GTR rates (for GTR and GTR+GC) and alpha (for GTR+GC).
 inline p2vbme::SubstitutionModel distance_model(p2vbme::Model model) {
     p2vbme::SubstitutionModel dm;
     dm.model = model;

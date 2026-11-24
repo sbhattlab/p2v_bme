@@ -50,13 +50,14 @@ Model parse_model(const std::string &name) {
         return Model::TN93;
     if (m == "LOGDET")
         return Model::LogDet;
+    if (m == "GTR")
+        return Model::GTR;
     if (m == "GTR+GC")
         return Model::GTR_GC;
     if (m.size() >= 2 && m.compare(m.size() - 2, 2, "+G") == 0)
         throw std::runtime_error("model '" + name + "': continuous gamma is written +GC (e.g. GTR+GC); +G is not used");
-    if (m == "GTR")
-        throw std::runtime_error("model 'GTR' (without gamma) is not available; use GTR+GC");
-    throw std::runtime_error("unknown value for model: '" + name + "' (JC69, K80, F81, F84, TN93, LogDet or GTR+GC)");
+    throw std::runtime_error("unknown value for model: '" + name +
+                             "' (JC69, K80, F81, F84, TN93, LogDet, GTR or GTR+GC)");
 }
 
 void base_frequencies(const uint64_t *packed, int32_t n_taxa, int32_t n_words, double freqs[N_BASES]) {

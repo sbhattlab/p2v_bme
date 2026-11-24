@@ -108,8 +108,8 @@ CommandLine parse_command_line(int argc, char **argv) {
     cli.add_options()
         ("s,alignment", "aligned DNA sequences: FASTA, or .maple (by the file extension)", cxxopts::value<std::string>(),
          "FILE")
-        ("m,model", "substitution model of the distances: JC69, K80, F81, F84, TN93, LogDet or GTR+GC (its rates "
-         "and alpha fitted to the alignment)",
+        ("m,model", "substitution model of the distances: JC69, K80, F81, F84, TN93, LogDet, GTR (its rates fitted "
+         "to the alignment) or GTR+GC (its rates and alpha fitted)",
          cxxopts::value<std::string>(), "MODEL")
         ("p,prefix", "output prefix: <prefix>.nwk, <prefix>.json, <prefix>.log (default: the alignment's file name)",
          cxxopts::value<std::string>(), "STR")
@@ -121,15 +121,15 @@ CommandLine parse_command_line(int argc, char **argv) {
          "(TBE/exact, in %) in <prefix>.support.nwk; or A-B: replicates A to B alone, as -b B with the same --seed "
          "runs them (to spread B over jobs). The replicates' trees go to <prefix>.boottrees (0 = none)",
          cxxopts::value(result.report.bootstrap), "B|A-B")
-        ("seed", "seed of the start tree, of the GTR+GC fit's pairs and of the bootstrap", cxxopts::value(opt.seed),
-         "N")
+        ("seed", "seed of the start tree, of the GTR or GTR+GC fit's pairs and of the bootstrap",
+         cxxopts::value(opt.seed), "N")
         ("q,quiet", "print no progress (it still goes to <prefix>.log; warnings and errors still go to stderr)")
         ("v,version", "print the version")
         ("h,help", "print the core options")
         ("help-all", "print all options");
     cli.add_options("Substitution model")
-        ("gtr-fit-pairs", "GTR+GC: sequence pairs drawn to fit the rates and alpha (all pairs, once each, if there "
-         "are fewer)", cxxopts::value(result.report.gtr_fit_pairs), "N");
+        ("gtr-fit-pairs", "GTR, GTR+GC: sequence pairs drawn to fit the model's parameters (all pairs, once each, if "
+         "there are fewer)", cxxopts::value(result.report.gtr_fit_pairs), "N");
     cli.add_options("Search")
         ("max-rounds", "rounds of the search; 0 = no search (score the start tree)",
          cxxopts::value(opt.max_rounds), "N")

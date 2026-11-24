@@ -4,7 +4,7 @@
  * The run report, <prefix>.json. The tree is in its own file.
  *
  * {
- *   "version", "command_line", "date", "substitution_model" (name and parameters; GTR+GC: its fit),
+ *   "version", "command_line", "date", "substitution_model" (name and parameters; GTR, GTR+GC: the fit),
  *   "bme_length", "rounds_run", "stop_reason", "bootstrap" (with -b only), "time", "warnings",
  *   "details": {                                   with --report-full only
  *     "input", "settings" (as used), "devices",
@@ -38,7 +38,7 @@ struct Report {
     bool dedup = true;       // identical sequences set aside (--no-dedup turns it off)
     bool neg_as_zero = true; // negative branch lengths written as 0 (--no-neg-as-zero turns it off)
     bool full = false;       // --report-full: add "details"
-    int32_t gtr_fit_pairs = DEFAULT_GTR_FIT_PAIRS; // GTR+GC: sequence pairs drawn for the fit (--gtr-fit-pairs)
+    int32_t gtr_fit_pairs = DEFAULT_GTR_FIT_PAIRS; // GTR, GTR+GC: sequence pairs drawn for the fit (--gtr-fit-pairs)
     std::string bootstrap = "0";                   // -b as given: B, A-B, or 0 (none)
     int32_t bootstrap_first = 0;                   // -b: the replicates run, first..last (-b B: 1..B; 0 = none)
     int32_t bootstrap_last = 0;
@@ -49,7 +49,7 @@ struct Report {
     std::vector<std::string> warnings;       // also printed on stderr
     int32_t n_taxa = 0, n_sites = 0;         // as read, before identical sequences are set aside
     int32_t n_identical_removed = 0;         // sequences set aside and put back at the end
-    GtrFit gtr_fit;                          // GTR+GC: the fit of the rates and alpha (n_pairs = 0: none)
+    GtrFit gtr_fit;                          // GTR, GTR+GC: the fit of the rates (and alpha) (n_pairs = 0: none)
     double mean_tbe = 0.0, mean_exact = 0.0; // bootstrap: mean supports of the internal branches, in %
     double time_bootstrap = 0.0;             // seconds
     double time_read = 0.0;                  // seconds

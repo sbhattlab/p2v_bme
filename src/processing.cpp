@@ -1,8 +1,8 @@
 /*
  * processing.cpp
  *
- * The alignment before inference (base frequencies, GTR+GC fit, identical sequences) and the trees around it (a given
- * start tree, the copies joined back).
+ * The alignment before inference (base frequencies, GTR or GTR+GC fit, identical sequences) and the trees around it (a
+ * given start tree, the copies joined back).
  * Tree traversals are iterative so that trees with millions of leaves do not overflow the stack.
  */
 #include <algorithm>
@@ -43,7 +43,7 @@ std::vector<int32_t> internal_postorder(const Tree &tree, int32_t n) {
 
 } // namespace
 
-// ---- The alignment: base frequencies, GTR+GC fit, identical sequences set aside ----
+// ---- The alignment: base frequencies, GTR or GTR+GC fit, identical sequences set aside ----
 
 void count_base_frequencies(const Alignment &aln, SubstitutionModel &model) {
     const double sum = model.base_freqs[0] + model.base_freqs[1] + model.base_freqs[2] + model.base_freqs[3];
@@ -53,12 +53,15 @@ void count_base_frequencies(const Alignment &aln, SubstitutionModel &model) {
 
 GtrFit fit_model_parameters(const Alignment &aln, SubstitutionModel &model, int32_t n_pairs, uint64_t seed,
                             int threads) {
-    if (model.model != Model::GTR_GC)
+    if (model.model != Model::GTR && model.model != Model::GTR_GC)
         return GtrFit{};
-    const GtrFit fit = fit_gtr_gc(aln, n_pairs, derive_seed(seed, SALT_GTR_FIT_PAIRS), threads);
+    const uint64_t fit_seed = derive_seed(seed, SALT_GTR_FIT_PAIRS);
+    const GtrFit fit = model.model == Model::GTR ? fit_gtr(aln, n_pairs, fit_seed, threads)
+                                                 : fit_gtr_gc(aln, n_pairs, fit_seed, threads);
     for (int k = 0; k < N_GTR_RATES; ++k)
         model.rates[k] = fit.rates[k];
-    model.alpha = fit.alpha;
+    if (model.model == Model::GTR_GC)
+        model.alpha = fit.alpha;
     return fit;
 }
 
