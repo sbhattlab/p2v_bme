@@ -34,6 +34,12 @@ data_*/
 *.xz
 .DS_Store
 
+# The example alignments and their true trees (examples/README.md)
+!examples/jc69_1k.fa
+!examples/jc69_1k_true.nwk
+!examples/gtr_1k.fa
+!examples/gtr_1k_true.nwk
+
 # pixi environments
 .pixi/*
 !.pixi/config.toml

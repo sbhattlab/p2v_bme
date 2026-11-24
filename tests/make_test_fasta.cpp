@@ -1,11 +1,14 @@
-// Writes a simulated alignment for the command-line tests: make_test_fasta OUT N SITES SEED writes OUT.fa (JC69
-// along a random tree; sequence names t0..t{N-1}; a few missing sites), OUT_true.nwk (the tree, unrooted, with
-// branch lengths), OUT.maple (the same alignment as differences from t0) and OUT_dups.fa (OUT.fa plus three copies
-// of t1 and two of t2, named t1_copy1 ...).
+// Writes a simulated alignment for the command-line tests and the examples: make_test_fasta OUT N SITES SEED writes
+// OUT.fa (JC69 along a random tree; sequence names t0..t{N-1}; a few missing sites), OUT_true.nwk (the tree,
+// unrooted, with branch lengths), OUT.maple (the same alignment as differences from t0) and OUT_dups.fa (OUT.fa plus
+// three copies of t1 and two of t2, named t1_copy1 ...).
+// Options after SEED simulate GTR+GC instead: --rates AC,AG,AT,CG,CT,GT, --freqs A,C,G,T and --alpha X (as in
+// SimulationModel; unset ones keep JC69's values).
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -15,6 +18,21 @@
 // The missing sites below go in sequences 3 and 4, at site 5 and sites 10-13, and the copies are of t1 and t2.
 static const int32_t MIN_TAXA = 5;
 static const int32_t MIN_SITES = 14;
+static const int N_POSITIONAL_ARGS = 5; // the program, OUT, N, SITES and SEED
+static const char USAGE[] =
+    "usage: make_test_fasta OUT N SITES SEED [--rates AC,AG,AT,CG,CT,GT] [--freqs A,C,G,T] [--alpha X]\n";
+
+// Parses exactly count comma-separated numbers: ("1,4,1", 3) -> {1, 4, 1}; false if there are more, fewer or others.
+static bool parse_numbers(const char *s, double *out, int count) {
+    for (int i = 0; i < count; ++i) {
+        char *end;
+        out[i] = strtod(s, &end);
+        if (end == s || *end != (i + 1 < count ? ',' : '\0'))
+            return false;
+        s = end + 1;
+    }
+    return true;
+}
 
 static bool write_fasta(const std::string &path, const std::vector<std::string> &names,
                         const std::vector<std::string> &seqs) {
@@ -27,8 +45,8 @@ static bool write_fasta(const std::string &path, const std::vector<std::string> 
 }
 
 int main(int argc, char **argv) {
-    if (argc != 5) {
-        fprintf(stderr, "usage: make_test_fasta OUT N SITES SEED\n");
+    if (argc < N_POSITIONAL_ARGS || (argc - N_POSITIONAL_ARGS) % 2 != 0) {
+        fprintf(stderr, "%s", USAGE);
         return 2;
     }
     const std::string out = argv[1];
@@ -38,8 +56,29 @@ int main(int argc, char **argv) {
         fprintf(stderr, "make_test_fasta: N must be >= %d and SITES >= %d\n", MIN_TAXA, MIN_SITES);
         return 2;
     }
+    p2vbme::SimulationModel model;
+    for (int i = N_POSITIONAL_ARGS; i < argc; i += 2) {
+        const std::string option = argv[i];
+        bool ok = false;
+        if (option == "--rates")
+            ok = parse_numbers(argv[i + 1], model.rates, p2vbme::N_GTR_RATES);
+        else if (option == "--freqs")
+            ok = parse_numbers(argv[i + 1], model.freqs, p2vbme::N_BASES);
+        else if (option == "--alpha")
+            ok = parse_numbers(argv[i + 1], &model.alpha, 1);
+        if (!ok) {
+            fprintf(stderr, "make_test_fasta: bad option %s %s\n%s", argv[i], argv[i + 1], USAGE);
+            return 2;
+        }
+    }
     const p2vbme::Tree tree = p2vbme::random_tree(n, 0.01, 0.1, seed);
-    const p2vbme::Alignment aln = p2vbme::simulate_alignment(tree, sites, p2vbme::SimulationModel(), seed + 1);
+    p2vbme::Alignment aln;
+    try {
+        aln = p2vbme::simulate_alignment(tree, sites, model, seed + 1);
+    } catch (const std::invalid_argument &e) {
+        fprintf(stderr, "make_test_fasta: %s\n", e.what());
+        return 2;
+    }
     const char bases[p2vbme::N_BASES] = {'A', 'C', 'G', 'T'};
     std::vector<std::string> seqs(n, std::string(sites, '-'));
     for (int32_t i = 0; i < n; ++i) {
