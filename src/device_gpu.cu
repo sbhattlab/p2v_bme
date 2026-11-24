@@ -47,6 +47,9 @@ std::string gpu_name(int dev) {
     return prop.name;
 }
 
+// Formats CUDA's version numbers (1000 x major + 10 x minor): 12080 -> "12.8".
+std::string cuda_version(int v) { return std::to_string(v / 1000) + "." + std::to_string(v % 1000 / 10); }
+
 [[noreturn]] void cuda_fail(cudaError_t err, const char *call, int line) {
     cudaGetLastError(); // clear a non-sticky error, so it is not reported again by a later call
     int dev = -1;
@@ -1766,6 +1769,25 @@ class GpuWindowKernels final : public WindowKernels {
 
 // ---- The GPU device ----
 
+// Checks that this build has code the GPU can run, its own or PTX it can compile: gpu -> nothing, or throws
+// std::runtime_error naming the GPU (instead of a kernel launch failing later).
+void check_kernel_image(int gpu) {
+    CUDA_CHECK(cudaSetDevice(gpu));
+    cudaFuncAttributes attr;
+    const cudaError_t err = cudaFuncGetAttributes(&attr, reinterpret_cast<const void *>(k_transpose_leaf_block));
+    if (err == cudaErrorNoKernelImageForDevice || err == cudaErrorInvalidDeviceFunction) {
+        cudaGetLastError();
+        cudaDeviceProp prop;
+        CUDA_CHECK(cudaGetDeviceProperties(&prop, gpu));
+        throw std::runtime_error("this p2v-bme has no GPU code for GPU " + std::to_string(gpu) + " (" + prop.name +
+                                 ", compute capability " + std::to_string(prop.major) + "." +
+                                 std::to_string(prop.minor) +
+                                 "); build p2v-bme from source, or run on the CPU (--accelerator cpu)");
+    }
+    if (err != cudaSuccess)
+        cuda_fail(err, "cudaFuncGetAttributes", __LINE__);
+}
+
 class GpuDevice final : public Device {
   public:
     GpuDevice(int gpu, int32_t max_k) : id_(gpu) {
@@ -1775,6 +1797,7 @@ class GpuDevice final : public Device {
         if (gpu < 0 || gpu >= n_visible)
             throw std::runtime_error("GPU " + std::to_string(gpu) + " does not exist (" + std::to_string(n_visible) +
                                      " visible)");
+        check_kernel_image(gpu);
         try {
             ws_.init(gpu, max_k);
         } catch (...) {
@@ -1973,6 +1996,25 @@ int visible_gpus() {
         return 0;
     }
     return n;
+}
+
+std::string no_gpu_reason() {
+    int n = 0;
+    const cudaError_t err = cudaGetDeviceCount(&n);
+    cudaGetLastError();
+    if (err == cudaSuccess && n > 0)
+        return "";
+    int driver = 0, runtime = 0;
+    cudaDriverGetVersion(&driver); // 0 without a driver
+    cudaRuntimeGetVersion(&runtime);
+    if (driver == 0)
+        return "no NVIDIA driver found";
+    if (err == cudaErrorInsufficientDriver)
+        return "the NVIDIA driver (CUDA " + cuda_version(driver) + ") is too old for this p2v-bme (CUDA " +
+               cuda_version(runtime) + ")";
+    if (err == cudaSuccess || err == cudaErrorNoDevice)
+        return "no GPU found";
+    return std::string("CUDA could not start (") + cudaGetErrorString(err) + ")";
 }
 
 Devices make_devices(const std::vector<int> &gpu_ids) {

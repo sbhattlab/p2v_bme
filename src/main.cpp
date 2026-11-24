@@ -121,11 +121,11 @@ int main(int argc, char **argv) {
 
         const p2vbme::Accelerator accelerator = p2vbme::resolve_accelerator(opt.accelerator, opt.precision);
         const bool on_gpu = accelerator == p2vbme::Accelerator::Gpu;
-        // Device: if auto and no GPU found, indicate what precision is used for CPU.
+        // Device: if auto and the CPU runs, say why (double precision, or why no GPU is visible).
         if (opt.accelerator == p2vbme::Accelerator::Auto && !on_gpu) {
-            const std::string note =
-                std::string(opt.precision == p2vbme::Precision::Double ? "double precision" : "no GPU found") +
-                ": running on the CPU";
+            const std::string note = (opt.precision == p2vbme::Precision::Double ? std::string("double precision")
+                                                                                 : p2vbme::no_gpu_reason()) +
+                                     ": running on the CPU";
             run.warnings.push_back(note);
             std::cerr << "p2v-bme: warning: " << note << '\n';
         }
