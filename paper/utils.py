@@ -6,7 +6,7 @@ import re
 import shutil
 import subprocess
 
-from argparse import ArgumentParser, RawDescriptionHelpFormatter
+from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
 from pathlib import Path
 
 import numpy as np
@@ -37,6 +37,27 @@ def parse_common_args(doc: str, devices: bool = True) -> ArgumentParser:
         parser.add_argument("--accelerator", default="auto", help="p2v-bme -a (default: auto)")
         parser.add_argument("--devices", default="auto", help="p2v-bme -d (default: auto)")
     return parser
+
+
+def search_options(args: Namespace, alignment: Path, model: str, dedup: bool = False) -> list[str]:
+    """Starts the options of a p2v-bme search:
+    (args, alignment, model) -> [-s alignment, -m model, --no-dedup, -a, -d].
+
+    Without dedup, as the paper's runs except SILVA's:
+    every sequence is searched, also the third and later identical copies.
+    """
+    no_dedup = [] if dedup else ["--no-dedup"]
+    return [
+        "-s",
+        str(alignment),
+        "-m",
+        model,
+        *no_dedup,
+        "-a",
+        args.accelerator,
+        "-d",
+        args.devices,
+    ]
 
 
 def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> dict:

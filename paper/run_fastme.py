@@ -57,6 +57,7 @@ from paper.utils import (
     parse_common_args,
     read_json,
     run_p2vbme,
+    search_options,
     supports,
     with_edge_lengths,
     write_json,
@@ -205,17 +206,7 @@ def score_case(
             [args.bme_scores, "-s", str(fasta), "-m", MODEL, "--phylip", str(phylip)],
             check=True,
         )
-    p2v = [
-        *args.p2vbme_options,
-        "-s",
-        str(fasta),
-        "-m",
-        MODEL,
-        "--seed",
-        str(seed),
-        "--report-full",
-        "--no-dedup",
-    ]
+    p2v = [*search_options(args, fasta, MODEL), "--seed", str(seed), "--report-full"]
     ow = args.overwrite
 
     def ours(arm: str, start: Path | None) -> tuple[Path, dict]:
@@ -323,7 +314,6 @@ def main() -> None:
     parser.add_argument("--bme-scores", default=BME_SCORES)
     parser.add_argument("--fastme", default=FASTME)
     args = parser.parse_args()
-    args.p2vbme_options = ["-a", args.accelerator, "-d", args.devices]
 
     out_dir = args.results_dir / "fastme"
     for tag in args.sets:

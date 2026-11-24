@@ -55,6 +55,7 @@ import re
 import shutil
 import subprocess
 
+from argparse import Namespace
 from collections.abc import Iterator
 from multiprocessing import Pool
 from pathlib import Path
@@ -68,6 +69,7 @@ from paper.utils import (
     read_json,
     read_tree,
     run_p2vbme,
+    search_options,
     span,
     supports,
     write_json,
@@ -903,12 +905,12 @@ def leaveout_summary(name: str, n_leaves: int, b: dict[str, np.ndarray]) -> dict
 def leaveout(
     out: Path,
     exe: str,
-    p2v: list[str],
+    args: Namespace,
     seed: int,
     selected: list[str] | None,
     overwrite: bool,
 ) -> None:
-    """Runs the leave-out series: (results, p2v-bme options) -> leaveout/<run>/summary.json per run.
+    """Runs the leave-out series: (results, options) -> leaveout/<run>/summary.json per run.
 
     Each run searches the distinct sequences it keeps
     (GTR+GC fitted to them; repeat searches: another seed), and every branch of the tree,
@@ -940,13 +942,10 @@ def leaveout(
             fasta = d / "subset.fa"
             write_subset(out / "distinct.fa", subset, fasta)
         options = [
-            "-s",
-            str(fasta),
-            "-m",
-            "GTR+GC",
+            *search_options(args, fasta, "GTR+GC", dedup=True),
             "--seed",
             str(spec.get("seed", seed)),
-            *p2v,
+            "--report-full",
         ]
         run_p2vbme(exe, options, d / "tree", overwrite)
         if not spec.get("all"):
@@ -1131,7 +1130,7 @@ def score(
 def gtdb(
     out: Path,
     exe: str,
-    p2v: list[str],
+    args: Namespace,
     seed: int,
     arb_dump: Path | None,
     fasttree: str | None,
@@ -1153,7 +1152,12 @@ def gtdb(
         gtdb_sequences(arb_dump, set(fasta_names(out / "distinct.fa")), g)
     run_p2vbme(
         exe,
-        ["-s", str(g / "gtdb.fa"), "-m", "GTR+GC", "--seed", str(seed), *p2v],
+        [
+            *search_options(args, g / "gtdb.fa", "GTR+GC", dedup=True),
+            "--seed",
+            str(seed),
+            "--report-full",
+        ],
         g / "ours",
         ow,
     )
@@ -1244,15 +1248,11 @@ def main() -> None:
     args = parser.parse_args()
     args.results_dir = args.results_dir / "silva"
     out, exe, ow = args.results_dir, args.p2vbme, args.overwrite
-    p2v = ["-a", args.accelerator, "-d", args.devices, "--report-full"]
     run_args = [
-        "-s",
-        str(out / "searched.fa"),
-        "-m",
-        "GTR+GC",
+        *search_options(args, out / "searched.fa", "GTR+GC", dedup=True),
         "--seed",
         str(args.seed),
-        *p2v,
+        "--report-full",
     ]
     for step in args.steps:
         if step == "distinct":
@@ -1280,9 +1280,9 @@ def main() -> None:
         elif step == "records":
             records(out, args.bootstrap, args.workers)
         elif step == "leaveout":
-            leaveout(out, exe, p2v, args.seed, args.leaveout_runs, ow)
+            leaveout(out, exe, args, args.seed, args.leaveout_runs, ow)
         elif step == "gtdb":
-            gtdb(out, exe, p2v, args.seed, args.arb_dump, args.fasttree, ow)
+            gtdb(out, exe, args, args.seed, args.arb_dump, args.fasttree, ow)
 
 
 if __name__ == "__main__":

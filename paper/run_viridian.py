@@ -55,6 +55,7 @@ from paper.utils import (
     read_json,
     read_tree,
     run_p2vbme,
+    search_options,
     span,
     supports,
     write_json,
@@ -771,20 +772,7 @@ def main() -> None:
     args = parser.parse_args()
     args.results_dir = args.results_dir / "viridian"
     out, exe, ow = args.results_dir, args.p2vbme, args.overwrite
-    # Without dedup, as the paper's runs:
-    # every genome is searched, also the third and later identical copies
-    run = [
-        "-s",
-        str(args.alignment),
-        "-m",
-        "JC69",
-        "--no-dedup",
-        "-a",
-        args.accelerator,
-        "-d",
-        args.devices,
-        "--report-full",
-    ]
+    run = [*search_options(args, args.alignment, "JC69"), "--report-full"]
     boots = [out / f"boot/rep{r:03d}.boottrees" for r in range(1, args.bootstrap + 1)]
     repeats = [out / f"repeat/seed{s}.nwk" for s in span(args.repeats)]
     for step in args.steps:

@@ -56,6 +56,7 @@ from paper.utils import (
     pct,
     read_json,
     run_p2vbme,
+    search_options,
     span,
     supports,
 )
@@ -178,19 +179,8 @@ def infer(args: Namespace, tag: str) -> None:
         raise FileNotFoundError(
             f"{alignment} is missing: run simulate_data.py or download_data.py first"
         )
-    # Without dedup, as the paper's runs:
-    # the replicate trees then hold every sequence, as the reference does
-    common = [
-        "-s",
-        str(alignment),
-        "-m",
-        MODEL,
-        "--no-dedup",
-        "-a",
-        args.accelerator,
-        "-d",
-        args.devices,
-    ]
+    # Without dedup, the replicate trees hold every sequence, as the reference does
+    common = search_options(args, alignment, MODEL)
     for step, runs in run_names(args).items():
         if step not in args.steps:
             continue

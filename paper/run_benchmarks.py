@@ -55,6 +55,7 @@ from paper.utils import (
     parse_common_args,
     read_json,
     run_p2vbme,
+    search_options,
     supports,
     write_json,
 )
@@ -223,19 +224,13 @@ def infer(args: Namespace, r: Run) -> dict:
         raise FileNotFoundError(
             f"{alignment} is missing: run simulate_data.py or download_data.py first"
         )
-    # Without dedup, as the paper's runs:
-    # every sequence is searched, also the third and later identical copies
     options = [
-        "-s",
-        str(alignment),
-        "-m",
-        MODEL,
-        "--no-dedup",
+        *search_options(args, alignment, MODEL),
         "--seed",
         str(r.seed),
         "--report-full",
+        *r.options,
     ]
-    options += ["-a", args.accelerator, "-d", args.devices, *r.options]
     return run_p2vbme(args.p2vbme, options, prefix_of(args, r), args.overwrite)
 
 
