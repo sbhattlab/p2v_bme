@@ -15,16 +15,17 @@ from the system.
 
 | Environment | What for                                                                                            | Tasks                                                                         |
 | ----------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `default`   | building and testing p2v-bme: cxxopts, GoogleTest, Google Benchmark, Python, pytest, pre-commit, ty | `build`, `test`, `test-asan`, `test-python`                                   |
+| `default`   | building and testing p2v-bme: cxxopts, GoogleTest, Google Benchmark, Python, pytest, pre-commit, ty | `build`, `test`, `test-asan`, `test-python`, `make_test_fasta`                |
 | `paper`     | the paper's scripts and plots: NumPy, pandas, Matplotlib, FastME, FastTree, VeryFastTree            | `check-paper` and one task per script ([paper/README.md](../paper/README.md)) |
 
-| Task                            | Runs                                                                                                                 |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `pixi run build`                | `cmake --preset default` and `cmake --build --preset default -j 8`: `build/p2v-bme`, the tests and the paper's tools |
-| `pixi run test`                 | `build`, then `ctest --preset default` (8 tests at a time)                                                           |
-| `pixi run test-asan`            | the CPU tests under AddressSanitizer and UndefinedBehaviorSanitizer, in `build-asan/`                                |
-| `pixi run test-python`          | `build`, then the Python tests (`tests/python`, pytest); extra arguments go to pytest, e.g. `-m "not gpu"`           |
-| `pixi run -e paper check-paper` | `build`, then every paper script and plot on tiny inputs, on the CPU                                                 |
+| Task                            | Runs                                                                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `pixi run build`                | `cmake --preset default` and `cmake --build --preset default -j 8`: `build/p2v-bme`, the tests and the paper's tools                  |
+| `pixi run test`                 | `build`, then `ctest --preset default` (8 tests at a time)                                                                            |
+| `pixi run test-asan`            | the CPU tests under AddressSanitizer and UndefinedBehaviorSanitizer, in `build-asan/`                                                 |
+| `pixi run test-python`          | `build`, then the Python tests (`tests/python`, pytest); extra arguments go to pytest, e.g. `-m "not gpu"`                            |
+| `pixi run make_test_fasta`      | `build`, then `build/make_test_fasta`: a simulated alignment and its true tree ([examples](../examples/README.md#how-they-were-made)) |
+| `pixi run -e paper check-paper` | `build`, then every paper script and plot on tiny inputs, on the CPU                                                                  |
 
 ## CMake
 
@@ -62,8 +63,8 @@ all three.
   them.
 - **Command line:** `tests/python` (pytest): the options, the outputs and the examples (`examples/`). ctest runs them as
   `cli` (CPU) and, in CUDA builds, `cli_gpu` (the `gpu` marker); `pixi run test-python` runs them directly.
-- **Inputs:** the tests simulate their alignments; `build/make_test_fasta` (`tests/make_test_fasta.cpp`) writes one with
-  its true tree ([examples/README.md](../examples/README.md#how-they-were-made)).
+- **Inputs:** the tests simulate their alignments; `pixi run make_test_fasta` (`tests/make_test_fasta.cpp`) writes one
+  with its true tree ([examples/README.md](../examples/README.md#how-they-were-made)).
 - **The reference library** (`src/reference`) computes the method on a stored distance matrix, as an oracle for small
   trees in the tests; p2v-bme does not use it.
 

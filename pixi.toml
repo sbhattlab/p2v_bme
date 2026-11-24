@@ -25,6 +25,9 @@ test = { cmd = "ctest --preset default", depends-on = ["build"] }
 test-asan = "cmake --preset asan && cmake --build --preset asan -j 8 && ctest --preset asan"
 # Only the Python tests (tests/python, with pytest); extra arguments go to pytest, e.g. -m "not gpu"
 test-python = { cmd = "python -m pytest tests/python", depends-on = ["build"] }
+# A simulated alignment and its true tree (tests/make_test_fasta.cpp), e.g. the examples (examples/README.md):
+#   pixi run make_test_fasta examples/jc69_1k 1000 1500 1
+make_test_fasta = { cmd = "build/make_test_fasta", depends-on = ["build"] }
 
 # ---- paper environment ---------------------------------------------------------------------------------
 # Python for the paper's scripts (paper/) and the plots (plots/), plus the comparison programs they run.
