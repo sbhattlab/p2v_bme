@@ -51,11 +51,13 @@ read. `--sources` picks the datasets; `--sources silva144-arb` adds SILVA's ARB 
 - **Command:** `pixi run -e paper simulate_data`
 - **Requires:** `pixi run build` (`sim_jc69_fast`); `download_data --sources rnasim`
 - **Inputs:** `data/datasets/rnasim/aln_dna.fa.xz`, `true_topo.tree`
-- **Outputs:** `data/datasets/<set>/<n>/rep<r>.fa`, `rep<r>.true.nwk`, `rep<r>.random_start.nwk`
+- **Outputs:** `data/datasets/<set>/<n>/rep<r>.fa`, `rep<r>.true.nwk`, `rep<r>.random_start.nwk`; the same files in
+  `data/datasets/fastme/<set>/<n>/`
 
 The simulated sets of the scaling, comparison, sequence-length, representative, FastME and calibration tables, with the
 paper's generators and seeds: RNASim subsets (`rnasim`), JC69 sequences on their trees (`jc10k`, `jc1k`, `jc100k`,
-`jc1000k`) and on Yule trees (`yule10k`), from 1,000 to 10^7 sequences (`--sets`, `--sizes`, `--replicates`).
+`jc1000k`) and on Yule trees (`yule10k`), from 1,000 to 10^7 sequences (`--sets`, `--sizes`, `--replicates`). The FastME
+comparison's sets (`fastme`) are subsets of the 10^4-sequence `jc10k` and `rnasim` sets, as the paper's.
 
 ## Benchmarks
 
