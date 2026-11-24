@@ -74,12 +74,13 @@ The repository has two small simulated alignments with their true trees ([exampl
 the repository root:
 
 ```bash
-build/p2v-bme -s examples/jc69_1k.fa -m JC69 -p jc69_1k -a gpu    # on the GPU
-build/p2v-bme -s examples/jc69_1k.fa -m JC69 -p jc69_1k -a cpu    # on the CPU
+build/p2v-bme -s examples/jc69_1k.fa -m JC69 -p jc69_1k_gpu -a gpu    # on the GPU
+build/p2v-bme -s examples/jc69_1k.fa -m JC69 -p jc69_1k_cpu -a cpu    # on the CPU
 ```
 
-Each writes `jc69_1k.nwk`, the tree, `jc69_1k.json`, the report of the run, and `jc69_1k.log`, what it printed. Without
-`-a`, p2v-bme uses the GPU if it finds one, else the CPU. With 10 bootstrap replicates:
+Each writes `<prefix>.nwk`, the tree, `<prefix>.json`, the report of the run, and `<prefix>.log`, what it printed; if
+they exist, it stops (`--overwrite` replaces them). Without `-a`, p2v-bme uses the GPU if it finds one, else the CPU.
+With 10 bootstrap replicates:
 
 ```bash
 build/p2v-bme -s examples/jc69_1k.fa -m JC69 -p jc69_1k_b10 -b 10

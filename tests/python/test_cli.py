@@ -134,10 +134,41 @@ def test_log(data, tmp_path):
     *progress, last = p.stdout.splitlines(keepends=True)
     assert p.stderr.startswith("p2v-bme: warning:")
     assert log == "".join(progress) + p.stderr + last
-    q = run(*args, "-q")
+    q = run(*args, "-q", "--overwrite")
     assert (q.returncode, q.stdout, q.stderr) == (0, "", p.stderr)
     times = re.compile(r" *[0-9]+\.[0-9]+")
     assert times.sub("#", (tmp_path / "out.log").read_text()) == times.sub("#", log)
+
+
+def test_previous_run(data, tmp_path):
+    """
+    A run whose outputs exist stops before it starts and changes nothing; --overwrite replaces them.
+    A failed run's log alone does not stop the next run. The same with --supports.
+    """
+    out = tmp_path / "out"
+    common = ["-m", "JC69", "-a", "cpu", "-q", "-p", out]
+    assert run("-s", tmp_path / "missing.fa", *common).returncode == 1
+    args = ["-s", data / "input.fa", *common]
+    assert run(*args).returncode == 0  # after the failed run's log
+    before = {f.name: f.read_bytes() for f in tmp_path.iterdir()}
+    p = run(*args, "--seed", "2")
+    message = (
+        "exists: --overwrite replaces a previous run's outputs, or choose another -p\n"
+    )
+    assert (p.returncode, p.stdout, p.stderr) == (
+        1,
+        "",
+        f"p2v-bme: error: {out}.nwk {message}",
+    )
+    assert {f.name: f.read_bytes() for f in tmp_path.iterdir()} == before
+    assert run(*args, "--seed", "2", "--overwrite").returncode == 0
+    assert "--overwrite" in report(out)["command_line"]
+    # --supports writes <prefix>.support.nwk (new here) and <prefix>.json
+    supports = ["-t", f"{out}.nwk", "--supports", data / "input_true.nwk", "-p", out]
+    p = run(*supports)
+    assert (p.returncode, p.stderr) == (1, f"p2v-bme: error: {out}.json {message}")
+    assert run(*supports, "--overwrite").returncode == 0
+    assert "supports" in report(out)
 
 
 def test_options_reach_the_run(data, tmp_path):

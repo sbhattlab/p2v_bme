@@ -64,6 +64,7 @@ to its nearest sampled sequence (p-distance). Alignments of fewer than 16 sequen
 | `--no-branch-lengths` |         | no BME branch lengths                                |
 | `--no-neg-as-zero`    |         | keep negative branch lengths (default: written as 0) |
 | `--report-full`       |         | add the run's details to the report                  |
+| `--overwrite`         |         | replace a previous run's outputs (default: stop)     |
 
 ## Bootstrap options
 
