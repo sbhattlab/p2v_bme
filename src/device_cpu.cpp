@@ -29,6 +29,7 @@
 #include "device.hpp"
 #include "distances.hpp"
 #include "search.hpp"
+#include "threads.hpp"
 
 namespace p2vbme {
 
@@ -49,12 +50,6 @@ template <class T> T row_distance(const uint64_t *a, const uint64_t *b, int32_t 
     }
     const PairCounts c = count_pair(a, b, W);
     return pair_distance<T>(dm, c.n);
-}
-
-// Threads for a step of `items` independent items: at most `threads`, and at least `per_thread` items each (a small
-// window does not pay for a large team).
-inline int threads_for(int threads, int64_t items, int64_t per_thread) {
-    return (int)std::max<int64_t>(1, std::min<int64_t>(threads, items / per_thread));
 }
 
 // ---- Window solve: the kernels of solve_window ----

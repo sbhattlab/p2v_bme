@@ -18,6 +18,7 @@
 #include <string>
 
 #include "random.hpp"
+#include "threads.hpp"
 #include "timing.hpp"
 
 namespace p2vbme {
@@ -276,12 +277,6 @@ double pair_solve(const CellModel *md, const double *c, double *d_io) {
 
 // ---- The objective and its search ---------------------------------------------------------------------------
 
-// Threads for a loop over `items` pairs: at most `threads`, and at least MIN_PAIRS_PER_THREAD pairs each (as
-// device_cpu.cpp's threads_for).
-int threads_for(int threads, int64_t items) {
-    return (int)std::max<int64_t>(1, std::min<int64_t>(threads, items / MIN_PAIRS_PER_THREAD));
-}
-
 // The pairs' data: their ten cell counts, their current distances and a buffer for their log-likelihoods, and the
 // threads the fit may use.
 struct Pairs {
@@ -300,7 +295,7 @@ double objective(const double theta[N_PARAMS], const double pi[N_BASES], Pairs &
     build_model(theta, pi, &md);
     const double *all_cells = pairs.cells.data();
     double *dist = pairs.dist.data(), *ll = pairs.ll.data();
-#pragma omp parallel for schedule(static) num_threads(threads_for(pairs.threads, n))
+#pragma omp parallel for schedule(static) num_threads(threads_for(pairs.threads, n, MIN_PAIRS_PER_THREAD))
     for (int32_t p = 0; p < n; ++p) {
         const double *c = &all_cells[(size_t)p * N_CELLS];
         ll[p] = solve ? pair_solve(&md, c, &dist[p]) : pair_loglik(&md, c, dist[p]);
@@ -630,7 +625,8 @@ GtrFit fit_alignment(const Alignment &aln, Model model, int32_t n_pairs, uint64_
     const size_t row_words = (size_t)N_PLANES * aln.n_words;
     std::vector<PairCounts> tables(pairs.size());
     const int max_threads = threads > 0 ? threads : omp_get_max_threads();
-#pragma omp parallel for schedule(static) num_threads(threads_for(max_threads, (int64_t)pairs.size()))
+    const int n_threads = threads_for(max_threads, (int64_t)pairs.size(), MIN_PAIRS_PER_THREAD);
+#pragma omp parallel for schedule(static) num_threads(n_threads)
     for (int64_t m = 0; m < (int64_t)pairs.size(); ++m)
         tables[m] = count_pair(&aln.packed[(size_t)pairs[m].first * row_words],
                                &aln.packed[(size_t)pairs[m].second * row_words], aln.n_words);
