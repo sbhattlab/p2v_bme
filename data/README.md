@@ -42,3 +42,6 @@ data/
 
 `run_benchmarks`' runs are in `<experiment>/<set>/<n>/`, named `rep<r>_seed<s>` (a dataset replicate and a seed), with
 the tree (`.nwk`), the report (`.json`) and their scores; each script's `--help` lists its files.
+
+`baselines/PROVENANCE.json`, written when recorded runs are imported, names the commit and paths of the private
+repository they come from: it is internal, leave it out of any published data.

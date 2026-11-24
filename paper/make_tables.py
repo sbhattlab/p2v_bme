@@ -288,7 +288,7 @@ def ours_and_dipper(ours: str, dipper: str) -> str:
 
 def dipper_runs(results: Path) -> list[dict]:
     """Reads DIPPER's runs (one GPU each): results -> records with tag, N, methods."""
-    return read_jsonl(results / "baselines" / "dipper_h200" / "runs.jsonl")
+    return read_jsonl(results / "baselines" / "dipper" / "runs.jsonl")
 
 
 def default_runs(results: Path) -> list[dict]:
@@ -296,8 +296,8 @@ def default_runs(results: Path) -> list[dict]:
 
     Runs started from our tree (method names ending in -fromP2V) are left out.
     """
-    records = read_jsonl(results / "baselines" / "pasta_default" / "runs.jsonl")
-    for path in sorted((results / "baselines" / "ml_default_100k").glob("*.json")):
+    records = read_jsonl(results / "baselines" / "default" / "runs.jsonl")
+    for path in sorted((results / "baselines" / "default_100k").glob("*.json")):
         records.append(loads(path.read_text()))
     return [r for r in records if r["method"] in ALIAS]
 
@@ -539,7 +539,7 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
         time_s["P2V"][r["n"]].append(r["time_s"])
         rf_pct["P2V"][r["n"]].append(r["rf_pct"])
     cpu = []
-    for path in (results / "baselines" / "yule_default").glob("*.json"):
+    for path in (results / "baselines" / "default_yule").glob("*.json"):
         d = loads(path.read_text())
         time_s[ALIAS[d["method"]]][d["N"]].append(d["time"])
         rf_pct[ALIAS[d["method"]]][d["N"]].append(d["rf_pct"])
@@ -612,7 +612,9 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
 def table_maple(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S3 (maple) and Fig. 2c,d's data: results -> {maple.tex, maple.tsv}."""
     ours = our_runs(results, "pandemic")
-    record = read_record(results / "baselines" / "cmaple_benchmark_summary.json")
+    record = read_record(
+        results / "baselines" / "maple" / "cmaple_benchmark_summary.json"
+    )
     rows: list[dict] = []
     for index, case in enumerate(record["simulated"]):
         n, length = case["n_taxa"], case["branch_length"]
@@ -664,7 +666,7 @@ def table_maple(results: Path) -> dict[str, list[dict] | str]:
                     gpu_model="",
                     representative_cap="",
                     exact_check_eta="",
-                    source_path="baselines/cmaple_benchmark_summary.json",
+                    source_path="baselines/maple/cmaple_benchmark_summary.json",
                     source_key=f"simulated[{index}].{key}",
                     timing_scope=(
                         "archived internal Runtime"
@@ -892,7 +894,7 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
                 if key == "DIPPER-GPU":
                     sources = [
                         (
-                            f"baselines/dipper_h200/runs.jsonl[{tag},N=10000,rep={d['rep']}]",
+                            f"baselines/dipper/runs.jsonl[{tag},N=10000,rep={d['rep']}]",
                             d,
                         )
                         for d in dipper
@@ -902,8 +904,8 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
                     sources = [
                         (str(p.relative_to(results)), loads(p.read_text()))
                         for p in sorted(
-                            (results / "baselines").glob(
-                                f"cpu_rand_{tag}_N10000_rep*.json"
+                            (results / "baselines" / "random_start").glob(
+                                f"{tag}_N10000_rep*.json"
                             )
                         )
                     ]
@@ -1097,11 +1099,11 @@ def table_scaling_methods(results: Path) -> dict[str, list[dict] | str]:
                 rf_pct=m["rf_pct"],
                 host_memory_mb=m["peak_ram_mb"],
                 gpu_memory_mb=m.get("gpu_vram_mb", ""),
-                source="baselines/dipper_h200/runs.jsonl",
+                source="baselines/dipper/runs.jsonl",
             )
         )
     cpu = optional(default_runs, results)
-    for path in sorted((results / "baselines" / "yule_default").glob("*.json")):
+    for path in sorted((results / "baselines" / "default_yule").glob("*.json")):
         cpu.append(dict(loads(path.read_text()), tag="yule10k"))
     for r in cpu:
         rows.append(

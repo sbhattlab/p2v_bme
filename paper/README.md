@@ -79,11 +79,12 @@ seeds.
   for `--run dipper` the DIPPER program (`--dipper`; not in the pixi environments)
 - **Inputs:** for `--run`, the simulated sets and `data/datasets/cmaple/simulated/`; for `--source`, the recorded runs
   (a git repository, with `--ref`, or a folder)
-- **Outputs:** `data/results/baselines/` (`PROVENANCE.json`: source, commit and checksum of each imported file)
+- **Outputs:** `data/results/baselines/{default,default_100k,default_yule,random_start,dipper,maple}/`; with `--source`,
+  `PROVENANCE.json` (commit, and each imported file's recorded path and checksum; internal, not for publication)
 
 FastTree, VeryFastTree, FastME, DIPPER, MAPLE and CMAPLE, each tree scored against the true tree. `--run` takes the
 families `default`, `random_start`, `dipper` and `maple`. The programs do not depend on p2v-bme, so recorded runs can be
-imported unchanged instead (`--source`), in the same layout.
+imported unchanged instead (`--source`), in the same layout. One of `--run` and `--source` is needed.
 
 ## FastME comparison
 
