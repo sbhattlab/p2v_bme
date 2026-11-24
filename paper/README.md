@@ -57,7 +57,8 @@ read. `--sources` picks the datasets; `--sources silva144-arb` adds SILVA's ARB 
 The simulated sets of the scaling, comparison, sequence-length, representative, FastME and calibration tables, with the
 paper's generators and seeds: RNASim subsets (`rnasim`), JC69 sequences on their trees (`jc10k`, `jc1k`, `jc100k`,
 `jc1000k`) and on Yule trees (`yule10k`), from 1,000 to 10^7 sequences (`--sets`, `--sizes`, `--replicates`). The FastME
-comparison's sets (`fastme`) are subsets of the 10^4-sequence `jc10k` and `rnasim` sets, as the paper's.
+comparison's sets (`fastme`) are subsets, as the paper's: `jc10k` and `rnasim` of the 10^4-sequence sets, `jc1m` and
+`rna1m` of the 10^6-sequence sets.
 
 ## Benchmarks
 
@@ -88,12 +89,11 @@ imported unchanged instead (`--source`), in the same layout.
 
 - **Command:** `pixi run -e paper run_fastme`
 - **Requires:** `pixi run build` (`p2v-bme`, `bme_scores`); `simulate_data --sets fastme`
-- **Inputs:** `data/datasets/fastme/{jc10k,rnasim}/<n>/rep<r>.fa`, `rep<r>.true.nwk`, `rep<r>.random_start.nwk`
+- **Inputs:** `data/datasets/fastme/<set>/<n>/rep<r>.fa`, `rep<r>.true.nwk`, `rep<r>.random_start.nwk`
 - **Outputs:** `data/results/fastme/<set>/<n>/rep<r>_*`, `rep<r>.case.json`; `data/results/fastme/cases.jsonl`
 
 p2v-bme and FastME on the same JC69 distance matrix, from their own and from the same random start trees, every tree
-rescored exactly. The paper's subsets of the 10^6-sequence sets (`jc1m`, `rna1m`) are not made yet, so `--sets` leaves
-them out by default.
+rescored exactly.
 
 ## Bootstrap calibration
 

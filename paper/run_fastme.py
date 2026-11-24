@@ -15,8 +15,7 @@ start is given uniform lengths that add up to its exact BME length (else a bette
 Inputs:  data/datasets/fastme/<set>/<n>/rep<r>.fa, rep<r>.true.nwk, rep<r>.random_start.nwk
                                                                      (simulate_data.py --sets fastme)
          sets jc10k, rnasim (1,000-10,000 sequences, 5 replicates: subsets of the 10^4-sequence sets); jc1m, rna1m
-         (random subsets of the 10^6-sequence alignments: 100 replicates at 1,000 and 2,000, 20 at 5,000; no script
-         makes them yet, so they are not run by default)
+         (random subsets of the 10^6-sequence alignments: 100 replicates at 1,000 and 2,000, 20 at 5,000)
 Options: --sets, --sizes, --replicates, --arms, --accelerator, --devices, --keep-matrix, --overwrite, paths
 Flow:    each set x size x replicate
            |
@@ -65,8 +64,6 @@ CASES = {
     "jc1m": {1000: 100, 2000: 100, 5000: 20},
     "rna1m": {1000: 100, 2000: 100, 5000: 20},
 }
-# The sets simulate_data makes (--sets fastme); jc1m, rna1m: not yet
-DEFAULT_SETS = ("jc10k", "rnasim")
 RAND_MAX_N = 5000  # the random-start arm only up to this size (FastME from a random tree takes hours above)
 ARMS = ("sample", "rand", "polish")
 MODEL = "JC69"
@@ -300,8 +297,8 @@ def main() -> None:
         "--sets",
         nargs="+",
         choices=list(CASES),
-        default=list(DEFAULT_SETS),
-        help=f"datasets (default: {', '.join(DEFAULT_SETS)}; no script makes the others yet)",
+        default=list(CASES),
+        help="datasets (default: all four)",
     )
     parser.add_argument(
         "--sizes", nargs="+", type=int, help="sequences (default: each set's sizes)"

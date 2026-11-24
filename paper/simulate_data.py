@@ -1,8 +1,7 @@
 """Simulated datasets of the paper: RNASim subsets, JC69 alignments on their trees and on Yule trees, expansions.
 
 Every simulated input of the scaling, comparator, sequence-length, representative, FastME and calibration tables and
-figures, with the paper's generators and seeds, so that the alignments equal the paper's (except the FastME
-comparison's subsets of the 10^6-sequence sets, whose subset seed was not recorded).
+figures, with the paper's generators and seeds, so that the alignments equal the paper's.
 
 Inputs:  data/datasets/rnasim/{true_topo.tree, aln_dna.fa.xz}      (download_data.py; RNASim's 200,000 sequences)
 Options: --sets, --sizes, --replicates, --datasets-dir, --sim-jc69, --expansion-base, --fastme-base, --overwrite
@@ -21,9 +20,10 @@ Flow:    each set x size x replicate r
            v
          the random start tree the comparison programs started from (uniform; seeds as the paper's runs)
 
-         fastme: the FastME comparison's sets, n sequences of the 10^4-sequence jc10k or rnasim set of replicate r,
-         drawn by numpy default_rng(r + 1) and kept in order, with that set's true tree restricted to them; random
-         start tree uniform, seed r + 1
+         fastme: the FastME comparison's sets, n sequences kept in order with their true tree restricted to them, and
+         a uniform random start tree (seed r + 1): jc10k, rnasim from the 10^4-sequence set of replicate r, drawn by
+         numpy default_rng(r + 1); jc1m, rna1m from the 10^6-sequence jc10k or rnasim set, subset r of n drawn by
+         default_rng(1000 n + r)
 Outputs: data/datasets/<set>/<n>/rep<r>.fa              leaves T0 ... T<n-1>, one line per sequence
          data/datasets/<set>/<n>/rep<r>.true.nwk        unrooted; branch lengths (substitutions per site) where the
                                                         sites were simulated on them (jc*, yule10k)
@@ -32,7 +32,7 @@ Outputs: data/datasets/<set>/<n>/rep<r>.fa              leaves T0 ... T<n-1>, on
                                                         the random start rooted, as the paper gave it to both programs
          Sets: rnasim, jc10k (10^3-10^7; replicate 0 only above 10^5), jc1k (10^4), yule10k (10^3-10^7),
          jc100k and jc1000k (10^5 and 10^6 sites on the JC trees, at 10^4 and 10^5), fastme (jc10k and rnasim at
-         1,000, 2,000, 5,000 and 10,000; not the comparison's subsets of the 10^6-sequence sets, jc1m and rna1m).
+         1,000, 2,000, 5,000 and 10,000; jc1m and rna1m: 100 subsets at 1,000 and 2,000, 20 at 5,000).
          Expanded leaf i descends from leaf i // 10 (10^6) or i // 100 (10^7) of the 10^5 replicate.
 
     pixi run -e paper python -m paper.simulate_data --sets rnasim jc10k --sizes 1000 5000
@@ -93,6 +93,11 @@ FASTME_SETS = ("jc10k", "rnasim")
 FASTME_SIZES = (1000, 2000, 5000, 10000)
 FASTME_BASE = 10000  # the size of the sets they are drawn from
 FASTME_SEED_STEP = 1  # subset and random start seed: replicate + 1
+# jc1m, rna1m: subsets of the 10^6-sequence set (replicate 0) of jc10k and rnasim; subset k of n drawn with seed
+# 1000 n + k
+FASTME_1M_SETS = {"jc1m": "jc10k", "rna1m": "rnasim"}
+FASTME_1M_SUBSETS = {1000: 100, 2000: 100, 5000: 20}  # subsets per size
+FASTME_1M_SEED_STEP = 1000
 JC_SCALE = (
     3200.0  # RNASim branch lengths / JC_SCALE = substitutions per site of the JC sets
 )
@@ -706,6 +711,92 @@ def make_fastme_set(
     write_rooted_tree(out / f"rep{rep}.random_start.nwk", *uniform_random_tree(n, seed))
 
 
+def make_fastme_subsets(
+    name: str,
+    source_set: str,
+    todo: list[tuple[int, int]],
+    rnasim: Rnasim,
+    args: Namespace,
+) -> None:
+    """Writes subsets of a 10^6-sequence set for the FastME comparison: (set, [(n, k)]) -> fastme/<set>/<n>/rep<k>.*.
+
+    As the paper's (jc1m, rna1m): subset k of n = the sequences sorted(default_rng(1000 n + k).choice(N, n)) of the
+    N-sequence set of replicate 0 (N = 10 x --expansion-base, 10^6; made first if missing), renamed T0..T<n-1> in
+    that order; that set's true tree restricted to them (topology only); a uniform random start tree (seed k + 1),
+    written rooted. One pass over the large alignment writes the sequences of every subset.
+    """
+    size = CLADE * args.expansion_base
+    source = args.datasets_dir / source_set / str(size)
+    if not (source / "rep0.random_start.nwk").exists():
+        make_dataset(source_set, size, 0, source, rnasim, args)
+    chosen = {
+        (n, k): sort(
+            default_rng(FASTME_1M_SEED_STEP * n + k).choice(size, n, replace=False)
+        )
+        for n, k in todo
+    }
+    takers: dict[int, list[tuple[int, int]]] = {}  # sequence -> the subsets with it
+    for key, sel in chosen.items():
+        for i in sel.tolist():
+            takers.setdefault(i, []).append(key)
+    folders = {(n, k): args.datasets_dir / FASTME / name / str(n) for n, k in todo}
+    for folder in set(folders.values()):
+        folder.mkdir(parents=True, exist_ok=True)
+    handles = {key: (folders[key] / f"rep{key[1]}.fa").open("w") for key in todo}
+    written = dict.fromkeys(todo, 0)
+    try:
+        with (source / "rep0.fa").open() as fasta:
+            for i, (header, seq) in enumerate(zip(fasta, fasta)):
+                for key in takers.get(i, ()):
+                    if header.strip() != f">T{i}":
+                        raise ValueError(
+                            f"{source / 'rep0.fa'}: sequence {i} is {header.strip()}"
+                        )
+                    handles[key].write(f">T{written[key]}\n{seq.strip()}\n")
+                    written[key] += 1
+    finally:
+        for handle in handles.values():
+            handle.close()
+    if any(written[(n, k)] != n for n, k in todo):
+        raise ValueError(f"{source / 'rep0.fa'}: fewer than {size} sequences")
+    tree = parse_newick((source / "rep0.true.nwk").read_text())
+    for (n, k), sel in chosen.items():
+        leaf_id = {f"T{i}": j for j, i in enumerate(sel.tolist())}
+        children, label, length, root = induce_subtree(*tree, set(leaf_id))
+        c1, c2, _ = rooted_arrays(children, label, length, root, leaf_id, 1.0)
+        folder = folders[(n, k)]
+        write_tree(folder / f"rep{k}.true.nwk", c1, c2, None)
+        start = uniform_random_tree(n, k + FASTME_SEED_STEP)
+        write_rooted_tree(folder / f"rep{k}.random_start.nwk", *start)
+        print(f"simulate_data: {FASTME} {name} {n} rep{k}", flush=True)
+
+
+def make_fastme(args: Namespace, rnasim: Rnasim) -> None:
+    """Makes the FastME comparison's sets that are missing: args -> data/datasets/fastme/<set>/<n>/rep<r>.*."""
+    replicates = args.replicates if args.replicates is not None else REPLICATES
+    for name in FASTME_SETS:
+        for n in sorted(args.sizes or FASTME_SIZES):
+            for rep in replicates:
+                out = args.datasets_dir / FASTME / name / str(n)
+                if args.overwrite or not (out / f"rep{rep}.random_start.nwk").exists():
+                    make_fastme_set(name, n, rep, out, rnasim, args)
+                    print(f"simulate_data: {FASTME} {name} {n} rep{rep}", flush=True)
+    for name, source_set in FASTME_1M_SETS.items():
+        todo = []
+        for n in sorted(args.sizes or FASTME_1M_SUBSETS):
+            subsets = (
+                args.replicates
+                if args.replicates is not None
+                else range(FASTME_1M_SUBSETS.get(n, 0))
+            )
+            folder = args.datasets_dir / FASTME / name / str(n)
+            for k in subsets:
+                if args.overwrite or not (folder / f"rep{k}.random_start.nwk").exists():
+                    todo.append((n, k))
+        if todo:
+            make_fastme_subsets(name, source_set, todo, rnasim, args)
+
+
 def main() -> None:
     parser = ArgumentParser(
         description=__doc__, formatter_class=RawDescriptionHelpFormatter
@@ -715,7 +806,7 @@ def main() -> None:
         nargs="+",
         choices=[*SETS, FASTME],
         default=[*SETS, FASTME],
-        help=f"datasets to make ({FASTME}: the FastME comparison's subsets of jc10k and rnasim)",
+        help=f"datasets to make ({FASTME}: the FastME comparison's subsets of jc10k and rnasim, jc1m and rna1m)",
     )
     parser.add_argument(
         "--sizes",
@@ -727,8 +818,7 @@ def main() -> None:
         "--replicates",
         nargs="+",
         type=int,
-        default=list(REPLICATES),
-        help="replicates to make",
+        help="replicates to make (default: 0-4; fastme's jc1m, rna1m: the paper's subsets per size)",
     )
     parser.add_argument(
         "--datasets-dir",
@@ -757,24 +847,14 @@ def main() -> None:
     args = parser.parse_args()
 
     rnasim = Rnasim(args.datasets_dir / "rnasim")
+    replicates = args.replicates if args.replicates is not None else REPLICATES
     for name in args.sets:
         if name == FASTME:
-            for set_name in FASTME_SETS:
-                for n in sorted(args.sizes or FASTME_SIZES):
-                    for rep in args.replicates:
-                        out = args.datasets_dir / FASTME / set_name / str(n)
-                        done = out / f"rep{rep}.random_start.nwk"
-                        if not args.overwrite and done.exists():
-                            continue
-                        make_fastme_set(set_name, n, rep, out, rnasim, args)
-                        print(
-                            f"simulate_data: {FASTME} {set_name} {n} rep{rep}",
-                            flush=True,
-                        )
+            make_fastme(args, rnasim)
             continue
         for n in sorted(args.sizes or SETS[name][2]):
             expanded = name in EXPANDED_SETS and n > args.expansion_base
-            for rep in [0] if expanded else args.replicates:
+            for rep in [0] if expanded else replicates:
                 out = args.datasets_dir / name / str(n)
                 if not args.overwrite and (out / f"rep{rep}.random_start.nwk").exists():
                     continue
