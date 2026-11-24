@@ -95,16 +95,16 @@ replicates' trees.
 p2v-bme -s ALIGNMENT -m MODEL [options]
 ```
 
-| Option                 | Meaning                                                                                                        |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `-s, --alignment FILE` | aligned DNA sequences: FASTA, or `.maple`                                                                      |
-| `-m, --model MODEL`    | the distances' model: `JC69`, `K80`, `F81`, `F84`, `TN93`, `LogDet` or `GTR+GC` (rates and gamma shape fitted) |
-| `-p, --prefix STR`     | the outputs' prefix (default: the alignment's path)                                                            |
-| `-a, --accelerator`    | `cpu`, `gpu` or `auto` (default)                                                                               |
-| `-d, --devices`        | GPUs (`2`: the first two; `0,2`) or CPU threads                                                                |
-| `-b, --bootstrap B`    | B bootstrap replicates, and the supports of the tree's branches                                                |
-| `--seed N`             | the seed of the run (default 1)                                                                                |
-| `-q, --quiet`          | no progress on stdout (it still goes to `<prefix>.log`)                                                        |
+| Option                 | Meaning                                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `-s, --alignment FILE` | aligned DNA sequences: FASTA, or `.maple`                                                                                            |
+| `-m, --model MODEL`    | the distances' model: `JC69`, `K80`, `F81`, `F84`, `TN93`, `LogDet`, `GTR` (rates fitted) or `GTR+GC` (rates and gamma shape fitted) |
+| `-p, --prefix STR`     | the outputs' prefix (default: the alignment's path)                                                                                  |
+| `-a, --accelerator`    | `cpu`, `gpu` or `auto` (default)                                                                                                     |
+| `-d, --devices`        | GPUs (`2`: the first two; `0,2`) or CPU threads                                                                                      |
+| `-b, --bootstrap B`    | B bootstrap replicates, and the supports of the tree's branches                                                                      |
+| `--seed N`             | the seed of the run (default 1)                                                                                                      |
+| `-q, --quiet`          | no progress on stdout (it still goes to `<prefix>.log`)                                                                              |
 
 `p2v-bme --help` lists these options and `p2v-bme --help-all` all of them. The [documentation](docs/README.md) describes
 each option ([docs/usage.md](docs/usage.md)), the models ([docs/models.md](docs/models.md)) and the outputs

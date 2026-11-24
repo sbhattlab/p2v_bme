@@ -10,6 +10,7 @@
 | `F84`    |       | [Felsenstein & Churchill 1996](https://doi.org/10.1093/oxfordjournals.molbev.a025575)      | base frequencies                           |
 | `TN93`   | `TN`  | [Tamura & Nei 1993](https://doi.org/10.1093/oxfordjournals.molbev.a040023)                 | base frequencies                           |
 | `LogDet` |       | [Lockhart et al. 1994](https://doi.org/10.1093/oxfordjournals.molbev.a040136) (paralinear) |                                            |
+| `GTR`    |       | [Penn et al. 2025](https://doi.org/10.1007/s11538-024-01403-z)                             | exchangeabilities (fitted)                 |
 | `GTR+GC` |       | [Penn et al. 2025](https://doi.org/10.1007/s11538-024-01403-z)                             | exchangeabilities and gamma shape (fitted) |
 
 - A pair's distance uses the sites where both sequences have a base; gaps and ambiguity codes are skipped.
@@ -22,7 +23,8 @@
 ## GTR+GC
 
 `+GC` is a continuous gamma, as in [IQ-TREE 3](https://github.com/iqtree/iqtree3)'s AliSim, not IQ-TREE's discrete `+G`,
-which p2v-bme refuses; plain `GTR` is not available. The distance is the eigenvalue estimator of Penn et al. (2025).
+which p2v-bme refuses; `GTR` is the same model without rate variation ([GTR](#gtr)). The distance is the eigenvalue
+estimator of Penn et al. (2025).
 
 The six exchangeabilities (mean 1) and the shape alpha are fitted to the alignment before the search, without a tree, by
 maximum composite likelihood over `--gtr-fit-pairs` random sequence pairs (default 100,000, drawn with `--seed`; all
@@ -35,3 +37,10 @@ p2v-bme warns when the fit does not converge, or when no pair qualifies (the dis
 1). In single precision, it also warns when alpha is outside [0.05, 1000] or the exchangeabilities span more than
 100-fold, the range where single-precision distances were checked against double precision; `--precision double` avoids
 the issue.
+
+## GTR
+
+`GTR` is GTR+GC without rate variation across sites, the limit of infinite alpha: the distance is the same estimator at
+that limit, and the fit is the same with alpha left out, so it fits the six exchangeabilities alone. The rest is as for
+GTR+GC: `--gtr-fit-pairs`, the report (without `alpha`), the warnings (none about alpha) and the bootstrap replicates'
+reuse of the fit.
