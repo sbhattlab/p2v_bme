@@ -20,6 +20,8 @@ notes/
 tmp/
 jobs/
 CLAUDE.md
+# LaTeX version of the paper's tables (local)
+paper/latex/
 
 # Large benchmark data & logs (also outside data/)
 data_*/
