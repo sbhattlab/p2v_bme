@@ -40,6 +40,9 @@ namespace p2vbme {
 
 namespace {
 
+// Bytes per MiB, for the memory figures.
+constexpr double BYTES_PER_MIB = 1024.0 * 1024.0;
+
 // What to try when a GPU runs out of memory.
 constexpr const char *OUT_OF_MEMORY_HINT = "use other or more GPUs (--devices) or the CPU (--accelerator cpu)";
 
@@ -105,7 +108,7 @@ void gpu_alloc_bytes(void **ptr, size_t bytes, int line) {
     cudaMemGetInfo(&free_b, &total_b);
     char msg[512];
     snprintf(msg, sizeof(msg), "out of GPU memory on GPU %d (%s): %.1f MiB requested, %.1f MiB free of %.1f MiB; %s",
-             dev, gpu_name(dev).c_str(), bytes / 1048576.0, free_b / 1048576.0, total_b / 1048576.0,
+             dev, gpu_name(dev).c_str(), bytes / BYTES_PER_MIB, free_b / BYTES_PER_MIB, total_b / BYTES_PER_MIB,
              OUT_OF_MEMORY_HINT);
     throw std::runtime_error(msg);
 }
@@ -133,14 +136,14 @@ __device__ __forceinline__ float dev_jc69_dist_popc(int32_t x, int32_t y, const 
                                                     int32_t W) {
     if (x == y)
         return 0.0f;
-    const uint64_t *sx = &d_packed_seqs[(size_t)x * 5 * W];
-    const uint64_t *sy = &d_packed_seqs[(size_t)y * 5 * W];
+    const uint64_t *sx = &d_packed_seqs[(size_t)x * N_PLANES * W];
+    const uint64_t *sy = &d_packed_seqs[(size_t)y * N_PLANES * W];
     int32_t n_valid = 0;
     int32_t n_match = 0;
 #pragma unroll 5
     for (int32_t w = 0; w < W; ++w) {
-        uint64_t vx = __ldg(&sx[4 * W + w]);
-        uint64_t vy = __ldg(&sy[4 * W + w]);
+        uint64_t vx = __ldg(&sx[VALID_PLANE * W + w]);
+        uint64_t vy = __ldg(&sy[VALID_PLANE * W + w]);
         n_valid += __popcll(vx & vy);
         uint64_t m = (__ldg(&sx[0 * W + w]) & __ldg(&sy[0 * W + w])) | (__ldg(&sx[1 * W + w]) & __ldg(&sy[1 * W + w])) |
                      (__ldg(&sx[2 * W + w]) & __ldg(&sy[2 * W + w])) | (__ldg(&sx[3 * W + w]) & __ldg(&sy[3 * W + w]));
@@ -152,8 +155,8 @@ __device__ __forceinline__ float dev_jc69_dist_popc(int32_t x, int32_t y, const 
 // The 16 pair counts of leaves x and y: c[4 i + j] = sites with base i in x and base j in y.
 __device__ __forceinline__ void dev_pair_counts(int32_t x, int32_t y, const uint64_t *__restrict__ d_packed_seqs,
                                                 int32_t W, uint32_t c[16]) {
-    const uint64_t *sx = &d_packed_seqs[(size_t)x * 5 * W];
-    const uint64_t *sy = &d_packed_seqs[(size_t)y * 5 * W];
+    const uint64_t *sx = &d_packed_seqs[(size_t)x * N_PLANES * W];
+    const uint64_t *sy = &d_packed_seqs[(size_t)y * N_PLANES * W];
 #pragma unroll
     for (int k = 0; k < 16; ++k)
         c[k] = 0u;
@@ -247,8 +250,8 @@ __global__ __launch_bounds__(256) void k_build_condensed_D_heavy_tiled(
     const int32_t *__restrict__ d_repr_offsets, const int32_t *__restrict__ d_repr_leaves,
     const float *__restrict__ d_repr_weights, const uint64_t *__restrict__ d_packed_seqs,
     float *__restrict__ d_D_cond) {
-    __shared__ uint64_t sA[5 * HB_CW * HB_T]; // [channel][word][row]
-    __shared__ uint64_t sB[5 * HB_CW * HB_T];
+    __shared__ uint64_t sA[N_PLANES * HB_CW * HB_T]; // [channel][word][row]
+    __shared__ uint64_t sB[N_PLANES * HB_CW * HB_T];
     __shared__ float s_dist[HB_T][HB_T + 1];
     __shared__ float s_row_sum[HB_T];
     __shared__ int32_t s_leaf_a[HB_T], s_leaf_b[HB_T];
@@ -294,13 +297,13 @@ __global__ __launch_bounds__(256) void k_build_condensed_D_heavy_tiled(
             for (int32_t w0 = 0; w0 < W; w0 += HB_CW) {
                 // Stage words w0..w0+HB_CW-1 of all 5 channels; consecutive threads read consecutive words of one
                 // sequence.
-                for (int32_t e = tid; e < 5 * HB_CW * HB_T; e += 256) {
-                    const int32_t cw = e % HB_CW, ch = (e / HB_CW) % 5, r = e / (5 * HB_CW);
+                for (int32_t e = tid; e < N_PLANES * HB_CW * HB_T; e += 256) {
+                    const int32_t cw = e % HB_CW, ch = (e / HB_CW) % N_PLANES, r = e / (N_PLANES * HB_CW);
                     const int32_t s_idx = (ch * HB_CW + cw) * HB_T + r;
                     const int32_t w = w0 + cw;
                     const size_t g_off = (size_t)ch * W + w;
-                    sA[s_idx] = (r < na && w < W) ? d_packed_seqs[(size_t)s_leaf_a[r] * 5 * W + g_off] : 0ull;
-                    sB[s_idx] = (r < nb && w < W) ? d_packed_seqs[(size_t)s_leaf_b[r] * 5 * W + g_off] : 0ull;
+                    sA[s_idx] = (r < na && w < W) ? d_packed_seqs[(size_t)s_leaf_a[r] * N_PLANES * W + g_off] : 0ull;
+                    sB[s_idx] = (r < nb && w < W) ? d_packed_seqs[(size_t)s_leaf_b[r] * N_PLANES * W + g_off] : 0ull;
                 }
                 __syncthreads();
 #pragma unroll
@@ -439,7 +442,7 @@ __global__ __launch_bounds__(256, 2) void k_build_condensed_D_packed(int32_t K, 
                                                                      const float *__restrict__ d_repr_weights,
                                                                      const uint64_t *__restrict__ d_packed_seqs,
                                                                      float *__restrict__ d_D_cond, DeviceDistance dm) {
-    constexpr int32_t STAGE = 5 * HB_CW * HB_T; // JC69: [channel][word][row]; 16 counts: [row][bitplane][word]
+    constexpr int32_t STAGE = N_PLANES * HB_CW * HB_T; // JC69: [channel][word][row]; 16 counts: [row][bitplane][word]
     static_assert(16 * 4 * PK_COUNTS_CW <= STAGE, "the 16-count chunk must fit the staging buffers");
     __shared__ uint64_t sA[STAGE];
     __shared__ uint64_t sB[STAGE];
@@ -483,12 +486,12 @@ __global__ __launch_bounds__(256, 2) void k_build_condensed_D_packed(int32_t K, 
             // Stage words w0..w0+HB_CW-1 of all 5 channels; consecutive threads read consecutive words of one
             // sequence.
             for (int32_t e = tid; e < STAGE; e += 256) {
-                const int32_t cw = e % HB_CW, ch = (e / HB_CW) % 5, r = e / (5 * HB_CW);
+                const int32_t cw = e % HB_CW, ch = (e / HB_CW) % N_PLANES, r = e / (N_PLANES * HB_CW);
                 const int32_t s_idx = (ch * HB_CW + cw) * HB_T + r;
                 const int32_t w = w0 + cw;
                 const size_t g_off = (size_t)ch * W + w;
-                sA[s_idx] = (r < na && w < W) ? d_packed_seqs[(size_t)s_leaf_a[r] * 5 * W + g_off] : 0ull;
-                sB[s_idx] = (r < nb && w < W) ? d_packed_seqs[(size_t)s_leaf_b[r] * 5 * W + g_off] : 0ull;
+                sA[s_idx] = (r < na && w < W) ? d_packed_seqs[(size_t)s_leaf_a[r] * N_PLANES * W + g_off] : 0ull;
+                sB[s_idx] = (r < nb && w < W) ? d_packed_seqs[(size_t)s_leaf_b[r] * N_PLANES * W + g_off] : 0ull;
             }
             __syncthreads();
 #pragma unroll
@@ -557,17 +560,19 @@ __global__ __launch_bounds__(256, 2) void k_build_condensed_D_packed(int32_t K, 
                         for (int32_t idx = tid; idx < 16 * row_words; idx += 256) {
                             const int32_t r = idx / row_words, k = idx - r * row_words;
                             const int32_t pl = k / PK_COUNTS_CW, w = w0 + (k - pl * PK_COUNTS_CW), pp = pa0 + r;
-                            sA[idx] = (pp < na && w < W)
-                                          ? __ldg(&d_packed_seqs[(size_t)s_leaf_a[pp] * (5 * W) + (size_t)pl * W + w])
-                                          : 0ull;
+                            sA[idx] =
+                                (pp < na && w < W)
+                                    ? __ldg(&d_packed_seqs[(size_t)s_leaf_a[pp] * (N_PLANES * W) + (size_t)pl * W + w])
+                                    : 0ull;
                         }
                     }
                     for (int32_t idx = tid; idx < 16 * row_words; idx += 256) {
                         const int32_t r = idx / row_words, k = idx - r * row_words;
                         const int32_t pl = k / PK_COUNTS_CW, w = w0 + (k - pl * PK_COUNTS_CW), qq = qb0 + r;
-                        sB[idx] = (qq < nb && w < W)
-                                      ? __ldg(&d_packed_seqs[(size_t)s_leaf_b[qq] * (5 * W) + (size_t)pl * W + w])
-                                      : 0ull;
+                        sB[idx] =
+                            (qq < nb && w < W)
+                                ? __ldg(&d_packed_seqs[(size_t)s_leaf_b[qq] * (N_PLANES * W) + (size_t)pl * W + w])
+                                : 0ull;
                     }
                     __syncthreads();
                     if (live) {
@@ -1222,8 +1227,8 @@ __global__ void k_gather_rows(const uint64_t *__restrict__ src, const int32_t *_
 __global__ void __launch_bounds__(256)
     k_nearest_sample(const uint64_t *__restrict__ seqs, int32_t W, const int32_t *__restrict__ qry, int32_t n_q,
                      const int32_t *__restrict__ samp, int32_t n_s, int32_t *__restrict__ best_pos) {
-    __shared__ uint64_t qs[5][NN_WC][NN_TQ];
-    __shared__ uint64_t ss[5][NN_WC][NN_TS];
+    __shared__ uint64_t qs[N_PLANES][NN_WC][NN_TQ];
+    __shared__ uint64_t ss[N_PLANES][NN_WC][NN_TS];
     __shared__ unsigned long long best_key[NN_TQ];
     const int t = threadIdx.x;
     const int tq = t / 16, ts = t % 16;
@@ -1244,7 +1249,7 @@ __global__ void __launch_bounds__(256)
 
         for (int32_t w0 = 0; w0 < W; w0 += NN_WC) {
             __syncthreads();
-            for (int e = t; e < 5 * NN_WC * NN_TQ; e += 256) {
+            for (int e = t; e < N_PLANES * NN_WC * NN_TQ; e += 256) {
                 int row = e % NN_TQ, rest = e / NN_TQ;
                 int wl = rest % NN_WC, p = rest / NN_WC;
                 int32_t w = w0 + wl;
@@ -1313,13 +1318,13 @@ __device__ __forceinline__ float dev_jc69_bl_popc(const uint64_t *__restrict__ d
                                                   int32_t leaf_v) {
     if (leaf_u == leaf_v)
         return 0.0f;
-    const uint64_t *su = d_packed_seqs + (size_t)leaf_u * 5 * W;
-    const uint64_t *sv = d_packed_seqs + (size_t)leaf_v * 5 * W;
+    const uint64_t *su = d_packed_seqs + (size_t)leaf_u * N_PLANES * W;
+    const uint64_t *sv = d_packed_seqs + (size_t)leaf_v * N_PLANES * W;
     int32_t n_valid = 0;
     int32_t n_match = 0;
     for (int32_t w = 0; w < W; ++w) {
-        uint64_t vu = su[4 * W + w];
-        uint64_t vv = sv[4 * W + w];
+        uint64_t vu = su[VALID_PLANE * W + w];
+        uint64_t vv = sv[VALID_PLANE * W + w];
         n_valid += __popcll(vu & vv);
         uint64_t m = (su[0 * W + w] & sv[0 * W + w]) | (su[1 * W + w] & sv[1 * W + w]) |
                      (su[2 * W + w] & sv[2 * W + w]) | (su[3 * W + w] & sv[3 * W + w]);
@@ -1344,8 +1349,8 @@ __global__ __launch_bounds__(64) void k_eval_internal_node_triples_tiled(
     const int32_t *__restrict__ d_out_leaves, const float *__restrict__ d_out_weights,
     const uint64_t *__restrict__ d_packed_seqs, float *__restrict__ d_dAB, float *__restrict__ d_dAO,
     float *__restrict__ d_dBO, DeviceDistance dm) {
-    __shared__ uint64_t sA[5 * BL_CW * BL_TILE];
-    __shared__ uint64_t sB[5 * BL_CW * BL_TILE];
+    __shared__ uint64_t sA[N_PLANES * BL_CW * BL_TILE];
+    __shared__ uint64_t sB[N_PLANES * BL_CW * BL_TILE];
     __shared__ int32_t s_la[BL_TILE], s_lb[BL_TILE];
     __shared__ float s_wa[BL_TILE], s_wb[BL_TILE];
     __shared__ float s_warp_sum[2];
@@ -1441,15 +1446,15 @@ __global__ __launch_bounds__(64) void k_eval_internal_node_triples_tiled(
                     }
 
                 for (int32_t w0 = 0; w0 < W; w0 += BL_CW) {
-                    for (int32_t e = tid; e < 5 * BL_CW * BL_TILE; e += 64) {
+                    for (int32_t e = tid; e < N_PLANES * BL_CW * BL_TILE; e += 64) {
                         const int32_t cw = e % BL_CW;
-                        const int32_t ch = (e / BL_CW) % 5;
-                        const int32_t r = e / (5 * BL_CW);
+                        const int32_t ch = (e / BL_CW) % N_PLANES;
+                        const int32_t r = e / (N_PLANES * BL_CW);
                         const int32_t s_idx = (ch * BL_CW + cw) * BL_TILE + r;
                         const int32_t w = w0 + cw;
                         const size_t g_off = (size_t)ch * W + w;
-                        sA[s_idx] = (r < na && w < W) ? d_packed_seqs[(size_t)s_la[r] * 5 * W + g_off] : 0ULL;
-                        sB[s_idx] = (r < nb && w < W) ? d_packed_seqs[(size_t)s_lb[r] * 5 * W + g_off] : 0ULL;
+                        sA[s_idx] = (r < na && w < W) ? d_packed_seqs[(size_t)s_la[r] * N_PLANES * W + g_off] : 0ULL;
+                        sB[s_idx] = (r < nb && w < W) ? d_packed_seqs[(size_t)s_lb[r] * N_PLANES * W + g_off] : 0ULL;
                     }
                     __syncthreads();
 
@@ -1866,7 +1871,7 @@ class GpuDevice final : public Device {
             gpu_free(r.d);
         rows_.clear(); // if the copy below fails, the device holds no alignment (packed() throws)
         n_words_ = n_words;
-        const size_t total_u64 = (size_t)n_taxa * 5 * (size_t)n_words;
+        const size_t total_u64 = (size_t)n_taxa * N_PLANES * (size_t)n_words;
         Rows r;
         r.n = n_taxa;
         gpu_alloc(&r.d, total_u64 * sizeof(uint64_t));
@@ -1881,7 +1886,7 @@ class GpuDevice final : public Device {
 
     void push_subset(const std::vector<int32_t> &rows) override {
         const int32_t n0 = (int32_t)rows.size();
-        const int32_t row_words = 5 * n_words_;
+        const int32_t row_words = N_PLANES * n_words_;
         Rows sub;
         sub.n = n0;
         CUDA_CHECK(cudaSetDevice(id_));
@@ -1912,7 +1917,7 @@ class GpuDevice final : public Device {
 
     std::string name() const override { return "GPU " + std::to_string(id_) + ": " + gpu_name(id_); }
 
-    double memory_peak_mb() const override { return (double)gpu_peak_bytes(id_) / 1048576.0; }
+    double memory_peak_mb() const override { return (double)gpu_peak_bytes(id_) / BYTES_PER_MIB; }
 
     void nearest_sampled(const int32_t *queries, int32_t n_queries, const int32_t *samples, int32_t n_samples,
                          int32_t *best_pos) override {
