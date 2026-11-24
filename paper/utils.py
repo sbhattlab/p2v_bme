@@ -13,14 +13,14 @@ import numpy as np
 
 def read_json(path: Path) -> dict:
     """Reads a JSON file: path -> its object."""
-    return json.loads(Path(path).read_text())
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def write_json(path: Path, data: dict) -> None:
     """Writes an object as indented JSON, creating the folder: (path, data) -> None."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=1) + "\n")
+    path.write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
 
 
 def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> dict:
@@ -78,7 +78,7 @@ def support_labels(path: Path) -> list[tuple[float, float]]:
     """
     return [
         (float(t), float(e))
-        for t, e in re.findall(r"\)([0-9.]+)/([0-9.]+)", Path(path).read_text())
+        for t, e in re.findall(r"\)([0-9.]+)/([0-9.]+)", Path(path).read_text(encoding="utf-8"))
     ]
 
 
@@ -92,7 +92,7 @@ def branch_table(path: Path) -> tuple[int, dict[str, np.ndarray]]:
     The root (the outermost bracket) has no branch and is left out.
     Two files written for the same tree list the same branches in the same order.
     """
-    text = Path(path).read_text().strip()
+    text = Path(path).read_text(encoding="utf-8").strip()
     chars = np.frombuffer(text.encode(), dtype=np.uint8)
     is_open, is_close = chars == ord("("), chars == ord(")")
     # A leaf name starts after "(" or "," at a character that is not "(".
@@ -139,7 +139,7 @@ def read_tree(path: Path) -> dict:
     tbe, exact: its "TBE/exact" label in % (nan if none).
     Names must not be quoted.
     """
-    text = Path(path).read_text().strip()
+    text = Path(path).read_text(encoding="utf-8").strip()
     if "'" in text or "[" in text:
         raise ValueError(f"{path}: quoted names and comments are not supported")
     chars = np.frombuffer(text.encode(), dtype=np.uint8)
@@ -203,10 +203,12 @@ def with_edge_lengths(tree: Path, edge: float, out: Path) -> Path:
     Branch lengths and internal labels are dropped;
     the comparison programs read start trees with lengths.
     """
-    text = Path(tree).read_text().strip()
+    text = Path(tree).read_text(encoding="utf-8").strip()
     text = re.sub(r":[^,();]*", "", text)
     text = re.sub(r"\)[^,();]*", ")", text)
-    Path(out).write_text(re.sub(r"([^(),;]+|\))(?=[,)])", rf"\g<1>:{edge:.12g}", text) + "\n")
+    Path(out).write_text(
+        re.sub(r"([^(),;]+|\))(?=[,)])", rf"\g<1>:{edge:.12g}", text) + "\n", encoding="utf-8"
+    )
     return Path(out)
 
 

@@ -103,7 +103,7 @@ def main() -> None:
     step("paper.run_baselines", "--run", "default", "--sets", "yule10k", "--sizes", SIZE,
          "--replicates", "0", "--threads", THREADS, *paths)  # fmt: skip
     # The stand-in for SILVA: the alignment with its first sequences cut short
-    with open(work / "silva.fa", "w") as fo:
+    with open(work / "silva.fa", "w", encoding="utf-8") as fo:
         for i, record in enumerate((work / "source.fa").read_text().split(">")[1:]):
             name, seq = record.split("\n", 1)
             seq = seq.replace("\n", "")

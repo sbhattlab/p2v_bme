@@ -322,7 +322,7 @@ def reattach(out: Path, tool: str, overwrite: bool) -> None:
         )
         return
     files = ("tree.nwk", "searched.fa", "left_out.fa", "tree.all.nwk")
-    with open(out / "tree.all.json.part", "w") as fo:
+    with open(out / "tree.all.json.part", "w", encoding="utf-8") as fo:
         subprocess.run([tool, *(str(out / f) for f in files)], stdout=fo, check=True)
     (out / "tree.all.json.part").rename(out / "tree.all.json")
 
@@ -1032,7 +1032,10 @@ def gtdb_sequences(arb_dump: Path, names: set[str], out: Path) -> None:
     acgt = np.isin(a, np.frombuffer(b"ACGT", dtype=np.uint8))
     columns = np.flatnonzero(acgt.mean(axis=0) >= GTDB_MIN_OCCUPANCY)
     out.mkdir(parents=True, exist_ok=True)
-    with open(out / "gtdb.fa", "w") as fa, open(out / "gtdb_labels.tsv", "w") as tl:
+    with (
+        open(out / "gtdb.fa", "w", encoding="utf-8") as fa,
+        open(out / "gtdb_labels.tsv", "w", encoding="utf-8") as tl,
+    ):
         for (name, arb_name, g, slv, ltp), row in zip(rows, a[:, columns]):
             fa.write(f">{name}\n{row.tobytes().decode()}\n")
             tl.write(f"{name}\t{name}\t{arb_name}\t{g}\t{slv}\t{ltp}\n")
@@ -1163,7 +1166,7 @@ def gtdb(
     if fasttree:
         for tag, options in (("ft_me", ["-nt", "-noml"]), ("ft_ml", ["-nt", "-gtr"])):
             if ow or not (g / f"{tag}.nwk").exists():
-                with open(g / f"{tag}.nwk", "w") as fo:
+                with open(g / f"{tag}.nwk", "w", encoding="utf-8") as fo:
                     subprocess.run([fasttree, *options, str(g / "gtdb.fa")], stdout=fo, check=True)
     names, tax, sizes, archaea = read_labels(g / "gtdb_labels.tsv")
     index = {x: i for i, x in enumerate(names)}

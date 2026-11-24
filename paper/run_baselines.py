@@ -209,7 +209,7 @@ def timed(cmd: list[str], env: dict | None = None, stdout: Path | None = None) -
     """Runs a program and measures it:
     command -> {time, cpu_time_sec, peak_ram_mb} (wall s, CPU s, MiB)."""
     t0 = time.perf_counter()
-    with open(stdout, "w") if stdout else nullcontext(subprocess.DEVNULL) as sink:
+    with open(stdout, "w", encoding="utf-8") if stdout else nullcontext(subprocess.DEVNULL) as sink:
         # wait4 reaps the process to read its resource use, so no with block
         proc = subprocess.Popen(  # pylint: disable=consider-using-with
             cmd, env=env, stdout=sink, stderr=subprocess.DEVNULL
@@ -263,7 +263,7 @@ def missed(scores: dict) -> dict:
 def alignment_sites(fasta: Path) -> int:
     """Counts the sites of an aligned FASTA file from its first sequence: path -> sites."""
     sites = 0
-    with open(fasta) as handle:
+    with open(fasta, encoding="utf-8") as handle:
         handle.readline()
         for line in handle:
             if line.startswith(">"):
@@ -333,14 +333,14 @@ def run_default(args, out: Path, tag: str, n: int, rep: int) -> None:
 def write_phylip_alignment(fasta: Path, out: Path) -> None:
     """Writes an aligned FASTA file as sequential PHYLIP for FastME: (fasta, out) -> file."""
     names, seqs = [], []
-    with open(fasta) as handle:
+    with open(fasta, encoding="utf-8") as handle:
         for line in handle:
             if line.startswith(">"):
                 names.append(line[1:].split()[0])
                 seqs.append([])
             else:
                 seqs[-1].append(line.strip())
-    with open(out, "w") as handle:
+    with open(out, "w", encoding="utf-8") as handle:
         handle.write(f" {len(names)} {len(''.join(seqs[0]))}\n")
         for name, parts in zip(names, seqs):
             handle.write(f"{name} {''.join(parts)}\n")

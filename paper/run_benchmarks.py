@@ -287,8 +287,8 @@ def eval_pandemic(args: Namespace, prefix: Path, true_tree: Path, sites: int) ->
             capture_output=True,
             text=True,
         )
-        out.write_text(result.stdout)
-    return json.loads(out.read_text())
+        out.write_text(result.stdout, encoding="utf-8")
+    return json.loads(out.read_text(encoding="utf-8"))
 
 
 def compare(args: Namespace, r: Run, report: dict) -> None:
