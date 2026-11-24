@@ -30,7 +30,7 @@ Outputs: data/results/baselines/default/runs.jsonl                  default pipe
          data/results/baselines/dipper/runs.jsonl                     DIPPER
          data/results/baselines/maple/cmaple_benchmark_summary.json   MAPLE, CMAPLE ("simulated": cmaple, maple)
          data/results/baselines/PROVENANCE.json                       import: commit, each file's recorded path and
-                                                                      sha256 (internal: names the private source)
+                                                                      sha256
 
     pixi run -e paper python -m paper.run_baselines --source <repository of the records> --ref main
     pixi run -e paper python -m paper.run_baselines --run default --sets rnasim --sizes 1000 --replicates 0
@@ -163,8 +163,7 @@ def target_of(path: str) -> str | None:
 def import_records(source: Path, ref: str | None, out: Path, overwrite: bool) -> None:
     """Copies the recorded comparator results unchanged into our layout: (source, ref) -> out/, out/PROVENANCE.json.
 
-    PROVENANCE.json (internal: it names the private repository's commit and paths) keeps each file's recorded path
-    and sha256.
+    PROVENANCE.json keeps the source's commit and each file's recorded path and sha256.
     """
     paths, commit = recorded_files(source, ref)
     files = {}
