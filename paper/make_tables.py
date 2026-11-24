@@ -293,6 +293,11 @@ def one(values: set, what: str):
     return next(iter(values))
 
 
+def one_of(what: str):
+    """Makes an aggregator for values that must agree: what they are -> (values -> the one value)."""
+    return lambda values: one(set(values), what)
+
+
 def gpus(count: int, model: str) -> str:
     """Names a number of GPUs: (2, 'H200') -> 'two H200 GPUs'."""
     return f"{NUMBER_WORDS.get(count, count)} {model} GPU" + ("" if count == 1 else "s")
@@ -495,9 +500,9 @@ def scaling_rows(results: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         rf_pct_sd=("rf_pct", sd_of),
         backbone_rf_pct_mean=("backbone_rf_pct", mean_of),
         backbone_rf_pct_sd=("backbone_rf_pct", sd_of),
-        gpu_count=("gpu_count", lambda v: one(set(v), "GPU counts")),
-        gpu_model=("gpu_model", lambda v: one(set(v), "GPU models")),
-        cpu_threads=("cpu_threads", lambda v: one(set(v), "CPU thread counts")),
+        gpu_count=("gpu_count", one_of("GPU counts")),
+        gpu_model=("gpu_model", one_of("GPU models")),
+        cpu_threads=("cpu_threads", one_of("CPU thread counts")),
         source_paths=("source_path", "|".join),
     )
     aggregate = aggregate.reset_index()
@@ -568,10 +573,11 @@ def table_scaling(results: Path) -> Outputs:
     return {"scaling.md": tex, "scaling.tsv": scale, "scaling_runs.tsv": runs}
 
 
-def yule_runs(results: Path) -> list[dict]:
-    """Reads our runs on the random-tree (Yule) JC alignments: results -> rows of our_runs."""
-    runs = [r for r in our_runs(results, "scaling") if r["set"] == "yule10k"]
-    if not runs:
+def yule_runs(results: Path) -> pd.DataFrame:
+    """Reads our runs on the random-tree (Yule) JC alignments: results -> rows of run_frame."""
+    runs = run_frame(results, "scaling")
+    runs = runs[runs["set"] == "yule10k"]
+    if runs.empty:
         raise MissingResults(f"{results}/scaling/yule10k")
     return runs
 
@@ -580,27 +586,20 @@ def table_random_tree(results: Path) -> Outputs:
     """Builds Table S8 (random_tree) and Fig. 2's third series:
     results -> {random_tree.md, random_tree.tsv}."""
     ours = yule_runs(results)
-    rows: list[dict] = []
-    for n in sorted({r["n"] for r in ours}):
-        selected = [r for r in ours if r["n"] == n]
-        row: dict = {
-            "dataset": "JC random tree",
-            "n": n,
-            "initialisation": "sample",
-            "n_replicates": len(selected),
-        }
-        for field in ("time_s", "rf_pct"):
-            row[field + "_mean"], row[field + "_sd"] = mean_sd([r[field] for r in selected])
-        row.update(
-            gpu_count=one({r["gpu_count"] for r in selected}, "GPU counts"),
-            gpu_model=one({r["gpu_model"] for r in selected}, "GPU models"),
-            cpu_threads=one({r["cpu_threads"] for r in selected}, "CPU thread counts"),
-            source_paths="|".join(r["source_path"] for r in selected),
-            source_key="p2v-bme report",
-            timing_scope=TIMING,
-            sd_definition=SD,
-        )
-        rows.append(row)
+    rows = ours.groupby("n", as_index=False).agg(
+        n_replicates=("rep", "size"),
+        time_s_mean=("time_s", mean_of),
+        time_s_sd=("time_s", sd_of),
+        rf_pct_mean=("rf_pct", mean_of),
+        rf_pct_sd=("rf_pct", sd_of),
+        gpu_count=("gpu_count", one_of("GPU counts")),
+        gpu_model=("gpu_model", one_of("GPU models")),
+        cpu_threads=("cpu_threads", one_of("CPU thread counts")),
+        source_paths=("source_path", "|".join),
+    )
+    rows.insert(0, "dataset", "JC random tree")
+    rows.insert(2, "initialisation", "sample")
+    rows = rows.assign(source_key="p2v-bme report", timing_scope=TIMING, sd_definition=SD)
 
     methods = ["P2V", "DIPPER", "FastTree-ME", "VFT-ME", "FastTree-ML", "VFT-ML"]
     head = [
@@ -611,26 +610,27 @@ def table_random_tree(results: Path) -> Outputs:
         "FastTree ML",
         "VeryFastTree ML",
     ]
-    time_s, rf_pct = defaultdict(lambda: defaultdict(list)), defaultdict(lambda: defaultdict(list))
-    for r in ours:
-        time_s["P2V"][r["n"]].append(r["time_s"])
-        rf_pct["P2V"][r["n"]].append(r["rf_pct"])
-    cpu = []
-    for path in (results / "baselines" / "default_yule").glob("*.json"):
-        d = json.loads(path.read_text())
-        time_s[ALIAS[d["method"]]][d["N"]].append(d["time"])
-        rf_pct[ALIAS[d["method"]]][d["N"]].append(d["rf_pct"])
-        cpu.append(d)
+    cpu = [
+        json.loads(p.read_text()) for p in (results / "baselines" / "default_yule").glob("*.json")
+    ]
     dipper = [d for d in optional(dipper_runs, results) if d["tag"] == "yule10k"]
-    for d in dipper:
-        m = d["methods"]["DIPPER-GPU"]
-        time_s["DIPPER"][d["N"]].append(m["time"])
-        rf_pct["DIPPER"][d["N"]].append(m["rf_pct"])
-    sizes = sorted(time_s["P2V"])
-    sd = {n: statistics.stdev(v) for n, v in rf_pct["P2V"].items() if len(v) > 1}
-    replicates = one({len(v) for v in time_s["P2V"].values()}, "replicate counts")
+    others = [(ALIAS[d["method"]], d["N"], d["time"], d["rf_pct"]) for d in cpu]
+    others += [
+        ("DIPPER", d["N"], *(d["methods"]["DIPPER-GPU"][k] for k in ("time", "rf_pct")))
+        for d in dipper
+    ]
+    columns = ["method", "n", "time_s", "rf_pct"]
+    runs = pd.concat(
+        [ours.assign(method="P2V")[columns], pd.DataFrame(others, columns=columns, dtype=object)]
+    )
+    means = runs.groupby(["method", "n"]).agg(statistics.mean)
+    counts = runs.groupby(["method", "n"]).size()
+    sizes = sorted(set(ours["n"]))
+    spreads = ours.groupby("n")["rf_pct"].agg(sd_of).dropna()
+    sd = dict(zip(spreads.index.tolist(), spreads.tolist()))
+    replicates = one(set(counts["P2V"]), "replicate counts")
     single = " and ".join(
-        power(len(str(n)) - 1) for n in sorted(time_s["DIPPER"]) if len(time_s["DIPPER"][n]) == 1
+        power(len(str(n)) - 1) for n, c in counts.get("DIPPER", {}).items() if c == 1
     )
     spread = (
         f"; its sample standard deviation of RF error is {sd[min(sd)]:.2f} points at {min(sd):,} leaves"
@@ -644,10 +644,10 @@ def table_random_tree(results: Path) -> Outputs:
     )
     threads = one({d["cpu_cores"] for d in cpu}, "CPU thread counts") if cpu else "—"
 
-    def block(values: dict, fmt) -> list[list[str]]:
+    def block(field: str, fmt) -> list[list[str]]:
         return [
             [f"{n:,}"]
-            + [fmt(statistics.mean(values[m][n])) if values[m].get(n) else "–" for m in methods]
+            + [fmt(means.loc[(m, n), field]) if (m, n) in means.index else "–" for m in methods]
             for n in sizes
         ]
 
@@ -667,7 +667,12 @@ def table_random_tree(results: Path) -> Outputs:
         "the options given in Methods, with (ML) or without (ME) its maximum-likelihood phase. A dash marks a size "
         "that was not run.",
         ["Leaves", *head],
-        ["RF error (%)", *block(rf_pct, lambda x: f"{x:.2f}"), "Time (s)", *block(time_s, seconds)],
+        [
+            "RF error (%)",
+            *block("rf_pct", lambda x: f"{x:.2f}"),
+            "Time (s)",
+            *block("time_s", seconds),
+        ],
         "rrrrrrr",
     )
     return {"random_tree.md": tex, "random_tree.tsv": rows}
