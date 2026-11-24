@@ -11,7 +11,7 @@ same layout, family by family (one of the two is needed):
   maple         MAPLE and CMAPLE: their published trees and logs (CMAPLE benchmark sets) scored against the truth
 Every tree is scored against the true tree by eval_cmaple_rf (true splits missed, all splits).
 
-Inputs:  import: the paper's records, a git repository (--source, --ref) or a folder holding results_hx2/
+Inputs:  import: the paper's recorded runs, from a git repository (--source, --ref) or a folder (--source)
          --run: data/datasets/<set>/<n>/rep<r>.fa, rep<r>.true.nwk (simulate_data.py); MAPLE and CMAPLE:
          data/datasets/cmaple/simulated/ (download_data.py)
 Options: --run FAMILY..., --sets, --sizes, --replicates, --threads, --gpu, --dipper, --source, --ref, --overwrite, paths
@@ -61,7 +61,7 @@ from paper._config import (
 )
 from paper.utils import read_json, run_p2vbme, with_edge_lengths, write_json
 
-# The recorded files the tables and figures read, below results_hx2/ of the paper's repository, and the folder of
+# The recorded files the tables and figures read (paths below the source's RECORDS_ROOT), and the folder of
 # data/results/baselines/ each goes to (the same as --run writes)
 RECORDS = (
     ("pasta_default/runs.jsonl", "default"),
@@ -111,7 +111,7 @@ MAPLE_SITES = 30000
 
 
 def recorded_files(source: Path, ref: str | None) -> tuple[list[str], str]:
-    """Lists the recorded files below results_hx2/: (repository or folder, ref) -> (paths, commit or "")."""
+    """Lists the recorded files below RECORDS_ROOT: (repository or folder, ref) -> (paths, commit or "")."""
     if ref is not None:
         commit = run(
             ["git", "-C", str(source), "rev-parse", ref],
@@ -142,7 +142,7 @@ def recorded_files(source: Path, ref: str | None) -> tuple[list[str], str]:
 
 
 def read_recorded(source: Path, ref: str | None, path: str) -> bytes:
-    """Reads one recorded file: (source, ref, path below results_hx2/) -> its bytes."""
+    """Reads one recorded file: (source, ref, path below RECORDS_ROOT) -> its bytes."""
     if ref is not None:
         return run(
             ["git", "-C", str(source), "show", f"{ref}:{RECORDS_ROOT}/{path}"],
@@ -153,7 +153,7 @@ def read_recorded(source: Path, ref: str | None, path: str) -> bytes:
 
 
 def target_of(path: str) -> str | None:
-    """Places a recorded file in our layout: path below results_hx2/ -> path below baselines/ (None: not read)."""
+    """Places a recorded file in our layout: path below RECORDS_ROOT -> path below baselines/ (None: not read)."""
     for pattern, folder in RECORDS:
         if fnmatch(path, pattern):
             return f"{folder}/{Path(path).name.removeprefix(RANDOM_START_PREFIX)}"
