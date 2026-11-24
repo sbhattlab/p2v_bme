@@ -42,7 +42,6 @@ import statistics
 import sys
 
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
-from collections import defaultdict
 from pathlib import Path
 
 import pandas as pd
@@ -364,15 +363,6 @@ def optional(read, results: Path) -> list[dict]:
 
 
 # ---- Formatting ----
-
-
-def mean_sd(values: list) -> tuple[float | str, float | str]:
-    """Averages values: -> (mean, sample SD); SD blank for one value, both blank for none."""
-    return (
-        (statistics.mean(values), statistics.stdev(values) if len(values) > 1 else "")
-        if values
-        else ("", "")
-    )
 
 
 def blank(value) -> bool:
