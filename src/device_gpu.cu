@@ -14,7 +14,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -128,7 +127,7 @@ cudaError_t gpu_free(void *ptr) {
     return cudaFree(ptr);
 }
 
-// ---- 2. Pairwise distances from the bit-packed alignment ----
+// ---- Pairwise distances from the bit-packed alignment ----
 
 using DeviceDistance = DistanceParams<float>; // the run's model on the GPU (float)
 
@@ -635,7 +634,7 @@ __global__ __launch_bounds__(256, 2) void k_build_condensed_D_packed(int32_t K, 
     }
 }
 
-// ---- 3. Exact GPU Discrete Gradient Kernels ----
+// ---- Exact GPU Discrete Gradient Kernels ----
 
 __global__ void k_copy_leaf_rows_perm(const float *__restrict__ D_orig, const int32_t *__restrict__ d_perm,
                                       float *__restrict__ subdist, int32_t N, int32_t M) {
@@ -1539,7 +1538,7 @@ __global__ __launch_bounds__(64) void k_eval_internal_node_triples_tiled(
     }
 }
 
-// ---- 5. GPU Workspace for Full-Tree and Multi-GPU Minibatch Optimization ----
+// ---- GPU Workspace for Full-Tree and Multi-GPU Minibatch Optimization ----
 
 struct RnaSimGpuWorkspace {
     int32_t dev_id;
