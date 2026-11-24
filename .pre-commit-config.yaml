@@ -16,19 +16,19 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/pycqa/isort
-    rev: 9.0.2
+    rev: 10.0.0b3
     hooks:
       - id: isort
         args: [--profile, black, --lines-between-types, "1"]
 
   - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 26.10.0
+    rev: 26.10.1
     hooks:
       - id: black
 
   # Same major version as the system clang-format the editor extension uses; style from .clang-format
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: "v18.1.8"
+    rev: "v23.1.5"
     hooks:
       - id: clang-format
         types_or: [c, c++, cuda]
