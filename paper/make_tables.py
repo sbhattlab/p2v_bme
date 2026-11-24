@@ -217,37 +217,37 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
         evaluation = sidecar(path, "eval")
         backbone = sidecar(path, "backbone")
         rows.append(
-            dict(
-                set=path.parent.parent.name,
-                n=int(path.parent.name),
-                rep=int(m[1]),
-                seed=int(m[2]),
-                cap=(int(m[3]) if m[3] else details["settings"].get("representative_cap", "")),
-                sites=details["input"]["sites"],
-                time_s=t["start_tree"] + t["search"] + t["branch_lengths"],
-                topology_time_s=t["start_tree"] + t["search"],
-                branch_time_s=t["branch_lengths"],
-                host_memory_mb=details["memory"]["host_ram_mib"],
-                gpu_memory_peak_mib=(
+            {
+                "set": path.parent.parent.name,
+                "n": int(path.parent.name),
+                "rep": int(m[1]),
+                "seed": int(m[2]),
+                "cap": int(m[3]) if m[3] else details["settings"].get("representative_cap", ""),
+                "sites": details["input"]["sites"],
+                "time_s": t["start_tree"] + t["search"] + t["branch_lengths"],
+                "topology_time_s": t["start_tree"] + t["search"],
+                "branch_time_s": t["branch_lengths"],
+                "host_memory_mb": details["memory"]["host_ram_mib"],
+                "gpu_memory_peak_mib": (
                     details["memory"].get("gpu_memory_peak_mib", "") if gpus else ""
                 ),
-                gpu_count=len(gpus),
-                gpu_model=short_gpu(gpus[0]) if gpus else "",
-                gpu_models=frozenset(gpus),
-                cpu_threads=threads_of(path, details),
-                start_tree=details["settings"].get("start_tree", ""),
-                bme_length=report["bme_length"],
-                rf_pct=rf_from(sidecar(path, "vs_true")),
-                backbone_rf_pct=(
+                "gpu_count": len(gpus),
+                "gpu_model": short_gpu(gpus[0]) if gpus else "",
+                "gpu_models": frozenset(gpus),
+                "cpu_threads": threads_of(path, details),
+                "start_tree": details["settings"].get("start_tree", ""),
+                "bme_length": report["bme_length"],
+                "rf_pct": rf_from(sidecar(path, "vs_true")),
+                "backbone_rf_pct": (
                     json.loads(backbone.read_text())["backbone_rf_pct"] if backbone.exists() else ""
                 ),
-                rf_vs_cap64_pct=rf_from(sidecar(path, "vs_cap64")),
-                scored_length=(
+                "rf_vs_cap64_pct": rf_from(sidecar(path, "vs_cap64")),
+                "scored_length": (
                     json.loads(score.read_text())["bme_length"] if score.exists() else ""
                 ),
-                evaluation=json.loads(evaluation.read_text()) if evaluation.exists() else {},
-                source_path=str(path.relative_to(results)),
-            )
+                "evaluation": json.loads(evaluation.read_text()) if evaluation.exists() else {},
+                "source_path": str(path.relative_to(results)),
+            }
         )
     rows.sort(
         key=lambda r: (
@@ -417,34 +417,39 @@ def scaling_rows(results: Path) -> tuple[list[dict], list[dict]]:
             rows: list[dict] = []
             for replicate, r in enumerate(selected):
                 rows.append(
-                    dict(
-                        dataset=label,
-                        n=n,
-                        initialisation="sample",
-                        replicate=replicate,
-                        alignment_columns=r["sites"],
-                        time_s=r["time_s"],
-                        topology_time_s=r["topology_time_s"],
-                        branch_time_s=r["branch_time_s"],
-                        rf_pct=r["rf_pct"],
+                    {
+                        "dataset": label,
+                        "n": n,
+                        "initialisation": "sample",
+                        "replicate": replicate,
+                        "alignment_columns": r["sites"],
+                        "time_s": r["time_s"],
+                        "topology_time_s": r["topology_time_s"],
+                        "branch_time_s": r["branch_time_s"],
+                        "rf_pct": r["rf_pct"],
                         # at 100,000 leaves the backbone is the whole tree
-                        backbone_rf_pct=(
+                        "backbone_rf_pct": (
                             r["rf_pct"] if n == BACKBONE_SIZE else r["backbone_rf_pct"]
                         ),
-                        gpu_count=r["gpu_count"],
-                        gpu_model=r["gpu_model"],
-                        cpu_threads=r["cpu_threads"],
-                        recorded_init_mode=r["start_tree"],
-                        host_memory_mb=r["host_memory_mb"],
-                        gpu_memory_peak_mib=r["gpu_memory_peak_mib"],
-                        source_path=r["source_path"],
-                        source_key="p2v-bme report",
-                        timing_scope=TIMING,
-                        _rep=r["rep"],
-                    )
+                        "gpu_count": r["gpu_count"],
+                        "gpu_model": r["gpu_model"],
+                        "cpu_threads": r["cpu_threads"],
+                        "recorded_init_mode": r["start_tree"],
+                        "host_memory_mb": r["host_memory_mb"],
+                        "gpu_memory_peak_mib": r["gpu_memory_peak_mib"],
+                        "source_path": r["source_path"],
+                        "source_key": "p2v-bme report",
+                        "timing_scope": TIMING,
+                        "_rep": r["rep"],
+                    }
                 )
             per_run += rows
-            row: dict = dict(dataset=label, n=n, initialisation="sample", n_replicates=len(rows))
+            row: dict = {
+                "dataset": label,
+                "n": n,
+                "initialisation": "sample",
+                "n_replicates": len(rows),
+            }
             for field in ("time_s", "rf_pct", "backbone_rf_pct"):
                 row[field + "_mean"], row[field + "_sd"] = mean_sd(
                     [r[field] for r in rows if r[field] != ""]
@@ -532,12 +537,12 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
     rows: list[dict] = []
     for n in sorted({r["n"] for r in ours}):
         selected = [r for r in ours if r["n"] == n]
-        row: dict = dict(
-            dataset="JC random tree",
-            n=n,
-            initialisation="sample",
-            n_replicates=len(selected),
-        )
+        row: dict = {
+            "dataset": "JC random tree",
+            "n": n,
+            "initialisation": "sample",
+            "n_replicates": len(selected),
+        }
         for field in ("time_s", "rf_pct"):
             row[field + "_mean"], row[field + "_sd"] = mean_sd([r[field] for r in selected])
         row.update(
@@ -649,52 +654,52 @@ def table_maple(results: Path) -> dict[str, list[dict] | str]:
             raise MissingResults(f"{results}/pandemic/cmaple_{length}/{n}: {len(mine)} runs")
         r = mine[0]
         rows.append(
-            dict(
-                n=n,
-                mean_branch_length=length,
-                method="Phylo2VecME",
-                time_s=r["time_s"],
-                rf_pct=r["evaluation"]["rf_all_pct"],
-                resolved_rf_pct=r["evaluation"]["rf_res10_pct"],
-                gpu_count=r["gpu_count"],
-                cpu_threads=r["cpu_threads"],
-                host_memory_mb=r["host_memory_mb"],
-                gpu_model=r["gpu_model"],
-                representative_cap=r["cap"],
-                exact_check_eta="",
-                source_path=r["source_path"],
-                source_key="p2v-bme report; .eval.json",
-                timing_scope=TIMING,
-                hardware_note="",
-                resolved_metric="fraction of true splits missing among branches >=1 expected substitution",
-            )
+            {
+                "n": n,
+                "mean_branch_length": length,
+                "method": "Phylo2VecME",
+                "time_s": r["time_s"],
+                "rf_pct": r["evaluation"]["rf_all_pct"],
+                "resolved_rf_pct": r["evaluation"]["rf_res10_pct"],
+                "gpu_count": r["gpu_count"],
+                "cpu_threads": r["cpu_threads"],
+                "host_memory_mb": r["host_memory_mb"],
+                "gpu_model": r["gpu_model"],
+                "representative_cap": r["cap"],
+                "exact_check_eta": "",
+                "source_path": r["source_path"],
+                "source_key": "p2v-bme report; .eval.json",
+                "timing_scope": TIMING,
+                "hardware_note": "",
+                "resolved_metric": "fraction of true splits missing among branches >=1 expected substitution",
+            }
         )
         for name, key in (("CMAPLE", "cmaple"), ("MAPLE", "maple")):
             m = case[key]
             rows.append(
-                dict(
-                    n=n,
-                    mean_branch_length=length,
-                    method=name,
-                    time_s=m["time_s"],
-                    rf_pct=m["rf_all_pct"],
-                    resolved_rf_pct=m["rf_res10_pct"],
-                    gpu_count=0,
-                    cpu_threads="",
-                    host_memory_mb=m["ram_mb"],
-                    gpu_model="",
-                    representative_cap="",
-                    exact_check_eta="",
-                    source_path="baselines/maple/cmaple_benchmark_summary.json",
-                    source_key=f"simulated[{index}].{key}",
-                    timing_scope=(
+                {
+                    "n": n,
+                    "mean_branch_length": length,
+                    "method": name,
+                    "time_s": m["time_s"],
+                    "rf_pct": m["rf_all_pct"],
+                    "resolved_rf_pct": m["rf_res10_pct"],
+                    "gpu_count": 0,
+                    "cpu_threads": "",
+                    "host_memory_mb": m["ram_mb"],
+                    "gpu_model": "",
+                    "representative_cap": "",
+                    "exact_check_eta": "",
+                    "source_path": "baselines/maple/cmaple_benchmark_summary.json",
+                    "source_key": f"simulated[{index}].{key}",
+                    "timing_scope": (
                         "archived internal Runtime"
                         if name == "CMAPLE"
                         else "archived process wall time"
                     ),
-                    hardware_note="archived CPU benchmark; CPU model/thread allocation not established locally",
-                    resolved_metric="fraction of true splits missing among branches >=1 expected substitution",
-                )
+                    "hardware_note": "archived CPU benchmark; CPU model/thread allocation not established locally",
+                    "resolved_metric": "fraction of true splits missing among branches >=1 expected substitution",
+                }
             )
     body = []
     for index in range(0, len(rows), 3):
@@ -733,43 +738,43 @@ def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
         for kind in ("boot", "seed"):
             m = data[f"{prefix}_{kind}"]
             rows.append(
-                dict(
-                    dataset="RNASim",
-                    n=n,
-                    replicate_type=(
+                {
+                    "dataset": "RNASim",
+                    "n": n,
+                    "replicate_type": (
                         "column bootstrap" if kind == "boot" else "fixed-alignment seeds"
                     ),
-                    n_replicates=(CALIBRATION_BOOTSTRAPS if kind == "boot" else CALIBRATION_SEEDS),
-                    n_branches=m["n_branches"],
-                    mean_tbe_pct=m["mean_tbe_pct"],
-                    mean_exact_support_pct=m["mean_exact_pct"],
-                    mean_truth_transfer_pct=m.get("mean_true_transfer_pct", ""),
-                    mean_exact_truth_pct=m.get("mean_correct_pct", ""),
-                    source_path="calibration/rnasim_bootstrap_calibration_summary.json",
-                    source_key=f"{prefix}_{kind}",
-                    replicate_count_source="paper/run_calibration.py",
-                    interpretation="transfer agreement is not probability of an entire split being correct",
-                )
+                    "n_replicates": CALIBRATION_BOOTSTRAPS if kind == "boot" else CALIBRATION_SEEDS,
+                    "n_branches": m["n_branches"],
+                    "mean_tbe_pct": m["mean_tbe_pct"],
+                    "mean_exact_support_pct": m["mean_exact_pct"],
+                    "mean_truth_transfer_pct": m.get("mean_true_transfer_pct", ""),
+                    "mean_exact_truth_pct": m.get("mean_correct_pct", ""),
+                    "source_path": "calibration/rnasim_bootstrap_calibration_summary.json",
+                    "source_key": f"{prefix}_{kind}",
+                    "replicate_count_source": "paper/run_calibration.py",
+                    "interpretation": "transfer agreement is not probability of an entire split being correct",
+                }
             )
     for kind, count in (("boot", y["bootstrap_trees"]), ("seed", y["repeat_searches"])):
         is_boot = kind == "boot"
         m = y if is_boot else y["repeat"]
         rows.append(
-            dict(
-                dataset="Random tree",
-                n=y["n_leaves"],
-                replicate_type=("column bootstrap" if is_boot else "fixed-alignment seeds"),
-                n_replicates=count,
-                n_branches=y["branches"],
-                mean_tbe_pct=m["mean_tbe_pct"],
-                mean_exact_support_pct=m["mean_exact_pct"],
-                mean_truth_transfer_pct=y["mean_true_transfer_pct"] if is_boot else "",
-                mean_exact_truth_pct=100.0 - y["wrong_pct"] if is_boot else "",
-                source_path="calibration/calibration_1000000.json",
-                source_key="top level" if is_boot else "repeat",
-                replicate_count_source="paper/run_calibration.py",
-                interpretation="independent lineages: no sequences added by expansion",
-            )
+            {
+                "dataset": "Random tree",
+                "n": y["n_leaves"],
+                "replicate_type": "column bootstrap" if is_boot else "fixed-alignment seeds",
+                "n_replicates": count,
+                "n_branches": y["branches"],
+                "mean_tbe_pct": m["mean_tbe_pct"],
+                "mean_exact_support_pct": m["mean_exact_pct"],
+                "mean_truth_transfer_pct": y["mean_true_transfer_pct"] if is_boot else "",
+                "mean_exact_truth_pct": 100.0 - y["wrong_pct"] if is_boot else "",
+                "source_path": "calibration/calibration_1000000.json",
+                "source_key": "top level" if is_boot else "repeat",
+                "replicate_count_source": "paper/run_calibration.py",
+                "interpretation": "independent lineages: no sequences added by expansion",
+            }
         )
     all_row = pandemic["by_size"][0]
     mutated, zero = pandemic["regimes"]["all_mutated"], pandemic["regimes"]["zero_snp"]
@@ -789,23 +794,23 @@ def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
         for kind, count in (("boot", pandemic["B_boot"]), ("seed", pandemic["S_seed"])):
             is_boot = kind == "boot"
             rows.append(
-                dict(
-                    dataset=label,
-                    n=pandemic["N"],
-                    replicate_type=("column bootstrap" if is_boot else "fixed-alignment seeds"),
-                    n_replicates=count,
-                    n_branches=entry["branches"],
-                    mean_tbe_pct=(entry["boot_tbe_pct"] if is_boot else entry["seed_tbe_pct"]),
-                    mean_exact_support_pct=(
+                {
+                    "dataset": label,
+                    "n": pandemic["N"],
+                    "replicate_type": "column bootstrap" if is_boot else "fixed-alignment seeds",
+                    "n_replicates": count,
+                    "n_branches": entry["branches"],
+                    "mean_tbe_pct": entry["boot_tbe_pct"] if is_boot else entry["seed_tbe_pct"],
+                    "mean_exact_support_pct": (
                         entry["boot_fbp_pct"] if is_boot else entry["seed_exact_pct"]
                     ),
-                    mean_truth_transfer_pct=entry["true_tbe_pct"] if is_boot else "",
-                    mean_exact_truth_pct=entry["true_exact_pct"] if is_boot else "",
-                    source_path="calibration/maple_bootstrap_calibration_summary.json",
-                    source_key=f"{key_name}.{kind}",
-                    replicate_count_source="paper/run_calibration.py",
-                    interpretation="distinguishes mutated splits from zero-mutation pandemic polytomies",
-                )
+                    "mean_truth_transfer_pct": entry["true_tbe_pct"] if is_boot else "",
+                    "mean_exact_truth_pct": entry["true_exact_pct"] if is_boot else "",
+                    "source_path": "calibration/maple_bootstrap_calibration_summary.json",
+                    "source_key": f"{key_name}.{kind}",
+                    "replicate_count_source": "paper/run_calibration.py",
+                    "interpretation": "distinguishes mutated splits from zero-mutation pandemic polytomies",
+                }
             )
     bins = []
     for n, prefix in sizes:
@@ -814,20 +819,20 @@ def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
             raise SystemExit(f"calibration {prefix}: bootstrap and seed bins differ")
         for index, label in enumerate(boot["labels"]):
             bins.append(
-                dict(
-                    n=n,
-                    clade_size_bin=label,
-                    n_branches=boot["counts"][index],
-                    mean_bootstrap_tbe_pct=boot["mean_tbe"][index],
-                    mean_bootstrap_exact_support_pct=boot["mean_exact"][index],
-                    mean_seed_tbe_pct=seed["mean_tbe"][index],
-                    mean_seed_exact_support_pct=seed["mean_exact"][index],
-                    mean_truth_transfer_pct=boot["mean_true_transfer"][index],
-                    mean_exact_truth_pct=boot["mean_correct"][index],
-                    source_path="calibration/rnasim_bootstrap_calibration_summary.json",
-                    source_keys=f"{prefix}_boot.bins|{prefix}_seed.bins",
-                    interpretation="transfer agreement and exact split agreement are distinct metrics",
-                )
+                {
+                    "n": n,
+                    "clade_size_bin": label,
+                    "n_branches": boot["counts"][index],
+                    "mean_bootstrap_tbe_pct": boot["mean_tbe"][index],
+                    "mean_bootstrap_exact_support_pct": boot["mean_exact"][index],
+                    "mean_seed_tbe_pct": seed["mean_tbe"][index],
+                    "mean_seed_exact_support_pct": seed["mean_exact"][index],
+                    "mean_truth_transfer_pct": boot["mean_true_transfer"][index],
+                    "mean_exact_truth_pct": boot["mean_correct"][index],
+                    "source_path": "calibration/rnasim_bootstrap_calibration_summary.json",
+                    "source_keys": f"{prefix}_boot.bins|{prefix}_seed.bins",
+                    "interpretation": "transfer agreement and exact split agreement are distinct metrics",
+                }
             )
     fields = (
         "mean_tbe_pct",
@@ -887,13 +892,13 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
                     if r["set"] == tag and r["n"] == 10000
                 ]
                 selected = [
-                    dict(
-                        time=r["time_s"],
-                        rf_pct=r["rf_pct"],
-                        cpu_threads=r["cpu_threads"],
-                        gpu_count=r["gpu_count"],
-                        source_path=r["source_path"],
-                    )
+                    {
+                        "time": r["time_s"],
+                        "rf_pct": r["rf_pct"],
+                        "cpu_threads": r["cpu_threads"],
+                        "gpu_count": r["gpu_count"],
+                        "source_path": r["source_path"],
+                    }
                     for r in mine
                 ]
             else:
@@ -919,23 +924,23 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
                         continue
                     m = data["methods"][key]
                     selected.append(
-                        dict(
-                            time=m["time"],
-                            rf_pct=m["rf_pct"],
-                            cpu_threads=m.get("cpu_cores", data.get("cpu_cores", "")),
-                            gpu_count=m.get("n_gpus", 1 if key == "DIPPER-GPU" else 0),
-                            source_path=source,
-                        )
+                        {
+                            "time": m["time"],
+                            "rf_pct": m["rf_pct"],
+                            "cpu_threads": m.get("cpu_cores", data.get("cpu_cores", "")),
+                            "gpu_count": m.get("n_gpus", 1 if key == "DIPPER-GPU" else 0),
+                            "source_path": source,
+                        }
                     )
             if not selected:
                 raise MissingResults(f"baseline_10k: no {method} runs on {tag} at 10,000 leaves")
-            row: dict = dict(
-                dataset=label,
-                n=10000,
-                method=method,
-                initialisation=initialisation,
-                n_replicates=len(selected),
-            )
+            row: dict = {
+                "dataset": label,
+                "n": 10000,
+                "method": method,
+                "initialisation": initialisation,
+                "n_replicates": len(selected),
+            }
             row["time_s_mean"], row["time_s_sd"] = mean_sd([s["time"] for s in selected])
             row["rf_pct_mean"], row["rf_pct_sd"] = mean_sd([s["rf_pct"] for s in selected])
             ours = key in ("sample", "random")
@@ -1060,48 +1065,48 @@ def table_scaling_methods(results: Path) -> dict[str, list[dict] | str]:
     rows: list[dict] = []
     for r in our_runs(results, "scaling"):
         rows.append(
-            dict(
-                dataset=r["set"],
-                method="P2V",
-                n=r["n"],
-                time_s=r["time_s"],
-                rf_pct=r["rf_pct"],
-                host_memory_mb=r["host_memory_mb"],
-                gpu_memory_peak_mib=r["gpu_memory_peak_mib"],
-                source=r["source_path"],
-            )
+            {
+                "dataset": r["set"],
+                "method": "P2V",
+                "n": r["n"],
+                "time_s": r["time_s"],
+                "rf_pct": r["rf_pct"],
+                "host_memory_mb": r["host_memory_mb"],
+                "gpu_memory_peak_mib": r["gpu_memory_peak_mib"],
+                "source": r["source_path"],
+            }
         )
     for d in optional(dipper_runs, results):
         m = d["methods"]["DIPPER-GPU"]
         if m.get("rf", -1) < 0 or "rf_pct" not in m:
             continue
         rows.append(
-            dict(
-                dataset=d["tag"],
-                method="DIPPER",
-                n=d["N"],
-                time_s=m["time"],
-                rf_pct=m["rf_pct"],
-                host_memory_mb=m["peak_ram_mb"],
-                gpu_memory_peak_mib=m.get("gpu_vram_mb", ""),
-                source="baselines/dipper/runs.jsonl",
-            )
+            {
+                "dataset": d["tag"],
+                "method": "DIPPER",
+                "n": d["N"],
+                "time_s": m["time"],
+                "rf_pct": m["rf_pct"],
+                "host_memory_mb": m["peak_ram_mb"],
+                "gpu_memory_peak_mib": m.get("gpu_vram_mb", ""),
+                "source": "baselines/dipper/runs.jsonl",
+            }
         )
     cpu = optional(default_runs, results)
     for path in sorted((results / "baselines" / "default_yule").glob("*.json")):
         cpu.append(dict(json.loads(path.read_text()), tag="yule10k"))
     for r in cpu:
         rows.append(
-            dict(
-                dataset=r["tag"],
-                method=ALIAS[r["method"]],
-                n=r["N"],
-                time_s=r["time"],
-                rf_pct=r["rf_pct"],
-                host_memory_mb=r["peak_ram_mb"],
-                gpu_memory_peak_mib="",
-                source="baselines",
-            )
+            {
+                "dataset": r["tag"],
+                "method": ALIAS[r["method"]],
+                "n": r["N"],
+                "time_s": r["time"],
+                "rf_pct": r["rf_pct"],
+                "host_memory_mb": r["peak_ram_mb"],
+                "gpu_memory_peak_mib": "",
+                "source": "baselines",
+            }
         )
     return {"scaling_methods.tsv": rows}
 
@@ -1114,26 +1119,26 @@ def table_silva_support(results: Path) -> dict[str, list[dict] | str]:
     rows: list[dict] = []
     for index, b in enumerate(data["bins"]):
         rows.append(
-            dict(
-                split_size_bin=b["bin"],
-                p_min=b["p_min"],
-                p_max=b["p_max"],
-                n_branches=b["n_branches"],
-                median_tbe_pct=b["median_tbe_pct"],
-                q25_tbe_pct=b["q25_tbe_pct"],
-                q75_tbe_pct=b["q75_tbe_pct"],
-                mean_tbe_pct=b["mean_tbe_pct"],
-                frac_ge70_pct=b["frac_ge70_pct"],
-                frac_ge80_pct=b["frac_ge80_pct"],
-                n_ge70=b["n_ge70"],
-                n_ge80=b["n_ge80"],
-                mean_pos_branch_length=b["mean_pos_branch_length"],
-                k_unique_leaves=data["K_unique_leaves"],
-                n_expanded_leaves=data["N_expanded_leaves"],
-                b_replicates=data["B_replicates"],
-                source_path=str(path.relative_to(results)),
-                source_key=f"bins[{index}]",
-            )
+            {
+                "split_size_bin": b["bin"],
+                "p_min": b["p_min"],
+                "p_max": b["p_max"],
+                "n_branches": b["n_branches"],
+                "median_tbe_pct": b["median_tbe_pct"],
+                "q25_tbe_pct": b["q25_tbe_pct"],
+                "q75_tbe_pct": b["q75_tbe_pct"],
+                "mean_tbe_pct": b["mean_tbe_pct"],
+                "frac_ge70_pct": b["frac_ge70_pct"],
+                "frac_ge80_pct": b["frac_ge80_pct"],
+                "n_ge70": b["n_ge70"],
+                "n_ge80": b["n_ge80"],
+                "mean_pos_branch_length": b["mean_pos_branch_length"],
+                "k_unique_leaves": data["K_unique_leaves"],
+                "n_expanded_leaves": data["N_expanded_leaves"],
+                "b_replicates": data["B_replicates"],
+                "source_path": str(path.relative_to(results)),
+                "source_key": f"bins[{index}]",
+            }
         )
     body = [
         f"{r['split_size_bin']} & {r['n_branches']:,} & {number(r['median_tbe_pct'])} & "
@@ -1172,29 +1177,29 @@ def table_silva_clades(results: Path) -> dict[str, list[dict] | str]:
     ):
         for e in bio[section]:
             clades.append(
-                dict(
-                    name=e["name"],
-                    rank=rank,
-                    unique_leaves=e["unique_leaves"],
-                    best_node=e["best_node"],
-                    tbe_pct=e["tbe_pct"],
-                    f1=e["f1"],
-                    purity_pct=e["purity_pct"],
-                    recall_pct=e["recall_pct"],
-                )
+                {
+                    "name": e["name"],
+                    "rank": rank,
+                    "unique_leaves": e["unique_leaves"],
+                    "best_node": e["best_node"],
+                    "tbe_pct": e["tbe_pct"],
+                    "f1": e["f1"],
+                    "purity_pct": e["purity_pct"],
+                    "recall_pct": e["recall_pct"],
+                }
             )
             nodes = e["ancestor_nodes"]
             for step in range(len(nodes)):
                 paths.append(
-                    dict(
-                        name=e["name"],
-                        step=step,
-                        node=nodes[step],
-                        parent=nodes[step + 1] if step + 1 < len(nodes) else "",
-                        branch_length=e["ancestor_bl"][step],
-                        tbe_pct=e["ancestor_tbe"][step],
-                        size=e["ancestor_sz"][step],
-                    )
+                    {
+                        "name": e["name"],
+                        "step": step,
+                        "node": nodes[step],
+                        "parent": nodes[step + 1] if step + 1 < len(nodes) else "",
+                        "branch_length": e["ancestor_bl"][step],
+                        "tbe_pct": e["ancestor_tbe"][step],
+                        "size": e["ancestor_sz"][step],
+                    }
                 )
     return {"silva_clades.tsv": clades, "silva_clade_paths.tsv": paths}
 
@@ -1573,14 +1578,14 @@ def table_viridian(results: Path) -> dict[str, list[dict] | str]:
         "\\midrule\n" + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n\\end{table}\n"
     )
     out["viridian_substitutions.tsv"] = [
-        dict(
-            substitutions_from=key[0],
-            substitutions_to="" if key[1] is None else key[1],
-            ours_branches=ours[key]["branches"],
-            ours_in_maple_pct=ours[key]["in_maple_pct"],
-            maple_branches=maple[key]["branches"],
-            maple_in_ours_pct=maple[key]["in_ours_pct"],
-        )
+        {
+            "substitutions_from": key[0],
+            "substitutions_to": "" if key[1] is None else key[1],
+            "ours_branches": ours[key]["branches"],
+            "ours_in_maple_pct": ours[key]["in_maple_pct"],
+            "maple_branches": maple[key]["branches"],
+            "maple_in_ours_pct": maple[key]["in_ours_pct"],
+        }
         for key in VIRIDIAN_BINS
     ]
 

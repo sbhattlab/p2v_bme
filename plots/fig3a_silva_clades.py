@@ -117,17 +117,17 @@ def induced_tree(clades: dict, paths: dict) -> dict:
         if u in targets:
             key, label = targets[u]
             c = clades[key]
-            return dict(
-                leaf=True,
-                node=u,
-                key=key,
-                label=label,
-                length=length,
-                tbe=float(c["tbe_pct"]),
-                f1=float(c["f1"]),
-                leaves=int(c["unique_leaves"]),
-                rank=order[key],
-            )
+            return {
+                "leaf": True,
+                "node": u,
+                "key": key,
+                "label": label,
+                "length": length,
+                "tbe": float(c["tbe_pct"]),
+                "f1": float(c["f1"]),
+                "leaves": int(c["unique_leaves"]),
+                "rank": order[key],
+            }
         children = [
             s
             for v, (bl, t) in adj.get(u, {}).items()
@@ -140,27 +140,27 @@ def induced_tree(clades: dict, paths: dict) -> dict:
             children[0]["length"] += length
             return children[0]
         children.sort(key=lambda c: c["rank"])
-        return dict(
-            leaf=False,
-            node=u,
-            length=length,
-            tbe=tbe,
-            children=children,
-            rank=children[0]["rank"],
-        )
+        return {
+            "leaf": False,
+            "node": u,
+            "length": length,
+            "tbe": tbe,
+            "children": children,
+            "rank": children[0]["rank"],
+        }
 
     ae_length, ae_tbe = above[ae]
-    root = dict(
-        leaf=False,
-        node=-1,
-        length=0.0,
-        tbe=100.0,
-        rank=0,
-        children=[
+    root = {
+        "leaf": False,
+        "node": -1,
+        "length": 0.0,
+        "tbe": 100.0,
+        "rank": 0,
+        "children": [
             build(ae, ae_parent, ae_length / 2, ae_tbe),
             build(ae_parent, ae, ae_length / 2, ae_tbe),
         ],
-    )
+    }
     return root
 
 
@@ -301,14 +301,14 @@ def main() -> None:
     clades, paths = read_clades(args.tables_dir)
     tree = induced_tree(clades, paths)
     tips = place(tree, 0.0, [0]) + 0.025
-    columns = dict(
-        tips=tips,
-        name=tips + 0.015,
-        k=tips + 1.565,
-        f1=tips + 1.875,
-        bar=tips + 1.930,
-        bar_width=0.145,
-    )
+    columns = {
+        "tips": tips,
+        "name": tips + 0.015,
+        "k": tips + 1.565,
+        "f1": tips + 1.875,
+        "bar": tips + 1.930,
+        "bar_width": 0.145,
+    }
 
     fig = plt.figure(figsize=(6.0, 6.3))
     ax = fig.add_axes((0.02, 0.02, 0.96, 0.93))

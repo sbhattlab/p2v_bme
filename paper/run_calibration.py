@@ -336,14 +336,14 @@ def read_branches(path: Path) -> dict[str, np.ndarray]:
 
 def by_size(d: dict[str, np.ndarray]) -> dict:
     """Averages the supports per clade-size bin of the smaller side p: branches -> bins."""
-    out: dict[str, list] = dict(
-        labels=[],
-        counts=[],
-        mean_tbe=[],
-        mean_exact=[],
-        mean_true_transfer=[],
-        mean_correct=[],
-    )
+    out: dict[str, list] = {
+        "labels": [],
+        "counts": [],
+        "mean_tbe": [],
+        "mean_exact": [],
+        "mean_true_transfer": [],
+        "mean_correct": [],
+    }
     for label, lo, hi in SIZE_BINS:
         m = (d["p"] >= lo) & (d["p"] <= hi)
         out["labels"].append(label)
@@ -377,11 +377,11 @@ def rnasim_summary(args: Namespace) -> None:
             if not path.exists():
                 continue
             d = read_branches(path)
-            entry: dict = dict(
-                n_branches=int(d["p"].size),
-                mean_tbe_pct=pct(d["tbe"]),
-                mean_exact_pct=pct(d["exact"]),
-            )
+            entry: dict = {
+                "n_branches": int(d["p"].size),
+                "mean_tbe_pct": pct(d["tbe"]),
+                "mean_exact_pct": pct(d["exact"]),
+            }
             if kind == "boot":
                 entry.update(
                     mean_true_transfer_pct=pct(d["true_transfer"]),
@@ -406,45 +406,45 @@ def maple_summary(args: Namespace) -> None:
     assert np.array_equal(boot["node"], seed["node"])
 
     def stats(m: np.ndarray) -> dict:
-        return dict(
-            branches=int(m.sum()),
-            share_pct=pct(m),
-            true_exact_pct=pct(boot["correct"][m]),
-            true_tbe_pct=pct(boot["true_transfer"][m]),
-            cmaple_exact_pct=pct(boot["cmaple_correct"][m]),
-            cmaple_tbe_pct=pct(boot["cmaple_transfer"][m]),
-            maple_exact_pct=pct(boot["maple_correct"][m]),
-            boot_fbp_pct=pct(boot["exact"][m]),
-            boot_tbe_pct=pct(boot["tbe"][m]),
-            seed_exact_pct=pct(seed["exact"][m]),
-            seed_tbe_pct=pct(seed["tbe"][m]),
-        )
+        return {
+            "branches": int(m.sum()),
+            "share_pct": pct(m),
+            "true_exact_pct": pct(boot["correct"][m]),
+            "true_tbe_pct": pct(boot["true_transfer"][m]),
+            "cmaple_exact_pct": pct(boot["cmaple_correct"][m]),
+            "cmaple_tbe_pct": pct(boot["cmaple_transfer"][m]),
+            "maple_exact_pct": pct(boot["maple_correct"][m]),
+            "boot_fbp_pct": pct(boot["exact"][m]),
+            "boot_tbe_pct": pct(boot["tbe"][m]),
+            "seed_exact_pct": pct(seed["exact"][m]),
+            "seed_tbe_pct": pct(seed["tbe"][m]),
+        }
 
     bl, wrong = boot["branch_length"], boot["correct"] == 0
     regimes = {
-        k: dict(label=label, **stats((bl >= lo) & (bl < hi)))
+        k: {"label": label, **stats((bl >= lo) & (bl < hi))}
         for k, (label, lo, hi) in REGIMES.items()
     }
-    sizes = [dict(bin="All splits", **stats(~np.isnan(bl)))]
+    sizes = [{"bin": "All splits", **stats(~np.isnan(bl))}]
     sizes += [
-        dict(bin=label, **stats((boot["p"] >= lo) & (boot["p"] <= hi)))
+        {"bin": label, **stats((boot["p"] >= lo) & (boot["p"] <= hi))}
         for label, lo, hi in SIZE_BINS
     ]
     report = read_json(folder / "ref.json")
-    summary = dict(
-        dataset="MAPLE simulated pandemic (aln_100K_0.0001)",
-        N=int(bl.size + 3),
-        L=report["details"]["input"]["sites"],
-        B_boot=count_trees(folder / "boot.nwk"),
-        S_seed=count_trees(folder / "seed.nwk"),
-        total_branches=int(bl.size),
-        wrong_branches_total=int(wrong.sum()),
-        wrong_branches_zero_snp=int((wrong & (bl < REGIMES["zero_snp"][2])).sum()),
-        regimes=regimes,
-        by_size=sizes,
-        view="branches of our reference tree, classified by their estimated length",
-        version=report["version"],
-    )
+    summary = {
+        "dataset": "MAPLE simulated pandemic (aln_100K_0.0001)",
+        "N": int(bl.size + 3),
+        "L": report["details"]["input"]["sites"],
+        "B_boot": count_trees(folder / "boot.nwk"),
+        "S_seed": count_trees(folder / "seed.nwk"),
+        "total_branches": int(bl.size),
+        "wrong_branches_total": int(wrong.sum()),
+        "wrong_branches_zero_snp": int((wrong & (bl < REGIMES["zero_snp"][2])).sum()),
+        "regimes": regimes,
+        "by_size": sizes,
+        "view": "branches of our reference tree, classified by their estimated length",
+        "version": report["version"],
+    }
     write_summary(args, "maple_bootstrap_calibration_summary.json", summary)
 
 
@@ -464,55 +464,55 @@ def random_tree_summary(args: Namespace, tag: str) -> None:
         m = (p >= lo) & (p <= hi)
         if m.any():
             sizes.append(
-                dict(
-                    size_from=lo,
-                    size_to=hi,
-                    branches=int(m.sum()),
-                    correct_pct=pct(ok[m]),
-                    support95_share_pct=pct(high[m]),
-                    support95_wrong_pct=pct(~ok[m & high]),
-                )
+                {
+                    "size_from": lo,
+                    "size_to": hi,
+                    "branches": int(m.sum()),
+                    "correct_pct": pct(ok[m]),
+                    "support95_share_pct": pct(high[m]),
+                    "support95_wrong_pct": pct(~ok[m & high]),
+                }
             )
     reliability = []
     for lo, hi in zip(RELIABILITY_EDGES, RELIABILITY_EDGES[1:]):
         m = (exact <= hi) & ((exact > lo) | (lo == 0.0))
         reliability.append(
-            dict(
-                support_above=lo,
-                support_to=hi,
-                branches=int(m.sum()),
-                mean_support_pct=pct(exact[m]),
-                correct_pct=pct(ok[m]),
-            )
+            {
+                "support_above": lo,
+                "support_to": hi,
+                "branches": int(m.sum()),
+                "mean_support_pct": pct(exact[m]),
+                "correct_pct": pct(ok[m]),
+            }
         )
-    summary = dict(
-        dataset=f"first random-tree dataset of {n:,} leaves (yule10k rep0, {n})",
-        n_leaves=n,
-        branches=int(ok.size),
-        bootstrap_trees=count_trees(folder / "boot.nwk"),
-        repeat_searches=count_trees(folder / "seed.nwk"),
-        wrong_branches=int((~ok).sum()),
-        wrong_pct=pct(~ok),
-        auc_exact=auc(exact, ok),
-        auc_tbe=auc(boot["tbe"], ok),
-        mean_exact_pct=pct(exact),
-        mean_tbe_pct=pct(boot["tbe"]),
-        mean_true_transfer_pct=pct(boot["true_transfer"]),
-        support95=dict(
-            share_pct=pct(high),
-            wrong_pct=pct(~ok[high]),
-            wrong_branches=int((~ok & high).sum()),
-        ),
-        by_size=sizes,
-        reliability=reliability,
-        repeat=dict(
-            mean_exact_pct=pct(again),
-            mean_tbe_pct=pct(seed["tbe"]),
-            wrong_in_all_pct=pct(again[~ok] == 1),
-            correct_in_all_pct=pct(again[ok] == 1),
-        ),
-        version=version_of(args, tag),
-    )
+    summary = {
+        "dataset": f"first random-tree dataset of {n:,} leaves (yule10k rep0, {n})",
+        "n_leaves": n,
+        "branches": int(ok.size),
+        "bootstrap_trees": count_trees(folder / "boot.nwk"),
+        "repeat_searches": count_trees(folder / "seed.nwk"),
+        "wrong_branches": int((~ok).sum()),
+        "wrong_pct": pct(~ok),
+        "auc_exact": auc(exact, ok),
+        "auc_tbe": auc(boot["tbe"], ok),
+        "mean_exact_pct": pct(exact),
+        "mean_tbe_pct": pct(boot["tbe"]),
+        "mean_true_transfer_pct": pct(boot["true_transfer"]),
+        "support95": {
+            "share_pct": pct(high),
+            "wrong_pct": pct(~ok[high]),
+            "wrong_branches": int((~ok & high).sum()),
+        },
+        "by_size": sizes,
+        "reliability": reliability,
+        "repeat": {
+            "mean_exact_pct": pct(again),
+            "mean_tbe_pct": pct(seed["tbe"]),
+            "wrong_in_all_pct": pct(again[~ok] == 1),
+            "correct_in_all_pct": pct(again[ok] == 1),
+        },
+        "version": version_of(args, tag),
+    }
     write_summary(args, f"calibration_{n}.json", summary)
 
 
