@@ -12,8 +12,9 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# Data, figure outputs and local files
-data/
+# Data, figure outputs and local files (data/README.md is tracked)
+data/*
+!data/README.md
 img/
 notes/
 tmp/
