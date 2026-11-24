@@ -44,8 +44,18 @@ def main() -> None:
     fig.subplots_adjust(left=0.2, right=0.97, top=0.84, bottom=0.17)
     x = range(len(BINS))
     for field, label, colour, marker in (
-        ("ours_in_maple_pct", "Ours, in MAPLE's tree", SPEC["P2V"]["color"], SPEC["P2V"]["marker"]),
-        ("maple_in_ours_pct", "MAPLE's, in ours", SPEC["MAPLE"]["color"], SPEC["MAPLE"]["marker"]),
+        (
+            "ours_in_maple_pct",
+            "Phylo2VecME's, in MAPLE's tree",
+            SPEC["P2V"]["color"],
+            SPEC["P2V"]["marker"],
+        ),
+        (
+            "maple_in_ours_pct",
+            "MAPLE's, in Phylo2VecME's",
+            SPEC["MAPLE"]["color"],
+            SPEC["MAPLE"]["marker"],
+        ),
     ):
         ax.plot(
             x,
