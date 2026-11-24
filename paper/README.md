@@ -152,10 +152,12 @@ Every table of the paper (`--tables`; default: all). A table whose results are m
 
 ## Figures
 
-- **Command:** `pixi run -e paper python -m plots.<script>`, e.g. `pixi run -e paper python -m plots.fig2a_scaling_time`
+- **Command:** `pixi run -e paper <script>`, e.g. `pixi run -e paper fig2a_scaling_time`; `pixi run -e paper fig2` and
+  `fig3` draw a figure with its supplementary figures (Fig. 2 with Figs S1-S4, Fig. 3 with Fig. S5)
 - **Requires:** `make_tables`
 - **Inputs:** `data/tables/<name>.tsv`
-- **Outputs:** `img/<figure>.pdf`, `img/<figure>.svg`
+- **Outputs:** `img/fig2/` (Fig. 2 with Figs S1-S4) and `img/fig3/` (Fig. 3 with Fig. S5): `<figure>.pdf`,
+  `<figure>.svg`
 
 | Script                            | Figure                                                         | Reads                                       |
 | --------------------------------- | -------------------------------------------------------------- | ------------------------------------------- |
@@ -175,4 +177,4 @@ Every table of the paper (`--tables`; default: all). A table whose results are m
 | `figS5b_sarscov2_shared_branches` | S5b: branches shared by our tree and MAPLE's                   | `viridian_substitutions.tsv`                |
 
 The `figS1*` scripts write one figure per dataset (S1: RNASim, S2: JC10k, S3: random-tree JC), e.g.
-`img/figS2a_scaling_time.pdf`.
+`img/fig2/figS2a_scaling_time.pdf`.

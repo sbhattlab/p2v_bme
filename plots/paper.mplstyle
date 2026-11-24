@@ -1,4 +1,5 @@
-# The figure style of github.com/Neclow/phylaudio (.matplotlib/paper.mplstyle at bb49d9a); the block at the end is added here.
+# The figure style of github.com/Neclow/phylaudio (.matplotlib/paper.mplstyle at bb49d9a), with autolayout off; the block at the end
+# is added here.
 # paper
 
 # Use a sans-serif font
@@ -43,7 +44,7 @@ savefig.dpi: 300
 savefig.format: pdf
 
 # Set the tight layout
-figure.autolayout: True
+figure.autolayout: False  # off here: each plot sets its margins (subplots_adjust), so panels keep their size
 
 # Enable LaTeX for text rendering
 text.usetex: False

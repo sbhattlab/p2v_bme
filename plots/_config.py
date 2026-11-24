@@ -10,6 +10,17 @@ STYLE = "plots/paper.mplstyle"  # every figure
 # Matplotlib metadata without timestamps, so that an unchanged figure is an unchanged file
 SAVE_METADATA = {"pdf": {"CreationDate": None}, "svg": {"Date": None}}
 
+# The folder of each figure in img/: one per main figure, holding its supplementary figures
+FIGURE_FOLDERS = {
+    "fig2": "fig2",
+    "figS1": "fig2",  # S1-S3: every method by size
+    "figS2": "fig2",
+    "figS3": "fig2",
+    "figS4": "fig2",  # alignment length
+    "fig3": "fig3",
+    "figS5": "fig3",  # SARS-CoV-2 variants and shared branches
+}
+
 
 # One entry per method, used identically in every figure: key, legend label, colour, marker, filled, line style.
 # Hue encodes the family: vermilion = Phylo2VecME, purple = DIPPER, blues = ML searches, greys = ME searches.

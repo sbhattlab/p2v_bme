@@ -3,7 +3,7 @@
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    per program and size: mean over the three branch-length scales, the bar spans their range
-Outputs: img/fig2c_pandemic_time.{pdf,svg}
+Outputs: img/fig2/fig2c_pandemic_time.{pdf,svg}
 
     pixi run -e paper python -m plots.fig2c_pandemic_time
 """
@@ -12,7 +12,7 @@ from statistics import mean
 
 import matplotlib.pyplot as plt
 
-from matplotlib.ticker import NullLocator
+from matplotlib.ticker import LogLocator, NullLocator
 from numpy import ceil, floor, log10
 
 from plots._config import PANDEMIC, STYLE
@@ -20,6 +20,7 @@ from plots.utils import parser, read_tsv, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
 SIZES = [100000, 200000, 500000]
+HEADROOM = 1.3  # decades above the slowest run, so that the legend clears the data
 
 
 def main() -> None:
@@ -58,8 +59,10 @@ def main() -> None:
     ax.set_xlim(8e4, 6.2e5)
     times = [float(r["time_s"]) for r in rows]
     ax.set_ylim(
-        10 ** (floor(log10(min(times)) - 0.3)), 10 ** (ceil(log10(max(times)) + 0.8))
+        10 ** (floor(log10(min(times)) - 0.3)),
+        10 ** (ceil(log10(max(times)) + HEADROOM)),
     )
+    ax.yaxis.set_major_locator(LogLocator(base=10, numticks=12))  # a tick every decade
     ax.set_xticks(SIZES)
     ax.set_xticklabels(["100k", "200k", "500k"])
     ax.xaxis.set_minor_locator(NullLocator())

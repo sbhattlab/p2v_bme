@@ -7,7 +7,7 @@ Flow:    mean and sample SD of the RF error at each size, one series per dataset
            v
          datasets above 10^5 sequences on the PASTA tree expand a 10^5-leaf alignment: their error on the
          inherited (backbone) splits, open markers, dotted from the 10^5-leaf alignment
-Outputs: img/fig2b_scaling_rf_error.{pdf,svg}
+Outputs: img/fig2/fig2b_scaling_rf_error.{pdf,svg}
 
     pixi run -e paper python -m plots.fig2b_scaling_rf_error
 """
