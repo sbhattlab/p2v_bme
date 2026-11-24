@@ -8,6 +8,16 @@
  * Distances are in expected substitutions per site, and always finite (config.hpp: NO_OVERLAP_DISTANCE, MAX_DISTANCE).
  * The formulas are inline host/device templates on the floating-point type, so the GPU kernels (float) and the CPU
  * device run the same code.
+ *
+ * References
+ *   Felsenstein, J. & Churchill, G. A. (1996). A Hidden Markov Model approach to variation among sites in rate of
+ *     evolution. Molecular Biology and Evolution 13, 93-104. doi:10.1093/oxfordjournals.molbev.a025575
+ *   Lockhart, P. J., Steel, M. A., Hendy, M. D. & Penny, D. (1994). Recovering evolutionary trees under a more
+ *     realistic model of sequence evolution. Molecular Biology and Evolution 11, 605-612.
+ *     doi:10.1093/oxfordjournals.molbev.a040136
+ *   Tamura, K. & Nei, M. (1993). Estimation of the number of nucleotide substitutions in the control region of
+ *     mitochondrial DNA in humans and chimpanzees. Molecular Biology and Evolution 10, 512-526.
+ *     doi:10.1093/oxfordjournals.molbev.a040023
  */
 #ifndef P2VBME_DISTANCES_HPP
 #define P2VBME_DISTANCES_HPP

@@ -3,6 +3,12 @@
  *
  * O(N) balanced minimum evolution branch lengths (Pauplin 2000; FastME, Desper & Gascuel 2002) by exact clade
  * condensation: capped dyadic inside and outside representatives on the host, the edge-length pass on the devices.
+ *
+ * References
+ *   Desper, R. & Gascuel, O. (2002). Fast and Accurate Phylogeny Reconstruction Algorithms Based on the
+ *     Minimum-Evolution Principle. Journal of Computational Biology 9, 687-705. doi:10.1089/106652702761034136
+ *   Pauplin, Y. (2000). Direct Calculation of a Tree Length Using a Distance Matrix. Journal of Molecular Evolution
+ *     51, 41-47. doi:10.1007/s002390010065
  */
 #ifndef P2VBME_BRANCH_LENGTHS_HPP
 #define P2VBME_BRANCH_LENGTHS_HPP

@@ -4,6 +4,10 @@
  * GTR(+GC) sequence simulation along a tree. P(t) = exp(Q t) comes from the eigendecomposition of the
  * symmetrised rate matrix Pi^(1/2) Q Pi^(-1/2) (Jacobi rotations); per-site gamma rates are drawn with
  * Marsaglia & Tsang's method.
+ *
+ * Reference
+ *   Marsaglia, G. & Tsang, W. W. (2000). A simple method for generating gamma variables. ACM Transactions on
+ *     Mathematical Software 26, 363-372. doi:10.1145/358407.358414
  */
 #include "simulations.hpp"
 
