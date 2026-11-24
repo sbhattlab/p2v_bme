@@ -18,9 +18,9 @@ Outputs: img/fig3/fig3c_sarscov2_resolution.{pdf,svg}
 """
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
-from numpy import arange, array, average, zeros
 
 from plots._config import STYLE
 from plots.utils import parser, read_tsv, save
@@ -53,20 +53,20 @@ def main() -> None:
     plt.style.use(STYLE)
     rows = months_at_threshold(read_tsv(args.tables_dir, "viridian_resolution"))
     months = [r["month"] for r in rows]
-    column = lambda name: array([float(r[name]) for r in rows])  # noqa: E731
+    column = lambda name: np.array([float(r[name]) for r in rows])  # noqa: E731
     fig = plt.figure(figsize=(10.2, 3.9))
     strip = fig.add_axes((0.15, 0.87, 0.835, 0.07))
     ax = fig.add_axes((0.15, 0.2, 0.835, 0.65), sharex=strip)
 
-    x = arange(len(rows))
-    shares = array([column(f"share_{key}") for key, _name, _colour in GROUPS])
-    bottom = zeros(len(rows))
+    x = np.arange(len(rows))
+    shares = np.array([column(f"share_{key}") for key, _name, _colour in GROUPS])
+    bottom = np.zeros(len(rows))
     for (_key, name, colour), share in zip(GROUPS, shares):
         strip.bar(x, share, bottom=bottom, width=1.0, color=colour, linewidth=0)
         bottom += share
         if share.max() > 0.5:  # name a variant on the strip where it holds most of the genomes
             strip.text(
-                float(average(x, weights=share)),
+                float(np.average(x, weights=share)),
                 0.5,
                 name,
                 color="white",

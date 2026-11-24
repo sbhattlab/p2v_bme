@@ -10,7 +10,7 @@ Outputs: img/fig2/figS4_seqlen_effect.{pdf,svg}
     pixi run -e paper python -m plots.figS4_seqlen_effect
 """
 
-from statistics import mean
+import statistics
 
 import matplotlib.pyplot as plt
 
@@ -40,7 +40,9 @@ def main() -> None:
     for key, *_ in METHODS:
         a, b = values(SHORT, key), values(LONG, key)
         if a and b:
-            rows.append((key, (mean(a), min(a), max(a)), (mean(b), min(b), max(b))))
+            rows.append(
+                (key, (statistics.mean(a), min(a), max(a)), (statistics.mean(b), min(b), max(b)))
+            )
         elif a or b:
             print(f"skipping {key}: results for only one alignment length at N = {N}")
     if not rows:

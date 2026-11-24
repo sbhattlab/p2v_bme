@@ -1,11 +1,12 @@
 """Helpers several plot scripts share:
 reading figure data, saving figures, the panels of Figs 2a,b and S1-S3."""
 
+import re
+import statistics
+
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from csv import DictReader
 from pathlib import Path
-from re import match
-from statistics import mean
 
 import matplotlib
 
@@ -58,7 +59,7 @@ def read_tsv(tables_dir: Path, name: str) -> list[dict[str, str]]:
 def save(fig: plt.Figure, img_dir: Path, name: str, **kwargs) -> None:
     """Saves a figure once per format in its figure's folder, without timestamps:
     (figure, folder, name) -> img_dir/<FIGURE_FOLDERS>/name.{pdf,svg}."""
-    figure = match(r"figS?\d+", name)
+    figure = re.match(r"figS?\d+", name)
     if figure is None or figure[0] not in FIGURE_FOLDERS:
         raise SystemExit(f"{name}: no folder for this figure in FIGURE_FOLDERS (plots/_config.py)")
     img_dir = img_dir / FIGURE_FOLDERS[figure[0]]
@@ -160,7 +161,7 @@ def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: fl
     for r in rows:
         if r["dataset"] == dataset and r["method"] in PLOTTED and r[field] != "":
             values.setdefault((int(r["n"]), r["method"]), []).append(float(r[field]) * scale)
-    return {k: (mean(v), min(v), max(v)) for k, v in values.items()}
+    return {k: (statistics.mean(v), min(v), max(v)) for k, v in values.items()}
 
 
 def method_bars(ax: plt.Axes, stats: dict, panel: str) -> None:

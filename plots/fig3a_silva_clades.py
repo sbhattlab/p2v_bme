@@ -17,7 +17,7 @@ Outputs: img/fig3/fig3a_silva_clades.{pdf,svg}
     pixi run -e paper python -m plots.fig3a_silva_clades
 """
 
-from math import log10, sqrt
+import math
 
 import matplotlib.pyplot as plt
 
@@ -167,7 +167,7 @@ def induced_tree(clades: dict, paths: dict) -> dict:
 def place(node: dict, x0: float, counter: list[int]) -> float:
     """Sets the x (square-root branch lengths) and y (row) of every node:
     -> the largest x below the node."""
-    step = 0.0 if node["node"] == -1 else 0.016 + 0.36 * sqrt(max(0.0, node["length"]))
+    step = 0.0 if node["node"] == -1 else 0.016 + 0.36 * math.sqrt(max(0.0, node["length"]))
     node["x0"], node["x"] = x0, x0 + step
     if node["leaf"]:
         node["y"] = len(SELECTED_CLADES) - 1 - counter[0]
@@ -197,7 +197,7 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
                 alpha=0.75,
                 zorder=1,
             )
-        h = 0.22 + 0.05 * (log10(max(1000, node["leaves"])) - 4.0)
+        h = 0.22 + 0.05 * (math.log10(max(1000, node["leaves"])) - 4.0)
         ax.add_patch(
             Polygon(
                 [[x1, y], [tips, y + h], [tips, y - h]],
