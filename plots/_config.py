@@ -40,7 +40,7 @@ METHODS: Final = [
     ("P2V", "Phylo2VecME", "#D55E00", "o", True, "-"),
 ]
 PANDEMIC_METHODS: Final = [
-    ("MAPLE", "MAPLE", "#CAB2D6", "P", True, "--"),
+    ("MAPLE", "MAPLE", "#B294C7", "P", True, "--"),
     ("CMAPLE", "CMAPLE", "#6A3D9A", "h", True, "-."),
 ]
 
