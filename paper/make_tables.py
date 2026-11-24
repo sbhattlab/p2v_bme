@@ -43,8 +43,9 @@ import sys
 
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from collections import defaultdict
-from csv import DictReader, DictWriter
 from pathlib import Path
+
+import pandas as pd
 
 from tabulate import tabulate
 
@@ -124,6 +125,9 @@ VIRIDIAN_BINS = {
     (5.5, None): "≥ 6",
 }
 
+# What a table function returns: file name -> its table (.tsv) or text (.md)
+Outputs = dict[str, pd.DataFrame | list[dict] | str]
+
 RUN = re.compile(r"rep(\d+)_seed(\d+)(?:_cap(\d+))?")
 
 
@@ -148,12 +152,12 @@ def read_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
-def read_tsv(path: Path) -> list[dict]:
-    """Reads a tab-separated record with a header: path -> rows; MissingResults if absent."""
+def read_tsv(path: Path, **options) -> pd.DataFrame:
+    """Reads a tab-separated record with a header:
+    (path, pandas.read_csv options) -> its table; MissingResults if absent."""
     if not path.exists():
         raise MissingResults(str(path))
-    with path.open(newline="") as fh:
-        return list(DictReader(fh, delimiter="\t"))
+    return pd.read_csv(path, sep="\t", **options)
 
 
 def one_file(folder: Path, pattern: str) -> Path:
@@ -275,6 +279,12 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
     return rows
 
 
+def run_frame(results: Path, experiment: str) -> pd.DataFrame:
+    """Reads our runs of one experiment as a table:
+    (results dir, experiment) -> one row per p2v-bme report, in run order, blanks as NA."""
+    return pd.DataFrame(our_runs(results, experiment), dtype=object).replace("", pd.NA)
+
+
 def one(values: set, what: str):
     """Returns the one value of a set:
     (values, what they are) -> value; mixed values are an error."""
@@ -288,19 +298,20 @@ def gpus(count: int, model: str) -> str:
     return f"{NUMBER_WORDS.get(count, count)} {model} GPU" + ("" if count == 1 else "s")
 
 
-def hardware(rows: list[dict], threads_too: bool = True) -> str:
+def hardware(rows: pd.DataFrame | list[dict], threads_too: bool = True) -> str:
     """Describes the hardware of our runs:
     rows -> 'one H200 GPU and 12 CPU threads', or '16 CPU threads' on the CPU.
 
     The GPUs alone without threads_too (as the bootstrap caption),
     or for reports without the CPU threads.
     """
-    count = one({r["gpu_count"] for r in rows}, "GPU counts")
-    threads = one({r["cpu_threads"] for r in rows}, "CPU thread counts")
+    rows = pd.DataFrame(rows)
+    count = one(set(rows["gpu_count"]), "GPU counts")
+    threads = one(set(rows["cpu_threads"]), "CPU thread counts")
     if count == 0:
         return f"{threads} CPU threads"
-    model = gpus(count, one({r["gpu_model"] for r in rows}, "GPU models"))
-    return f"{model} and {threads} CPU threads" if threads_too and threads != "" else model
+    model = gpus(count, one(set(rows["gpu_model"]), "GPU models"))
+    return f"{model} and {threads} CPU threads" if threads_too and not blank(threads) else model
 
 
 def program_hardware(records: list[dict]) -> str:
@@ -359,9 +370,26 @@ def mean_sd(values: list) -> tuple[float | str, float | str]:
     )
 
 
+def blank(value) -> bool:
+    """Tells a missing value: NA, NaN or an empty string."""
+    return pd.isna(value) or value == ""
+
+
+def mean_of(values: pd.Series):
+    """Averages the values present, exactly as statistics.mean: values -> mean, NA if none."""
+    values = values.dropna()
+    return statistics.mean(values) if len(values) else pd.NA
+
+
+def sd_of(values: pd.Series):
+    """Gives the sample SD of the values present: values -> SD, NA for fewer than two."""
+    values = values.dropna()
+    return statistics.stdev(values) if len(values) > 1 else pd.NA
+
+
 def number(value: float | str, digits: int = 2) -> str:
     """Formats a number with thousands separators, or an em dash if missing."""
-    return "—" if value == "" else f"{value:,.{digits}f}"
+    return "—" if blank(value) else f"{value:,.{digits}f}"
 
 
 def power(exponent: int) -> str:
@@ -378,7 +406,7 @@ def estimate(row: dict, field: str) -> list[str]:
     """Formats a mean and its sample SD: (row, field) -> [mean, SD], the SD blank for one value."""
     mu, sd = row[field + "_mean"], row[field + "_sd"]
     digits = 3 if field == "time_s" and mu < 1 else 2
-    return [number(mu, digits), "" if sd == "" else number(sd, digits)]
+    return [number(mu, digits), "" if blank(sd) else number(sd, digits)]
 
 
 def seconds(x: float) -> str:
@@ -424,86 +452,79 @@ def markdown(caption: str, header: list[str], body: list, align: str) -> str:
 # ---- Tables ----
 
 
-def scaling_rows(results: Path) -> tuple[list[dict], list[dict]]:
+def scaling_rows(results: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Aggregates the sample-and-place runs on the PASTA-tree datasets:
     results -> (per size, per run)."""
-    runs = [r for r in our_runs(results, "scaling") if r["set"] in DATASETS]
-    if not runs:
+    runs = run_frame(results, "scaling")
+    runs = runs[runs["set"].isin(list(DATASETS))]
+    if runs.empty:
         raise MissingResults(f"{results}/scaling/{{{','.join(DATASETS)}}}")
-    per_run, aggregate = [], []
-    for tag, label in DATASETS.items():
-        for n in sorted({r["n"] for r in runs if r["set"] == tag}):
-            selected = [r for r in runs if r["set"] == tag and r["n"] == n]
-            rows: list[dict] = []
-            for replicate, r in enumerate(selected):
-                rows.append(
-                    {
-                        "dataset": label,
-                        "n": n,
-                        "initialisation": "sample",
-                        "replicate": replicate,
-                        "alignment_columns": r["sites"],
-                        "time_s": r["time_s"],
-                        "topology_time_s": r["topology_time_s"],
-                        "branch_time_s": r["branch_time_s"],
-                        "rf_pct": r["rf_pct"],
-                        # at 100,000 leaves the backbone is the whole tree
-                        "backbone_rf_pct": (
-                            r["rf_pct"] if n == BACKBONE_SIZE else r["backbone_rf_pct"]
-                        ),
-                        "gpu_count": r["gpu_count"],
-                        "gpu_model": r["gpu_model"],
-                        "cpu_threads": r["cpu_threads"],
-                        "recorded_init_mode": r["start_tree"],
-                        "host_memory_mb": r["host_memory_mb"],
-                        "gpu_memory_peak_mib": r["gpu_memory_peak_mib"],
-                        "source_path": r["source_path"],
-                        "source_key": "p2v-bme report",
-                        "timing_scope": TIMING,
-                        "_rep": r["rep"],
-                    }
-                )
-            per_run += rows
-            row: dict = {
-                "dataset": label,
-                "n": n,
-                "initialisation": "sample",
-                "n_replicates": len(rows),
-            }
-            for field in ("time_s", "rf_pct", "backbone_rf_pct"):
-                row[field + "_mean"], row[field + "_sd"] = mean_sd(
-                    [r[field] for r in rows if r[field] != ""]
-                )
-            if (
-                n == BACKBONE_SIZE
-            ):  # the larger datasets expand replicate 0: its error on the whole tree
-                row["backbone_rf_pct_mean"] = next(
-                    (r["rf_pct"] for r in rows if r["_rep"] == 0), ""
-                )
-                row["backbone_rf_pct_sd"] = ""
-            row.update(
-                gpu_count=one({r["gpu_count"] for r in rows}, "GPU counts"),
-                gpu_model=one({r["gpu_model"] for r in rows}, "GPU models"),
-                cpu_threads=one({r["cpu_threads"] for r in rows}, "CPU thread counts"),
-                source_paths="|".join(str(r["source_path"]) for r in rows),
-                source_key="p2v-bme report",
-                timing_scope=TIMING,
-                large_scale_design=(
-                    "100k-backbone microclade expansion" if n >= SIZES_EXPANDED else ""
-                ),
-                sd_definition=SD,
-            )
-            aggregate.append(row)
-    for r in per_run:
-        del r["_rep"]
+    runs = runs.assign(order=runs["set"].map(list(DATASETS).index))
+    runs = runs.sort_values(["order", "n"], kind="stable")
+    per_run = pd.DataFrame(
+        {
+            "dataset": runs["set"].map(DATASETS),
+            "n": runs["n"],
+            "initialisation": "sample",
+            "replicate": runs.groupby(["set", "n"]).cumcount(),
+            "alignment_columns": runs["sites"],
+            "time_s": runs["time_s"],
+            "topology_time_s": runs["topology_time_s"],
+            "branch_time_s": runs["branch_time_s"],
+            "rf_pct": runs["rf_pct"],
+            # at 100,000 leaves the backbone is the whole tree
+            "backbone_rf_pct": runs["rf_pct"].where(
+                runs["n"] == BACKBONE_SIZE, runs["backbone_rf_pct"]
+            ),
+            "gpu_count": runs["gpu_count"],
+            "gpu_model": runs["gpu_model"],
+            "cpu_threads": runs["cpu_threads"],
+            "recorded_init_mode": runs["start_tree"],
+            "host_memory_mb": runs["host_memory_mb"],
+            "gpu_memory_peak_mib": runs["gpu_memory_peak_mib"],
+            "source_path": runs["source_path"],
+            "source_key": "p2v-bme report",
+            "timing_scope": TIMING,
+        }
+    )
+    aggregate = per_run.groupby(["dataset", "n"], sort=False).agg(
+        n_replicates=("replicate", "size"),
+        time_s_mean=("time_s", mean_of),
+        time_s_sd=("time_s", sd_of),
+        rf_pct_mean=("rf_pct", mean_of),
+        rf_pct_sd=("rf_pct", sd_of),
+        backbone_rf_pct_mean=("backbone_rf_pct", mean_of),
+        backbone_rf_pct_sd=("backbone_rf_pct", sd_of),
+        gpu_count=("gpu_count", lambda v: one(set(v), "GPU counts")),
+        gpu_model=("gpu_model", lambda v: one(set(v), "GPU models")),
+        cpu_threads=("cpu_threads", lambda v: one(set(v), "CPU thread counts")),
+        source_paths=("source_path", "|".join),
+    )
+    aggregate = aggregate.reset_index()
+    aggregate.insert(2, "initialisation", "sample")
+    # the larger datasets expand replicate 0: its error on the whole tree
+    first = runs[(runs["n"] == BACKBONE_SIZE) & (runs["rep"] == 0)].groupby("set")["rf_pct"].first()
+    at_base = aggregate["n"] == BACKBONE_SIZE
+    aggregate.loc[at_base, "backbone_rf_pct_mean"] = aggregate.loc[at_base, "dataset"].map(
+        {DATASETS[k]: v for k, v in first.items()}
+    )
+    aggregate.loc[at_base, "backbone_rf_pct_sd"] = pd.NA
+    aggregate = aggregate.assign(
+        source_key="p2v-bme report",
+        timing_scope=TIMING,
+        large_scale_design=aggregate["n"].map(
+            lambda n: "100k-backbone microclade expansion" if n >= SIZES_EXPANDED else ""
+        ),
+        sd_definition=SD,
+    )
     return aggregate, per_run
 
 
-def table_scaling(results: Path) -> dict[str, list[dict] | str]:
+def table_scaling(results: Path) -> Outputs:
     """Builds Table S2 (scaling): results -> {scaling.md, scaling.tsv, scaling_runs.tsv}."""
     scale, runs = scaling_rows(results)
     one_count = (
-        len({r["gpu_count"] for r in scale}) == 1
+        scale["gpu_count"].nunique() == 1
     )  # the same number of GPUs in every row: say it once
     body = [
         [
@@ -515,16 +536,16 @@ def table_scaling(results: Path) -> dict[str, list[dict] | str]:
             number(r["backbone_rf_pct_mean"]),
             *([] if one_count else [str(r["gpu_count"])]),
         ]
-        for r in scale
+        for r in scale.to_dict("records")
     ]
     hw = (
         hardware(scale)
         if one_count
-        else f"{one({r['gpu_model'] for r in scale}, 'GPU models')} GPUs (count per row)"
+        else f"{one(set(scale['gpu_model']), 'GPU models')} GPUs (count per row)"
     )
-    expanded = sorted({r["n"] for r in scale if r["n"] >= SIZES_EXPANDED})
+    expanded = sorted(set(scale.loc[scale["n"] >= SIZES_EXPANDED, "n"]))
     sizes = " and at ".join(power(len(str(n)) - 1) for n in expanded)
-    counts = {r["n_replicates"] for r in scale if r["n"] >= SIZES_EXPANDED}
+    counts = set(scale.loc[scale["n"] >= SIZES_EXPANDED, "n_replicates"])
     repeat = (
         f"At {sizes} leaves the {NUMBER_WORDS.get(one(counts, 'run counts'), len(counts))} runs use "
         f"{NUMBER_WORDS.get(one(counts, 'run counts'), len(counts))} starting-tree samples on one alignment. "
@@ -555,7 +576,7 @@ def yule_runs(results: Path) -> list[dict]:
     return runs
 
 
-def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
+def table_random_tree(results: Path) -> Outputs:
     """Builds Table S8 (random_tree) and Fig. 2's third series:
     results -> {random_tree.md, random_tree.tsv}."""
     ours = yule_runs(results)
@@ -652,7 +673,7 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
     return {"random_tree.md": tex, "random_tree.tsv": rows}
 
 
-def table_maple(results: Path) -> dict[str, list[dict] | str]:
+def table_maple(results: Path) -> Outputs:
     """Builds Table S3 (maple) and Fig. 2c,d's data: results -> {maple.md, maple.tsv}."""
     ours = our_runs(results, "pandemic")
     record = read_record(results / "baselines" / "maple" / "cmaple_benchmark_summary.json")
@@ -736,7 +757,7 @@ def table_maple(results: Path) -> dict[str, list[dict] | str]:
     return {"maple.md": tex, "maple.tsv": rows}
 
 
-def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
+def table_bootstrap(results: Path) -> Outputs:
     """Builds Table S4 (bootstrap):
     results -> {bootstrap.md, bootstrap.tsv, bootstrap_by_size.tsv}."""
     folder = results / "calibration"
@@ -893,7 +914,7 @@ def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
     return {"bootstrap.md": tex, "bootstrap.tsv": rows, "bootstrap_by_size.tsv": bins}
 
 
-def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
+def table_baseline_10k(results: Path) -> Outputs:
     """Builds Table S6 (baseline_10k): results -> {baseline_10k.md, baseline_10k.tsv}."""
     sample = our_runs(results, "scaling")
     random = our_runs(results, "random_start")
@@ -1007,7 +1028,7 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
     return {"baseline_10k.md": tex, "baseline_10k.tsv": rows}
 
 
-def table_comparators(results: Path) -> dict[str, list[dict] | str]:
+def table_comparators(results: Path) -> Outputs:
     """Builds Table S5 (comparators): results -> {comparators.md}."""
     sizes_max = BACKBONE_SIZE
     ours = [r for r in our_runs(results, "scaling") if r["set"] in DATASETS and r["n"] <= sizes_max]
@@ -1071,7 +1092,7 @@ def table_comparators(results: Path) -> dict[str, list[dict] | str]:
     return {"comparators.md": tex}
 
 
-def table_scaling_methods(results: Path) -> dict[str, list[dict] | str]:
+def table_scaling_methods(results: Path) -> Outputs:
     """Collects every method's runs on the simulated sets (Figs S1-S4):
     results -> {scaling_methods.tsv}.
 
@@ -1126,7 +1147,7 @@ def table_scaling_methods(results: Path) -> dict[str, list[dict] | str]:
     return {"scaling_methods.tsv": rows}
 
 
-def table_silva_support(results: Path) -> dict[str, list[dict] | str]:
+def table_silva_support(results: Path) -> Outputs:
     """Builds Table S12 (silva_support) and Fig. 3b's data:
     results -> {silva_support.md, silva_support.tsv}."""
     path = one_file(results / "silva", "silva144_dedup_tbe_B*_quantiles.json")
@@ -1188,7 +1209,7 @@ def table_silva_support(results: Path) -> dict[str, list[dict] | str]:
     return {"silva_support.md": tex, "silva_support.tsv": rows}
 
 
-def table_silva_clades(results: Path) -> dict[str, list[dict] | str]:
+def table_silva_clades(results: Path) -> Outputs:
     """Collects Fig. 3a's data: results
     -> {silva_clades.tsv (one row per clade), silva_clade_paths.tsv}.
 
@@ -1231,7 +1252,7 @@ def table_silva_clades(results: Path) -> dict[str, list[dict] | str]:
     return {"silva_clades.tsv": clades, "silva_clade_paths.tsv": paths}
 
 
-def table_silva_gtdb(results: Path) -> dict[str, list[dict] | str]:
+def table_silva_gtdb(results: Path) -> Outputs:
     """Builds Table S13 (silva_gtdb): results -> {silva_gtdb.md}."""
     record = read_record(results / "silva" / "gtdb_labelled_scores.json")
     out, n = record["trees"], record["n_sequences"]
@@ -1255,7 +1276,7 @@ def table_silva_gtdb(results: Path) -> dict[str, list[dict] | str]:
     return {"silva_gtdb.md": tex}
 
 
-def table_seqlen(results: Path) -> dict[str, list[dict] | str]:
+def table_seqlen(results: Path) -> Outputs:
     """Builds Table S7 (seqlen): results -> {seqlen.md}.
 
     RF columns from our runs (10,000 sites: the scaling runs on JC10k);
@@ -1307,7 +1328,7 @@ def table_seqlen(results: Path) -> dict[str, list[dict] | str]:
     return {"seqlen.md": tex}
 
 
-def table_representatives(results: Path) -> dict[str, list[dict] | str]:
+def table_representatives(results: Path) -> Outputs:
     """Builds Table S14 (representative_sensitivity): results -> {representative_sensitivity.md}.
 
     Per dataset, size and cap P: RF to the true tree,
@@ -1386,7 +1407,7 @@ def table_representatives(results: Path) -> dict[str, list[dict] | str]:
     return {"representative_sensitivity.md": tex}
 
 
-def table_fastme(results: Path) -> dict[str, list[dict] | str]:
+def table_fastme(results: Path) -> Outputs:
     """Builds Table S1 (fastme): results -> {fastme.md}."""
     rows = read_jsonl(results / "fastme" / "cases.jsonl")
     names = {
@@ -1476,11 +1497,11 @@ def table_fastme(results: Path) -> dict[str, list[dict] | str]:
     return {"fastme.md": markdown(caption, header, body, "lrrrrrrrrrrrrrrr")}
 
 
-def table_gtr_fit(results: Path) -> dict[str, list[dict] | str]:
+def table_gtr_fit(results: Path) -> Outputs:
     """Builds Table S15 (gtr_fit): results -> {gtr_fit.md}."""
     rows = read_tsv(results / "gtr_fit" / "recovery.tsv")
-    pairs = int(float(rows[0]["pairs"])) if "pairs" in rows[0] else GTR_PAIRS
-    replicates = 1 + max(int(float(r["replicate"])) for r in rows)
+    pairs = int(rows["pairs"].iloc[0]) if "pairs" in rows else GTR_PAIRS
+    replicates = 1 + int(rows["replicate"].max())
     true_rates = [x * 6.0 / sum(GTR_RATES) for x in GTR_RATES]
     caption = (
         "Recovery of the GTR+Γ parameters. Alignments of "
@@ -1498,38 +1519,38 @@ def table_gtr_fit(results: Path) -> dict[str, list[dict] | str]:
     def show(x: float) -> str:
         return f"{x:.2f}" if x < 100 else ">100"
 
-    keys = sorted({(float(r["alpha_true"]), float(r["sites"]), float(r["target_p"])) for r in rows})
-    for alpha, sites, p in keys:
-        sub = [
-            r
-            for r in rows
-            if (float(r["alpha_true"]), float(r["sites"]), float(r["target_p"]))
-            == (alpha, sites, p)
-        ]
-        a = [float(r["alpha_hat"]) for r in sub]
-        e = [float(r["rate_rms_log_error"]) for r in sub]
+    fits = rows.groupby(["alpha_true", "sites", "target_p"], as_index=False).agg(
+        median=("alpha_hat", statistics.median),
+        low=("alpha_hat", "min"),
+        high=("alpha_hat", "max"),
+        error=("rate_rms_log_error", statistics.mean),
+    )
+    for r in fits.to_dict("records"):
         lines.append(
             [
-                f"{alpha:g}",
-                f"{int(sites):,}",
-                f"{p:.2f}",
-                show(statistics.median(a)),
-                show(min(a)),
-                show(max(a)),
-                f"{statistics.mean(e):.3f}",
+                f"{r['alpha_true']:g}",
+                f"{int(r['sites']):,}",
+                f"{r['target_p']:.2f}",
+                show(r["median"]),
+                show(r["low"]),
+                show(r["high"]),
+                f"{r['error']:.3f}",
             ]
         )
     header = ["True α", "Sites", "Median p", "α̂ median", "α̂ min", "α̂ max", "Rate error"]
     return {"gtr_fit.md": markdown(caption, header, lines, "rrrrrrr")}
 
 
-def table_viridian(results: Path) -> dict[str, list[dict] | str]:
+def table_viridian(results: Path) -> Outputs:
     """Builds Tables S9-S11 (viridian_*) and the data of Figs 3c, S5:
     results -> their .md and .tsv."""
     s = read_record(results / "viridian" / "summary.json")
-    months = read_tsv(results / "viridian" / "resolution_by_month.tsv")
+    # read as text: the record goes on unchanged as the figures' data
+    months = read_tsv(
+        results / "viridian" / "resolution_by_month.tsv", dtype=str, keep_default_na=False
+    )
     runs = s["runs"]
-    out: dict[str, list[dict] | str] = {}
+    out: Outputs = {}
 
     rows: list[list[str]] = []
     for v in sorted(s["variants"], key=lambda v: -v["genomes"]):
@@ -1635,7 +1656,8 @@ def table_viridian(results: Path) -> dict[str, list[dict] | str]:
     rows = []
     analysed = 0
     for threshold in VIRIDIAN_THRESHOLDS:
-        med = {m["month"]: float(m["window_median"]) for m in months if m["threshold"] == threshold}
+        rows_at = months[months["threshold"] == threshold]
+        med = dict(zip(rows_at["month"], rows_at["window_median"].astype(float)))
         if not med or any(month not in med for month, _ in VIRIDIAN_PEAKS):
             raise SystemExit(
                 f"resolution_by_month.tsv has no complete rows for the threshold {threshold}"
@@ -1678,12 +1700,10 @@ TABLES = {
 }
 
 
-def write_tsv(path: Path, rows: list[dict]) -> None:
-    """Writes rows as a tab-separated file with a header: (path, rows) -> None."""
-    with path.open("w", newline="") as fh:
-        writer = DictWriter(fh, fieldnames=list(rows[0]), delimiter="\t", lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
+def write_tsv(path: Path, rows: pd.DataFrame | list[dict]) -> None:
+    """Writes a table as a tab-separated file with a header: (path, table) -> None."""
+    table = rows if isinstance(rows, pd.DataFrame) else pd.DataFrame(rows, dtype=object)
+    table.to_csv(path, sep="\t", index=False, lineterminator="\n")
 
 
 def main() -> None:
