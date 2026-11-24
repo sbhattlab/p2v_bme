@@ -17,26 +17,14 @@ Outputs: img/fig2/figS1b_scaling_rf_error.{pdf,svg}, figS2b_..., figS3b_...
 
 import matplotlib.pyplot as plt
 
-from plots._config import SCALING_FIGURES, STYLE
-from plots.utils import method_bars, method_stats, parser, read_tsv, save
-
-FIGSIZE = (7.2, 2.1)  # one row of the full-width four-panel page
+from plots._config import STYLE
+from plots.utils import method_figures, parser
 
 
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
-    rows = read_tsv(args.tables_dir, "scaling_methods")
-    for dataset, figure in SCALING_FIGURES.items():
-        stats = method_stats(rows, dataset, "rf_pct", 1.0)
-        if not stats:
-            print(f"no rf_pct data for {dataset}: {figure}b not drawn")
-            continue
-        fig, ax = plt.subplots(figsize=FIGSIZE)
-        fig.subplots_adjust(left=0.09, right=0.985, top=0.95, bottom=0.2)
-        method_bars(ax, stats, "rf")
-        ax.set_ylabel("RF error (%)")
-        save(fig, args.img_dir, f"{figure}b_scaling_rf_error")
+    method_figures(args, "rf", "b_scaling_rf_error")
 
 
 if __name__ == "__main__":

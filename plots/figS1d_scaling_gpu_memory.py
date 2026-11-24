@@ -17,26 +17,14 @@ Outputs: img/fig2/figS1d_scaling_gpu_memory.{pdf,svg}, figS2d_..., figS3d_...
 
 import matplotlib.pyplot as plt
 
-from plots._config import SCALING_FIGURES, STYLE
-from plots.utils import MIB_PER_GIB, method_bars, method_stats, parser, read_tsv, save
-
-FIGSIZE = (7.2, 2.1)  # one row of the full-width four-panel page
+from plots._config import STYLE
+from plots.utils import method_figures, parser
 
 
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
-    rows = read_tsv(args.tables_dir, "scaling_methods")
-    for dataset, figure in SCALING_FIGURES.items():
-        stats = method_stats(rows, dataset, "gpu_memory_peak_mib", 1 / MIB_PER_GIB)
-        if not stats:
-            print(f"no gpu_memory_peak_mib data for {dataset}: {figure}d not drawn")
-            continue
-        fig, ax = plt.subplots(figsize=FIGSIZE)
-        fig.subplots_adjust(left=0.09, right=0.985, top=0.95, bottom=0.2)
-        method_bars(ax, stats, "gpu")
-        ax.set_ylabel("GPU memory (GiB)")
-        save(fig, args.img_dir, f"{figure}d_scaling_gpu_memory")
+    method_figures(args, "gpu", "d_scaling_gpu_memory")
 
 
 if __name__ == "__main__":

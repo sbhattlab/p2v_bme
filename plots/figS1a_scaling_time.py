@@ -17,27 +17,14 @@ Outputs: img/fig2/figS1a_scaling_time.{pdf,svg}, figS2a_..., figS3a_...
 
 import matplotlib.pyplot as plt
 
-from plots._config import SCALING_FIGURES, STYLE
-from plots.utils import method_bars, method_legend, method_stats, parser, read_tsv, save
-
-FIGSIZE = (7.2, 2.6)  # one row of the full-width four-panel page
+from plots._config import STYLE
+from plots.utils import method_figures, parser
 
 
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
-    rows = read_tsv(args.tables_dir, "scaling_methods")
-    for dataset, figure in SCALING_FIGURES.items():
-        stats = method_stats(rows, dataset, "time_s", 1.0)
-        if not stats:
-            print(f"no time_s data for {dataset}: {figure}a not drawn")
-            continue
-        fig, ax = plt.subplots(figsize=FIGSIZE)
-        fig.subplots_adjust(left=0.09, right=0.985, top=0.80, bottom=0.2)
-        method_bars(ax, stats, "time")
-        ax.set_ylabel("Runtime (s)")
-        method_legend(fig, stats)
-        save(fig, args.img_dir, f"{figure}a_scaling_time")
+    method_figures(args, "time", "a_scaling_time", legend=True)
 
 
 if __name__ == "__main__":

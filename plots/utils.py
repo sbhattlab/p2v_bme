@@ -4,7 +4,7 @@ reading figure data, saving figures, the panels of Figs 2a,b and S1-S3."""
 import re
 import statistics
 
-from argparse import ArgumentParser, RawDescriptionHelpFormatter
+from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
 from csv import DictReader
 from pathlib import Path
 
@@ -29,6 +29,7 @@ from plots._config import (  # pylint: disable=wrong-import-position
     FIGURE_FOLDERS,
     FIGURE_FORMATS,
     SAVE_METADATA,
+    SCALING_FIGURES,
     SCALING_SERIES,
     SPEC,
 )
@@ -153,6 +154,16 @@ FLOORS = {
 }  # bar baselines = lower axis limits
 TOPS = {"time": 3e4, "rf": 130, "host": 1000, "gpu": 100}
 MIB_PER_GIB = 1024.0
+# Each panel's column in scaling_methods.tsv, its scale and its y label
+PANELS = {
+    "time": ("time_s", 1.0, "Runtime (s)"),
+    "rf": ("rf_pct", 1.0, "RF error (%)"),
+    "host": ("host_memory_mb", 1 / MIB_PER_GIB, "Host memory (GiB)"),
+    "gpu": ("gpu_memory_peak_mib", 1 / MIB_PER_GIB, "GPU memory (GiB)"),
+}
+# One row of the full-width four-panel page; the panel with the methods' legend is taller
+METHOD_FIGSIZE = (7.2, 2.1)
+METHOD_FIGSIZE_LEGEND = (7.2, 2.6)
 
 
 def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: float) -> dict:
@@ -233,3 +244,25 @@ def method_legend(fig: plt.Figure, stats: dict) -> None:
         columnspacing=2.0,
         frameon=False,
     )
+
+
+def method_figures(args: Namespace, panel: str, name: str, legend: bool = False) -> None:
+    """Draws one panel of Figs S1-S3, every method's bars at each size:
+    (args, panel, name) -> img_dir/<folder>/figS<N><name>.{pdf,svg} for each dataset.
+
+    name starts with the panel's letter (a_scaling_time); legend adds the methods' legend above.
+    """
+    field, scale, ylabel = PANELS[panel]
+    rows = read_tsv(args.tables_dir, "scaling_methods")
+    for dataset, figure in SCALING_FIGURES.items():
+        stats = method_stats(rows, dataset, field, scale)
+        if not stats:
+            print(f"no {field} data for {dataset}: {figure}{name[0]} not drawn")
+            continue
+        fig, ax = plt.subplots(figsize=METHOD_FIGSIZE_LEGEND if legend else METHOD_FIGSIZE)
+        fig.subplots_adjust(left=0.09, right=0.985, top=0.80 if legend else 0.95, bottom=0.2)
+        method_bars(ax, stats, panel)
+        ax.set_ylabel(ylabel)
+        if legend:
+            method_legend(fig, stats)
+        save(fig, args.img_dir, f"{figure}{name}")
