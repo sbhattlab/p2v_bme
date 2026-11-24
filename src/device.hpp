@@ -51,8 +51,9 @@ class Device {
     virtual void synchronize() = 0;
     // Returns the device's name for the report, e.g. "GPU 0: NVIDIA RTX A6000" or "CPU worker 0 (single precision)".
     virtual std::string name() const = 0;
-    // Returns the memory in use on the device, in MiB (GPU: GPU-wide, other processes included; CPU: 0).
-    virtual double memory_in_use_mb() const = 0;
+    // Returns the most memory p2v-bme held on the device's GPU at once, in MiB.
+    // GPU: what this process allocated there, without the CUDA context or other processes; CPU: 0.
+    virtual double memory_peak_mb() const = 0;
 
     // 2. Nearest-sample search (start tree)
 

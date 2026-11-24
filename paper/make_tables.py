@@ -208,7 +208,7 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
                 branch_time_s=t["branch_lengths"],
                 host_memory_mb=details["memory"]["host_ram_mib"],
                 gpu_memory_mb=(
-                    details["memory"]["gpu_memory_in_use_at_end_mib"] if gpus else ""
+                    details["memory"]["gpu_memory_peak_mib"] if gpus else ""
                 ),
                 gpu_count=len(gpus),
                 gpu_model=short_gpu(gpus[0]) if gpus else "",

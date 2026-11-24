@@ -55,11 +55,11 @@ struct Report {
     double time_read = 0.0;                  // seconds
     double time_total = 0.0;                 // seconds, from start to the report
 
-    // The devices of the run (select_devices) and their memory when it ends.
-    std::vector<std::string> devices;          // the devices used, e.g. "GPU 0: NVIDIA RTX A6000"
-    bool on_gpu = false;                       // the run used the GPU (else the CPU)
-    double gpu_memory_in_use_at_end_mib = 0.0; // MiB in use when the run ends, largest over the GPUs; GPU-wide
-                                               // (other processes included), not a peak
+    // The devices of the run (select_devices) and their peak memory.
+    std::vector<std::string> devices; // the devices used, e.g. "GPU 0: NVIDIA RTX A6000"
+    bool on_gpu = false;              // the run used the GPU (else the CPU)
+    double gpu_memory_peak_mib = 0.0; // the most MiB the run held on one GPU, largest over the GPUs; its own
+                                      // allocations, without the CUDA context or other processes
 };
 
 // The report as JSON text; run.full adds "details" (--report-full).

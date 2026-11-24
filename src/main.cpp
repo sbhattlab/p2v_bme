@@ -346,9 +346,9 @@ int main(int argc, char **argv) {
             run.mean_exact = boot.mean_exact;
             run.time_bootstrap = boot.time;
         }
-        // Device: record the largest memory in use on the devices (GPU-wide, other processes included)
+        // Device: record the most memory the run held on any one GPU (its own allocations only)
         for (const auto &dev : devices)
-            run.gpu_memory_in_use_at_end_mib = std::max(run.gpu_memory_in_use_at_end_mib, dev->memory_in_use_mb());
+            run.gpu_memory_peak_mib = std::max(run.gpu_memory_peak_mib, dev->memory_peak_mb());
         // Data: put back the identical sequences set aside, with zero-length branches (the replicates' trees stay on
         // the sequences searched, as -b counts the supports)
         std::vector<int32_t> node_map;

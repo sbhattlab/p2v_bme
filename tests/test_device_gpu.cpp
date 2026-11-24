@@ -6,7 +6,8 @@
  *     edge-length pass: single pairs and sums weighted by representatives (the JC69 tiled path and the per-pair path of
  * the other models), on an alignment with missing sites and a pair without shared sites;
  *   - the window matrix's packed kernel against the earlier kernels, bit for bit, under every model;
- *   - its errors: a workspace beyond the GPU's memory, a GPU that does not exist.
+ *   - its errors: a workspace beyond the GPU's memory, a GPU that does not exist;
+ *   - its peak memory: its own allocations only.
  */
 #include <cuda_runtime.h>
 #include <gtest/gtest.h>
@@ -190,6 +191,21 @@ TEST(DeviceGpu, OutOfMemoryIsReported) {
     EXPECT_NE(msg.find("MiB requested"), std::string::npos) << msg;
     EXPECT_NE(msg.find("MiB free of"), std::string::npos) << msg;
     EXPECT_LT((double)before - (double)after, 512.0 * 1048576.0) << "memory left behind by the failed device";
+}
+
+// The peak memory is p2v-bme's own allocations: memory taken on the GPU outside it (a bare cudaMalloc here, as by
+// another process) does not count, and the peak stays when the device that reached it is gone.
+TEST(DeviceGpu, PeakMemoryCountsOwnAllocationsOnly) {
+    auto dev = make_gpu_device(0, 64);
+    const double peak = dev->memory_peak_mb();
+    EXPECT_GT(peak, 0.0);
+    void *other = nullptr;
+    cudaSetDevice(0);
+    ASSERT_EQ(cudaMalloc(&other, (size_t)256 << 20), cudaSuccess);
+    EXPECT_EQ(dev->memory_peak_mb(), peak);
+    cudaFree(other);
+    dev.reset();
+    EXPECT_GE(make_gpu_device(0, 64)->memory_peak_mb(), peak);
 }
 
 TEST(DeviceGpu, CudaErrorsThrow) {
