@@ -150,7 +150,9 @@ CommandLine parse_command_line(int argc, char **argv) {
         ("no-branch-lengths", "do not estimate BME branch lengths")
         ("no-neg-as-zero", "write negative branch lengths as they are (default: as 0)")
         ("report-full", "add the details to <prefix>.json: input, settings as used, devices, time per stage, "
-         "memory, gain of each round");
+         "memory, gain of each round")
+        ("overwrite", "replace a previous run's outputs (without it, a run whose outputs exist stops before it "
+         "starts)");
     cli.add_options("Bootstrap")
         ("supports", "with -t TREE and no alignment: the supports (TBE/exact, in %) of TREE's branches over the "
          "trees in FILE (one Newick per line, e.g. the .boottrees of -b; TREE is pruned to their leaves) go to "
@@ -191,6 +193,7 @@ CommandLine parse_command_line(int argc, char **argv) {
         for (int a = 0; a < argc; ++a)
             run.command_line.push_back(argv[a]);
         result.quiet = args.count("quiet") > 0;
+        result.overwrite = args.count("overwrite") > 0;
         run.supports = args["supports"].as<std::string>();
         run.tree_init = args["tree"].as<std::string>();
         run.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : run.tree_init;
@@ -202,6 +205,7 @@ CommandLine parse_command_line(int argc, char **argv) {
         return done(2);
     }
     result.quiet = args.count("quiet") > 0;
+    result.overwrite = args.count("overwrite") > 0;
     p2vbme::Report &run = result.report;
     for (int a = 0; a < argc; ++a)
         run.command_line.push_back(argv[a]);

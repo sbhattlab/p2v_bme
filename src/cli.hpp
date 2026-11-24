@@ -18,6 +18,7 @@ struct CommandLine {
     p2vbme::Report report;     // Report of the run
     std::string devices;       // Devices
     bool quiet = false;
+    bool overwrite = false; // replace a previous run's outputs
     bool done = false;
     int exit_code = 0;
 };

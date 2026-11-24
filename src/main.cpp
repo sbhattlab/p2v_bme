@@ -7,6 +7,7 @@
  * the tree (newick) and the report.
  * Progress on stdout (none with -q); warnings and errors on stderr.
  * <prefix>.log gets all of it, the progress also with -q.
+ * A run stops before it starts if a previous run's outputs exist, unless --overwrite.
  * With -b the bootstrap replicates' trees go to <prefix>.boottrees; -b A-B runs those replicates without the tree.
  * With --supports it only reads trees: the supports of a tree's branches over saved replicate trees.
  */
@@ -15,6 +16,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -22,6 +24,7 @@
 #include <stdexcept>
 #include <streambuf>
 #include <string>
+#include <system_error>
 #include <unordered_map>
 #include <vector>
 
@@ -92,6 +95,31 @@ class RunLog {
     std::streambuf *cout_ = nullptr, *cerr_ = nullptr;
 };
 
+// Stops the run if one of its outputs exists, a previous run's (-b and --supports write others), as IQ-TREE and
+// RAxML-NG stop without -redo / --redo; --overwrite replaces them.
+// The log does not count: a failed run leaves only its log.
+void check_no_previous_run(const p2vbme::Report &run) {
+    std::vector<std::string> outputs;
+    if (!run.supports.empty()) {
+        outputs = {".support.nwk", ".json"};
+    } else {
+        if (!run.bootstrap_only)
+            outputs.push_back(".nwk");
+        outputs.push_back(".json");
+        if (run.bootstrap_last > 0) {
+            if (!run.bootstrap_only)
+                outputs.push_back(".support.nwk");
+            outputs.push_back(".boottrees");
+        }
+    }
+    for (const std::string &ext : outputs) {
+        std::error_code ec;
+        if (std::filesystem::exists(run.prefix + ext, ec))
+            throw std::runtime_error(run.prefix + ext +
+                                     " exists: --overwrite replaces a previous run's outputs, or choose another -p");
+    }
+}
+
 // --supports: the supports of the branches of the tree -t over the replicate trees of a file, written as labels of the
 // tree to <prefix>.support.nwk, with a report <prefix>.json.
 // The tree is pruned to the replicates' leaves (the trees of -b have only the sequences searched), the
@@ -161,6 +189,9 @@ int main(int argc, char **argv) {
             return args.exit_code;
         p2vbme::Settings &opt = args.settings;
         p2vbme::Report &run = args.report;
+        // Output: stop if a previous run's outputs exist (before the log, which would replace that run's log)
+        if (!args.overwrite)
+            check_no_previous_run(run);
         // Output: open <prefix>.log first (an unwritable prefix fails here); the other outputs come at the end
         run_log = std::make_unique<RunLog>(run.prefix + ".log", args.quiet);
         if (!run.supports.empty()) {

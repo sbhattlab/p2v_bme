@@ -8,8 +8,10 @@
 | `<prefix>.boottrees`   | `-b`                            | the bootstrap trees           |
 | `<prefix>.log`         | every run                       | what the run prints           |
 
-The default prefix is the alignment's path (with `--supports`, the tree's). Existing files are overwritten. Progress
-goes to stdout, warnings and errors to stderr; the exit status is 0 on success, 1 on an error and 2 on a usage error.
+The default prefix is the alignment's path (with `--supports`, the tree's). If one of the run's outputs exists, a
+previous run's, the run stops before it starts and changes nothing; `--overwrite` replaces them. A log alone, as a
+failed run leaves it, does not stop it. Progress goes to stdout, warnings and errors to stderr; the exit status is 0 on
+success, 1 on an error and 2 on a usage error.
 
 ## Tree (`<prefix>.nwk`)
 
