@@ -148,7 +148,7 @@ FLOORS = {
     "host": 2e-2,
     "gpu": 0.1,
 }  # lower axis limits
-TOPS = {"time": 3e4, "rf": 130, "host": 1000, "gpu": 100}
+TOPS = {"time": 3e4, "rf": 100, "host": 1000, "gpu": 100}  # RF error ends at 100 %
 # The new method is drawn stronger than the methods it is compared with
 OURS = "P2V"
 COMPARED_ALPHA = 0.6

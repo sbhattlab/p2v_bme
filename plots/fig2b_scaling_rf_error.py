@@ -70,7 +70,7 @@ def main() -> None:
         )
     )
     labels.append("inherited splits only")
-    ax.set_ylim(bottom=0.004)  # room for the legend below the curves
+    ax.set_ylim(0.004, 100)  # room for the legend below the curves; RF error ends at 100 %
     ax.legend(
         handles,
         labels,
