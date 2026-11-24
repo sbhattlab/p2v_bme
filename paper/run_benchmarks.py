@@ -41,10 +41,11 @@ Outputs: data/results/<experiment>/<set>/<n>/<run>.{nwk,json}, <run>.vs_true.{su
     pixi run -e paper python -m paper.run_benchmarks --experiments scaling --sets rnasim --sizes 1000 5000
 """
 
+import json
+import subprocess
+
 from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
-from json import dumps, loads
 from pathlib import Path
-from subprocess import run
 from typing import NamedTuple
 
 from paper._config import (
@@ -280,14 +281,14 @@ def eval_pandemic(args: Namespace, prefix: Path, true_tree: Path, sites: int) ->
     """
     out = Path(f"{prefix}.eval.json")
     if args.overwrite or not out.exists():
-        result = run(
+        result = subprocess.run(
             [args.eval_cmaple_rf, str(true_tree), f"{prefix}.nwk", str(sites)],
             check=True,
             capture_output=True,
             text=True,
         )
         out.write_text(result.stdout)
-    return loads(out.read_text())
+    return json.loads(out.read_text())
 
 
 def compare(args: Namespace, r: Run, report: dict) -> None:
@@ -330,12 +331,14 @@ def score(
             *(["--cap", str(cap)] if cap else []),
             *(str(t) for t, _ in todo),
         ]
-        lines = run(command, check=True, capture_output=True, text=True).stdout.splitlines()
+        lines = subprocess.run(
+            command, check=True, capture_output=True, text=True
+        ).stdout.splitlines()
         assert len(lines) == len(
             todo
         ), f"bme_scores gave {len(lines)} lengths for {len(todo)} trees"
         for (tree, out), line in zip(todo, lines):
-            record = loads(line)
+            record = json.loads(line)
             assert record["tree"] == str(tree), (record["tree"], tree)
             write_json(
                 out,
@@ -437,7 +440,7 @@ def seqlen_records(args: Namespace, runs: list[Run]) -> None:
         rf = compare_to_truth(args.p2vbme, tree, true_tree, args.overwrite)["rf_pct"]
         record = {"tag": r.set, "rep": r.rep, "L_true": truth, "L_ours": ours}
         record.update(ours_minus_true_ppm=1e6 * (ours - truth) / truth, rf_ours_pct=rf)
-        lines.append(dumps(record))
+        lines.append(json.dumps(record))
     if lines:
         out = args.results_dir / "seqlen" / "diagnose_10k_sequences.jsonl"
         out.parent.mkdir(parents=True, exist_ok=True)

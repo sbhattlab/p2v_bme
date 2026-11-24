@@ -52,17 +52,18 @@ Outputs: data/datasets/<source>/...                     the files as published,
     pixi run -e paper python -m paper.download_data --sources rnasim --dry-run
 """
 
+import hashlib
+import json
+import shutil
+import subprocess
+import urllib.request
+import zlib
+
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from collections.abc import Callable
 from datetime import datetime, timezone
-from hashlib import md5
-from json import dumps, loads
 from pathlib import Path
-from shutil import copyfileobj
-from subprocess import run
-from urllib.request import urlopen
 from zipfile import ZipFile
-from zlib import crc32
 
 from paper._config import DEFAULT_DATASETS_DIR
 
@@ -166,7 +167,7 @@ OPT_IN = ("silva144-arb",)  # sources fetched only when named in --sources
 
 def file_md5(path: Path) -> str:
     """Computes a file's MD5 without reading it into memory: path -> hex digest."""
-    h = md5()
+    h = hashlib.md5()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(BLOCK), b""):
             h.update(block)
@@ -178,7 +179,7 @@ def file_crc32(path: Path) -> int:
     value = 0
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(BLOCK), b""):
-            value = crc32(block, value)
+            value = zlib.crc32(block, value)
     return value
 
 
@@ -188,7 +189,7 @@ def fetch(url: str, path: Path, size: int, digest: str | None, overwrite: bool) 
     Without a recorded MD5, the deposit's <URL>.md5 file gives it.
     """
     if digest is None:
-        with urlopen(f"{url}.md5") as response:
+        with urllib.request.urlopen(f"{url}.md5") as response:
             digest = response.read().decode().split()[0]
     if path.exists() and not overwrite:
         if path.stat().st_size == size and file_md5(path) == digest:
@@ -200,7 +201,7 @@ def fetch(url: str, path: Path, size: int, digest: str | None, overwrite: bool) 
     path.parent.mkdir(parents=True, exist_ok=True)
     part = path.with_name(path.name + ".part")
     print(f"download_data: {url} ({size:,} bytes)", flush=True)
-    run(
+    subprocess.run(
         [
             "curl",
             "--fail",
@@ -250,7 +251,7 @@ def extract(archive: Path, wanted: Callable[[str], bool], folder: Path) -> list[
                 with z.open(member) as src, part.open(
                     "wb"
                 ) as dst:  # reading to the end checks the CRC
-                    copyfileobj(src, dst, BLOCK)
+                    shutil.copyfileobj(src, dst, BLOCK)
                 part.replace(target)
             done.append(name)
     return done
@@ -258,8 +259,8 @@ def extract(archive: Path, wanted: Callable[[str], bool], folder: Path) -> list[
 
 def cmaple_file() -> tuple[str, str, str, int, str]:
     """Looks up the CMAPLE record's zip on Zenodo: () -> (folder, name, URL, bytes, MD5)."""
-    with urlopen(f"{ZENODO}/{CMAPLE_RECORD}") as response:
-        files = loads(response.read())["files"]
+    with urllib.request.urlopen(f"{ZENODO}/{CMAPLE_RECORD}") as response:
+        files = json.loads(response.read())["files"]
     if len(files) != 1 or files[0]["size"] != CMAPLE_BYTES:
         raise SystemExit(
             f"Zenodo record {CMAPLE_RECORD} no longer holds one zip of {CMAPLE_BYTES:,} bytes"
@@ -314,7 +315,7 @@ def download(source: str, folder: Path, dry_run: bool, overwrite: bool) -> None:
         record.append(entry)
     checked = datetime.now(timezone.utc).isoformat(timespec="seconds")
     (folder / f"download_{source}.json").write_text(
-        dumps({"source": source, "checked_utc": checked, "files": record}, indent=1)
+        json.dumps({"source": source, "checked_utc": checked, "files": record}, indent=1)
     )
 
 

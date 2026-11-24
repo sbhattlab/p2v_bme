@@ -22,12 +22,13 @@ Outputs: tmp/paper_check/ (removed at the end unless --keep);
     pixi run -e paper check-paper
 """
 
+import os
+import shutil
+import subprocess
+import sys
+
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
-from os import environ
 from pathlib import Path
-from shutil import copyfile, rmtree
-from subprocess import run
-from sys import executable
 
 from paper._config import DEFAULT_BUILD_DIR
 
@@ -49,7 +50,7 @@ def step(*args: str) -> None:
     """Runs one entry point with the paper environment's Python:
     (module, options) -> None; stops on failure."""
     print("check_entry_points:", " ".join(args), flush=True)
-    run([executable, "-m", *args], check=True)
+    subprocess.run([sys.executable, "-m", *args], check=True)
 
 
 def main() -> None:
@@ -57,19 +58,19 @@ def main() -> None:
     parser.add_argument("--work-dir", type=Path, default=Path("tmp/paper_check"))
     parser.add_argument("--keep", action="store_true", help="keep the work folder")
     args = parser.parse_args()
-    environ["OMP_NUM_THREADS"] = THREADS
+    os.environ["OMP_NUM_THREADS"] = THREADS
     work = args.work_dir
     data, results, tables = work / "datasets", work / "results", work / "tables"
-    rmtree(work, ignore_errors=True)
+    shutil.rmtree(work, ignore_errors=True)
     (data / "rnasim").mkdir(parents=True)
 
     # The stand-in for RNASim: an alignment and its true tree
-    run(
+    subprocess.run(
         [f"{DEFAULT_BUILD_DIR}/make_test_fasta", work / "source", "300", "600", "7"],
         check=True,
     )
-    copyfile(work / "source.fa", data / "rnasim" / "aln_dna.fa")
-    copyfile(work / "source_true.nwk", data / "rnasim" / "true_topo.tree")
+    shutil.copyfile(work / "source.fa", data / "rnasim" / "aln_dna.fa")
+    shutil.copyfile(work / "source_true.nwk", data / "rnasim" / "true_topo.tree")
 
     cpu = ["--accelerator", "cpu", "--devices", THREADS]
     paths = ["--datasets-dir", str(data), "--results-dir", str(results)]
@@ -125,7 +126,7 @@ def main() -> None:
         else:
             step(f"plots.{script.stem}", "--help")
     if not args.keep:
-        rmtree(work)
+        shutil.rmtree(work)
     print("check_entry_points: every entry point ran")
 
 

@@ -44,19 +44,20 @@ Outputs: data/results/baselines/
     pixi run -e paper python -m paper.run_baselines --run default --sets rnasim --sizes 1000 --replicates 0
 """
 
+import hashlib
+import json
+import os
+import re
+import shutil
+import socket
+import subprocess
+import time
+
 from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
 from contextlib import nullcontext
 from datetime import datetime, timezone
 from fnmatch import fnmatch
-from hashlib import sha256
-from json import dumps, loads
-from os import environ, wait4
 from pathlib import Path
-from re import search
-from shutil import which
-from socket import gethostname
-from subprocess import DEVNULL, Popen, run
-from time import perf_counter
 
 from paper._config import (
     DEFAULT_DATASETS_DIR,
@@ -121,13 +122,13 @@ def recorded_files(source: Path, ref: str | None) -> tuple[list[str], str]:
     """Lists the recorded files below RECORDS_ROOT:
     (repository or folder, ref) -> (paths, commit or "")."""
     if ref is not None:
-        commit = run(
+        commit = subprocess.run(
             ["git", "-C", str(source), "rev-parse", ref],
             check=True,
             capture_output=True,
             text=True,
         )
-        out = run(
+        out = subprocess.run(
             [
                 "git",
                 "-C",
@@ -152,7 +153,7 @@ def recorded_files(source: Path, ref: str | None) -> tuple[list[str], str]:
 def read_recorded(source: Path, ref: str | None, path: str) -> bytes:
     """Reads one recorded file: (source, ref, path below RECORDS_ROOT) -> its bytes."""
     if ref is not None:
-        return run(
+        return subprocess.run(
             ["git", "-C", str(source), "show", f"{ref}:{RECORDS_ROOT}/{path}"],
             check=True,
             capture_output=True,
@@ -187,7 +188,7 @@ def import_records(source: Path, ref: str | None, out: Path, overwrite: bool) ->
             target.write_bytes(read_recorded(source, ref, path))
         files[name] = {
             "recorded": f"{RECORDS_ROOT}/{path}",
-            "sha256": sha256(target.read_bytes()).hexdigest(),
+            "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
         }
     write_json(
         out / "PROVENANCE.json",
@@ -207,11 +208,11 @@ def import_records(source: Path, ref: str | None, out: Path, overwrite: bool) ->
 def timed(cmd: list[str], env: dict | None = None, stdout: Path | None = None) -> dict:
     """Runs a program and measures it:
     command -> {time, cpu_time_sec, peak_ram_mb} (wall s, CPU s, MiB)."""
-    t0 = perf_counter()
-    with open(stdout, "w") if stdout else nullcontext(DEVNULL) as sink:
-        proc = Popen(cmd, env=env, stdout=sink, stderr=DEVNULL)
-        _, status, usage = wait4(proc.pid, 0)
-    wall = perf_counter() - t0
+    t0 = time.perf_counter()
+    with open(stdout, "w") if stdout else nullcontext(subprocess.DEVNULL) as sink:
+        proc = subprocess.Popen(cmd, env=env, stdout=sink, stderr=subprocess.DEVNULL)
+        _, status, usage = os.wait4(proc.pid, 0)
+    wall = time.perf_counter() - t0
     if status != 0:
         raise RuntimeError(f"failed with status {status}: {' '.join(cmd)}")
     return {
@@ -224,8 +225,10 @@ def timed(cmd: list[str], env: dict | None = None, stdout: Path | None = None) -
 def version(program: str) -> str:
     """Asks a program for its version: program -> its name and version, as it prints them."""
     for flag in ("-V", "-h", "-expert", "--version"):
-        out = run([program, flag], capture_output=True, text=True, stdin=DEVNULL)
-        if m := search(
+        out = subprocess.run(
+            [program, flag], capture_output=True, text=True, stdin=subprocess.DEVNULL
+        )
+        if m := re.search(
             r"[A-Za-z]+ \d+(\.\d+)+( (Double|Single) precision)?",
             out.stdout + out.stderr,
         ):
@@ -236,13 +239,13 @@ def version(program: str) -> str:
 def score(eval_rf: str, true_tree: Path, tree: Path, sites: int) -> dict:
     """Scores a tree against the true tree with eval_cmaple_rf:
     (truth, tree, sites) -> its JSON record."""
-    out = run(
+    out = subprocess.run(
         [eval_rf, str(true_tree), str(tree), str(sites)],
         check=True,
         capture_output=True,
         text=True,
     ).stdout
-    return loads(out.strip().splitlines()[-1])
+    return json.loads(out.strip().splitlines()[-1])
 
 
 def missed(scores: dict) -> dict:
@@ -289,7 +292,7 @@ def run_default(args, out: Path, tag: str, n: int, rep: int) -> None:
         flags += ["-noml"] if method.endswith("-ME") else []
         tree = record_path.with_suffix(".nwk")
         tree.parent.mkdir(parents=True, exist_ok=True)
-        env = dict(environ, OMP_NUM_THREADS=str(args.threads))
+        env = dict(os.environ, OMP_NUM_THREADS=str(args.threads))
         if method.startswith("FastTree"):
             binary, measured = args.fasttree, timed([args.fasttree, *flags, str(fasta)], env, tree)
         else:
@@ -315,9 +318,9 @@ def run_default(args, out: Path, tag: str, n: int, rep: int) -> None:
         record.update(
             cpu_cores=args.threads,
             flags=" ".join(flags),
-            binary=which(binary) or binary,
+            binary=shutil.which(binary) or binary,
         )
-        record.update(version=version(binary), host=gethostname())
+        record.update(version=version(binary), host=socket.gethostname())
         record.update(missed(score(args.eval_cmaple_rf, true_tree, tree, alignment_sites(fasta))))
         record["rf_reference"] = "true tree; paper/tools/eval_cmaple_rf.cpp (all splits)"
         write_json(record_path, record)
@@ -377,7 +380,7 @@ def run_random_start(args, out: Path, tag: str, n: int, rep: int) -> None:
         "init_mode": "uniform_random",
         "cpu_cores": args.threads,
     }
-    record.update(host=gethostname(), max_splits=n - 3)
+    record.update(host=socket.gethostname(), max_splits=n - 3)
     methods: dict[str, dict] = {}
     versions: dict[str, str] = {}
     methods["Random-Init"] = {
@@ -387,7 +390,7 @@ def run_random_start(args, out: Path, tag: str, n: int, rep: int) -> None:
         "cpu_cores": 1,
         "cpu_time_sec": 0.0,
     }
-    env = dict(environ, OMP_NUM_THREADS=str(args.threads))
+    env = dict(os.environ, OMP_NUM_THREADS=str(args.threads))
     jc = ["-nocat"] if tag.startswith(JC69_SETS_PREFIXES) else []
     vft = [args.veryfasttree, "-nt", "-fastest"]
     tail = ["-intree", str(start), "-threads", str(args.threads), "-quiet"]
@@ -479,9 +482,9 @@ def run_dipper(args, out: Path, tag: str, n: int, rep: int) -> None:
     true_tree = fasta.with_name(f"rep{rep}.true.nwk")
     tree = record_path.with_suffix(".nwk")
     tree.parent.mkdir(parents=True, exist_ok=True)
-    env = dict(environ, CUDA_VISIBLE_DEVICES=args.gpu, OMP_NUM_THREADS=str(args.threads))
+    env = dict(os.environ, CUDA_VISIBLE_DEVICES=args.gpu, OMP_NUM_THREADS=str(args.threads))
     measured = timed([args.dipper, *DIPPER_FLAGS, "-I", str(fasta), "-O", str(tree)], env)
-    gpu = run(
+    gpu = subprocess.run(
         ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader", "-i", args.gpu],
         capture_output=True,
         text=True,
@@ -496,7 +499,7 @@ def run_dipper(args, out: Path, tag: str, n: int, rep: int) -> None:
         "N": n,
         "rep": rep,
         "cpu_cores": args.threads,
-        "host": gethostname(),
+        "host": socket.gethostname(),
         "gpu_name": gpu,
     }
     record.update(max_splits=n - 3, flags=" ".join(DIPPER_FLAGS), version=version(args.dipper))
@@ -511,16 +514,16 @@ def log_time_memory(log: Path) -> tuple[float | None, float | None]:
         return None, None
     text = log.read_text(errors="replace")
     seconds = None
-    if m := search(r"Runtime:\s*([0-9.]+)s", text):
+    if m := re.search(r"Runtime:\s*([0-9.]+)s", text):
         seconds = float(m.group(1))
-    elif m := search(r"Elapsed \(wall clock\) time.*?:\s*(?:(\d+):)?(\d+):([0-9.]+)", text):
+    elif m := re.search(r"Elapsed \(wall clock\) time.*?:\s*(?:(\d+):)?(\d+):([0-9.]+)", text):
         seconds = int(m.group(1) or 0) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
-    elif m := search(
+    elif m := re.search(
         r"Time spent in total updating the topology and branch lengths:\s*([0-9.]+)",
         text,
     ):
         seconds = float(m.group(1))
-    ram = search(r"Maximum resident set size \(kbytes\):\s*(\d+)", text)
+    ram = re.search(r"Maximum resident set size \(kbytes\):\s*(\d+)", text)
     return seconds, int(ram.group(1)) / 1024.0 if ram else None
 
 
@@ -567,7 +570,7 @@ def collect(folder: Path, out: Path) -> None:
     (folder of records, out) -> out."""
     records = [read_json(p) for p in sorted(folder.glob("*.json"))]
     if records:
-        out.write_text("".join(dumps(r) + "\n" for r in records))
+        out.write_text("".join(json.dumps(r) + "\n" for r in records))
 
 
 def main() -> None:

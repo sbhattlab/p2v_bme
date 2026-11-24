@@ -46,11 +46,12 @@ Outputs: data/results/fastme/<set>/<n>/rep<r>_*.{nwk,json}       trees, p2v-bme 
     pixi run -e paper python -m paper.run_fastme --sets jc10k rnasim --sizes 1000 2000
 """
 
+import json
+import subprocess
+import time
+
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
-from json import dumps, loads
 from pathlib import Path
-from subprocess import DEVNULL, run
-from time import perf_counter
 
 from paper._config import (
     BME_SCORES,
@@ -91,19 +92,19 @@ SAME_TOPOLOGY_RF = 1e-9  # RF distance (%) below which two trees have the same t
 
 def exact_lengths(tool: str, fasta: Path, trees: list[Path]) -> list[float]:
     """Scores trees exactly in double precision: (alignment, trees) -> their BME lengths."""
-    out = run(
+    out = subprocess.run(
         [tool, "-s", str(fasta), "-m", MODEL, *map(str, trees)],
         check=True,
         capture_output=True,
         text=True,
     )
-    return [loads(line)["bme_length"] for line in out.stdout.splitlines()]
+    return [json.loads(line)["bme_length"] for line in out.stdout.splitlines()]
 
 
 def run_fastme(fastme: str, phylip: Path, args: list[str], out: Path) -> float:
     """Runs FastME once on one thread:
     (matrix, options, output tree) -> wall seconds; its log goes to <out>.info."""
-    t0 = perf_counter()
+    t0 = time.perf_counter()
     cmd = [
         fastme,
         "-i",
@@ -116,8 +117,8 @@ def run_fastme(fastme: str, phylip: Path, args: list[str], out: Path) -> float:
         "-I",
         str(out.with_suffix(".info")),
     ]
-    run(cmd, check=True, stdout=DEVNULL, stderr=DEVNULL)
-    return perf_counter() - t0
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return time.perf_counter() - t0
 
 
 def fastme_to_convergence(
@@ -206,7 +207,7 @@ def score_case(
     seed = int(name.removeprefix("rep")) + 1
     phylip = folder / f"{name}.phy"
     if not phylip.exists():
-        run(
+        subprocess.run(
             [args.bme_scores, "-s", str(fasta), "-m", MODEL, "--phylip", str(phylip)],
             check=True,
         )
@@ -360,7 +361,7 @@ def main() -> None:
     records = [read_json(c) for c in cases]
     records.sort(key=lambda c: (c["tag"], c["n"], c["rep"]))
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "cases.jsonl").write_text("".join(dumps(c) + "\n" for c in records))
+    (out_dir / "cases.jsonl").write_text("".join(json.dumps(c) + "\n" for c in records))
     print(f"run_fastme: {len(records)} cases in {out_dir / 'cases.jsonl'}")
 
 

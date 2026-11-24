@@ -34,14 +34,15 @@ Outputs: data/tables/<table>.tex for scaling, maple, bootstrap, baseline_10k, si
     pixi run -e paper python -m paper.make_tables --tables scaling maple --overwrite
 """
 
+import json
+import re
+import statistics
+import sys
+
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from collections import defaultdict
 from csv import DictReader, DictWriter
-from json import loads
 from pathlib import Path
-from re import compile as regex
-from statistics import mean, median, stdev
-from sys import stderr
 
 from paper._config import DEFAULT_RESULTS_DIR, DEFAULT_TABLES_DIR
 from paper.utils import read_json
@@ -118,7 +119,7 @@ VIRIDIAN_BINS = {
     (5.5, None): r"$\geq 6$",
 }
 
-RUN = regex(r"rep(\d+)_seed(\d+)(?:_cap(\d+))?")
+RUN = re.compile(r"rep(\d+)_seed(\d+)(?:_cap(\d+))?")
 
 
 class MissingResults(Exception):
@@ -139,7 +140,7 @@ def read_jsonl(path: Path) -> list[dict]:
     """Reads a JSON-lines record: path -> one object per line; MissingResults if absent."""
     if not path.exists():
         raise MissingResults(str(path))
-    return [loads(line) for line in path.read_text().splitlines() if line.strip()]
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
 def read_tsv(path: Path) -> list[dict]:
@@ -174,7 +175,7 @@ def threads_of(report: Path, details: dict) -> int | str:
     if workers:
         return int(workers[0].split()[1])
     host = report.with_name(f"{report.stem}.host.json")
-    return loads(host.read_text())["cpu_threads"] if host.exists() else ""
+    return json.loads(host.read_text())["cpu_threads"] if host.exists() else ""
 
 
 def rf_from(path: Path) -> float | str:
@@ -183,7 +184,7 @@ def rf_from(path: Path) -> float | str:
 
     For binary trees on the same leaves, RF / (2 (n - 3)) = 1 - (shared splits) / (n - 3).
     """
-    return 100.0 - loads(path.read_text())["supports"]["mean_exact"] if path.exists() else ""
+    return 100.0 - json.loads(path.read_text())["supports"]["mean_exact"] if path.exists() else ""
 
 
 # Experiments already warned about reports without gpu_memory_peak_mib
@@ -200,7 +201,7 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
         m = RUN.fullmatch(path.stem)
         if m is None:  # .vs_true.json, .score.json, ...: their stems hold a dot
             continue
-        report = loads(path.read_text())
+        report = json.loads(path.read_text())
         details = report["details"]
         t = details["time"]
         gpus = [d.split(": ", 1)[1] for d in details["devices"] if d.startswith("GPU")]
@@ -233,11 +234,13 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
                 bme_length=report["bme_length"],
                 rf_pct=rf_from(side("vs_true")),
                 backbone_rf_pct=(
-                    loads(backbone.read_text())["backbone_rf_pct"] if backbone.exists() else ""
+                    json.loads(backbone.read_text())["backbone_rf_pct"] if backbone.exists() else ""
                 ),
                 rf_vs_cap64_pct=rf_from(side("vs_cap64")),
-                scored_length=(loads(score.read_text())["bme_length"] if score.exists() else ""),
-                evaluation=loads(evaluation.read_text()) if evaluation.exists() else {},
+                scored_length=(
+                    json.loads(score.read_text())["bme_length"] if score.exists() else ""
+                ),
+                evaluation=json.loads(evaluation.read_text()) if evaluation.exists() else {},
                 source_path=str(path.relative_to(results)),
             )
         )
@@ -257,7 +260,7 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
         print(
             f"make_tables: {experiment}: {no_peak} GPU reports have no gpu_memory_peak_mib"
             " (written by an earlier p2v-bme); their GPU memory is left blank",
-            file=stderr,
+            file=sys.stderr,
         )
     return rows
 
@@ -320,7 +323,7 @@ def default_runs(results: Path) -> list[dict]:
     """
     records = read_jsonl(results / "baselines" / "default" / "runs.jsonl")
     for path in sorted((results / "baselines" / "default_100k").glob("*.json")):
-        records.append(loads(path.read_text()))
+        records.append(json.loads(path.read_text()))
     return [r for r in records if r["method"] in ALIAS]
 
 
@@ -330,7 +333,7 @@ def optional(read, results: Path) -> list[dict]:
     try:
         return read(results)
     except MissingResults as missing:
-        print(f"make_tables: no comparison runs: {missing}", file=stderr)
+        print(f"make_tables: no comparison runs: {missing}", file=sys.stderr)
         return []
 
 
@@ -339,7 +342,11 @@ def optional(read, results: Path) -> list[dict]:
 
 def mean_sd(values: list) -> tuple[float | str, float | str]:
     """Averages values: -> (mean, sample SD); SD blank for one value, both blank for none."""
-    return (mean(values), stdev(values) if len(values) > 1 else "") if values else ("", "")
+    return (
+        (statistics.mean(values), statistics.stdev(values) if len(values) > 1 else "")
+        if values
+        else ("", "")
+    )
 
 
 def number(value: float | str, digits: int = 2) -> str:
@@ -554,7 +561,7 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
         rf_pct["P2V"][r["n"]].append(r["rf_pct"])
     cpu = []
     for path in (results / "baselines" / "default_yule").glob("*.json"):
-        d = loads(path.read_text())
+        d = json.loads(path.read_text())
         time_s[ALIAS[d["method"]]][d["N"]].append(d["time"])
         rf_pct[ALIAS[d["method"]]][d["N"]].append(d["rf_pct"])
         cpu.append(d)
@@ -564,7 +571,7 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
         time_s["DIPPER"][d["N"]].append(m["time"])
         rf_pct["DIPPER"][d["N"]].append(m["rf_pct"])
     sizes = sorted(time_s["P2V"])
-    sd = {n: stdev(v) for n, v in rf_pct["P2V"].items() if len(v) > 1}
+    sd = {n: statistics.stdev(v) for n, v in rf_pct["P2V"].items() if len(v) > 1}
     replicates = one({len(v) for v in time_s["P2V"].values()}, "replicate counts")
     single = " and ".join(
         f"$10^{len(str(n)) - 1}$" for n in sorted(time_s["DIPPER"]) if len(time_s["DIPPER"][n]) == 1
@@ -584,7 +591,9 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
     def block(values: dict, fmt) -> list[str]:
         return [
             f"{n:,} & "
-            + " & ".join(fmt(mean(values[m][n])) if values[m].get(n) else "--" for m in methods)
+            + " & ".join(
+                fmt(statistics.mean(values[m][n])) if values[m].get(n) else "--" for m in methods
+            )
             + r" \\"
             for n in sizes
         ]
@@ -894,7 +903,7 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
                     ]
                 else:
                     sources = [
-                        (str(p.relative_to(results)), loads(p.read_text()))
+                        (str(p.relative_to(results)), json.loads(p.read_text()))
                         for p in sorted(
                             (results / "baselines" / "random_start").glob(f"{tag}_N10000_rep*.json")
                         )
@@ -994,7 +1003,11 @@ def table_comparators(results: Path) -> dict[str, list[dict] | str]:
         return [
             f"{n:,} & "
             + " & ".join(
-                (fmt(mean(x[field] for x in runs[(tag, m, n)])) if runs.get((tag, m, n)) else "--")
+                (
+                    fmt(statistics.mean(x[field] for x in runs[(tag, m, n)]))
+                    if runs.get((tag, m, n))
+                    else "--"
+                )
                 for m in methods
             )
             + r" \\"
@@ -1071,7 +1084,7 @@ def table_scaling_methods(results: Path) -> dict[str, list[dict] | str]:
         )
     cpu = optional(default_runs, results)
     for path in sorted((results / "baselines" / "default_yule").glob("*.json")):
-        cpu.append(dict(loads(path.read_text()), tag="yule10k"))
+        cpu.append(dict(json.loads(path.read_text()), tag="yule10k"))
     for r in cpu:
         rows.append(
             dict(
@@ -1229,9 +1242,9 @@ def table_seqlen(results: Path) -> dict[str, list[dict] | str]:
         v = exact[tag]
         if not small or not v:
             raise MissingResults(f"seqlen: {tag} at 10,000 sequences")
-        cell = f"{mean(big):.2f} ({len(big)})" if big else "--"
+        cell = f"{statistics.mean(big):.2f} ({len(big)})" if big else "--"
         rows.append(
-            f"{label} & {mean(small):.2f} & {mean([x['ours_minus_true_ppm'] for x in v]):.0f} & "
+            f"{label} & {statistics.mean(small):.2f} & {statistics.mean([x['ours_minus_true_ppm'] for x in v]):.0f} & "
             f"{sum(x['ours_minus_true_ppm'] < 0 for x in v)}/{len(v)} & {cell} \\\\"
         )
     replicates = one({len(v) for v in exact.values()}, "replicate counts")
@@ -1270,9 +1283,7 @@ def table_representatives(results: Path) -> dict[str, list[dict] | str]:
         # then to the cell's decimals
         if len(values) == 1:
             return f"${round(values[0], 3):.{decimals}f}$"
-        return (
-            f"${round(mean(values), 3):.{decimals}f} \\pm {round(stdev(values), 3):.{decimals}f}$"
-        )
+        return f"${round(statistics.mean(values), 3):.{decimals}f} \\pm {round(statistics.stdev(values), 3):.{decimals}f}$"
 
     lines = []
     previous = None
@@ -1299,7 +1310,7 @@ def table_representatives(results: Path) -> dict[str, list[dict] | str]:
                             cell([r["rf_pct"] for r in group], 3),
                             "ref." if ref else cell(delta, 3),
                             ("ref." if ref else cell([r["rf_vs_cap64_pct"] for r in group], 3)),
-                            cell(time, 1 if mean(time) < 100 else 0),
+                            cell(time, 1 if statistics.mean(time) < 100 else 0),
                         ]
                     )
                     + r"\\"
@@ -1351,10 +1362,10 @@ def table_fastme(results: Path) -> dict[str, list[dict] | str]:
 
     def pm(xs: list[float], d: int, sign: bool = False) -> str:
         f = f"{{:{'+' if sign else ''},.{d}f}}"
-        mu = f.format(mean(xs))
+        mu = f.format(statistics.mean(xs))
         if mu in ("+" + f"{0:.{d}f}", "-" + f"{0:.{d}f}"):
             mu = f"{0:.{d}f}"
-        cell = f"${mu} \\pm {stdev(xs):,.{d}f}$" if len(xs) > 1 else f"${mu}$"
+        cell = f"${mu} \\pm {statistics.stdev(xs):,.{d}f}$" if len(xs) > 1 else f"${mu}$"
         return cell.replace(",", "{,}")
 
     def panel(arm: str) -> list[str]:
@@ -1464,8 +1475,8 @@ def table_gtr_fit(results: Path) -> dict[str, list[dict] | str]:
         a = [float(r["alpha_hat"]) for r in sub]
         e = [float(r["rate_rms_log_error"]) for r in sub]
         lines.append(
-            f"{alpha:g} & {int(sites):,} & {p:.2f} & {show(median(a))} ({show(min(a))}--{show(max(a))}) & "
-            f"{mean(e):.3f} \\\\"
+            f"{alpha:g} & {int(sites):,} & {p:.2f} & {show(statistics.median(a))} ({show(min(a))}--{show(max(a))}) & "
+            f"{statistics.mean(e):.3f} \\\\"
         )
     lines += ["\\bottomrule", "\\end{tabular}", "\\end{table}", ""]
     return {"gtr_fit.tex": "\n".join(lines)}
@@ -1653,7 +1664,7 @@ def main() -> None:
             outputs = TABLES[name](args.results_dir)
         except MissingResults as missing:
             skipped.append(name)
-            print(f"make_tables: {name}: skipped, missing {missing}", file=stderr)
+            print(f"make_tables: {name}: skipped, missing {missing}", file=sys.stderr)
             continue
         written = []
         for file, content in outputs.items():
@@ -1673,7 +1684,7 @@ def main() -> None:
     if skipped:
         print(
             f"make_tables: skipped for missing results: {', '.join(skipped)}",
-            file=stderr,
+            file=sys.stderr,
         )
 
 
