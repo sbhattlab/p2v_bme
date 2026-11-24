@@ -1,7 +1,6 @@
 # The reference library (C11, POSIX): the method on a stored N x N distance matrix (discrete gradient, Phylo2Vec
 # encoding, the reference optimisers), the oracle for small-N tests. Not linked into p2v-bme.
-# Its users compile bme_reference.c with their own flags; this shared build is the one the Python helpers load
-# (pipeline/common/discrete_gradient.py).
+# Its users compile bme_reference.c with their own flags; this shared build is for loading it from other programs.
 set(BME_REFERENCE_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/bme_reference.c CACHE INTERNAL "")
 set(BME_REFERENCE_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR} CACHE INTERNAL "")
 
