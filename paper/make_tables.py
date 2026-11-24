@@ -1020,7 +1020,8 @@ def table_baseline_10k(results: Path) -> Outputs:
 def table_comparators(results: Path) -> Outputs:
     """Builds Table S5 (comparators): results -> {comparators.md}."""
     sizes_max = BACKBONE_SIZE
-    ours = [r for r in our_runs(results, "scaling") if r["set"] in DATASETS and r["n"] <= sizes_max]
+    ours = run_frame(results, "scaling")
+    ours = ours[ours["set"].isin(list(DATASETS)) & (ours["n"] <= sizes_max)]
     dipper = [d for d in dipper_runs(results) if d["tag"] in DATASETS and d["N"] <= sizes_max]
     cpu = [r for r in default_runs(results) if r["tag"] in DATASETS and r["N"] <= sizes_max]
     methods = ["P2V", "DIPPER", "FastTree-ME", "VFT-ME", "FastTree-ML", "VFT-ML"]
@@ -1032,15 +1033,17 @@ def table_comparators(results: Path) -> Outputs:
         "FastTree ML",
         "VeryFastTree ML",
     ]
-    runs = defaultdict(list)  # (tag, method, n) -> [(time, rf)]
-    for r in ours:
-        runs[(r["set"], "P2V", r["n"])].append((r["time_s"], r["rf_pct"]))
-    for d in dipper:
-        m = d["methods"]["DIPPER-GPU"]
-        runs[(d["tag"], "DIPPER", d["N"])].append((m["time"], m["rf_pct"]))
-    for r in cpu:
-        runs[(r["tag"], ALIAS[r["method"]], r["N"])].append((r["time"], r["rf_pct"]))
-    replicates = one({len(v) for (_, m, _), v in runs.items() if m == "P2V"}, "replicate counts")
+    gpu = [d["methods"]["DIPPER-GPU"] for d in dipper]
+    others = [(d["tag"], "DIPPER", d["N"], m["time"], m["rf_pct"]) for d, m in zip(dipper, gpu)]
+    others += [(r["tag"], ALIAS[r["method"]], r["N"], r["time"], r["rf_pct"]) for r in cpu]
+    columns = ["set", "method", "n", "time_s", "rf_pct"]
+    runs = pd.concat(
+        [ours.assign(method="P2V")[columns], pd.DataFrame(others, columns=columns, dtype=object)]
+    )
+    means = runs.groupby(["set", "method", "n"]).agg(statistics.mean)
+    replicates = one(
+        set(runs[runs["method"] == "P2V"].groupby(["set", "n"]).size()), "replicate counts"
+    )
     hw = (
         ours_and_dipper(hardware(ours), program_hardware(dipper))
         if dipper
@@ -1048,16 +1051,12 @@ def table_comparators(results: Path) -> Outputs:
     )
     threads = one({r["cpu_cores"] for r in cpu}, "CPU thread counts") if cpu else "—"
 
-    def block(tag: str, field: int, fmt) -> list[list[str]]:
-        sizes = sorted({n for (t, m, n) in runs if t == tag and m == "P2V"})
+    def block(tag: str, field: str, fmt) -> list[list[str]]:
+        sizes = sorted(set(ours.loc[ours["set"] == tag, "n"]))
         return [
             [f"{n:,}"]
             + [
-                (
-                    fmt(statistics.mean(x[field] for x in runs[(tag, m, n)]))
-                    if runs.get((tag, m, n))
-                    else "–"
-                )
+                fmt(means.loc[(tag, m, n), field]) if (tag, m, n) in means.index else "–"
                 for m in methods
             ]
             for n in sizes
@@ -1065,8 +1064,8 @@ def table_comparators(results: Path) -> Outputs:
 
     body: list = []
     for tag, label in DATASETS.items():
-        body += [f"{label}, RF error (%)", *block(tag, 1, lambda x: f"{x:.2f}")]
-        body += [f"{label}, time (s)", *block(tag, 0, seconds)]
+        body += [f"{label}, RF error (%)", *block(tag, "rf_pct", lambda x: f"{x:.2f}")]
+        body += [f"{label}, time (s)", *block(tag, "time_s", seconds)]
     tex = markdown(
         "**Comparators on the RNASim and Jukes–Cantor alignments.** Means over "
         f"{NUMBER_WORDS.get(replicates, replicates)} replicate datasets at each size, on the alignments of the "
