@@ -33,7 +33,8 @@ from pathlib import Path
 from paper._config import DEFAULT_BUILD_DIR
 
 SIZE = "60"  # sequences of the tiny sets
-FASTME_SIZE = "30"  # tiny FastME sets: drawn from the tiny sets (as from 10^4) and their tenfold expansion (10^6)
+# tiny FastME sets: drawn from the tiny sets (as from 10^4) and their tenfold expansion (10^6)
+FASTME_SIZE = "30"
 CUT, CUT_TO = 5, 100  # the SILVA stand-in: sequences cut short, and their sites left
 THREADS = "2"
 # plots drawn from the tiny runs' tables; the others need downloaded or larger data (only --help)
@@ -80,8 +81,9 @@ def main() -> None:
     step("paper.simulate_data", "--sets", "fastme", "--sizes", FASTME_SIZE, "--fastme-base", SIZE,
          "--expansion-base", SIZE, "--replicates", "0", "--datasets-dir", str(data))  # fmt: skip
     step("paper.run_benchmarks", "--experiments", "scaling", "random_start", "representatives",
-         "round_limit", "--sets", "rnasim", "jc10k", "yule10k", "--sizes", SIZE, "--replicates", "0", "1",
-         "--caps", "16", "64", "--exact-max", "50", "--score-cap", "16", *cpu, *paths)  # fmt: skip
+         "round_limit", "--sets", "rnasim", "jc10k", "yule10k", "--sizes", SIZE,
+         "--replicates", "0", "1", "--caps", "16", "64", "--exact-max", "50", "--score-cap", "16",
+         *cpu, *paths)  # fmt: skip
     step("paper.run_calibration", "--sets", f"rnasim_{SIZE}", f"yule10k_{SIZE}", "--bootstrap", "4",
          "--repeats", "2", *cpu, *paths)  # fmt: skip
     step(
@@ -96,9 +98,10 @@ def main() -> None:
         *paths,
     )
     step("paper.run_gtr_fit_recovery", "--sequences", "40", "--replicates", "0", "--alphas", "0.5",
-         "--sites", "1000", "--divergence", "0.1", "--threads", THREADS, "--results-dir", str(results))  # fmt: skip
-    step("paper.run_baselines", "--run", "default", "--sets", "yule10k", "--sizes", SIZE, "--replicates",
-         "0", "--threads", THREADS, *paths)  # fmt: skip
+         "--sites", "1000", "--divergence", "0.1", "--threads", THREADS,
+         "--results-dir", str(results))  # fmt: skip
+    step("paper.run_baselines", "--run", "default", "--sets", "yule10k", "--sizes", SIZE,
+         "--replicates", "0", "--threads", THREADS, *paths)  # fmt: skip
     # The stand-in for SILVA: the alignment with its first sequences cut short
     with open(work / "silva.fa", "w") as fo:
         for i, record in enumerate((work / "source.fa").read_text().split(">")[1:]):
@@ -108,8 +111,8 @@ def main() -> None:
                 seq = seq[:CUT_TO] + "-" * (len(seq) - CUT_TO)
             fo.write(f">{name}\n{seq}\n")
     step("paper.run_silva", "--steps", "distinct", "tree", "replicates", "supports", "--alignment",
-         str(work / "silva.fa"), "--bootstrap", "2", "--max-sites", "500", "--min-sites", "300", *cpu,
-         "--results-dir", str(results))  # fmt: skip
+         str(work / "silva.fa"), "--bootstrap", "2", "--max-sites", "500", "--min-sites", "300",
+         *cpu, "--results-dir", str(results))  # fmt: skip
     step("paper.run_viridian", "--help")
     step(
         "paper.make_tables",

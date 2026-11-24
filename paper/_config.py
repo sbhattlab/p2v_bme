@@ -12,7 +12,8 @@ BME_SCORES = f"{DEFAULT_BUILD_DIR}/bme_scores"  # paper/tools/bme_scores.cpp: ex
 EVAL_CMAPLE_RF = (
     f"{DEFAULT_BUILD_DIR}/eval_cmaple_rf"  # paper/tools/eval_cmaple_rf.cpp: pandemic-set RF
 )
-SIM_JC69 = f"{DEFAULT_BUILD_DIR}/sim_jc69_fast"  # paper/tools/sim_jc69_fast.c: JC69 simulator (simulate_data.py)
+# paper/tools/sim_jc69_fast.c: JC69 simulator (simulate_data.py)
+SIM_JC69 = f"{DEFAULT_BUILD_DIR}/sim_jc69_fast"
 REATTACH_LEFT_OUT = (
     f"{DEFAULT_BUILD_DIR}/reattach_left_out"  # paper/tools/reattach_left_out.cpp (run_silva.py)
 )
