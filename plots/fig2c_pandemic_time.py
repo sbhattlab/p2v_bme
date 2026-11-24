@@ -59,10 +59,10 @@ def main() -> None:
     )
     ax.yaxis.set_major_locator(LogLocator(base=10, numticks=12))  # a tick every decade
     ax.set_xticks(SIZES)
-    ax.set_xticklabels([f"{n // 10**5}" for n in SIZES])  # in units of 10^5, as the x label says
+    ax.set_xticklabels([f"{n // 1000}" for n in SIZES])  # in thousands, as the x label says
     ax.xaxis.set_minor_locator(NullLocator())
     ax.tick_params(axis="x", which="minor", bottom=False)
-    ax.set_xlabel(r"Sequences ($\times10^5$)")
+    ax.set_xlabel("Sequences (thousands)")
     ax.set_ylabel("Time (s)")
     ax.grid(axis="y", which="major", color="#E5E5E5", linewidth=0.5)
     ax.set_axisbelow(True)
