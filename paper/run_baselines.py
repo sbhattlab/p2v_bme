@@ -1,9 +1,9 @@
 """Comparison programs: FastTree, VeryFastTree, FastME, DIPPER, MAPLE and CMAPLE (tables comparators, baseline_10k,
 maple; the comparator series of the scaling figures).
 
-They do not depend on p2v-bme, so their recorded runs are reused: by default this script copies the paper's records
-unchanged into data/results/baselines/ (results_hx2 layout), with their provenance. --run shows how they were made
-and makes them again, in the same layout, family by family:
+They do not depend on p2v-bme, so their recorded runs can be reused: --source copies the paper's records unchanged
+into data/results/baselines/, with their provenance. --run shows how they were made and makes them again, in the
+same layout, family by family (one of the two is needed):
   default       FastTree and VeryFastTree, each from its own start tree: -nt -fastest -nosupport, -nocat on the
                 JC69 sets (no rate variation simulated), -noml for the ME rows; 64 threads
   random_start  the same programs and FastME (BME SPR, its own JC69 distances) from one random start tree
@@ -11,11 +11,11 @@ and makes them again, in the same layout, family by family:
   maple         MAPLE and CMAPLE: their published trees and logs (CMAPLE benchmark sets) scored against the truth
 Every tree is scored against the true tree by eval_cmaple_rf (true splits missed, all splits).
 
-Inputs:  import: the paper's records, a git repository (--source, --ref) or a folder holding results_hx2/
+Inputs:  import: the paper's recorded runs, from a git repository (--source, --ref) or a folder (--source)
          --run: data/datasets/<set>/<n>/rep<r>.fa, rep<r>.true.nwk (simulate_data.py); MAPLE and CMAPLE:
          data/datasets/cmaple/simulated/ (download_data.py)
 Options: --run FAMILY..., --sets, --sizes, --replicates, --threads, --gpu, --dipper, --source, --ref, --overwrite, paths
-Flow:    import: each recorded file -> data/results/baselines/<path below results_hx2>   (skipped if it exists)
+Flow:    import: each recorded file -> its folder of data/results/baselines/ (RECORDS)   (skipped if it exists)
          --run: each family x set x size x replicate
            |
            v
@@ -23,13 +23,14 @@ Flow:    import: each recorded file -> data/results/baselines/<path below result
            |
            v
          eval_cmaple_rf against the true tree -> one JSON record, the program's version, host and threads
-Outputs: data/results/baselines/pasta_default/runs.jsonl            default pipelines, PASTA-tree sets <= 50,000
-         data/results/baselines/ml_default_100k/<tag>_rep<r>_100000_<method>.json
-         data/results/baselines/yule_default/yule10k_rep<r>_<n>_<method>.json
-         data/results/baselines/cpu_rand_<tag>_N<n>_rep<r>.json      random start
-         data/results/baselines/dipper_h200/runs.jsonl                DIPPER
-         data/results/baselines/cmaple_benchmark_summary.json         MAPLE, CMAPLE ("simulated": cmaple, maple)
-         data/results/baselines/PROVENANCE.json                       import: source, commit, sha256 of each file
+Outputs: data/results/baselines/default/runs.jsonl                  default pipelines, PASTA-tree sets <= 50,000
+         data/results/baselines/default_100k/<tag>_rep<r>_100000_<method>.json
+         data/results/baselines/default_yule/yule10k_rep<r>_<n>_<method>.json
+         data/results/baselines/random_start/<tag>_N<n>_rep<r>.json   random start
+         data/results/baselines/dipper/runs.jsonl                     DIPPER
+         data/results/baselines/maple/cmaple_benchmark_summary.json   MAPLE, CMAPLE ("simulated": cmaple, maple)
+         data/results/baselines/PROVENANCE.json                       import: commit, each file's recorded path and
+                                                                      sha256
 
     pixi run -e paper python -m paper.run_baselines --source <repository of the records> --ref main
     pixi run -e paper python -m paper.run_baselines --run default --sets rnasim --sizes 1000 --replicates 0
@@ -60,21 +61,23 @@ from paper._config import (
 )
 from paper.utils import read_json, run_p2vbme, with_edge_lengths, write_json
 
-# The recorded files the tables and figures read, below results_hx2/ of the paper's repository
+# The recorded files the tables and figures read (paths below the source's RECORDS_ROOT), and the folder of
+# data/results/baselines/ each goes to (the same as --run writes)
 RECORDS = (
-    "pasta_default/runs.jsonl",
-    "pasta_default/README.md",
-    "ml_default_100k/*.json",
-    "ml_default_100k/*.time",
-    "ml_default_100k/README.md",
-    "yule_default/*.json",
-    "yule_default/*.time",
-    "dipper_h200/runs.jsonl",
-    "dipper_h200/README.md",
-    "cpu_rand_*.json",
-    "cmaple_benchmark_summary.json",
+    ("pasta_default/runs.jsonl", "default"),
+    ("pasta_default/README.md", "default"),
+    ("ml_default_100k/*.json", "default_100k"),
+    ("ml_default_100k/*.time", "default_100k"),
+    ("ml_default_100k/README.md", "default_100k"),
+    ("yule_default/*.json", "default_yule"),
+    ("yule_default/*.time", "default_yule"),
+    ("dipper_h200/runs.jsonl", "dipper"),
+    ("dipper_h200/README.md", "dipper"),
+    ("cpu_rand_*.json", "random_start"),
+    ("cmaple_benchmark_summary.json", "maple"),
 )
 RECORDS_ROOT = "results_hx2"
+RANDOM_START_PREFIX = "cpu_rand_"  # recorded random-start files' prefix, dropped
 
 SIZES = (1000, 5000, 10000, 50000, 100000)
 # Sets, sizes and replicates of each family, as recorded
@@ -108,7 +111,7 @@ MAPLE_SITES = 30000
 
 
 def recorded_files(source: Path, ref: str | None) -> tuple[list[str], str]:
-    """Lists the recorded files below results_hx2/: (repository or folder, ref) -> (paths, commit or "")."""
+    """Lists the recorded files below RECORDS_ROOT: (repository or folder, ref) -> (paths, commit or "")."""
     if ref is not None:
         commit = run(
             ["git", "-C", str(source), "rev-parse", ref],
@@ -139,7 +142,7 @@ def recorded_files(source: Path, ref: str | None) -> tuple[list[str], str]:
 
 
 def read_recorded(source: Path, ref: str | None, path: str) -> bytes:
-    """Reads one recorded file: (source, ref, path below results_hx2/) -> its bytes."""
+    """Reads one recorded file: (source, ref, path below RECORDS_ROOT) -> its bytes."""
     if ref is not None:
         return run(
             ["git", "-C", str(source), "show", f"{ref}:{RECORDS_ROOT}/{path}"],
@@ -149,29 +152,43 @@ def read_recorded(source: Path, ref: str | None, path: str) -> bytes:
     return (source / RECORDS_ROOT / path).read_bytes()
 
 
+def target_of(path: str) -> str | None:
+    """Places a recorded file in our layout: path below RECORDS_ROOT -> path below baselines/ (None: not read)."""
+    for pattern, folder in RECORDS:
+        if fnmatch(path, pattern):
+            return f"{folder}/{Path(path).name.removeprefix(RANDOM_START_PREFIX)}"
+    return None
+
+
 def import_records(source: Path, ref: str | None, out: Path, overwrite: bool) -> None:
-    """Copies the recorded comparator results unchanged: (source, ref) -> out/ and out/PROVENANCE.json."""
+    """Copies the recorded comparator results unchanged into our layout: (source, ref) -> out/, out/PROVENANCE.json.
+
+    PROVENANCE.json keeps the source's commit and each file's recorded path and sha256.
+    """
     paths, commit = recorded_files(source, ref)
-    wanted = sorted(p for p in paths if any(fnmatch(p, pattern) for pattern in RECORDS))
-    hashes = {}
-    for path in wanted:
-        target = out / path
+    files = {}
+    for path in sorted(paths):
+        name = target_of(path)
+        if name is None:
+            continue
+        target = out / name
         if overwrite or not target.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(read_recorded(source, ref, path))
-        hashes[path] = sha256(target.read_bytes()).hexdigest()
+        files[name] = {
+            "recorded": f"{RECORDS_ROOT}/{path}",
+            "sha256": sha256(target.read_bytes()).hexdigest(),
+        }
     write_json(
         out / "PROVENANCE.json",
         {
-            "source": str(source.resolve()),
             "ref": ref,
             "commit": commit,
-            "path": RECORDS_ROOT,
             "imported": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "files": hashes,
+            "files": files,
         },
     )
-    print(f"run_baselines: {len(wanted)} recorded files in {out}")
+    print(f"run_baselines: {len(files)} recorded files in {out}")
 
 
 # ---- Runs ------------------------------------------------------------------------------------------------
@@ -240,10 +257,10 @@ def default_record(out: Path, tag: str, n: int, rep: int, method: str) -> Path:
     """Locates a default-pipeline record as recorded: (set, size, replicate, method) -> path."""
     name = f"{tag}_rep{rep}_{n}_{method}.json"
     if tag.startswith("yule"):
-        return out / "yule_default" / name
+        return out / "default_yule" / name
     if n >= 100000:
-        return out / "ml_default_100k" / name
-    return out / "pasta_default" / "runs" / name
+        return out / "default_100k" / name
+    return out / "default" / "runs" / name
 
 
 def run_default(args, out: Path, tag: str, n: int, rep: int) -> None:
@@ -316,8 +333,8 @@ def write_phylip_alignment(fasta: Path, out: Path) -> None:
 
 
 def run_random_start(args, out: Path, tag: str, n: int, rep: int) -> None:
-    """Runs the programs from one random start tree on one alignment: -> cpu_rand_<tag>_N<n>_rep<r>.json."""
-    record_path = out / f"cpu_rand_{tag}_N{n}_rep{rep}.json"
+    """Runs the programs from one random start tree on one alignment: -> random_start/<tag>_N<n>_rep<r>.json."""
+    record_path = out / "random_start" / f"{tag}_N{n}_rep{rep}.json"
     if record_path.exists() and not args.overwrite:
         return
     fasta = args.datasets_dir / tag / str(n) / f"rep{rep}.fa"
@@ -444,8 +461,8 @@ def run_random_start(args, out: Path, tag: str, n: int, rep: int) -> None:
 
 
 def run_dipper(args, out: Path, tag: str, n: int, rep: int) -> None:
-    """Runs DIPPER on one GPU on one alignment: -> dipper_h200/runs/dipper_<tag>_N<n>_rep<r>.json."""
-    record_path = out / "dipper_h200" / "runs" / f"dipper_{tag}_N{n}_rep{rep}.json"
+    """Runs DIPPER on one GPU on one alignment: -> dipper/runs/dipper_<tag>_N<n>_rep<r>.json."""
+    record_path = out / "dipper" / "runs" / f"dipper_{tag}_N{n}_rep{rep}.json"
     if record_path.exists() and not args.overwrite:
         return
     if not args.dipper:
@@ -509,8 +526,8 @@ def log_time_memory(log: Path) -> tuple[float | None, float | None]:
 
 
 def run_maple(args, out: Path) -> None:
-    """Scores MAPLE's and CMAPLE's published trees of the CMAPLE benchmark: -> cmaple_benchmark_summary.json."""
-    record_path = out / "cmaple_benchmark_summary.json"
+    """Scores MAPLE's and CMAPLE's published trees of the CMAPLE benchmark: -> maple/cmaple_benchmark_summary.json."""
+    record_path = out / "maple" / "cmaple_benchmark_summary.json"
     if record_path.exists() and not args.overwrite:
         return
     folder = args.datasets_dir / "cmaple" / "simulated"
@@ -632,8 +649,8 @@ def main() -> None:
                     print(
                         f"run_baselines: {family} {tag} {n} rep{rep} done", flush=True
                     )
-    collect(out / "pasta_default" / "runs", out / "pasta_default" / "runs.jsonl")
-    collect(out / "dipper_h200" / "runs", out / "dipper_h200" / "runs.jsonl")
+    collect(out / "default" / "runs", out / "default" / "runs.jsonl")
+    collect(out / "dipper" / "runs", out / "dipper" / "runs.jsonl")
 
 
 if __name__ == "__main__":
