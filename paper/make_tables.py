@@ -1249,32 +1249,27 @@ def table_seqlen(results: Path) -> Outputs:
     length from the exact rescoring.
     """
     sites = {"jc10k": power(4), "jc100k": power(5), "jc1000k": power(6)}
-    exact = defaultdict(list)
-    for d in read_jsonl(results / "seqlen" / "diagnose_10k_sequences.jsonl"):
-        exact[d["tag"]].append(d)
-    runs = our_runs(results, "seqlen") + [
-        r for r in our_runs(results, "scaling") if r["set"] == "jc10k"
-    ]
+    exact = pd.DataFrame(read_jsonl(results / "seqlen" / "diagnose_10k_sequences.jsonl"))
+    seqlen, scaling = run_frame(results, "seqlen"), run_frame(results, "scaling")
+    runs = pd.concat([seqlen, scaling[scaling["set"] == "jc10k"]])
     rows: list[list[str]] = []
     for tag, label in sites.items():
-        small = [r["rf_pct"] for r in runs if r["set"] == tag and r["n"] == 10000]
-        big = [
-            r["rf_pct"] for r in our_runs(results, "seqlen") if r["set"] == tag and r["n"] == 100000
-        ]
-        v = exact[tag]
-        if not small or not v:
+        small = runs.loc[(runs["set"] == tag) & (runs["n"] == 10000), "rf_pct"]
+        big = seqlen.loc[(seqlen["set"] == tag) & (seqlen["n"] == 100000), "rf_pct"]
+        ppm = exact.loc[exact["tag"] == tag, "ours_minus_true_ppm"]
+        if small.empty or ppm.empty:
             raise MissingResults(f"seqlen: {tag} at 10,000 sequences")
-        cell = f"{statistics.mean(big):.2f} ({len(big)})" if big else "–"
+        cell = f"{statistics.mean(big):.2f} ({len(big)})" if len(big) else "–"
         rows.append(
             [
                 label,
                 f"{statistics.mean(small):.2f}",
-                f"{statistics.mean([x['ours_minus_true_ppm'] for x in v]):.0f}",
-                f"{sum(x['ours_minus_true_ppm'] < 0 for x in v)}/{len(v)}",
+                f"{statistics.mean(ppm):.0f}",
+                f"{(ppm < 0).sum()}/{len(ppm)}",
                 cell,
             ]
         )
-    replicates = one({len(v) for v in exact.values()}, "replicate counts")
+    replicates = one(set(exact.groupby("tag").size()), "replicate counts")
     tex = markdown(
         "**Error against alignment length.** Jukes–Cantor alignments simulated on the same true "
         "trees with more sites. RF is the Robinson–Foulds error of the Phylo2VecME tree against the true tree, as a "
