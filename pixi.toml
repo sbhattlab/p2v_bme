@@ -34,7 +34,6 @@ make_test_fasta = { cmd = "build/make_test_fasta", depends-on = ["build"] }
 # Python for the paper's scripts (paper/) and the plots (plots/), plus the comparison programs they run.
 # Scripts run as modules: pixi run -e paper python -m paper.run_benchmarks --help
 [feature.paper.dependencies]
-python = "3.12.*"
 numpy = ">=2.5.4,<3"
 matplotlib = ">=3.11.2,<4"
 pandas = ">=3.1,<4"
