@@ -1,8 +1,7 @@
 // Tests of src/json_writer.hpp on exact output strings.
 #include <gtest/gtest.h>
 
-#include <math.h>
-
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>

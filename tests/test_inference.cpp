@@ -12,9 +12,8 @@
 // and host thread, so the multi-device code paths run on a single card).
 #include <gtest/gtest.h>
 
-#include <math.h>
-
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <functional>
@@ -348,7 +347,7 @@ TEST(InferenceGpu, CpuAgreesWithGpu) {
         EXPECT_EQ(gpu_devices[0]->name().rfind("GPU ", 0), 0u) << gpu_devices[0]->name(); // the run used the GPU
         EXPECT_EQ(cpu_devices[0]->name().rfind("CPU ", 0), 0u) << cpu_devices[0]->name(); // and the CPU
         printf("%-7s GPU %.6f CPU %.6f (rel %.1e), RF %d\n", model_name(model), gpu.bme_length, cpu.bme_length,
-               fabs(cpu.bme_length - gpu.bme_length) / gpu.bme_length, rf);
+               std::fabs(cpu.bme_length - gpu.bme_length) / gpu.bme_length, rf);
     }
 }
 

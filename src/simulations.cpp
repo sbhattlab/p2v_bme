@@ -7,8 +7,7 @@
  */
 #include "simulations.hpp"
 
-#include <math.h>
-
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -26,16 +25,16 @@ double uniform_open0(uint64_t &state) { return (double)((splitmix64(state) >> 11
 
 double standard_normal(uint64_t &state) { // Box-Muller
     const double u1 = uniform_open0(state), u2 = uniform_open0(state);
-    return sqrt(-2.0 * log(u1)) * cos(2.0 * M_PI * u2);
+    return std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * M_PI * u2);
 }
 
 // Gamma(shape, 1): Marsaglia & Tsang (2000) for shape >= 1; shape < 1 via Gamma(shape + 1) U^(1 / shape).
 double gamma_draw(double shape, uint64_t &state) {
     if (shape < 1.0) {
         const double u = uniform_open0(state);
-        return gamma_draw(shape + 1.0, state) * pow(u, 1.0 / shape);
+        return gamma_draw(shape + 1.0, state) * std::pow(u, 1.0 / shape);
     }
-    const double d = shape - 1.0 / 3.0, c = 1.0 / sqrt(9.0 * d);
+    const double d = shape - 1.0 / 3.0, c = 1.0 / std::sqrt(9.0 * d);
     for (;;) {
         double x, v;
         do {
@@ -46,7 +45,7 @@ double gamma_draw(double shape, uint64_t &state) {
         const double u = uniform_open0(state);
         if (u < 1.0 - 0.0331 * x * x * x * x)
             return d * v;
-        if (log(u) < 0.5 * x * x + d * (1.0 - v + log(v)))
+        if (std::log(u) < 0.5 * x * x + d * (1.0 - v + std::log(v)))
             return d * v;
     }
 }
@@ -74,8 +73,8 @@ void jacobi4(double A[4][4], double V[4][4], double d[4]) {
                 if (A[p][q] == 0.0)
                     continue;
                 const double theta = (A[q][q] - A[p][p]) / (2.0 * A[p][q]);
-                const double t = (theta >= 0.0 ? 1.0 : -1.0) / (fabs(theta) + sqrt(theta * theta + 1.0));
-                const double c = 1.0 / sqrt(t * t + 1.0), s = t * c;
+                const double t = (theta >= 0.0 ? 1.0 : -1.0) / (std::fabs(theta) + std::sqrt(theta * theta + 1.0));
+                const double c = 1.0 / std::sqrt(t * t + 1.0), s = t * c;
                 for (int k = 0; k < 4; ++k) { // A <- A J
                     const double akp = A[k][p], akq = A[k][q];
                     A[k][p] = c * akp - s * akq;
@@ -124,8 +123,8 @@ Eigen4 decompose(const SimulationModel &m) {
     jacobi4(S, W, e.lambda);
     for (int i = 0; i < N_BASES; ++i)
         for (int k = 0; k < N_BASES; ++k) {
-            e.U[i][k] = W[i][k] / sqrt(e.pi[i]);
-            e.Uinv[k][i] = W[i][k] * sqrt(e.pi[i]);
+            e.U[i][k] = W[i][k] / std::sqrt(e.pi[i]);
+            e.Uinv[k][i] = W[i][k] * std::sqrt(e.pi[i]);
         }
     return e;
 }
@@ -134,7 +133,7 @@ Eigen4 decompose(const SimulationModel &m) {
 void cumulative_row(const Eigen4 &e, int from, double t, double cum[N_BASES]) {
     double ex[N_BASES];
     for (int k = 0; k < N_BASES; ++k)
-        ex[k] = exp(e.lambda[k] * t);
+        ex[k] = std::exp(e.lambda[k] * t);
     double acc = 0.0;
     for (int b = 0; b < N_BASES; ++b) {
         double p = 0.0;
@@ -161,7 +160,7 @@ void transition_matrix(const SimulationModel &model, double t, double P[N_BASES]
         for (int j = 0; j < N_BASES; ++j) {
             double p = 0.0;
             for (int k = 0; k < N_BASES; ++k)
-                p += e.U[i][k] * exp(e.lambda[k] * t) * e.Uinv[k][j];
+                p += e.U[i][k] * std::exp(e.lambda[k] * t) * e.Uinv[k][j];
             P[i][j] = p;
         }
 }

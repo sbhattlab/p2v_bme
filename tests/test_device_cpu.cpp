@@ -4,9 +4,8 @@
 //     reduction's tie-break).
 #include <gtest/gtest.h>
 
-#include <math.h>
-
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <utility>
 #include <vector>
@@ -90,7 +89,7 @@ TEST(DeviceCpu, MoveScoresAreExactBmeChanges) {
                     continue;
                 ++compared;
                 EXPECT_NEAR(best_delta[i], best, 1e-9 * L0) << model_name(model) << " seed " << seed << " row " << i;
-                if (fabs(best_delta[i] - best) < 1e-9 * L0) {
+                if (std::fabs(best_delta[i] - best) < 1e-9 * L0) {
                     EXPECT_EQ(best_j[i], best_edge) << model_name(model) << " seed " << seed << " row " << i;
                 }
             }
