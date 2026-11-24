@@ -511,12 +511,7 @@ def support_records(tree: dict, out: Path, n_all: int, n_boot: int, version: str
 def best_split(tree: dict, leaves: np.ndarray, name: str) -> dict:
     """Finds the branch whose split matches a set of leaves best, by F1:
     (tree, leaves) -> its record."""
-    k, size, first, parent = (
-        len(tree["names"]),
-        tree["size"],
-        tree["first"],
-        tree["parent"],
-    )
+    k, size, parent = len(tree["names"]), tree["size"], tree["parent"]
     root = parent.size - 1
     total = leaves.size
     below = counts(tree, leaves)[:root]
@@ -743,7 +738,6 @@ def domains(reference: dict, boot: list[Path], workers: int) -> dict:
 def records(out: Path, n_boot: int, workers: int) -> None:
     """Writes the records of the tree and its bootstrap:
     results -> runs.jsonl and the four records."""
-    global CODES
     d = check_distinct(out)
     report = read_json(out / "tree.json")
     tree = distinct_tree(out)
@@ -755,7 +749,8 @@ def records(out: Path, n_boot: int, workers: int) -> None:
     taxonomy = read_taxonomy(out)
     alpha = report["substitution_model"].get("alpha", np.nan)
     write_json(out / "silva144_real_biology_B100.json", biology(tree, taxonomy, alpha))
-    CODES = domain_codes(taxonomy, tree["names"])
+    CODES.clear()
+    CODES.update(domain_codes(taxonomy, tree["names"]))
     boot = [out / f"boot/rep{r:03d}.boottrees" for r in range(1, n_boot + 1)]
     write_json(out / "domain_arrangements.json", domains(tree, boot, workers))
     lines = [json.dumps({"run": "rep000"} | report)]

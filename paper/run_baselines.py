@@ -225,8 +225,9 @@ def timed(cmd: list[str], env: dict | None = None, stdout: Path | None = None) -
 def version(program: str) -> str:
     """Asks a program for its version: program -> its name and version, as it prints them."""
     for flag in ("-V", "-h", "-expert", "--version"):
+        # A flag the program does not know fails: the next one is tried
         out = subprocess.run(
-            [program, flag], capture_output=True, text=True, stdin=subprocess.DEVNULL
+            [program, flag], capture_output=True, text=True, stdin=subprocess.DEVNULL, check=False
         )
         if m := re.search(
             r"[A-Za-z]+ \d+(\.\d+)+( (Double|Single) precision)?",
@@ -488,6 +489,7 @@ def run_dipper(args, out: Path, tag: str, n: int, rep: int) -> None:
         ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader", "-i", args.gpu],
         capture_output=True,
         text=True,
+        check=False,  # without nvidia-smi, the record keeps an empty GPU name
     ).stdout.strip()
     method = {
         **measured,

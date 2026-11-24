@@ -425,7 +425,7 @@ def maple_summary(args: Namespace) -> None:
         k: dict(label=label, **stats((bl >= lo) & (bl < hi)))
         for k, (label, lo, hi) in REGIMES.items()
     }
-    sizes = [dict(bin="All splits", **stats(bl == bl))]
+    sizes = [dict(bin="All splits", **stats(~np.isnan(bl)))]
     sizes += [
         dict(bin=label, **stats((boot["p"] >= lo) & (boot["p"] <= hi)))
         for label, lo, hi in SIZE_BINS

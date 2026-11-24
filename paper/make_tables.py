@@ -187,6 +187,12 @@ def rf_from(path: Path) -> float | str:
     return 100.0 - json.loads(path.read_text())["supports"]["mean_exact"] if path.exists() else ""
 
 
+def sidecar(report: Path, name: str) -> Path:
+    """Names a file written next to one of our reports:
+    (rep0_seed1.json, "score") -> rep0_seed1.score.json."""
+    return report.with_name(f"{report.stem}.{name}.json")
+
+
 # Experiments already warned about reports without gpu_memory_peak_mib
 # (our_runs reads an experiment once per table)
 warned_no_peak: set[str] = set()
@@ -207,10 +213,9 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
         gpus = [d.split(": ", 1)[1] for d in details["devices"] if d.startswith("GPU")]
         # Reports from before gpu_memory_peak_mib measured the whole card instead: no value for them
         no_peak += bool(gpus) and "gpu_memory_peak_mib" not in details["memory"]
-        side = lambda name: path.with_name(f"{path.stem}.{name}.json")  # noqa: E731
-        score = side("score")
-        evaluation = side("eval")
-        backbone = side("backbone")
+        score = sidecar(path, "score")
+        evaluation = sidecar(path, "eval")
+        backbone = sidecar(path, "backbone")
         rows.append(
             dict(
                 set=path.parent.parent.name,
@@ -232,11 +237,11 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
                 cpu_threads=threads_of(path, details),
                 start_tree=details["settings"].get("start_tree", ""),
                 bme_length=report["bme_length"],
-                rf_pct=rf_from(side("vs_true")),
+                rf_pct=rf_from(sidecar(path, "vs_true")),
                 backbone_rf_pct=(
                     json.loads(backbone.read_text())["backbone_rf_pct"] if backbone.exists() else ""
                 ),
-                rf_vs_cap64_pct=rf_from(side("vs_cap64")),
+                rf_vs_cap64_pct=rf_from(sidecar(path, "vs_cap64")),
                 scored_length=(
                     json.loads(score.read_text())["bme_length"] if score.exists() else ""
                 ),
