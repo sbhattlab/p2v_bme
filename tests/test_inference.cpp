@@ -1,8 +1,8 @@
 // infer() on the CPU (runs in CPU-only builds):
 //   - brute force: at N = 4..8 the search finds the shortest tree of all (2N - 5)!! topologies, by Pauplin's
 //     formula on the model's distances, for several models and seeds;
-//   - the reference library (src/reference): the final tree of a search at N = 40 is SPR-optimal under the same
-//     distance matrix (no coordinate move of either Phylo2Vec gauge lowers the BME length);
+//   - brute force again: the final tree of a search at N = 40 is SPR-optimal under the same distance matrix (no
+//     coordinate move of either Phylo2Vec gauge lowers the BME length, by Pauplin's formula on each moved tree);
 //   - the same tree, branch lengths and gains for 1, 2 or 3 CPU workers (the snapshot rule);
 //   - infer()'s checks: bad input, the sample start's fallback, GTR+GC's parameters, the base frequencies (a fake
 //     device, so no device is used).
@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "bme_reference.h"
 #include "bme_test_helpers.hpp"
 #include "branch_lengths.hpp"
 #include "config.hpp"
@@ -75,6 +74,33 @@ double brute_force_min(int32_t N, const std::vector<double> &D) {
     };
     add(3);
     return best;
+}
+
+// The unrooted tree (adjacency lists) of a vector with 0 <= v[i] <= 2i, by stepwise insertion: leaf i + 1 goes into
+// the edge above node x of the tree on leaves 0..i, x = leaf v[i] if v[i] <= i (as Phylo2Vec decodes), else its
+// (v[i] - i)-th internal node in creation order (above the root: a new root).
+// Over v[i] = 0..2i the leaf meets each edge once, in some order; the SPR check needs only the set.
+std::vector<std::vector<int32_t>> unrooted_by_insertion(const std::vector<int64_t> &v, int32_t N) {
+    std::vector<int32_t> parent(2 * N - 1, -1);
+    for (int32_t i = 0; i < N - 1; ++i) {
+        const int32_t x = v[i] <= i ? (int32_t)v[i] : N + (int32_t)(v[i] - i - 1), w = N + i;
+        parent[w] = parent[x];
+        parent[x] = w;
+        parent[i + 1] = w;
+    }
+    const int32_t root = (int32_t)(std::find(parent.begin() + N, parent.end(), -1) - parent.begin());
+    std::vector<std::vector<int32_t>> adj(2 * N - 1);
+    std::vector<int32_t> top; /* the root's two children, joined by one edge */
+    for (int32_t u = 0; u < 2 * N - 1; ++u)
+        if (parent[u] == root)
+            top.push_back(u);
+        else if (u != root) {
+            adj[u].push_back(parent[u]);
+            adj[parent[u]].push_back(u);
+        }
+    adj[top[0]].push_back(top[1]);
+    adj[top[1]].push_back(top[0]);
+    return adj;
 }
 
 const Model MODELS[] = {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC};
@@ -209,9 +235,9 @@ TEST(Inference, BruteForceAtSmallN) {
             }
 }
 
-// No coordinate move of the final tree (both gauges, every regraft j <= 2i) lowers the BME length, by the
-// reference library's exact O(N^2) differences.
-TEST(Inference, SprOptimalByTheReferenceLibrary) {
+// No coordinate move of the final tree (both gauges, every regraft j <= 2i) lowers the BME length, by brute force:
+// Pauplin's formula on every tree one move away.
+TEST(Inference, SprOptimalByBruteForce) {
     const int32_t N = 40;
     for (Model model : {Model::JC69, Model::F84, Model::GTR_GC})
         for (Precision precision : {Precision::Single, Precision::Double}) {
@@ -220,6 +246,7 @@ TEST(Inference, SprOptimalByTheReferenceLibrary) {
             const Settings opt = cpu_settings(model, precision);
             const Result res = run_infer(aln, opt);
             const std::vector<double> D = distance_matrix(aln, with_base_frequencies(aln, opt).substitution_model);
+            const double L = pauplin(unrooted(res.tree, N), N, D);
             double min_delta = 0.0;
             for (const bool flip : {false, true}) {
                 std::vector<int64_t> v(N - 1);
@@ -229,18 +256,19 @@ TEST(Inference, SprOptimalByTheReferenceLibrary) {
                 for (int32_t a = 0; a < N; ++a)
                     for (int32_t b = 0; b < N; ++b)
                         Dp[(size_t)a * N + b] = D[(size_t)perm[a] * N + perm[b]];
-                std::vector<double> delta((size_t)(N - 1) * (2 * N - 3));
-                calculate_discrete_gradient_full_c(v.data(), Dp.data(), N, delta.data());
+                const double L_v = pauplin(unrooted_by_insertion(v, N), N, Dp);
+                ASSERT_NEAR(L_v, L, 1e-9 * L) << "the vector does not encode the final tree";
                 for (int32_t i = 0; i < N - 1; ++i)
-                    for (int32_t j = 0; j <= 2 * i; ++j)
-                        min_delta = std::min(min_delta, delta[(size_t)i * (2 * N - 3) + j]);
+                    for (int64_t j = 0; j <= 2 * i; ++j) {
+                        std::vector<int64_t> moved = v;
+                        moved[i] = j;
+                        min_delta = std::min(min_delta, pauplin(unrooted_by_insertion(moved, N), N, Dp) - L_v);
+                    }
             }
-            const double L = pauplin(unrooted(res.tree, N), N, D);
             /* single precision: the move scores are floats (a move must gain more than 1e-6) */
             const double tol = precision == Precision::Double ? 1e-6 : 1e-6 + 1e-6 * L;
             EXPECT_GE(min_delta, -tol) << model_name(model) << (precision == Precision::Double ? " double" : " single")
                                        << ": an improving move remains (L = " << L << ")";
-            free_phylo2vec_workspace_c();
         }
 }
 

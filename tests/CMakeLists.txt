@@ -50,12 +50,11 @@ target_compile_options(test_gtr_fit PRIVATE -O2 -Wall -Wextra)
 target_link_libraries(test_gtr_fit PRIVATE p2vbme_gtr_fit p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_gtr_fit)
 
-# infer() on the CPU (any build): brute force at small N, SPR optimality by the reference library, workers;
+# infer() on the CPU (any build): brute force at small N and for SPR optimality, workers;
 # InferenceGpu.* on the GPU: a search under every model, CPU against GPU
-add_executable(test_inference test_inference.cpp ${BME_REFERENCE_SOURCE})
-target_include_directories(test_inference PRIVATE ${BME_REFERENCE_INCLUDE})
-target_compile_options(test_inference PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O2 -Wall -Wextra> $<$<COMPILE_LANGUAGE:C>:-O2>)
-target_link_libraries(test_inference PRIVATE p2vbme p2vbme_processing p2vbme_simulations GTest::gtest_main m)
+add_executable(test_inference test_inference.cpp)
+target_compile_options(test_inference PRIVATE -O2 -Wall -Wextra)
+target_link_libraries(test_inference PRIVATE p2vbme p2vbme_processing p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_inference TEST_FILTER "-InferenceGpu.*" DISCOVERY_TIMEOUT 60)
 if(P2VBME_CUDA)
   gtest_discover_tests(test_inference TEST_FILTER "InferenceGpu.*" PROPERTIES ${GPU_TEST_PROPERTIES}
@@ -130,16 +129,6 @@ target_include_directories(test_parallel_errors PRIVATE ${PROJECT_SOURCE_DIR}/sr
 target_compile_options(test_parallel_errors PRIVATE -Wall -Wextra)
 target_link_libraries(test_parallel_errors PRIVATE OpenMP::OpenMP_CXX GTest::gtest_main)
 gtest_discover_tests(test_parallel_errors)
-
-# The reference library (the oracle of test_inference) against brute force; no -ffast-math (NaN/Inf checks)
-add_executable(test_bme_reference test_bme_reference.cpp ${BME_REFERENCE_SOURCE})
-target_include_directories(test_bme_reference PRIVATE ${BME_REFERENCE_INCLUDE})
-target_compile_options(test_bme_reference PRIVATE -O2)
-if(P2VBME_NATIVE)
-  target_compile_options(test_bme_reference PRIVATE -march=native)
-endif()
-target_link_libraries(test_bme_reference PRIVATE m pthread GTest::gtest_main)
-gtest_discover_tests(test_bme_reference)
 
 if(P2VBME_CUDA)
   # The GPU device: its distances under every model against the CPU formulas, through the edge-length pass; its errors
