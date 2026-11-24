@@ -5,15 +5,18 @@ Every output tree is rescored in double precision from the full matrix by bme_sc
 search. Three arms per case:
   sample  each program's own start: p2v-bme sample-and-place (seed rep + 1); FastME BIONJ, NNI and SPR, rerun from
           its own output until the exact length stops falling (its time: the first run alone)
-  rand    the same random start tree for both; FastME rerun to convergence from it (its time: all runs)
+  rand    the same random start tree for both (the set's, rooted as the paper's); FastME rerun to convergence from it
+          (its time: all runs)
   polish  p2v-bme started from FastME's converged tree of the sample arm
 and an SPR check of our trees (sample, rand): FastME's SPR from our tree until the length stops falling.
 FastME rereads a start tree's branch lengths as its length and keeps the start when it finds no shorter tree, so every
 start is given uniform lengths that add up to its exact BME length (else a better tree can be thrown away).
 
-Inputs:  data/datasets/<set>/<n>/rep<r>.fa, rep<r>.true.nwk          (simulate_data.py)
-         sets jc10k, rnasim (1,000-10,000 sequences, 5 replicates); jc1m, rna1m (random subsets of the 10^6-sequence
-         alignments: 100 replicates at 1,000 and 2,000, 20 at 5,000)
+Inputs:  data/datasets/fastme/<set>/<n>/rep<r>.fa, rep<r>.true.nwk, rep<r>.random_start.nwk
+                                                                     (simulate_data.py --sets fastme)
+         sets jc10k, rnasim (1,000-10,000 sequences, 5 replicates: subsets of the 10^4-sequence sets); jc1m, rna1m
+         (random subsets of the 10^6-sequence alignments: 100 replicates at 1,000 and 2,000, 20 at 5,000; no script
+         makes them yet, so they are not run by default)
 Options: --sets, --sizes, --replicates, --arms, --accelerator, --devices, --keep-matrix, --overwrite, paths
 Flow:    each set x size x replicate
            |
@@ -21,7 +24,7 @@ Flow:    each set x size x replicate
          bme_scores --phylip: the JC69 matrix as p2v-bme computes it
            |
            v
-         p2v-bme (sample, rand, polish) and FastME (BIONJ start, random start) to convergence, FastME's SPR from
+         p2v-bme (sample, rand, polish) and FastME (BIONJ start, the random start) to convergence, FastME's SPR from
          our trees                                              (each step skipped if its output exists)
            |
            v
@@ -62,6 +65,8 @@ CASES = {
     "jc1m": {1000: 100, 2000: 100, 5000: 20},
     "rna1m": {1000: 100, 2000: 100, 5000: 20},
 }
+# The sets simulate_data makes (--sets fastme); jc1m, rna1m: not yet
+DEFAULT_SETS = ("jc10k", "rnasim")
 RAND_MAX_N = 5000  # the random-start arm only up to this size (FastME from a random tree takes hours above)
 ARMS = ("sample", "rand", "polish")
 MODEL = "JC69"
@@ -252,14 +257,8 @@ def score_case(
     references = {"sample": converged, "polish": converged}
     times = {"sample": first["wall_s"], "polish": first["wall_s"]}
     if "rand" in arms:
-        random_prefix = folder / f"{name}_seed{seed}_start_random"
-        run_p2vbme(
-            args.p2vbme,
-            [*p2v, "-t", "random", "--max-rounds", "0", "--no-branch-lengths"],
-            random_prefix,
-            ow,
-        )
-        starts["rand"] = Path(f"{random_prefix}.nwk")
+        # the set's random start, rooted as the paper gave it to both programs (p2v-bme's search depends on the rooting)
+        starts["rand"] = fasta.with_name(f"{name}.random_start.nwk")
         references["rand"] = fastme(starts["rand"], FASTME_NNI_SPR, "fastme_rand")
         times["rand"] = references["rand"]["wall_s"]
     for arm in arms:
@@ -298,7 +297,11 @@ def main() -> None:
         description=__doc__, formatter_class=RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "--sets", nargs="+", default=list(CASES), help="datasets (default: all four)"
+        "--sets",
+        nargs="+",
+        choices=list(CASES),
+        default=list(DEFAULT_SETS),
+        help=f"datasets (default: {', '.join(DEFAULT_SETS)}; no script makes the others yet)",
     )
     parser.add_argument(
         "--sizes", nargs="+", type=int, help="sequences (default: each set's sizes)"
@@ -339,11 +342,15 @@ def main() -> None:
                 else range(CASES[tag].get(n, 0))
             )
             for r in replicates:
-                fasta = args.datasets_dir / tag / str(n) / f"rep{r}.fa"
+                fasta = args.datasets_dir / "fastme" / tag / str(n) / f"rep{r}.fa"
                 folder = out_dir / tag / str(n)
                 case = folder / f"rep{r}.case.json"
                 if case.exists() and not args.overwrite:
                     continue
+                if not fasta.exists():
+                    raise FileNotFoundError(
+                        f"{fasta} is missing: run simulate_data.py --sets fastme first"
+                    )
                 folder.mkdir(parents=True, exist_ok=True)
                 arms = [a for a in args.arms if a != "rand" or n <= RAND_MAX_N]
                 true_tree = fasta.with_name(f"rep{r}.true.nwk")

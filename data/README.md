@@ -28,8 +28,8 @@ data/
 - Simulated sets: `<n>` is the number of sequences, `<r>` the replicate (0-4); `simulate_data --help` gives the sizes,
   generators and seeds of each set.
 - Not made by any script: `viridian/alias_key.json`, the Pango alias key that `run_viridian`'s records step reads
-  (cov-lineages/pango-designation), and the `jc1m/` and `rna1m/` subsets that `run_fastme` reads by default (random
-  subsets of the 10^6-sequence alignments).
+  (cov-lineages/pango-designation), and the FastME comparison's `fastme/jc1m/` and `fastme/rna1m/` (random subsets of
+  the 10^6-sequence alignments; `run_fastme --sets jc1m rna1m` reads them).
 
 ## results/
 

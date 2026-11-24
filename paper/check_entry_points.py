@@ -84,7 +84,7 @@ def main() -> None:
         "--sets",
         "rnasim",
         "--sizes",
-        SIZE,
+        FASTME_SIZE,
         "--replicates",
         "0",
         *cpu,

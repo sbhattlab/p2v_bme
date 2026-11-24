@@ -86,14 +86,14 @@ imported unchanged instead (`--source`), in the same layout.
 
 ## FastME comparison
 
-- **Command:** `pixi run -e paper run_fastme --sets jc10k rnasim`
-- **Requires:** `pixi run build` (`p2v-bme`, `bme_scores`);
-  `simulate_data --sets jc10k rnasim --sizes 1000 2000 5000 10000` (2,000 is not among `simulate_data`'s default sizes)
-- **Inputs:** `data/datasets/{jc10k,rnasim}/<n>/rep<r>.fa`, `rep<r>.true.nwk`
+- **Command:** `pixi run -e paper run_fastme`
+- **Requires:** `pixi run build` (`p2v-bme`, `bme_scores`); `simulate_data --sets fastme`
+- **Inputs:** `data/datasets/fastme/{jc10k,rnasim}/<n>/rep<r>.fa`, `rep<r>.true.nwk`, `rep<r>.random_start.nwk`
 - **Outputs:** `data/results/fastme/<set>/<n>/rep<r>_*`, `rep<r>.case.json`; `data/results/fastme/cases.jsonl`
 
 p2v-bme and FastME on the same JC69 distance matrix, from their own and from the same random start trees, every tree
-rescored exactly. Without `--sets`, the script also runs the `jc1m` and `rna1m` subsets, which no script makes.
+rescored exactly. The paper's subsets of the 10^6-sequence sets (`jc1m`, `rna1m`) are not made yet, so `--sets` leaves
+them out by default.
 
 ## Bootstrap calibration
 
