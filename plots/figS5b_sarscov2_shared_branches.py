@@ -14,8 +14,8 @@ Outputs: img/fig3/figS5b_sarscov2_shared_branches.{pdf,svg,png}
 
 import matplotlib.pyplot as plt
 
-from plots._config import SPEC, STYLE
-from plots.utils import parser, read_tsv, save
+from plots._config import STYLE
+from plots.utils import OURS, method_style, parser, read_tsv, save
 
 FIGSIZE = (66 / 25.4, 66 / 25.4)  # panel b of the 150 mm wide figure
 BINS = {
@@ -43,31 +43,16 @@ def main() -> None:
     fig, ax = plt.subplots(figsize=FIGSIZE)
     fig.subplots_adjust(left=0.2, right=0.97, top=0.84, bottom=0.17)
     x = range(len(BINS))
-    for field, label, colour, marker in (
-        (
-            "ours_in_maple_pct",
-            "Phylo2VecME's, in MAPLE's tree",
-            SPEC["P2V"]["color"],
-            SPEC["P2V"]["marker"],
-        ),
-        (
-            "maple_in_ours_pct",
-            "MAPLE's, in Phylo2VecME's",
-            SPEC["MAPLE"]["color"],
-            SPEC["MAPLE"]["marker"],
-        ),
+    for field, label, key in (
+        ("ours_in_maple_pct", "Phylo2VecME's, in MAPLE's", "P2V"),
+        ("maple_in_ours_pct", "MAPLE's, in Phylo2VecME's", "MAPLE"),
     ):
         ax.plot(
             x,
             [float(r[field]) for r in rows],
-            color=colour,
-            marker=marker,
-            markersize=4.4,
-            linestyle="-",
-            linewidth=1.3,
             label=label,
-            markeredgecolor=colour,
-            markeredgewidth=1.1,
+            zorder=5 if key == OURS else 3,
+            **method_style(key),
         )
     ax.set_xticks(list(x))
     ax.set_xticklabels(list(BINS.values()))
@@ -75,7 +60,7 @@ def main() -> None:
     ax.set_ylabel("Branches in the other tree (%)")
     ax.set_ylim(75, 100)
     ax.grid(axis="y", color="#E5E5E5", linewidth=0.5)
-    ax.legend(loc="lower right", handletextpad=0.4, borderaxespad=0.2)
+    ax.legend(loc="lower right", handlelength=1.6, handletextpad=0.4, borderaxespad=0.2)
     save(fig, args.img_dir, "figS5b_sarscov2_shared_branches", bbox_inches=None)
 
 

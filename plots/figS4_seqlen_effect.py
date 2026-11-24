@@ -20,7 +20,7 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
 
 from plots._config import METHODS, SPEC, STYLE
-from plots.utils import parser, read_tsv, save
+from plots.utils import OURS, parser, read_tsv, save
 
 N = 10000
 SHORT, LONG = "jc1k", "jc10k"
@@ -55,13 +55,15 @@ def main() -> None:
     fig.subplots_adjust(left=0.35, right=0.94, bottom=0.19, top=0.95)
     for y, (key, (m1, lo1, hi1), (m2, lo2, hi2)) in enumerate(rows):
         s = SPEC[key]
-        ax.plot([m1, m2], [y, y], color=s["color"], lw=1.6, alpha=0.55, zorder=2)
+        ours = key == OURS  # Phylo2VecME drawn stronger; the markers are the data, so none is faded
+        size = 7 if ours else 6
+        ax.plot([m1, m2], [y, y], color=s["color"], lw=2.6 if ours else 1.6, alpha=0.55, zorder=2)
         ax.errorbar(
             [m1],
             [y],
             xerr=[[m1 - lo1], [hi1 - m1]],
             fmt=s["marker"],
-            ms=6,
+            ms=size,
             mfc="white",
             mec=s["color"],
             mew=1.3,
@@ -75,7 +77,7 @@ def main() -> None:
             [y],
             xerr=[[m2 - lo2], [hi2 - m2]],
             fmt=s["marker"],
-            ms=6,
+            ms=size,
             mfc=s["color"],
             mec=s["color"],
             ecolor=s["color"],

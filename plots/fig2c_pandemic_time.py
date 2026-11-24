@@ -16,7 +16,7 @@ import numpy as np
 from matplotlib.ticker import LogLocator, NullLocator
 
 from plots._config import PANDEMIC, SPEC, STYLE
-from plots.utils import parser, read_tsv, save
+from plots.utils import OURS, method_style, parser, read_tsv, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
 SIZES = [100000, 200000, 500000]
@@ -30,7 +30,6 @@ def main() -> None:
     fig, ax = plt.subplots(figsize=FIGSIZE)
     fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.96)
     for method, key in PANDEMIC:
-        spec = SPEC[key]
         means, los, his = [], [], []
         for n in SIZES:
             values = [
@@ -43,15 +42,12 @@ def main() -> None:
             SIZES,
             means,
             yerr=[los, his],
-            color=spec["color"],
-            marker=spec["marker"],
-            markersize=3.6,
-            linestyle=spec["ls"],
-            linewidth=1.1,
             elinewidth=0.75,
             capsize=2,
             capthick=0.7,
             label=method,
+            zorder=5 if key == OURS else 3,
+            **method_style(key),
         )
     ax.set_xscale("log")
     ax.set_yscale("log")
