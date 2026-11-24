@@ -8,12 +8,12 @@ Outputs: img/fig2/fig2c_pandemic_time.{pdf,svg}
     pixi run -e paper python -m plots.fig2c_pandemic_time
 """
 
-from statistics import mean
+import statistics
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from matplotlib.ticker import LogLocator, NullLocator
-from numpy import ceil, floor, log10
 
 from plots._config import PANDEMIC, STYLE
 from plots.utils import parser, read_tsv, save
@@ -33,11 +33,9 @@ def main() -> None:
         means, los, his = [], [], []
         for n in SIZES:
             values = [
-                float(r["time_s"])
-                for r in rows
-                if r["method"] == method and int(r["n"]) == n
+                float(r["time_s"]) for r in rows if r["method"] == method and int(r["n"]) == n
             ]
-            means.append(mean(values))
+            means.append(statistics.mean(values))
             los.append(means[-1] - min(values))
             his.append(max(values) - means[-1])
         ax.errorbar(
@@ -59,8 +57,8 @@ def main() -> None:
     ax.set_xlim(8e4, 6.2e5)
     times = [float(r["time_s"]) for r in rows]
     ax.set_ylim(
-        10 ** (floor(log10(min(times)) - 0.3)),
-        10 ** (ceil(log10(max(times)) + HEADROOM)),
+        10 ** (np.floor(np.log10(min(times)) - 0.3)),
+        10 ** (np.ceil(np.log10(max(times)) + HEADROOM)),
     )
     ax.yaxis.set_major_locator(LogLocator(base=10, numticks=12))  # a tick every decade
     ax.set_xticks(SIZES)

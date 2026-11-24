@@ -1,12 +1,13 @@
-"""Fig. 2b: RF error against the true tree, by the number of sequences, on the three simulated families.
+"""Fig. 2b: RF error against the true tree, by the number of sequences,
+on the three simulated families.
 
 Inputs:  data/tables/scaling.tsv, random_tree.tsv                      (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    mean and sample SD of the RF error at each size, one series per dataset
            |
            v
-         datasets above 10^5 sequences on the PASTA tree expand a 10^5-leaf alignment: their error on the
-         inherited (backbone) splits, open markers, dotted from the 10^5-leaf alignment
+         datasets above 10^5 sequences on the PASTA tree expand a 10^5-leaf alignment: their error
+         on the inherited (backbone) splits, open markers, dotted from the 10^5-leaf alignment
 Outputs: img/fig2/fig2b_scaling_rf_error.{pdf,svg}
 
     pixi run -e paper python -m plots.fig2b_scaling_rf_error
@@ -23,9 +24,7 @@ FIGSIZE = (52 / 25.4, 62 / 25.4)
 def backbone_series(ax: plt.Axes, rows: list[dict[str, str]]) -> None:
     """Draws the error on the inherited splits of the expanded datasets: (axes, rows) -> None."""
     for dataset, _label, colour, marker, _style, _filled in SCALING_SERIES:
-        group = sorted(
-            (r for r in rows if r["dataset"] == dataset), key=lambda r: int(r["n"])
-        )
+        group = sorted((r for r in rows if r["dataset"] == dataset), key=lambda r: int(r["n"]))
         expanded = [i for i, r in enumerate(group) if r.get("large_scale_design")]
         if not expanded:
             continue

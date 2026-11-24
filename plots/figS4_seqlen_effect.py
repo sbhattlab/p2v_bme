@@ -1,14 +1,18 @@
-"""Fig. S4: RF error at 10,000 sequences on JC alignments of 1,000 and 10,000 sites, for every method.
+"""Fig. S4: RF error at 10,000 sequences on JC alignments of 1,000 and 10,000 sites,
+for every method.
 
 Inputs:  data/tables/scaling_methods.tsv                                (make_tables.py)
 Options: --tables-dir, --img-dir
-Flow:    per method with runs at both lengths: mean and range of the RF error (hollow: 1,000 sites, filled: 10,000)
+Flow:    per method with runs at both lengths:
+         mean and range of the RF error (hollow: 1,000 sites, filled: 10,000)
 Outputs: img/fig2/figS4_seqlen_effect.{pdf,svg}
 
     pixi run -e paper python -m plots.figS4_seqlen_effect
 """
 
-from statistics import mean
+# pylint: disable=invalid-name  # figS<N>: the paper's numbering of its supplementary figures
+
+import statistics
 
 import matplotlib.pyplot as plt
 
@@ -38,14 +42,14 @@ def main() -> None:
     for key, *_ in METHODS:
         a, b = values(SHORT, key), values(LONG, key)
         if a and b:
-            rows.append((key, (mean(a), min(a), max(a)), (mean(b), min(b), max(b))))
+            rows.append(
+                (key, (statistics.mean(a), min(a), max(a)), (statistics.mean(b), min(b), max(b)))
+            )
         elif a or b:
             print(f"skipping {key}: results for only one alignment length at N = {N}")
     if not rows:
         raise SystemExit(f"no method has both {SHORT} and {LONG} results at N = {N}")
-    rows.sort(
-        key=lambda r: -r[2][0]
-    )  # worst at the bottom of the reading order -> best on top
+    rows.sort(key=lambda r: -r[2][0])  # worst at the bottom of the reading order -> best on top
 
     fig, ax = plt.subplots(figsize=(3.6, 2.9))
     fig.subplots_adjust(left=0.35, right=0.94, bottom=0.19, top=0.95)

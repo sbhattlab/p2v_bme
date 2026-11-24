@@ -1,21 +1,23 @@
-"""Fig. 3a: the SILVA 144 tree reduced to the three domains and 20 major clades, with counts, F1 and support.
+"""Fig. 3a: the SILVA 144 tree reduced to the three domains and 20 major clades,
+with counts, F1 and support.
 
 Inputs:  data/tables/silva_clades.tsv, silva_clade_paths.tsv            (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    the paths from each selected clade's best node to the root
            |
            v
-         the tree they induce, rooted on the branch above the smallest clade holding Archaea and Eukaryota
+         the tree they induce, rooted on the branch above the smallest clade holding
+         Archaea and Eukaryota
            |
            v
-         one row per clade: triangle, name, unique sequences, best F1, transfer support (TBE) of its stem;
-         backbone nodes with TBE >= 75% marked
+         one row per clade: triangle, name, unique sequences,
+         best F1, transfer support (TBE) of its stem; backbone nodes with TBE >= 75% marked
 Outputs: img/fig3/fig3a_silva_clades.{pdf,svg}
 
     pixi run -e paper python -m plots.fig3a_silva_clades
 """
 
-from math import log10, sqrt
+import math
 
 import matplotlib.pyplot as plt
 
@@ -82,7 +84,8 @@ def read_clades(tables_dir) -> tuple[dict, dict]:
 
 
 def induced_tree(clades: dict, paths: dict) -> dict:
-    """Builds the tree induced by the selected clades and the domains: (clades, paths) -> nested dict, rooted."""
+    """Builds the tree induced by the selected clades and the domains:
+    (clades, paths) -> nested dict, rooted."""
     adj: dict[int, dict[int, tuple[float, float]]] = {}
     above: dict[int, tuple[float, float]] = (
         {}
@@ -98,10 +101,9 @@ def induced_tree(clades: dict, paths: dict) -> dict:
             above[u] = edge
     euk = [int(r["node"]) for r in paths["Eukaryota"]]
     arc = {int(r["node"]) for r in paths["Archaea"]}
-    euk_node, arc_node = int(clades["Eukaryota"]["best_node"]), int(
-        clades["Archaea"]["best_node"]
-    )
-    # The smallest clade holding both Archaea and Eukaryota: the figure is rooted on the branch above it
+    euk_node, arc_node = int(clades["Eukaryota"]["best_node"]), int(clades["Archaea"]["best_node"])
+    # The smallest clade holding both Archaea and Eukaryota:
+    # the figure is rooted on the branch above it
     ae = next(x for x in euk if x in arc)
     if ae == euk[-1]:
         raise SystemExit(
@@ -115,17 +117,17 @@ def induced_tree(clades: dict, paths: dict) -> dict:
         if u in targets:
             key, label = targets[u]
             c = clades[key]
-            return dict(
-                leaf=True,
-                node=u,
-                key=key,
-                label=label,
-                length=length,
-                tbe=float(c["tbe_pct"]),
-                f1=float(c["f1"]),
-                leaves=int(c["unique_leaves"]),
-                rank=order[key],
-            )
+            return {
+                "leaf": True,
+                "node": u,
+                "key": key,
+                "label": label,
+                "length": length,
+                "tbe": float(c["tbe_pct"]),
+                "f1": float(c["f1"]),
+                "leaves": int(c["unique_leaves"]),
+                "rank": order[key],
+            }
         children = [
             s
             for v, (bl, t) in adj.get(u, {}).items()
@@ -138,33 +140,34 @@ def induced_tree(clades: dict, paths: dict) -> dict:
             children[0]["length"] += length
             return children[0]
         children.sort(key=lambda c: c["rank"])
-        return dict(
-            leaf=False,
-            node=u,
-            length=length,
-            tbe=tbe,
-            children=children,
-            rank=children[0]["rank"],
-        )
+        return {
+            "leaf": False,
+            "node": u,
+            "length": length,
+            "tbe": tbe,
+            "children": children,
+            "rank": children[0]["rank"],
+        }
 
     ae_length, ae_tbe = above[ae]
-    root = dict(
-        leaf=False,
-        node=-1,
-        length=0.0,
-        tbe=100.0,
-        rank=0,
-        children=[
+    root = {
+        "leaf": False,
+        "node": -1,
+        "length": 0.0,
+        "tbe": 100.0,
+        "rank": 0,
+        "children": [
             build(ae, ae_parent, ae_length / 2, ae_tbe),
             build(ae_parent, ae, ae_length / 2, ae_tbe),
         ],
-    )
+    }
     return root
 
 
 def place(node: dict, x0: float, counter: list[int]) -> float:
-    """Sets the x (square-root branch lengths) and y (row) of every node: -> the largest x below the node."""
-    step = 0.0 if node["node"] == -1 else 0.016 + 0.36 * sqrt(max(0.0, node["length"]))
+    """Sets the x (square-root branch lengths) and y (row) of every node:
+    -> the largest x below the node."""
+    step = 0.0 if node["node"] == -1 else 0.016 + 0.36 * math.sqrt(max(0.0, node["length"]))
     node["x0"], node["x"] = x0, x0 + step
     if node["leaf"]:
         node["y"] = len(SELECTED_CLADES) - 1 - counter[0]
@@ -176,13 +179,12 @@ def place(node: dict, x0: float, counter: list[int]) -> float:
 
 
 def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
-    """Draws a node, its row if it is a selected clade, and its subtree: (axes, node, column x) -> None."""
+    """Draws a node, its row if it is a selected clade, and its subtree:
+    (axes, node, column x) -> None."""
     x0, x1, y = node["x0"], node["x"], node["y"]
     tips = columns["tips"]
     if node["node"] != -1:
-        ax.plot(
-            [x0, x1], [y, y], color="#2d3748", lw=1.35, solid_capstyle="round", zorder=2
-        )
+        ax.plot([x0, x1], [y, y], color="#2d3748", lw=1.35, solid_capstyle="round", zorder=2)
     if node["leaf"]:
         colour = domain_colour(node["key"])
         if x1 < tips - 0.010:
@@ -195,7 +197,7 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
                 alpha=0.75,
                 zorder=1,
             )
-        h = 0.22 + 0.05 * (log10(max(1000, node["leaves"])) - 4.0)
+        h = 0.22 + 0.05 * (math.log10(max(1000, node["leaves"])) - 4.0)
         ax.add_patch(
             Polygon(
                 [[x1, y], [tips, y + h], [tips, y - h]],
@@ -225,9 +227,7 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
             ha="right",
         )
         f1 = node["f1"]
-        f1_colour = (
-            "#1b7837" if f1 >= 0.95 else ("#d95f02" if f1 >= 0.85 else "#7570b3")
-        )
+        f1_colour = "#1b7837" if f1 >= 0.95 else ("#d95f02" if f1 >= 0.85 else "#7570b3")
         ax.text(
             columns["f1"],
             y,
@@ -237,10 +237,10 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
             va="center",
             ha="right",
         )
-        bar, width = columns["bar"], columns["bar_width"]
+        bar_x, width = columns["bar"], columns["bar_width"]
         ax.add_patch(
             Rectangle(
-                (bar, y - 0.22),
+                (bar_x, y - 0.22),
                 width,
                 0.44,
                 facecolor="#edf2f7",
@@ -250,7 +250,7 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
         )
         ax.add_patch(
             Rectangle(
-                (bar, y - 0.22),
+                (bar_x, y - 0.22),
                 width * node["tbe"] / 100.0,
                 0.44,
                 facecolor=colour,
@@ -260,7 +260,7 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
             )
         )
         ax.text(
-            bar + width + 0.014,
+            bar_x + width + 0.014,
             y,
             f"{node['tbe']:.1f}%",
             color="#1a202c",
@@ -301,14 +301,14 @@ def main() -> None:
     clades, paths = read_clades(args.tables_dir)
     tree = induced_tree(clades, paths)
     tips = place(tree, 0.0, [0]) + 0.025
-    columns = dict(
-        tips=tips,
-        name=tips + 0.015,
-        k=tips + 1.565,
-        f1=tips + 1.875,
-        bar=tips + 1.930,
-        bar_width=0.145,
-    )
+    columns = {
+        "tips": tips,
+        "name": tips + 0.015,
+        "k": tips + 1.565,
+        "f1": tips + 1.875,
+        "bar": tips + 1.930,
+        "bar_width": 0.145,
+    }
 
     fig = plt.figure(figsize=(6.0, 6.3))
     ax = fig.add_axes((0.02, 0.02, 0.96, 0.93))

@@ -1,12 +1,16 @@
-"""Fig. S5b: share of the branches of our SARS-CoV-2 tree that are in MAPLE's, and of MAPLE's in ours.
+"""Fig. S5b: share of the branches of our SARS-CoV-2 tree that are in MAPLE's,
+and of MAPLE's in ours.
 
 Inputs:  data/tables/viridian_substitutions.tsv                         (make_tables.py)
 Options: --tables-dir, --img-dir
-Flow:    per bin of substitutions on the branch: the share of branches also in the other tree, for each tree
+Flow:    per bin of substitutions on the branch:
+         the share of branches also in the other tree, for each tree
 Outputs: img/fig3/figS5b_sarscov2_shared_branches.{pdf,svg}
 
     pixi run -e paper python -m plots.figS5b_sarscov2_shared_branches
 """
+
+# pylint: disable=invalid-name  # figS<N>: the paper's numbering of its supplementary figures
 
 import matplotlib.pyplot as plt
 
@@ -35,9 +39,7 @@ def main() -> None:
         for r in rows
     ]
     if keys != list(BINS):
-        raise SystemExit(
-            "the substitution bins of the data are not the ones this figure labels"
-        )
+        raise SystemExit("the substitution bins of the data are not the ones this figure labels")
     fig, ax = plt.subplots(figsize=FIGSIZE)
     fig.subplots_adjust(left=0.2, right=0.97, top=0.84, bottom=0.17)
     x = range(len(BINS))

@@ -1,9 +1,9 @@
 """Fig. 3c: how finely the SARS-CoV-2 tree places genomes, by sampling month (Viridian genomes).
 
-For each genome, the smallest clade around it whose branch has at least 70% transfer support and half a
-substitution: the line is the monthly median of the genomes of that clade sampled within 15 days of the genome,
-with the interquartile range shaded; the dashed line counts all genomes sampled in those 31 days, so the axis counts
-genomes sampled in the same 31 days for both.
+For each genome, the smallest clade around it whose branch has at least 70% transfer support and
+half a substitution: the line is the monthly median of the genomes of that clade sampled within 15
+days of the genome, with the interquartile range shaded; the dashed line counts all genomes sampled
+in those 31 days, so the axis counts genomes sampled in the same 31 days for both.
 Dots take the colour of the month's most common variant; the strip above shows each variant's share.
 
 Inputs:  data/tables/viridian_resolution.tsv                            (make_tables.py)
@@ -18,9 +18,9 @@ Outputs: img/fig3/fig3c_sarscov2_resolution.{pdf,svg}
 """
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
-from numpy import arange, array, average, zeros
 
 from plots._config import STYLE
 from plots.utils import parser, read_tsv, save
@@ -53,22 +53,23 @@ def main() -> None:
     plt.style.use(STYLE)
     rows = months_at_threshold(read_tsv(args.tables_dir, "viridian_resolution"))
     months = [r["month"] for r in rows]
-    column = lambda name: array([float(r[name]) for r in rows])  # noqa: E731
+
+    def column(name: str) -> np.ndarray:
+        return np.array([float(r[name]) for r in rows])
+
     fig = plt.figure(figsize=(10.2, 3.9))
     strip = fig.add_axes((0.15, 0.87, 0.835, 0.07))
     ax = fig.add_axes((0.15, 0.2, 0.835, 0.65), sharex=strip)
 
-    x = arange(len(rows))
-    shares = array([column(f"share_{key}") for key, _name, _colour in GROUPS])
-    bottom = zeros(len(rows))
+    x = np.arange(len(rows))
+    shares = np.array([column(f"share_{key}") for key, _name, _colour in GROUPS])
+    bottom = np.zeros(len(rows))
     for (_key, name, colour), share in zip(GROUPS, shares):
         strip.bar(x, share, bottom=bottom, width=1.0, color=colour, linewidth=0)
         bottom += share
-        if (
-            share.max() > 0.5
-        ):  # name a variant on the strip where it holds most of the genomes
+        if share.max() > 0.5:  # name a variant on the strip where it holds most of the genomes
             strip.text(
-                float(average(x, weights=share)),
+                float(np.average(x, weights=share)),
                 0.5,
                 name,
                 color="white",
@@ -138,8 +139,7 @@ def main() -> None:
     ax.set_xticks(ticks)
     ax.set_xticklabels(
         [
-            QUARTER[months[i][5:7]]
-            + ("\n" + months[i][:4] if months[i][5:7] == "01" else "")
+            QUARTER[months[i][5:7]] + ("\n" + months[i][:4] if months[i][5:7] == "01" else "")
             for i in ticks
         ]
     )

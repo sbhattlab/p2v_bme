@@ -58,10 +58,5 @@ def test_example(tmp_path, name, model):
         assert abs(fit["alpha"] / TRUE_ALPHA - 1) <= MAX_ALPHA_RELATIVE_ERROR
         # p2v-bme reports the rates scaled to mean 1
         mean_rate = sum(TRUE_RATES) / len(TRUE_RATES)
-        log_errors = [
-            math.log(r * mean_rate / t) for r, t in zip(fit["rates"], TRUE_RATES)
-        ]
-        assert (
-            math.sqrt(sum(e * e for e in log_errors) / len(log_errors))
-            <= MAX_RATE_RMS_LOG_ERROR
-        )
+        log_errors = [math.log(r * mean_rate / t) for r, t in zip(fit["rates"], TRUE_RATES)]
+        assert math.sqrt(sum(e * e for e in log_errors) / len(log_errors)) <= MAX_RATE_RMS_LOG_ERROR

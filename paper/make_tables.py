@@ -1,43 +1,57 @@
-"""Every table of the paper and the data behind its figures, from the raw results (Tables S1-S15; Figs 2, 3, S1-S5).
+"""Every table of the paper and the data behind its figures,
+from the raw results (Tables S1-S15; Figs 2, 3, S1-S5).
 
 Inputs:  data/results/                                    (the run_*.py scripts)
-           scaling/, random_start/, seqlen/,              our runs: <set>/<n>/rep<r>_seed<s>[_cap<P>].json (p2v-bme
-           representatives/, pandemic/                    report) with .vs_true.json, .backbone.json,
-                                                          .vs_cap64.json (p2v-bme --supports), .score.json, .eval.json
-           calibration/, fastme/, gtr_fit/, silva/,       records scored from our trees, in the paper's file formats
-           viridian/, seqlen/diagnose_10k_sequences.jsonl
-           baselines/                                     the comparison programs' recorded results (run_baselines.py)
+           scaling/, random_start/, seqlen/,              our runs:
+           representatives/, pandemic/                    <set>/<n>/rep<r>_seed<s>[_cap<P>].json
+                                                          (p2v-bme report) with .vs_true.json,
+                                                          .backbone.json, .vs_cap64.json
+                                                          (p2v-bme --supports), .score.json,
+                                                          .eval.json
+           calibration/, fastme/, gtr_fit/, silva/,       records scored from our trees,
+           viridian/,                                     in the paper's file formats
+           seqlen/diagnose_10k_sequences.jsonl
+           baselines/                                     the comparison programs' recorded results
+                                                          (run_baselines.py)
 Options: --results-dir, --tables-dir, --tables (default: all), --overwrite
 Flow:    each table
            |
            v
-         its results -> rows                              (a table whose results are missing is skipped, with a note)
+         its results -> rows                              (a table whose results are missing is
+           |                                              skipped, with a note)
            |
            v
          data/tables/<name>.tsv (the rows) and <name>.tex (the LaTeX table)
-Outputs: data/tables/<table>.tex for scaling, maple, bootstrap, baseline_10k, silva_support, comparators,
-         random_tree, seqlen, representative_sensitivity, fastme, gtr_fit, silva_gtdb, viridian_variants,
-         viridian_support, viridian_thresholds; data/tables/<data>.tsv behind the tables and figures (scaling,
-         scaling_runs, random_tree, maple, bootstrap, bootstrap_by_size, baseline_10k, silva_support, scaling_methods,
-         silva_clades, silva_clade_paths, viridian_variants, viridian_substitutions, viridian_resolution)
+Outputs: data/tables/<table>.tex for scaling, maple, bootstrap, baseline_10k, silva_support,
+         comparators, random_tree, seqlen, representative_sensitivity, fastme, gtr_fit, silva_gtdb,
+         viridian_variants, viridian_support, viridian_thresholds;
+         data/tables/<data>.tsv behind the tables and figures (scaling, scaling_runs, random_tree,
+         maple, bootstrap, bootstrap_by_size, baseline_10k, silva_support, scaling_methods,
+         silva_clades, silva_clade_paths, viridian_variants, viridian_substitutions,
+         viridian_resolution)
 
     pixi run -e paper python -m paper.make_tables
     pixi run -e paper python -m paper.make_tables --tables scaling maple --overwrite
 """
 
+# pylint: disable=redefined-outer-name
+
+import json
+import re
+import statistics
+import sys
+
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from collections import defaultdict
 from csv import DictReader, DictWriter
-from json import loads
 from pathlib import Path
-from re import compile as regex
-from statistics import mean, median, stdev
-from sys import stderr
 
 from paper._config import DEFAULT_RESULTS_DIR, DEFAULT_TABLES_DIR
 from paper.utils import read_json
 
-SIZES_EXPANDED = 1_000_000  # from here on, the PASTA-tree datasets expand the 100,000-leaf alignment (backbone)
+SIZES_EXPANDED = (
+    1_000_000  # from here on, the PASTA-tree datasets expand the 100,000-leaf alignment (backbone)
+)
 BACKBONE_SIZE = 100_000
 DATASETS = {"rnasim": "RNASim", "jc10k": "JC"}
 TIMING = "initialisation+refinement+branch estimation; excludes input conversion/loading and diagnostic RF evaluation"
@@ -61,7 +75,8 @@ ALIAS = {
     "FastTree-ME": "FastTree-ME",
 }
 
-# RNASim calibration: bootstrap replicates and repeat searches per reference tree (run_calibration.py)
+# RNASim calibration: bootstrap replicates and repeat searches per reference tree
+# (run_calibration.py)
 CALIBRATION_BOOTSTRAPS = 64
 CALIBRATION_SEEDS = 8
 
@@ -106,7 +121,7 @@ VIRIDIAN_BINS = {
     (5.5, None): r"$\geq 6$",
 }
 
-RUN = regex(r"rep(\d+)_seed(\d+)(?:_cap(\d+))?")
+RUN = re.compile(r"rep(\d+)_seed(\d+)(?:_cap(\d+))?")
 
 
 class MissingResults(Exception):
@@ -127,7 +142,7 @@ def read_jsonl(path: Path) -> list[dict]:
     """Reads a JSON-lines record: path -> one object per line; MissingResults if absent."""
     if not path.exists():
         raise MissingResults(str(path))
-    return [loads(line) for line in path.read_text().splitlines() if line.strip()]
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
 def read_tsv(path: Path) -> list[dict]:
@@ -152,90 +167,89 @@ def short_gpu(name: str) -> str:
 
 
 def threads_of(report: Path, details: dict) -> int | str:
-    """Reads the CPU threads of one of our runs: (report, its details) -> the count ('' if not recorded).
+    """Reads the CPU threads of one of our runs:
+    (report, its details) -> the count ('' if not recorded).
 
-    CPU runs: their workers ("CPU: 16 threads" in the report); GPU runs: the host threads that run_p2vbme recorded in
-    <prefix>.host.json.
+    CPU runs: their workers ("CPU: 16 threads" in the report);
+    GPU runs: the host threads that run_p2vbme recorded in <prefix>.host.json.
     """
     workers = [d for d in details["devices"] if d.startswith("CPU: ")]
     if workers:
         return int(workers[0].split()[1])
     host = report.with_name(f"{report.stem}.host.json")
-    return loads(host.read_text())["cpu_threads"] if host.exists() else ""
+    return json.loads(host.read_text())["cpu_threads"] if host.exists() else ""
 
 
 def rf_from(path: Path) -> float | str:
-    """Reads the RF error of a p2v-bme --supports comparison: report -> 100 - mean exact support ('' if none).
+    """Reads the RF error of a p2v-bme --supports comparison:
+    report -> 100 - mean exact support ('' if none).
 
     For binary trees on the same leaves, RF / (2 (n - 3)) = 1 - (shared splits) / (n - 3).
     """
-    return (
-        100.0 - loads(path.read_text())["supports"]["mean_exact"]
-        if path.exists()
-        else ""
-    )
+    return 100.0 - json.loads(path.read_text())["supports"]["mean_exact"] if path.exists() else ""
 
 
-# Experiments already warned about reports without gpu_memory_peak_mib (our_runs reads an experiment once per table)
+def sidecar(report: Path, name: str) -> Path:
+    """Names a file written next to one of our reports:
+    (rep0_seed1.json, "score") -> rep0_seed1.score.json."""
+    return report.with_name(f"{report.stem}.{name}.json")
+
+
+# Experiments already warned about reports without gpu_memory_peak_mib
+# (our_runs reads an experiment once per table)
 warned_no_peak: set[str] = set()
 
 
 def our_runs(results: Path, experiment: str) -> list[dict]:
-    """Reads our runs of one experiment: (results dir, experiment) -> one row per p2v-bme report, in run order."""
+    """Reads our runs of one experiment:
+    (results dir, experiment) -> one row per p2v-bme report, in run order."""
     rows: list[dict] = []
     no_peak = 0  # GPU reports without gpu_memory_peak_mib
     for path in (results / experiment).glob("*/*/*.json"):
         m = RUN.fullmatch(path.stem)
         if m is None:  # .vs_true.json, .score.json, ...: their stems hold a dot
             continue
-        report = loads(path.read_text())
+        report = json.loads(path.read_text())
         details = report["details"]
         t = details["time"]
         gpus = [d.split(": ", 1)[1] for d in details["devices"] if d.startswith("GPU")]
         # Reports from before gpu_memory_peak_mib measured the whole card instead: no value for them
         no_peak += bool(gpus) and "gpu_memory_peak_mib" not in details["memory"]
-        side = lambda name: path.with_name(f"{path.stem}.{name}.json")  # noqa: E731
-        score = side("score")
-        evaluation = side("eval")
-        backbone = side("backbone")
+        score = sidecar(path, "score")
+        evaluation = sidecar(path, "eval")
+        backbone = sidecar(path, "backbone")
         rows.append(
-            dict(
-                set=path.parent.parent.name,
-                n=int(path.parent.name),
-                rep=int(m[1]),
-                seed=int(m[2]),
-                cap=(
-                    int(m[3])
-                    if m[3]
-                    else details["settings"].get("representative_cap", "")
-                ),
-                sites=details["input"]["sites"],
-                time_s=t["start_tree"] + t["search"] + t["branch_lengths"],
-                topology_time_s=t["start_tree"] + t["search"],
-                branch_time_s=t["branch_lengths"],
-                host_memory_mb=details["memory"]["host_ram_mib"],
-                gpu_memory_peak_mib=(
+            {
+                "set": path.parent.parent.name,
+                "n": int(path.parent.name),
+                "rep": int(m[1]),
+                "seed": int(m[2]),
+                "cap": int(m[3]) if m[3] else details["settings"].get("representative_cap", ""),
+                "sites": details["input"]["sites"],
+                "time_s": t["start_tree"] + t["search"] + t["branch_lengths"],
+                "topology_time_s": t["start_tree"] + t["search"],
+                "branch_time_s": t["branch_lengths"],
+                "host_memory_mb": details["memory"]["host_ram_mib"],
+                "gpu_memory_peak_mib": (
                     details["memory"].get("gpu_memory_peak_mib", "") if gpus else ""
                 ),
-                gpu_count=len(gpus),
-                gpu_model=short_gpu(gpus[0]) if gpus else "",
-                gpu_models=frozenset(gpus),
-                cpu_threads=threads_of(path, details),
-                start_tree=details["settings"].get("start_tree", ""),
-                bme_length=report["bme_length"],
-                rf_pct=rf_from(side("vs_true")),
-                backbone_rf_pct=(
-                    loads(backbone.read_text())["backbone_rf_pct"]
-                    if backbone.exists()
-                    else ""
+                "gpu_count": len(gpus),
+                "gpu_model": short_gpu(gpus[0]) if gpus else "",
+                "gpu_models": frozenset(gpus),
+                "cpu_threads": threads_of(path, details),
+                "start_tree": details["settings"].get("start_tree", ""),
+                "bme_length": report["bme_length"],
+                "rf_pct": rf_from(sidecar(path, "vs_true")),
+                "backbone_rf_pct": (
+                    json.loads(backbone.read_text())["backbone_rf_pct"] if backbone.exists() else ""
                 ),
-                rf_vs_cap64_pct=rf_from(side("vs_cap64")),
-                scored_length=(
-                    loads(score.read_text())["bme_length"] if score.exists() else ""
+                "rf_vs_cap64_pct": rf_from(sidecar(path, "vs_cap64")),
+                "scored_length": (
+                    json.loads(score.read_text())["bme_length"] if score.exists() else ""
                 ),
-                evaluation=loads(evaluation.read_text()) if evaluation.exists() else {},
-                source_path=str(path.relative_to(results)),
-            )
+                "evaluation": json.loads(evaluation.read_text()) if evaluation.exists() else {},
+                "source_path": str(path.relative_to(results)),
+            }
         )
     rows.sort(
         key=lambda r: (
@@ -253,13 +267,14 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
         print(
             f"make_tables: {experiment}: {no_peak} GPU reports have no gpu_memory_peak_mib"
             " (written by an earlier p2v-bme); their GPU memory is left blank",
-            file=stderr,
+            file=sys.stderr,
         )
     return rows
 
 
 def one(values: set, what: str):
-    """Returns the one value of a set: (values, what they are) -> value; mixed values are an error."""
+    """Returns the one value of a set:
+    (values, what they are) -> value; mixed values are an error."""
     if len(values) != 1:
         raise SystemExit(f"mixed {what} in the run records: {sorted(map(str, values))}")
     return next(iter(values))
@@ -271,28 +286,30 @@ def gpus(count: int, model: str) -> str:
 
 
 def hardware(rows: list[dict], threads_too: bool = True) -> str:
-    """Describes the hardware of our runs: rows -> 'one H200 GPU and 12 CPU threads', or '16 CPU threads' on the CPU.
+    """Describes the hardware of our runs:
+    rows -> 'one H200 GPU and 12 CPU threads', or '16 CPU threads' on the CPU.
 
-    The GPUs alone without threads_too (as the bootstrap caption), or for reports without the CPU threads.
+    The GPUs alone without threads_too (as the bootstrap caption),
+    or for reports without the CPU threads.
     """
     count = one({r["gpu_count"] for r in rows}, "GPU counts")
     threads = one({r["cpu_threads"] for r in rows}, "CPU thread counts")
     if count == 0:
         return f"{threads} CPU threads"
     model = gpus(count, one({r["gpu_model"] for r in rows}, "GPU models"))
-    return (
-        f"{model} and {threads} CPU threads" if threads_too and threads != "" else model
-    )
+    return f"{model} and {threads} CPU threads" if threads_too and threads != "" else model
 
 
 def program_hardware(records: list[dict]) -> str:
-    """Describes the hardware of comparison runs with gpu_name and cpu_cores: -> 'one H200 GPU and 12 CPU threads'."""
+    """Describes the hardware of comparison runs with gpu_name and cpu_cores:
+    -> 'one H200 GPU and 12 CPU threads'."""
     model = short_gpu(one({r["gpu_name"] for r in records}, "GPU models"))
     return f"{gpus(1, model)} and {one({r['cpu_cores'] for r in records}, 'CPU thread counts')} CPU threads"
 
 
 def ours_and_dipper(ours: str, dipper: str) -> str:
-    """Writes the caption sentence on the hardware of Phylo2VecME and DIPPER, joined when it is the same."""
+    """Writes the caption sentence on the hardware of Phylo2VecME and DIPPER,
+    joined when it is the same."""
     return (
         rf"\method\ and DIPPER: {ours}."
         if ours == dipper
@@ -306,22 +323,24 @@ def dipper_runs(results: Path) -> list[dict]:
 
 
 def default_runs(results: Path) -> list[dict]:
-    """Reads FastTree and VeryFastTree in their default pipelines on the PASTA-tree datasets: -> one record per run.
+    """Reads FastTree and VeryFastTree in their default pipelines on the PASTA-tree datasets:
+    -> one record per run.
 
     Runs started from our tree (method names ending in -fromP2V) are left out.
     """
     records = read_jsonl(results / "baselines" / "default" / "runs.jsonl")
     for path in sorted((results / "baselines" / "default_100k").glob("*.json")):
-        records.append(loads(path.read_text()))
+        records.append(json.loads(path.read_text()))
     return [r for r in records if r["method"] in ALIAS]
 
 
 def optional(read, results: Path) -> list[dict]:
-    """Reads comparison runs that a table can do without: (reader, results) -> its records, or none."""
+    """Reads comparison runs that a table can do without:
+    (reader, results) -> its records, or none."""
     try:
         return read(results)
     except MissingResults as missing:
-        print(f"make_tables: no comparison runs: {missing}", file=stderr)
+        print(f"make_tables: no comparison runs: {missing}", file=sys.stderr)
         return []
 
 
@@ -331,7 +350,9 @@ def optional(read, results: Path) -> list[dict]:
 def mean_sd(values: list) -> tuple[float | str, float | str]:
     """Averages values: -> (mean, sample SD); SD blank for one value, both blank for none."""
     return (
-        (mean(values), stdev(values) if len(values) > 1 else "") if values else ("", "")
+        (statistics.mean(values), statistics.stdev(values) if len(values) > 1 else "")
+        if values
+        else ("", "")
     )
 
 
@@ -352,9 +373,7 @@ def estimate(row: dict, field: str) -> str:
     result = number(mu, digits)
     if sd == "":
         return result
-    return (
-        f"${result.replace(',', '{,}')} \\pm {number(sd, digits).replace(',', '{,}')}$"
-    )
+    return f"${result.replace(',', '{,}')} \\pm {number(sd, digits).replace(',', '{,}')}$"
 
 
 def seconds(x: float) -> str:
@@ -368,10 +387,9 @@ def seconds(x: float) -> str:
     return f"{x:,.0f}"
 
 
-def booktabs(
-    name: str, caption: str, columns: str, header: str, body: list[str]
-) -> str:
-    """Builds a one-header booktabs table: (label suffix, caption, column spec, header, rows) -> LaTeX."""
+def booktabs(name: str, caption: str, columns: str, header: str, body: list[str]) -> str:
+    """Builds a one-header booktabs table:
+    (label suffix, caption, column spec, header, rows) -> LaTeX."""
     expected = len(columns.replace(" ", "")) - 1
     for line in [header, *body]:
         if line.count("&") != expected:
@@ -389,7 +407,8 @@ def booktabs(
 
 
 def scaling_rows(results: Path) -> tuple[list[dict], list[dict]]:
-    """Aggregates the sample-and-place runs on the PASTA-tree datasets: results -> (per size, per run)."""
+    """Aggregates the sample-and-place runs on the PASTA-tree datasets:
+    results -> (per size, per run)."""
     runs = [r for r in our_runs(results, "scaling") if r["set"] in DATASETS]
     if not runs:
         raise MissingResults(f"{results}/scaling/{{{','.join(DATASETS)}}}")
@@ -400,36 +419,39 @@ def scaling_rows(results: Path) -> tuple[list[dict], list[dict]]:
             rows: list[dict] = []
             for replicate, r in enumerate(selected):
                 rows.append(
-                    dict(
-                        dataset=label,
-                        n=n,
-                        initialisation="sample",
-                        replicate=replicate,
-                        alignment_columns=r["sites"],
-                        time_s=r["time_s"],
-                        topology_time_s=r["topology_time_s"],
-                        branch_time_s=r["branch_time_s"],
-                        rf_pct=r["rf_pct"],
+                    {
+                        "dataset": label,
+                        "n": n,
+                        "initialisation": "sample",
+                        "replicate": replicate,
+                        "alignment_columns": r["sites"],
+                        "time_s": r["time_s"],
+                        "topology_time_s": r["topology_time_s"],
+                        "branch_time_s": r["branch_time_s"],
+                        "rf_pct": r["rf_pct"],
                         # at 100,000 leaves the backbone is the whole tree
-                        backbone_rf_pct=(
+                        "backbone_rf_pct": (
                             r["rf_pct"] if n == BACKBONE_SIZE else r["backbone_rf_pct"]
                         ),
-                        gpu_count=r["gpu_count"],
-                        gpu_model=r["gpu_model"],
-                        cpu_threads=r["cpu_threads"],
-                        recorded_init_mode=r["start_tree"],
-                        host_memory_mb=r["host_memory_mb"],
-                        gpu_memory_peak_mib=r["gpu_memory_peak_mib"],
-                        source_path=r["source_path"],
-                        source_key="p2v-bme report",
-                        timing_scope=TIMING,
-                        _rep=r["rep"],
-                    )
+                        "gpu_count": r["gpu_count"],
+                        "gpu_model": r["gpu_model"],
+                        "cpu_threads": r["cpu_threads"],
+                        "recorded_init_mode": r["start_tree"],
+                        "host_memory_mb": r["host_memory_mb"],
+                        "gpu_memory_peak_mib": r["gpu_memory_peak_mib"],
+                        "source_path": r["source_path"],
+                        "source_key": "p2v-bme report",
+                        "timing_scope": TIMING,
+                        "_rep": r["rep"],
+                    }
                 )
             per_run += rows
-            row: dict = dict(
-                dataset=label, n=n, initialisation="sample", n_replicates=len(rows)
-            )
+            row: dict = {
+                "dataset": label,
+                "n": n,
+                "initialisation": "sample",
+                "n_replicates": len(rows),
+            }
             for field in ("time_s", "rf_pct", "backbone_rf_pct"):
                 row[field + "_mean"], row[field + "_sd"] = mean_sd(
                     [r[field] for r in rows if r[field] != ""]
@@ -511,21 +533,20 @@ def yule_runs(results: Path) -> list[dict]:
 
 
 def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
-    """Builds Table S8 (random_tree) and Fig. 2's third series: results -> {random_tree.tex, random_tree.tsv}."""
+    """Builds Table S8 (random_tree) and Fig. 2's third series:
+    results -> {random_tree.tex, random_tree.tsv}."""
     ours = yule_runs(results)
     rows: list[dict] = []
     for n in sorted({r["n"] for r in ours}):
         selected = [r for r in ours if r["n"] == n]
-        row: dict = dict(
-            dataset="JC random tree",
-            n=n,
-            initialisation="sample",
-            n_replicates=len(selected),
-        )
+        row: dict = {
+            "dataset": "JC random tree",
+            "n": n,
+            "initialisation": "sample",
+            "n_replicates": len(selected),
+        }
         for field in ("time_s", "rf_pct"):
-            row[field + "_mean"], row[field + "_sd"] = mean_sd(
-                [r[field] for r in selected]
-            )
+            row[field + "_mean"], row[field + "_sd"] = mean_sd([r[field] for r in selected])
         row.update(
             gpu_count=one({r["gpu_count"] for r in selected}, "GPU counts"),
             gpu_model=one({r["gpu_model"] for r in selected}, "GPU models"),
@@ -546,15 +567,13 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
         "FastTree",
         "VeryFastTree",
     ]
-    time_s, rf_pct = defaultdict(lambda: defaultdict(list)), defaultdict(
-        lambda: defaultdict(list)
-    )
+    time_s, rf_pct = defaultdict(lambda: defaultdict(list)), defaultdict(lambda: defaultdict(list))
     for r in ours:
         time_s["P2V"][r["n"]].append(r["time_s"])
         rf_pct["P2V"][r["n"]].append(r["rf_pct"])
     cpu = []
     for path in (results / "baselines" / "default_yule").glob("*.json"):
-        d = loads(path.read_text())
+        d = json.loads(path.read_text())
         time_s[ALIAS[d["method"]]][d["N"]].append(d["time"])
         rf_pct[ALIAS[d["method"]]][d["N"]].append(d["rf_pct"])
         cpu.append(d)
@@ -564,12 +583,10 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
         time_s["DIPPER"][d["N"]].append(m["time"])
         rf_pct["DIPPER"][d["N"]].append(m["rf_pct"])
     sizes = sorted(time_s["P2V"])
-    sd = {n: stdev(v) for n, v in rf_pct["P2V"].items() if len(v) > 1}
+    sd = {n: statistics.stdev(v) for n, v in rf_pct["P2V"].items() if len(v) > 1}
     replicates = one({len(v) for v in time_s["P2V"].values()}, "replicate counts")
     single = " and ".join(
-        f"$10^{len(str(n)) - 1}$"
-        for n in sorted(time_s["DIPPER"])
-        if len(time_s["DIPPER"][n]) == 1
+        f"$10^{len(str(n)) - 1}$" for n in sorted(time_s["DIPPER"]) if len(time_s["DIPPER"][n]) == 1
     )
     spread = (
         f"; its sample standard deviation of RF error is {sd[min(sd)]:.2f} points at {min(sd):,} leaves"
@@ -587,7 +604,7 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
         return [
             f"{n:,} & "
             + " & ".join(
-                fmt(mean(values[m][n])) if values[m].get(n) else "--" for m in methods
+                fmt(statistics.mean(values[m][n])) if values[m].get(n) else "--" for m in methods
             )
             + r" \\"
             for n in sizes
@@ -626,70 +643,65 @@ def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
 def table_maple(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S3 (maple) and Fig. 2c,d's data: results -> {maple.tex, maple.tsv}."""
     ours = our_runs(results, "pandemic")
-    record = read_record(
-        results / "baselines" / "maple" / "cmaple_benchmark_summary.json"
-    )
+    record = read_record(results / "baselines" / "maple" / "cmaple_benchmark_summary.json")
     rows: list[dict] = []
     for index, case in enumerate(record["simulated"]):
         n, length = case["n_taxa"], case["branch_length"]
         mine = [
             r
             for r in ours
-            if r["n"] == n
-            and abs(float(r["set"].removeprefix("cmaple_")) - length) < 1e-12
+            if r["n"] == n and abs(float(r["set"].removeprefix("cmaple_")) - length) < 1e-12
         ]
         if len(mine) != 1:
-            raise MissingResults(
-                f"{results}/pandemic/cmaple_{length}/{n}: {len(mine)} runs"
-            )
+            raise MissingResults(f"{results}/pandemic/cmaple_{length}/{n}: {len(mine)} runs")
         r = mine[0]
         rows.append(
-            dict(
-                n=n,
-                mean_branch_length=length,
-                method="Phylo2VecME",
-                time_s=r["time_s"],
-                rf_pct=r["evaluation"]["rf_all_pct"],
-                resolved_rf_pct=r["evaluation"]["rf_res10_pct"],
-                gpu_count=r["gpu_count"],
-                cpu_threads=r["cpu_threads"],
-                host_memory_mb=r["host_memory_mb"],
-                gpu_model=r["gpu_model"],
-                representative_cap=r["cap"],
-                exact_check_eta="",
-                source_path=r["source_path"],
-                source_key="p2v-bme report; .eval.json",
-                timing_scope=TIMING,
-                hardware_note="",
-                resolved_metric="fraction of true splits missing among branches >=1 expected substitution",
-            )
+            {
+                "n": n,
+                "mean_branch_length": length,
+                "method": "Phylo2VecME",
+                "time_s": r["time_s"],
+                "rf_pct": r["evaluation"]["rf_all_pct"],
+                "resolved_rf_pct": r["evaluation"]["rf_res10_pct"],
+                "gpu_count": r["gpu_count"],
+                "cpu_threads": r["cpu_threads"],
+                "host_memory_mb": r["host_memory_mb"],
+                "gpu_model": r["gpu_model"],
+                "representative_cap": r["cap"],
+                "exact_check_eta": "",
+                "source_path": r["source_path"],
+                "source_key": "p2v-bme report; .eval.json",
+                "timing_scope": TIMING,
+                "hardware_note": "",
+                "resolved_metric": "fraction of true splits missing among branches >=1 expected substitution",
+            }
         )
         for name, key in (("CMAPLE", "cmaple"), ("MAPLE", "maple")):
             m = case[key]
             rows.append(
-                dict(
-                    n=n,
-                    mean_branch_length=length,
-                    method=name,
-                    time_s=m["time_s"],
-                    rf_pct=m["rf_all_pct"],
-                    resolved_rf_pct=m["rf_res10_pct"],
-                    gpu_count=0,
-                    cpu_threads="",
-                    host_memory_mb=m["ram_mb"],
-                    gpu_model="",
-                    representative_cap="",
-                    exact_check_eta="",
-                    source_path="baselines/maple/cmaple_benchmark_summary.json",
-                    source_key=f"simulated[{index}].{key}",
-                    timing_scope=(
+                {
+                    "n": n,
+                    "mean_branch_length": length,
+                    "method": name,
+                    "time_s": m["time_s"],
+                    "rf_pct": m["rf_all_pct"],
+                    "resolved_rf_pct": m["rf_res10_pct"],
+                    "gpu_count": 0,
+                    "cpu_threads": "",
+                    "host_memory_mb": m["ram_mb"],
+                    "gpu_model": "",
+                    "representative_cap": "",
+                    "exact_check_eta": "",
+                    "source_path": "baselines/maple/cmaple_benchmark_summary.json",
+                    "source_key": f"simulated[{index}].{key}",
+                    "timing_scope": (
                         "archived internal Runtime"
                         if name == "CMAPLE"
                         else "archived process wall time"
                     ),
-                    hardware_note="archived CPU benchmark; CPU model/thread allocation not established locally",
-                    resolved_metric="fraction of true splits missing among branches >=1 expected substitution",
-                )
+                    "hardware_note": "archived CPU benchmark; CPU model/thread allocation not established locally",
+                    "resolved_metric": "fraction of true splits missing among branches >=1 expected substitution",
+                }
             )
     body = []
     for index in range(0, len(rows), 3):
@@ -715,63 +727,56 @@ def table_maple(results: Path) -> dict[str, list[dict] | str]:
 
 
 def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
-    """Builds Table S4 (bootstrap): results -> {bootstrap.tex, bootstrap.tsv, bootstrap_by_size.tsv}."""
+    """Builds Table S4 (bootstrap):
+    results -> {bootstrap.tex, bootstrap.tsv, bootstrap_by_size.tsv}."""
     folder = results / "calibration"
     data = read_record(folder / "rnasim_bootstrap_calibration_summary.json")
     y = read_record(folder / "calibration_1000000.json")
     pandemic = read_record(folder / "maple_bootstrap_calibration_summary.json")
-    scale, _ = scaling_rows(
-        results
-    )  # the calibration trees are searched as the scaling runs
+    scale, _ = scaling_rows(results)  # the calibration trees are searched as the scaling runs
     rows: list[dict] = []
     sizes = [(100000, "N100k"), (1000000, "N1M")]
     for n, prefix in sizes:
         for kind in ("boot", "seed"):
             m = data[f"{prefix}_{kind}"]
             rows.append(
-                dict(
-                    dataset="RNASim",
-                    n=n,
-                    replicate_type=(
-                        "column bootstrap"
-                        if kind == "boot"
-                        else "fixed-alignment seeds"
+                {
+                    "dataset": "RNASim",
+                    "n": n,
+                    "replicate_type": (
+                        "column bootstrap" if kind == "boot" else "fixed-alignment seeds"
                     ),
-                    n_replicates=(
-                        CALIBRATION_BOOTSTRAPS if kind == "boot" else CALIBRATION_SEEDS
-                    ),
-                    n_branches=m["n_branches"],
-                    mean_tbe_pct=m["mean_tbe_pct"],
-                    mean_exact_support_pct=m["mean_exact_pct"],
-                    mean_truth_transfer_pct=m.get("mean_true_transfer_pct", ""),
-                    mean_exact_truth_pct=m.get("mean_correct_pct", ""),
-                    source_path="calibration/rnasim_bootstrap_calibration_summary.json",
-                    source_key=f"{prefix}_{kind}",
-                    replicate_count_source="paper/run_calibration.py",
-                    interpretation="transfer agreement is not probability of an entire split being correct",
-                )
+                    "n_replicates": CALIBRATION_BOOTSTRAPS if kind == "boot" else CALIBRATION_SEEDS,
+                    "n_branches": m["n_branches"],
+                    "mean_tbe_pct": m["mean_tbe_pct"],
+                    "mean_exact_support_pct": m["mean_exact_pct"],
+                    "mean_truth_transfer_pct": m.get("mean_true_transfer_pct", ""),
+                    "mean_exact_truth_pct": m.get("mean_correct_pct", ""),
+                    "source_path": "calibration/rnasim_bootstrap_calibration_summary.json",
+                    "source_key": f"{prefix}_{kind}",
+                    "replicate_count_source": "paper/run_calibration.py",
+                    "interpretation": "transfer agreement is not probability of an entire split being correct",
+                }
             )
     for kind, count in (("boot", y["bootstrap_trees"]), ("seed", y["repeat_searches"])):
         is_boot = kind == "boot"
         m = y if is_boot else y["repeat"]
         rows.append(
-            dict(
-                dataset="Random tree",
-                n=y["n_leaves"],
-                replicate_type=(
-                    "column bootstrap" if is_boot else "fixed-alignment seeds"
-                ),
-                n_replicates=count,
-                n_branches=y["branches"],
-                mean_tbe_pct=m["mean_tbe_pct"],
-                mean_exact_support_pct=m["mean_exact_pct"],
-                mean_truth_transfer_pct=y["mean_true_transfer_pct"] if is_boot else "",
-                mean_exact_truth_pct=100.0 - y["wrong_pct"] if is_boot else "",
-                source_path="calibration/calibration_1000000.json",
-                source_key="top level" if is_boot else "repeat",
-                replicate_count_source="paper/run_calibration.py",
-                interpretation="independent lineages: no sequences added by expansion",
-            )
+            {
+                "dataset": "Random tree",
+                "n": y["n_leaves"],
+                "replicate_type": "column bootstrap" if is_boot else "fixed-alignment seeds",
+                "n_replicates": count,
+                "n_branches": y["branches"],
+                "mean_tbe_pct": m["mean_tbe_pct"],
+                "mean_exact_support_pct": m["mean_exact_pct"],
+                "mean_truth_transfer_pct": y["mean_true_transfer_pct"] if is_boot else "",
+                "mean_exact_truth_pct": 100.0 - y["wrong_pct"] if is_boot else "",
+                "source_path": "calibration/calibration_1000000.json",
+                "source_key": "top level" if is_boot else "repeat",
+                "replicate_count_source": "paper/run_calibration.py",
+                "interpretation": "independent lineages: no sequences added by expansion",
+            }
         )
     all_row = pandemic["by_size"][0]
     mutated, zero = pandemic["regimes"]["all_mutated"], pandemic["regimes"]["zero_snp"]
@@ -791,27 +796,23 @@ def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
         for kind, count in (("boot", pandemic["B_boot"]), ("seed", pandemic["S_seed"])):
             is_boot = kind == "boot"
             rows.append(
-                dict(
-                    dataset=label,
-                    n=pandemic["N"],
-                    replicate_type=(
-                        "column bootstrap" if is_boot else "fixed-alignment seeds"
-                    ),
-                    n_replicates=count,
-                    n_branches=entry["branches"],
-                    mean_tbe_pct=(
-                        entry["boot_tbe_pct"] if is_boot else entry["seed_tbe_pct"]
-                    ),
-                    mean_exact_support_pct=(
+                {
+                    "dataset": label,
+                    "n": pandemic["N"],
+                    "replicate_type": "column bootstrap" if is_boot else "fixed-alignment seeds",
+                    "n_replicates": count,
+                    "n_branches": entry["branches"],
+                    "mean_tbe_pct": entry["boot_tbe_pct"] if is_boot else entry["seed_tbe_pct"],
+                    "mean_exact_support_pct": (
                         entry["boot_fbp_pct"] if is_boot else entry["seed_exact_pct"]
                     ),
-                    mean_truth_transfer_pct=entry["true_tbe_pct"] if is_boot else "",
-                    mean_exact_truth_pct=entry["true_exact_pct"] if is_boot else "",
-                    source_path="calibration/maple_bootstrap_calibration_summary.json",
-                    source_key=f"{key_name}.{kind}",
-                    replicate_count_source="paper/run_calibration.py",
-                    interpretation="distinguishes mutated splits from zero-mutation pandemic polytomies",
-                )
+                    "mean_truth_transfer_pct": entry["true_tbe_pct"] if is_boot else "",
+                    "mean_exact_truth_pct": entry["true_exact_pct"] if is_boot else "",
+                    "source_path": "calibration/maple_bootstrap_calibration_summary.json",
+                    "source_key": f"{key_name}.{kind}",
+                    "replicate_count_source": "paper/run_calibration.py",
+                    "interpretation": "distinguishes mutated splits from zero-mutation pandemic polytomies",
+                }
             )
     bins = []
     for n, prefix in sizes:
@@ -820,20 +821,20 @@ def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
             raise SystemExit(f"calibration {prefix}: bootstrap and seed bins differ")
         for index, label in enumerate(boot["labels"]):
             bins.append(
-                dict(
-                    n=n,
-                    clade_size_bin=label,
-                    n_branches=boot["counts"][index],
-                    mean_bootstrap_tbe_pct=boot["mean_tbe"][index],
-                    mean_bootstrap_exact_support_pct=boot["mean_exact"][index],
-                    mean_seed_tbe_pct=seed["mean_tbe"][index],
-                    mean_seed_exact_support_pct=seed["mean_exact"][index],
-                    mean_truth_transfer_pct=boot["mean_true_transfer"][index],
-                    mean_exact_truth_pct=boot["mean_correct"][index],
-                    source_path="calibration/rnasim_bootstrap_calibration_summary.json",
-                    source_keys=f"{prefix}_boot.bins|{prefix}_seed.bins",
-                    interpretation="transfer agreement and exact split agreement are distinct metrics",
-                )
+                {
+                    "n": n,
+                    "clade_size_bin": label,
+                    "n_branches": boot["counts"][index],
+                    "mean_bootstrap_tbe_pct": boot["mean_tbe"][index],
+                    "mean_bootstrap_exact_support_pct": boot["mean_exact"][index],
+                    "mean_seed_tbe_pct": seed["mean_tbe"][index],
+                    "mean_seed_exact_support_pct": seed["mean_exact"][index],
+                    "mean_truth_transfer_pct": boot["mean_true_transfer"][index],
+                    "mean_exact_truth_pct": boot["mean_correct"][index],
+                    "source_path": "calibration/rnasim_bootstrap_calibration_summary.json",
+                    "source_keys": f"{prefix}_boot.bins|{prefix}_seed.bins",
+                    "interpretation": "transfer agreement and exact split agreement are distinct metrics",
+                }
             )
     fields = (
         "mean_tbe_pct",
@@ -846,9 +847,7 @@ def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
         f"{r['n_replicates']} & " + " & ".join(number(r[field]) for field in fields)
         for r in rows
     ]
-    false_zero = (
-        100 * pandemic["wrong_branches_zero_snp"] / pandemic["wrong_branches_total"]
-    )
+    false_zero = 100 * pandemic["wrong_branches_zero_snp"] / pandemic["wrong_branches_total"]
     tex = booktabs(
         "bootstrap",
         "Bootstrap and search stability across RNASim, random-tree and simulated pandemic phylogenies. Entries are "
@@ -895,13 +894,13 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
                     if r["set"] == tag and r["n"] == 10000
                 ]
                 selected = [
-                    dict(
-                        time=r["time_s"],
-                        rf_pct=r["rf_pct"],
-                        cpu_threads=r["cpu_threads"],
-                        gpu_count=r["gpu_count"],
-                        source_path=r["source_path"],
-                    )
+                    {
+                        "time": r["time_s"],
+                        "rf_pct": r["rf_pct"],
+                        "cpu_threads": r["cpu_threads"],
+                        "gpu_count": r["gpu_count"],
+                        "source_path": r["source_path"],
+                    }
                     for r in mine
                 ]
             else:
@@ -916,11 +915,9 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
                     ]
                 else:
                     sources = [
-                        (str(p.relative_to(results)), loads(p.read_text()))
+                        (str(p.relative_to(results)), json.loads(p.read_text()))
                         for p in sorted(
-                            (results / "baselines" / "random_start").glob(
-                                f"{tag}_N10000_rep*.json"
-                            )
+                            (results / "baselines" / "random_start").glob(f"{tag}_N10000_rep*.json")
                         )
                     ]
                 selected = []
@@ -929,42 +926,32 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
                         continue
                     m = data["methods"][key]
                     selected.append(
-                        dict(
-                            time=m["time"],
-                            rf_pct=m["rf_pct"],
-                            cpu_threads=m.get("cpu_cores", data.get("cpu_cores", "")),
-                            gpu_count=m.get("n_gpus", 1 if key == "DIPPER-GPU" else 0),
-                            source_path=source,
-                        )
+                        {
+                            "time": m["time"],
+                            "rf_pct": m["rf_pct"],
+                            "cpu_threads": m.get("cpu_cores", data.get("cpu_cores", "")),
+                            "gpu_count": m.get("n_gpus", 1 if key == "DIPPER-GPU" else 0),
+                            "source_path": source,
+                        }
                     )
             if not selected:
-                raise MissingResults(
-                    f"baseline_10k: no {method} runs on {tag} at 10,000 leaves"
-                )
-            row: dict = dict(
-                dataset=label,
-                n=10000,
-                method=method,
-                initialisation=initialisation,
-                n_replicates=len(selected),
-            )
-            row["time_s_mean"], row["time_s_sd"] = mean_sd(
-                [s["time"] for s in selected]
-            )
-            row["rf_pct_mean"], row["rf_pct_sd"] = mean_sd(
-                [s["rf_pct"] for s in selected]
-            )
+                raise MissingResults(f"baseline_10k: no {method} runs on {tag} at 10,000 leaves")
+            row: dict = {
+                "dataset": label,
+                "n": 10000,
+                "method": method,
+                "initialisation": initialisation,
+                "n_replicates": len(selected),
+            }
+            row["time_s_mean"], row["time_s_sd"] = mean_sd([s["time"] for s in selected])
+            row["rf_pct_mean"], row["rf_pct_sd"] = mean_sd([s["rf_pct"] for s in selected])
             ours = key in ("sample", "random")
             row.update(
                 gpu_count=one({s["gpu_count"] for s in selected}, "GPU counts"),
-                cpu_threads=one(
-                    {s["cpu_threads"] for s in selected}, "CPU thread counts"
-                ),
+                cpu_threads=one({s["cpu_threads"] for s in selected}, "CPU thread counts"),
                 source_paths="|".join(s["source_path"] for s in selected),
                 source_key="p2v-bme report" if ours else f"methods.{key}",
-                timing_scope=(
-                    TIMING if ours else "archived comparator process wall time"
-                ),
+                timing_scope=(TIMING if ours else "archived comparator process wall time"),
                 interpretation="CPU ME/ML and random Phylo2VecME are random-start search stress tests; "
                 "hardware differs",
                 sd_definition="sample SD (ddof=1)",
@@ -995,17 +982,9 @@ def table_baseline_10k(results: Path) -> dict[str, list[dict] | str]:
 def table_comparators(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S5 (comparators): results -> {comparators.tex}."""
     sizes_max = BACKBONE_SIZE
-    ours = [
-        r
-        for r in our_runs(results, "scaling")
-        if r["set"] in DATASETS and r["n"] <= sizes_max
-    ]
-    dipper = [
-        d for d in dipper_runs(results) if d["tag"] in DATASETS and d["N"] <= sizes_max
-    ]
-    cpu = [
-        r for r in default_runs(results) if r["tag"] in DATASETS and r["N"] <= sizes_max
-    ]
+    ours = [r for r in our_runs(results, "scaling") if r["set"] in DATASETS and r["n"] <= sizes_max]
+    dipper = [d for d in dipper_runs(results) if d["tag"] in DATASETS and d["N"] <= sizes_max]
+    cpu = [r for r in default_runs(results) if r["tag"] in DATASETS and r["N"] <= sizes_max]
     methods = ["P2V", "DIPPER", "FastTree-ME", "VFT-ME", "FastTree-ML", "VFT-ML"]
     head = [
         r"\method",
@@ -1023,9 +1002,7 @@ def table_comparators(results: Path) -> dict[str, list[dict] | str]:
         runs[(d["tag"], "DIPPER", d["N"])].append((m["time"], m["rf_pct"]))
     for r in cpu:
         runs[(r["tag"], ALIAS[r["method"]], r["N"])].append((r["time"], r["rf_pct"]))
-    replicates = one(
-        {len(v) for (_, m, _), v in runs.items() if m == "P2V"}, "replicate counts"
-    )
+    replicates = one({len(v) for (_, m, _), v in runs.items() if m == "P2V"}, "replicate counts")
     hw = (
         ours_and_dipper(hardware(ours), program_hardware(dipper))
         if dipper
@@ -1039,7 +1016,7 @@ def table_comparators(results: Path) -> dict[str, list[dict] | str]:
             f"{n:,} & "
             + " & ".join(
                 (
-                    fmt(mean(x[field] for x in runs[(tag, m, n)]))
+                    fmt(statistics.mean(x[field] for x in runs[(tag, m, n)]))
                     if runs.get((tag, m, n))
                     else "--"
                 )
@@ -1082,86 +1059,88 @@ def table_comparators(results: Path) -> dict[str, list[dict] | str]:
 
 
 def table_scaling_methods(results: Path) -> dict[str, list[dict] | str]:
-    """Collects every method's runs on the simulated sets (Figs S1-S4): results -> {scaling_methods.tsv}.
+    """Collects every method's runs on the simulated sets (Figs S1-S4):
+    results -> {scaling_methods.tsv}.
 
     One row per run: dataset tag, method key, size, time, RF error, host and GPU memory.
     """
     rows: list[dict] = []
     for r in our_runs(results, "scaling"):
         rows.append(
-            dict(
-                dataset=r["set"],
-                method="P2V",
-                n=r["n"],
-                time_s=r["time_s"],
-                rf_pct=r["rf_pct"],
-                host_memory_mb=r["host_memory_mb"],
-                gpu_memory_peak_mib=r["gpu_memory_peak_mib"],
-                source=r["source_path"],
-            )
+            {
+                "dataset": r["set"],
+                "method": "P2V",
+                "n": r["n"],
+                "time_s": r["time_s"],
+                "rf_pct": r["rf_pct"],
+                "host_memory_mb": r["host_memory_mb"],
+                "gpu_memory_peak_mib": r["gpu_memory_peak_mib"],
+                "source": r["source_path"],
+            }
         )
     for d in optional(dipper_runs, results):
         m = d["methods"]["DIPPER-GPU"]
         if m.get("rf", -1) < 0 or "rf_pct" not in m:
             continue
         rows.append(
-            dict(
-                dataset=d["tag"],
-                method="DIPPER",
-                n=d["N"],
-                time_s=m["time"],
-                rf_pct=m["rf_pct"],
-                host_memory_mb=m["peak_ram_mb"],
-                gpu_memory_peak_mib=m.get("gpu_vram_mb", ""),
-                source="baselines/dipper/runs.jsonl",
-            )
+            {
+                "dataset": d["tag"],
+                "method": "DIPPER",
+                "n": d["N"],
+                "time_s": m["time"],
+                "rf_pct": m["rf_pct"],
+                "host_memory_mb": m["peak_ram_mb"],
+                "gpu_memory_peak_mib": m.get("gpu_vram_mb", ""),
+                "source": "baselines/dipper/runs.jsonl",
+            }
         )
     cpu = optional(default_runs, results)
     for path in sorted((results / "baselines" / "default_yule").glob("*.json")):
-        cpu.append(dict(loads(path.read_text()), tag="yule10k"))
+        cpu.append(dict(json.loads(path.read_text()), tag="yule10k"))
     for r in cpu:
         rows.append(
-            dict(
-                dataset=r["tag"],
-                method=ALIAS[r["method"]],
-                n=r["N"],
-                time_s=r["time"],
-                rf_pct=r["rf_pct"],
-                host_memory_mb=r["peak_ram_mb"],
-                gpu_memory_peak_mib="",
-                source="baselines",
-            )
+            {
+                "dataset": r["tag"],
+                "method": ALIAS[r["method"]],
+                "n": r["N"],
+                "time_s": r["time"],
+                "rf_pct": r["rf_pct"],
+                "host_memory_mb": r["peak_ram_mb"],
+                "gpu_memory_peak_mib": "",
+                "source": "baselines",
+            }
         )
     return {"scaling_methods.tsv": rows}
 
 
 def table_silva_support(results: Path) -> dict[str, list[dict] | str]:
-    """Builds Table S12 (silva_support) and Fig. 3b's data: results -> {silva_support.tex, silva_support.tsv}."""
+    """Builds Table S12 (silva_support) and Fig. 3b's data:
+    results -> {silva_support.tex, silva_support.tsv}."""
     path = one_file(results / "silva", "silva144_dedup_tbe_B*_quantiles.json")
     data = read_record(path)
     rows: list[dict] = []
     for index, b in enumerate(data["bins"]):
         rows.append(
-            dict(
-                split_size_bin=b["bin"],
-                p_min=b["p_min"],
-                p_max=b["p_max"],
-                n_branches=b["n_branches"],
-                median_tbe_pct=b["median_tbe_pct"],
-                q25_tbe_pct=b["q25_tbe_pct"],
-                q75_tbe_pct=b["q75_tbe_pct"],
-                mean_tbe_pct=b["mean_tbe_pct"],
-                frac_ge70_pct=b["frac_ge70_pct"],
-                frac_ge80_pct=b["frac_ge80_pct"],
-                n_ge70=b["n_ge70"],
-                n_ge80=b["n_ge80"],
-                mean_pos_branch_length=b["mean_pos_branch_length"],
-                k_unique_leaves=data["K_unique_leaves"],
-                n_expanded_leaves=data["N_expanded_leaves"],
-                b_replicates=data["B_replicates"],
-                source_path=str(path.relative_to(results)),
-                source_key=f"bins[{index}]",
-            )
+            {
+                "split_size_bin": b["bin"],
+                "p_min": b["p_min"],
+                "p_max": b["p_max"],
+                "n_branches": b["n_branches"],
+                "median_tbe_pct": b["median_tbe_pct"],
+                "q25_tbe_pct": b["q25_tbe_pct"],
+                "q75_tbe_pct": b["q75_tbe_pct"],
+                "mean_tbe_pct": b["mean_tbe_pct"],
+                "frac_ge70_pct": b["frac_ge70_pct"],
+                "frac_ge80_pct": b["frac_ge80_pct"],
+                "n_ge70": b["n_ge70"],
+                "n_ge80": b["n_ge80"],
+                "mean_pos_branch_length": b["mean_pos_branch_length"],
+                "k_unique_leaves": data["K_unique_leaves"],
+                "n_expanded_leaves": data["N_expanded_leaves"],
+                "b_replicates": data["B_replicates"],
+                "source_path": str(path.relative_to(results)),
+                "source_key": f"bins[{index}]",
+            }
         )
     body = [
         f"{r['split_size_bin']} & {r['n_branches']:,} & {number(r['median_tbe_pct'])} & "
@@ -1185,10 +1164,11 @@ def table_silva_support(results: Path) -> dict[str, list[dict] | str]:
 
 
 def table_silva_clades(results: Path) -> dict[str, list[dict] | str]:
-    """Collects Fig. 3a's data: results -> {silva_clades.tsv (one row per clade), silva_clade_paths.tsv}.
+    """Collects Fig. 3a's data: results
+    -> {silva_clades.tsv (one row per clade), silva_clade_paths.tsv}.
 
-    A clade's path is its best node and its ancestors up to the root, each with the branch above it (length, TBE
-    and leaves below).
+    A clade's path is its best node and its ancestors up to the root,
+    each with the branch above it (length, TBE and leaves below).
     """
     bio = read_record(one_file(results / "silva", "silva144_real_biology_B*.json"))
     clades, paths = [], []
@@ -1199,29 +1179,29 @@ def table_silva_clades(results: Path) -> dict[str, list[dict] | str]:
     ):
         for e in bio[section]:
             clades.append(
-                dict(
-                    name=e["name"],
-                    rank=rank,
-                    unique_leaves=e["unique_leaves"],
-                    best_node=e["best_node"],
-                    tbe_pct=e["tbe_pct"],
-                    f1=e["f1"],
-                    purity_pct=e["purity_pct"],
-                    recall_pct=e["recall_pct"],
-                )
+                {
+                    "name": e["name"],
+                    "rank": rank,
+                    "unique_leaves": e["unique_leaves"],
+                    "best_node": e["best_node"],
+                    "tbe_pct": e["tbe_pct"],
+                    "f1": e["f1"],
+                    "purity_pct": e["purity_pct"],
+                    "recall_pct": e["recall_pct"],
+                }
             )
             nodes = e["ancestor_nodes"]
-            for step in range(len(nodes)):
+            for step, node in enumerate(nodes):
                 paths.append(
-                    dict(
-                        name=e["name"],
-                        step=step,
-                        node=nodes[step],
-                        parent=nodes[step + 1] if step + 1 < len(nodes) else "",
-                        branch_length=e["ancestor_bl"][step],
-                        tbe_pct=e["ancestor_tbe"][step],
-                        size=e["ancestor_sz"][step],
-                    )
+                    {
+                        "name": e["name"],
+                        "step": step,
+                        "node": node,
+                        "parent": nodes[step + 1] if step + 1 < len(nodes) else "",
+                        "branch_length": e["ancestor_bl"][step],
+                        "tbe_pct": e["ancestor_tbe"][step],
+                        "size": e["ancestor_sz"][step],
+                    }
                 )
     return {"silva_clades.tsv": clades, "silva_clade_paths.tsv": paths}
 
@@ -1236,9 +1216,7 @@ def table_silva_gtdb(results: Path) -> dict[str, list[dict] | str]:
             r = out[tag]
             cells = " & ".join(f"{r[k]['mean_f1']:.2f}" for k in RANKS[1:6])
             rows.append(f"{name} & {cells} & {r['branches_consistent_pct']:.0f} \\\\")
-    taxa = ", ".join(
-        f"{out['ours'][k]['taxa']:,} {RANK_PLURALS[k]}" for k in RANKS[1:6]
-    )
+    taxa = ", ".join(f"{out['ours'][k]['taxa']:,} {RANK_PLURALS[k]}" for k in RANKS[1:6])
     tex = (
         HEAD + "\\begin{table}[htbp]\n\\centering\\small\n"
         f"\\caption{{\\textbf{{Agreement with genome-based taxonomy.}} Trees of the {n:,} unique SILVA Release 144 "
@@ -1257,7 +1235,8 @@ def table_silva_gtdb(results: Path) -> dict[str, list[dict] | str]:
 def table_seqlen(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S7 (seqlen): results -> {seqlen.tex}.
 
-    RF columns from our runs (10,000 sites: the scaling runs on JC10k); length from the exact rescoring.
+    RF columns from our runs (10,000 sites: the scaling runs on JC10k);
+    length from the exact rescoring.
     """
     sites = {"jc10k": r"$10^4$", "jc100k": r"$10^5$", "jc1000k": r"$10^6$"}
     exact = defaultdict(list)
@@ -1270,16 +1249,14 @@ def table_seqlen(results: Path) -> dict[str, list[dict] | str]:
     for tag, label in sites.items():
         small = [r["rf_pct"] for r in runs if r["set"] == tag and r["n"] == 10000]
         big = [
-            r["rf_pct"]
-            for r in our_runs(results, "seqlen")
-            if r["set"] == tag and r["n"] == 100000
+            r["rf_pct"] for r in our_runs(results, "seqlen") if r["set"] == tag and r["n"] == 100000
         ]
         v = exact[tag]
         if not small or not v:
             raise MissingResults(f"seqlen: {tag} at 10,000 sequences")
-        cell = f"{mean(big):.2f} ({len(big)})" if big else "--"
+        cell = f"{statistics.mean(big):.2f} ({len(big)})" if big else "--"
         rows.append(
-            f"{label} & {mean(small):.2f} & {mean([x['ours_minus_true_ppm'] for x in v]):.0f} & "
+            f"{label} & {statistics.mean(small):.2f} & {statistics.mean([x['ours_minus_true_ppm'] for x in v]):.0f} & "
             f"{sum(x['ours_minus_true_ppm'] < 0 for x in v)}/{len(v)} & {cell} \\\\"
         )
     replicates = one({len(v) for v in exact.values()}, "replicate counts")
@@ -1303,8 +1280,9 @@ def table_seqlen(results: Path) -> dict[str, list[dict] | str]:
 def table_representatives(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S14 (representative_sensitivity): results -> {representative_sensitivity.tex}.
 
-    Per dataset, size and cap P: RF to the true tree, the scored BME length minus that of the P = 64 tree of the same
-    replicate, RF to that tree, and the search time (starting tree and rounds, no branch lengths).
+    Per dataset, size and cap P: RF to the true tree,
+    the scored BME length minus that of the P = 64 tree of the same replicate,
+    RF to that tree, and the search time (starting tree and rounds, no branch lengths).
     """
     runs = our_runs(results, "representatives")
     reference = {(r["set"], r["n"], r["rep"]): r for r in runs if r["cap"] == 64}
@@ -1313,21 +1291,18 @@ def table_representatives(results: Path) -> dict[str, list[dict] | str]:
         values = [v for v in values if v != ""]
         if not values:
             return "--"
-        # mean and SD to 3 decimals first, as the sweep's summary printed them, then to the cell's decimals
+        # mean and SD to 3 decimals first, as the sweep's summary printed them,
+        # then to the cell's decimals
         if len(values) == 1:
             return f"${round(values[0], 3):.{decimals}f}$"
-        return f"${round(mean(values), 3):.{decimals}f} \\pm {round(stdev(values), 3):.{decimals}f}$"
+        return f"${round(statistics.mean(values), 3):.{decimals}f} \\pm {round(statistics.stdev(values), 3):.{decimals}f}$"
 
     lines = []
     previous = None
     for tag, label in DATASETS.items():
         for n in sorted({r["n"] for r in runs if r["set"] == tag}):
-            for cap in sorted(
-                {r["cap"] for r in runs if r["set"] == tag and r["n"] == n}
-            ):
-                group = [
-                    r for r in runs if (r["set"], r["n"], r["cap"]) == (tag, n, cap)
-                ]
+            for cap in sorted({r["cap"] for r in runs if r["set"] == tag and r["n"] == n}):
+                group = [r for r in runs if (r["set"], r["n"], r["cap"]) == (tag, n, cap)]
                 ref = cap == 64
                 delta = [
                     r["scored_length"] - reference[(tag, n, r["rep"])]["scored_length"]
@@ -1346,12 +1321,8 @@ def table_representatives(results: Path) -> dict[str, list[dict] | str]:
                             str(cap),
                             cell([r["rf_pct"] for r in group], 3),
                             "ref." if ref else cell(delta, 3),
-                            (
-                                "ref."
-                                if ref
-                                else cell([r["rf_vs_cap64_pct"] for r in group], 3)
-                            ),
-                            cell(time, 1 if mean(time) < 100 else 0),
+                            ("ref." if ref else cell([r["rf_vs_cap64_pct"] for r in group], 3)),
+                            cell(time, 1 if statistics.mean(time) < 100 else 0),
                         ]
                     )
                     + r"\\"
@@ -1403,10 +1374,10 @@ def table_fastme(results: Path) -> dict[str, list[dict] | str]:
 
     def pm(xs: list[float], d: int, sign: bool = False) -> str:
         f = f"{{:{'+' if sign else ''},.{d}f}}"
-        mu = f.format(mean(xs))
+        mu = f.format(statistics.mean(xs))
         if mu in ("+" + f"{0:.{d}f}", "-" + f"{0:.{d}f}"):
             mu = f"{0:.{d}f}"
-        cell = f"${mu} \\pm {stdev(xs):,.{d}f}$" if len(xs) > 1 else f"${mu}$"
+        cell = f"${mu} \\pm {statistics.stdev(xs):,.{d}f}$" if len(xs) > 1 else f"${mu}$"
         return cell.replace(",", "{,}")
 
     def panel(arm: str) -> list[str]:
@@ -1415,9 +1386,7 @@ def table_fastme(results: Path) -> dict[str, list[dict] | str]:
             if arm in r:
                 groups.setdefault((r["tag"], r["n"]), []).append(r[arm])
         body, last = [], None
-        for (tag, n), a in sorted(
-            groups.items(), key=lambda kv: (order.index(kv[0][0]), kv[0][1])
-        ):
+        for (tag, n), a in sorted(groups.items(), key=lambda kv: (order.index(kv[0][0]), kv[0][1])):
             rel = [ppm * x["rel_diff"] for x in a]
             share = 100 * sum(x["L"] <= x["L_fastme"] * (1 + 1e-12) for x in a) / len(a)
             spr = [ppm * max(0.0, x["spr"]["rel_gain"]) for x in a]
@@ -1433,12 +1402,7 @@ def table_fastme(results: Path) -> dict[str, list[dict] | str]:
             )
         return body
 
-    solvers = [
-        r[arm]["solver"]
-        for r in rows
-        for arm in ("sample", "rand", "polish")
-        if arm in r
-    ]
+    solvers = [r[arm]["solver"] for r in rows for arm in ("sample", "rand", "polish") if arm in r]
     hw = gpus(
         one({s["n_gpus"] for s in solvers}, "GPU counts"),
         short_gpu(one({s["gpu_name"] for s in solvers}, "GPUs")),
@@ -1511,13 +1475,11 @@ def table_gtr_fit(results: Path) -> dict[str, list[dict] | str]:
         "True $\\alpha$ & Sites & Median $p$ & $\\hat\\alpha$, median (range) & Rate error \\\\",
         "\\midrule",
     ]
-    show = lambda x: f"{x:.2f}" if x < 100 else "$>$100"  # noqa: E731
-    keys = sorted(
-        {
-            (float(r["alpha_true"]), float(r["sites"]), float(r["target_p"]))
-            for r in rows
-        }
-    )
+
+    def show(x: float) -> str:
+        return f"{x:.2f}" if x < 100 else "$>$100"
+
+    keys = sorted({(float(r["alpha_true"]), float(r["sites"]), float(r["target_p"])) for r in rows})
     for alpha, sites, p in keys:
         sub = [
             r
@@ -1528,15 +1490,16 @@ def table_gtr_fit(results: Path) -> dict[str, list[dict] | str]:
         a = [float(r["alpha_hat"]) for r in sub]
         e = [float(r["rate_rms_log_error"]) for r in sub]
         lines.append(
-            f"{alpha:g} & {int(sites):,} & {p:.2f} & {show(median(a))} ({show(min(a))}--{show(max(a))}) & "
-            f"{mean(e):.3f} \\\\"
+            f"{alpha:g} & {int(sites):,} & {p:.2f} & {show(statistics.median(a))} ({show(min(a))}--{show(max(a))}) & "
+            f"{statistics.mean(e):.3f} \\\\"
         )
     lines += ["\\bottomrule", "\\end{tabular}", "\\end{table}", ""]
     return {"gtr_fit.tex": "\n".join(lines)}
 
 
 def table_viridian(results: Path) -> dict[str, list[dict] | str]:
-    """Builds Tables S9-S11 (viridian_*) and the data of Figs 3c, S5: results -> their .tex and .tsv."""
+    """Builds Tables S9-S11 (viridian_*) and the data of Figs 3c, S5:
+    results -> their .tex and .tsv."""
     s = read_record(results / "viridian" / "summary.json")
     months = read_tsv(results / "viridian" / "resolution_by_month.tsv")
     runs = s["runs"]
@@ -1550,8 +1513,7 @@ def table_viridian(results: Path) -> dict[str, list[dict] | str]:
             f"{100 * v['ours_exact']:.0f} & {100 * v['ours_tbe']:.2f} & {100 * v['ours_repeat']:.0f} \\\\"
         )
     out["viridian_variants.tex"] = (
-        HEAD
-        + "\\begin{table}[htbp]\n\\centering\\footnotesize\\setlength{\\tabcolsep}{3.5pt}\n"
+        HEAD + "\\begin{table}[htbp]\n\\centering\\footnotesize\\setlength{\\tabcolsep}{3.5pt}\n"
         f"\\caption{{\\textbf{{Named variants in the tree of {runs['genomes']:,} SARS-CoV-2 genomes.}} A variant is "
         "the set of genomes with its Pango label or that of a descendant lineage. Its branch in a tree is the longest "
         "branch among those whose clade differs from that set by the fewest genomes, to within ten. Misplaced genomes "
@@ -1581,10 +1543,7 @@ def table_viridian(results: Path) -> dict[str, list[dict] | str]:
                 "ours_to_maple",
             )
         }
-        | {
-            k: v[k]
-            for k in ("ours_sub", "maple_sub", "ours_exact", "ours_tbe", "ours_repeat")
-        }
+        | {k: v[k] for k in ("ours_sub", "maple_sub", "ours_exact", "ours_tbe", "ours_repeat")}
         for v in sorted(s["variants"], key=lambda v: -v["genomes"])
     ]
 
@@ -1610,8 +1569,7 @@ def table_viridian(results: Path) -> dict[str, list[dict] | str]:
         f"{m['tbe_pct']:.0f} \\\\"
     )
     out["viridian_support.tex"] = (
-        HEAD
-        + "\\begin{table}[htbp]\n\\centering\\footnotesize\\setlength{\\tabcolsep}{3.5pt}\n"
+        HEAD + "\\begin{table}[htbp]\n\\centering\\footnotesize\\setlength{\\tabcolsep}{3.5pt}\n"
         "\\caption{\\textbf{Agreement and support on SARS-CoV-2 genomes, by the substitutions on a branch.} Branches "
         "of at least half a substitution in the \\method\\ tree and in the MAPLE tree of the same "
         f"{runs['genomes']:,} genomes. Shared is the percentage of branches whose split is also in the other tree. "
@@ -1622,30 +1580,24 @@ def table_viridian(results: Path) -> dict[str, list[dict] | str]:
         " & \\multicolumn{5}{c}{Branches of the \\method\\ tree} & \\multicolumn{4}{c}{Branches of the MAPLE tree} "
         "\\\\\n\\cmidrule(lr){2-6}\\cmidrule(lr){7-10}\n"
         "Substitutions & Branches & Shared & Exact & Transfer & Repeat & Branches & Shared & Exact & Transfer \\\\\n"
-        "\\midrule\n"
-        + "\n".join(rows)
-        + "\n\\bottomrule\n\\end{tabular}\n\\end{table}\n"
+        "\\midrule\n" + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n\\end{table}\n"
     )
     out["viridian_substitutions.tsv"] = [
-        dict(
-            substitutions_from=key[0],
-            substitutions_to="" if key[1] is None else key[1],
-            ours_branches=ours[key]["branches"],
-            ours_in_maple_pct=ours[key]["in_maple_pct"],
-            maple_branches=maple[key]["branches"],
-            maple_in_ours_pct=maple[key]["in_ours_pct"],
-        )
+        {
+            "substitutions_from": key[0],
+            "substitutions_to": "" if key[1] is None else key[1],
+            "ours_branches": ours[key]["branches"],
+            "ours_in_maple_pct": ours[key]["in_maple_pct"],
+            "maple_branches": maple[key]["branches"],
+            "maple_in_ours_pct": maple[key]["in_ours_pct"],
+        }
         for key in VIRIDIAN_BINS
     ]
 
     rows: list[str] = []
     analysed = 0
     for threshold in VIRIDIAN_THRESHOLDS:
-        med = {
-            m["month"]: float(m["window_median"])
-            for m in months
-            if m["threshold"] == threshold
-        }
+        med = {m["month"]: float(m["window_median"]) for m in months if m["threshold"] == threshold}
         if not med or any(month not in med for month, _ in VIRIDIAN_PEAKS):
             raise SystemExit(
                 f"resolution_by_month.tsv has no complete rows for the threshold {threshold}"
@@ -1696,17 +1648,13 @@ TABLES = {
 def write_tsv(path: Path, rows: list[dict]) -> None:
     """Writes rows as a tab-separated file with a header: (path, rows) -> None."""
     with path.open("w", newline="") as fh:
-        writer = DictWriter(
-            fh, fieldnames=list(rows[0]), delimiter="\t", lineterminator="\n"
-        )
+        writer = DictWriter(fh, fieldnames=list(rows[0]), delimiter="\t", lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
+    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
     parser.add_argument("--tables-dir", type=Path, default=Path(DEFAULT_TABLES_DIR))
     parser.add_argument(
@@ -1731,7 +1679,7 @@ def main() -> None:
             outputs = TABLES[name](args.results_dir)
         except MissingResults as missing:
             skipped.append(name)
-            print(f"make_tables: {name}: skipped, missing {missing}", file=stderr)
+            print(f"make_tables: {name}: skipped, missing {missing}", file=sys.stderr)
             continue
         written = []
         for file, content in outputs.items():
@@ -1751,7 +1699,7 @@ def main() -> None:
     if skipped:
         print(
             f"make_tables: skipped for missing results: {', '.join(skipped)}",
-            file=stderr,
+            file=sys.stderr,
         )
 
 

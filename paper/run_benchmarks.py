@@ -1,13 +1,16 @@
-"""Benchmarks of p2v-bme on simulated alignments (tables scaling, random_tree, baseline_10k, seqlen, maple,
-representative_sensitivity; figures scaling-rnasim, scaling-jc10k, scaling-random-tree, seqlen-effect,
-method_benchmarks; the round-limit runs of the supplement).
+"""Benchmarks of p2v-bme on simulated alignments
+(tables scaling, random_tree, baseline_10k, seqlen, maple, representative_sensitivity;
+figures scaling-rnasim, scaling-jc10k, scaling-random-tree, seqlen-effect, method_benchmarks;
+the round-limit runs of the supplement).
 
 Inputs:  data/datasets/<set>/<n>/rep<r>.fa, rep<r>.true.nwk                     (simulate_data.py)
-         data/datasets/cmaple/simulated/aln_<size>_<scale>.maple, tree_<size>_<scale>.nwk   (download_data.py)
-Options: --experiments, --sets, --sizes, --replicates, --caps, --round-limits, --accelerator, --devices,
-         --exact-max, --score-cap, --datasets-dir, --cmaple-dir, --results-dir, --p2vbme, --bme-scores,
-         --eval-cmaple-rf, --overwrite
-Flow:    each experiment x set x size x run of the paper's design (dataset replicate r, seed s; see runs_of)
+         data/datasets/cmaple/simulated/aln_<size>_<scale>.maple, tree_<size>_<scale>.nwk
+                                                                                (download_data.py)
+Options: --experiments, --sets, --sizes, --replicates, --caps, --round-limits, --accelerator,
+         --devices, --exact-max, --score-cap, --datasets-dir, --cmaple-dir, --results-dir, --p2vbme,
+         --bme-scores, --eval-cmaple-rf, --overwrite
+Flow:    each experiment x set x size x run of the paper's design
+         (dataset replicate r, seed s; see runs_of)
            |
            v
          p2v-bme -s rep<r>.fa -m JC69 --no-dedup --seed s --report-full [+ the experiment's option]
@@ -18,49 +21,48 @@ Flow:    each experiment x set x size x run of the paper's design (dataset repli
          10^6 and 10^7 expanded sequences: also the backbone splits; pandemic sets: eval_cmaple_rf
            |
            v
-         seqlen (up to --exact-max sequences): BME lengths of our and the true trees, exact by bme_scores;
-         representatives: BME lengths by bme_scores --cap, the paper's evaluator (cap: the number of sequences up to
-         --exact-max, i.e. exact, else --score-cap); RF between the tree of each cap and the cap-64 tree
+         seqlen (up to --exact-max sequences): BME lengths of our and the true trees,
+         exact by bme_scores;
+         representatives: BME lengths by bme_scores --cap, the paper's evaluator
+         (cap: the number of sequences up to --exact-max, i.e. exact, else --score-cap);
+         RF between the tree of each cap and the cap-64 tree
 Outputs: data/results/<experiment>/<set>/<n>/<run>.{nwk,json}, <run>.vs_true.{support.nwk,json}
            <run>: rep<r>_seed<s>, + _cap<P> (representatives), + _rounds<k> (round_limit)
-         <run>.true_vs.{support.nwk,json}, <run>.backbone.json        expanded alignments (10^6, 10^7)
-         <run>.eval.json                                               pandemic sets (eval_cmaple_rf)
-         <run>.score.json, rep<r>.true.score.json                      tree lengths (seqlen, representatives)
-         <run>.vs_cap64 / .vs_seed2.{support.nwk,json}                 representatives: RF to the cap-64 tree
-         data/results/seqlen/diagnose_10k_sequences.jsonl              lengths of our and the true trees
-         data/results/representatives/eval/<set>_<n>_rep<r>_P<P>[_seed2].json   lengths and RF to the cap-64 tree
+         <run>.true_vs.{support.nwk,json},                  expanded alignments (10^6, 10^7)
+         <run>.backbone.json
+         <run>.eval.json                                    pandemic sets (eval_cmaple_rf)
+         <run>.score.json, rep<r>.true.score.json           tree lengths (seqlen, representatives)
+         <run>.vs_cap64 / .vs_seed2.{support.nwk,json}      representatives: RF to the cap-64 tree
+         data/results/seqlen/diagnose_10k_sequences.jsonl   lengths of our and the true trees
+         data/results/representatives/eval/<set>_<n>_rep<r>_P<P>[_seed2].json
+                                                            lengths and RF to the cap-64 tree
          The seqlen runs on 10^4 sites are the scaling runs of jc10k.
 
     pixi run -e paper python -m paper.run_benchmarks --experiments scaling --sets rnasim --sizes 1000 5000
 """
 
-from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
-from json import dumps, loads
+import json
+import subprocess
+
+from argparse import Namespace
 from pathlib import Path
-from subprocess import run
 from typing import NamedTuple
 
-from paper._config import (
-    BME_SCORES,
-    DEFAULT_DATASETS_DIR,
-    DEFAULT_RESULTS_DIR,
-    EVAL_CMAPLE_RF,
-    P2VBME,
-)
+from paper._config import BME_SCORES, DEFAULT_DATASETS_DIR, EVAL_CMAPLE_RF
 from paper.utils import (
     branch_table,
     compare_to_truth,
+    parse_common_args,
     read_json,
     run_p2vbme,
+    search_options,
     supports,
     write_json,
 )
 
 MODEL = "JC69"  # the distances of every simulated set
 SIZES = (1_000, 5_000, 10_000, 50_000, 100_000, 1_000_000, 10_000_000)
-N_REPLICATES = (
-    5  # datasets per size, or seeds on one dataset for the expanded alignments
-)
+N_REPLICATES = 5  # datasets per size, or seeds on one dataset for the expanded alignments
 EXPANDED_SETS = (
     "rnasim",
     "jc10k",
@@ -69,9 +71,7 @@ EXPANDED_FROM = 1_000_000
 BACKBONE_N = 100_000  # sequences of the alignment that the expanded ones grow from
 CAPS = (16, 32, 64, 128, 256)
 REFERENCE_CAP = 64  # the default cap, which the others are compared with
-SECOND_SAMPLE = (
-    10  # the second cap-64 run of the sweep: seed s + 10 (the paper's replicate + 11)
-)
+SECOND_SAMPLE = 10  # the second cap-64 run of the sweep: seed s + 10 (the paper's replicate + 11)
 ROUND_LIMITS = (1, 2)
 PANDEMIC_SCALES = (
     "0.00005",
@@ -93,9 +93,7 @@ DESIGN = {
         "jc1000k": (10_000, 100_000),
     },
     "representatives": {s: (10_000, 100_000, 1_000_000) for s in ("rnasim", "jc10k")},
-    "round_limit": {
-        s: (100_000, 1_000_000, 10_000_000) for s in ("rnasim", "jc10k", "yule10k")
-    },
+    "round_limit": {s: (100_000, 1_000_000, 10_000_000) for s in ("rnasim", "jc10k", "yule10k")},
     "pandemic": {f"cmaple_{scale}": PANDEMIC_SIZES for scale in PANDEMIC_SCALES},
 }
 
@@ -115,7 +113,8 @@ class Run(NamedTuple):
 def paper_seeds(set_name: str, n: int) -> list[tuple[int, int]]:
     """Gives the paper's runs of one dataset size: (set, n) -> [(dataset replicate, seed)].
 
-    The expanded alignments exist once: five seeds on replicate 0; otherwise five replicates, seed replicate + 1.
+    The expanded alignments exist once:
+    five seeds on replicate 0; otherwise five replicates, seed replicate + 1.
     """
     if set_name in EXPANDED_SETS and n >= EXPANDED_FROM:
         return [(0, s) for s in range(1, N_REPLICATES + 1)]
@@ -127,9 +126,7 @@ def runs_of(
 ) -> list[Run]:
     """Lists the paper's runs of one experiment, set and size: (experiment, set, n) -> runs."""
     if experiment == "pandemic":
-        return [
-            Run(experiment, set_name, n, 0, PANDEMIC_SEED, f"rep0_seed{PANDEMIC_SEED}")
-        ]
+        return [Run(experiment, set_name, n, 0, PANDEMIC_SEED, f"rep0_seed{PANDEMIC_SEED}")]
     pairs = paper_seeds(set_name, n)
     # One run (replicate 0, seed 1) for the sweep at 10^6 and the round limits at 10^7
     if (experiment == "representatives" and n >= EXPANDED_FROM) or (
@@ -178,16 +175,15 @@ def runs_of(
                     )
                 )
         elif experiment == "random_start":
-            runs.append(
-                Run(experiment, set_name, n, r, s, f"rep{r}_seed{s}", ("-t", "random"))
-            )
+            runs.append(Run(experiment, set_name, n, r, s, f"rep{r}_seed{s}", ("-t", "random")))
         else:
             runs.append(Run(experiment, set_name, n, r, s, f"rep{r}_seed{s}"))
     return runs
 
 
 def design(args: Namespace) -> list[Run]:
-    """Lists the runs the options select: args -> runs, in the order of the experiments, sets and sizes."""
+    """Lists the runs the options select:
+    args -> runs, in the order of the experiments, sets and sizes."""
     runs = []
     for experiment in args.experiments:
         for set_name, sizes in DESIGN[experiment].items():
@@ -217,9 +213,7 @@ def prefix_of(args: Namespace, r: Run) -> Path:
 
     The seqlen runs on 10^4 sites are the scaling runs of jc10k.
     """
-    experiment = (
-        "scaling" if r.experiment == "seqlen" and r.set == "jc10k" else r.experiment
-    )
+    experiment = "scaling" if r.experiment == "seqlen" and r.set == "jc10k" else r.experiment
     return args.results_dir / experiment / r.set / str(r.n) / r.name
 
 
@@ -230,27 +224,25 @@ def infer(args: Namespace, r: Run) -> dict:
         raise FileNotFoundError(
             f"{alignment} is missing: run simulate_data.py or download_data.py first"
         )
-    # Without dedup, as the paper's runs: every sequence is searched, also the third and later identical copies
     options = [
-        "-s",
-        str(alignment),
-        "-m",
-        MODEL,
-        "--no-dedup",
+        *search_options(args, alignment, MODEL),
         "--seed",
         str(r.seed),
         "--report-full",
+        *r.options,
     ]
-    options += ["-a", args.accelerator, "-d", args.devices, *r.options]
     return run_p2vbme(args.p2vbme, options, prefix_of(args, r), args.overwrite)
 
 
 def backbone_errors(args: Namespace, prefix: Path, true_tree: Path, n: int) -> dict:
-    """Counts the backbone splits of the true tree missing from a tree: (run prefix, true tree, n) -> record.
+    """Counts the backbone splits of the true tree missing from a tree:
+    (run prefix, true tree, n) -> record.
 
-    The 10^6- and 10^7-sequence alignments grow each sequence of a 10^5-sequence alignment into a clade of n / 10^5:
-    the true splits with more than n / 10^5 leaves on each side are the 10^5-sequence tree's.
-    Writes <prefix>.true_vs.{support.nwk,json} (the true tree's branches over the run's tree) and <prefix>.backbone.json.
+    The 10^6- and 10^7-sequence alignments grow each sequence of a 10^5-sequence alignment into a
+    clade of n / 10^5: the true splits with more than n / 10^5 leaves on each side are the
+    10^5-sequence tree's.
+    Writes <prefix>.true_vs.{support.nwk,json} (the true tree's branches over the run's tree) and
+    <prefix>.backbone.json.
     """
     out = Path(f"{prefix}.backbone.json")
     if out.exists() and not args.overwrite:
@@ -271,20 +263,22 @@ def backbone_errors(args: Namespace, prefix: Path, true_tree: Path, n: int) -> d
 
 
 def eval_pandemic(args: Namespace, prefix: Path, true_tree: Path, sites: int) -> dict:
-    """Scores a pandemic-set tree with eval_cmaple_rf unless done: (run prefix, true tree) -> its record.
+    """Scores a pandemic-set tree with eval_cmaple_rf unless done:
+    (run prefix, true tree) -> its record.
 
-    All-splits RF and RF on the true branches of >= 0.5 and >= 1 expected substitution, as in the paper.
+    All-splits RF and RF on the true branches of >= 0.5 and >= 1 expected substitution,
+    as in the paper.
     """
     out = Path(f"{prefix}.eval.json")
     if args.overwrite or not out.exists():
-        result = run(
+        result = subprocess.run(
             [args.eval_cmaple_rf, str(true_tree), f"{prefix}.nwk", str(sites)],
             check=True,
             capture_output=True,
             text=True,
         )
-        out.write_text(result.stdout)
-    return loads(out.read_text())
+        out.write_text(result.stdout, encoding="utf-8")
+    return json.loads(out.read_text(encoding="utf-8"))
 
 
 def compare(args: Namespace, r: Run, report: dict) -> None:
@@ -309,10 +303,11 @@ def score(
     outputs: list[Path],
     cap: int | None = None,
 ) -> list[float]:
-    """Computes the BME lengths of trees on one alignment unless done: (alignment, trees, outputs) -> lengths.
+    """Computes the BME lengths of trees on one alignment unless done:
+    (alignment, trees, outputs) -> lengths.
 
-    bme_scores: exact from the full distance matrix, or with cap, the paper's evaluator with at most cap
-    representatives per clade (exact when cap >= the number of sequences).
+    bme_scores: exact from the full distance matrix, or with cap, the paper's evaluator with at most
+    cap representatives per clade (exact when cap >= the number of sequences).
     Each output is a JSON object with "bme_length".
     """
     todo = [(t, o) for t, o in zip(trees, outputs) if args.overwrite or not o.exists()]
@@ -326,14 +321,14 @@ def score(
             *(["--cap", str(cap)] if cap else []),
             *(str(t) for t, _ in todo),
         ]
-        lines = run(
+        lines = subprocess.run(
             command, check=True, capture_output=True, text=True
         ).stdout.splitlines()
         assert len(lines) == len(
             todo
         ), f"bme_scores gave {len(lines)} lengths for {len(todo)} trees"
         for (tree, out), line in zip(todo, lines):
-            record = loads(line)
+            record = json.loads(line)
             assert record["tree"] == str(tree), (record["tree"], tree)
             write_json(
                 out,
@@ -348,9 +343,11 @@ def score(
 
 
 def rf_between(args: Namespace, prefix: Path, other: Path, label: str) -> float:
-    """Computes the RF distance between two runs' trees: (run prefix, other run's prefix) -> RF in %.
+    """Computes the RF distance between two runs' trees:
+    (run prefix, other run's prefix) -> RF in %.
 
-    Writes <prefix>.<label>.{support.nwk,json}; for binary trees on the same leaves, RF = 100 - mean exact support.
+    Writes <prefix>.<label>.{support.nwk,json};
+    for binary trees on the same leaves, RF = 100 - mean exact support.
     """
     compared = Path(f"{prefix}.{label}")
     report = supports(
@@ -364,11 +361,13 @@ def rf_between(args: Namespace, prefix: Path, other: Path, label: str) -> float:
 
 
 def representative_records(args: Namespace, runs: list[Run]) -> None:
-    """Scores the sweep of the cap on representatives: runs -> eval/<set>_<n>_rep<r>_P<P>[_seed2].json.
+    """Scores the sweep of the cap on representatives:
+    runs -> eval/<set>_<n>_rep<r>_P<P>[_seed2].json.
 
-    Per tree, as the paper's records: its BME length (key L_cap<cap>, cap = n when exact) and the RF distance to the
-    cap-64 tree of the same seed (key rf_vs_<set>_<n>_rep<r>_P64); for the cap-64 tree, the RF distance to the
-    second sample's cap-64 tree (key rf_vs_..._P64_seed2).
+    Per tree, as the paper's records:
+    its BME length (key L_cap<cap>, cap = n when exact) and the RF distance to the cap-64 tree of
+    the same seed (key rf_vs_<set>_<n>_rep<r>_P64); for the cap-64 tree,
+    the RF distance to the second sample's cap-64 tree (key rf_vs_..._P64_seed2).
     """
     sweep = [r for r in runs if r.experiment == "representatives"]
     for set_name, n, rep in sorted({(r.set, r.n, r.rep) for r in sweep}):
@@ -389,9 +388,7 @@ def representative_records(args: Namespace, runs: list[Run]) -> None:
         )
         cap_key = f"L_cap{score_cap}"
         base = f"{set_name}_{n}_rep{rep}_P{REFERENCE_CAP}"
-        seed = min(
-            r.seed for r in group
-        )  # the first sample; the second is seed + SECOND_SAMPLE
+        seed = min(r.seed for r in group)  # the first sample; the second is seed + SECOND_SAMPLE
         reference = prefixes.get(f"rep{rep}_seed{seed}_cap{REFERENCE_CAP}")
         second = prefixes.get(f"rep{rep}_seed{seed + SECOND_SAMPLE}_cap{REFERENCE_CAP}")
         for r, length in zip(group, lengths):
@@ -401,23 +398,17 @@ def representative_records(args: Namespace, runs: list[Run]) -> None:
             if r.seed != seed:
                 name += "_seed2"
             elif cap != REFERENCE_CAP and reference is not None:
-                record[f"rf_vs_{base}"] = rf_between(
-                    args, prefix, reference, "vs_cap64"
-                )
+                record[f"rf_vs_{base}"] = rf_between(args, prefix, reference, "vs_cap64")
             elif cap == REFERENCE_CAP and second is not None:
-                record[f"rf_vs_{base}_seed2"] = rf_between(
-                    args, prefix, second, "vs_seed2"
-                )
-            write_json(
-                args.results_dir / "representatives" / "eval" / f"{name}.json", record
-            )
+                record[f"rf_vs_{base}_seed2"] = rf_between(args, prefix, second, "vs_seed2")
+            write_json(args.results_dir / "representatives" / "eval" / f"{name}.json", record)
 
 
 def seqlen_records(args: Namespace, runs: list[Run]) -> None:
     """Scores the seqlen trees and their true trees exactly: runs -> diagnose_10k_sequences.jsonl.
 
-    Per dataset of at most --exact-max sequences (the paper: 10^4): the BME lengths of our tree and of the true tree
-    on the same alignment, their difference in ppm and our tree's RF error.
+    Per dataset of at most --exact-max sequences (the paper: 10^4): the BME lengths of our tree and
+    of the true tree on the same alignment, their difference in ppm and our tree's RF error.
     """
     lines = []
     for r in runs:
@@ -429,13 +420,7 @@ def seqlen_records(args: Namespace, runs: list[Run]) -> None:
         if not (tree.exists() and true_tree.exists()):
             print(f"seqlen {r.set} rep{r.rep}: trees missing, not scored")
             continue
-        true_score = (
-            args.results_dir
-            / "seqlen"
-            / r.set
-            / str(r.n)
-            / f"rep{r.rep}.true.score.json"
-        )
+        true_score = args.results_dir / "seqlen" / r.set / str(r.n) / f"rep{r.rep}.true.score.json"
         ours, truth = score(
             args,
             alignment,
@@ -445,7 +430,7 @@ def seqlen_records(args: Namespace, runs: list[Run]) -> None:
         rf = compare_to_truth(args.p2vbme, tree, true_tree, args.overwrite)["rf_pct"]
         record = {"tag": r.set, "rep": r.rep, "L_true": truth, "L_ours": ours}
         record.update(ours_minus_true_ppm=1e6 * (ours - truth) / truth, rf_ours_pct=rf)
-        lines.append(dumps(record))
+        lines.append(json.dumps(record))
     if lines:
         out = args.results_dir / "seqlen" / "diagnose_10k_sequences.jsonl"
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -453,18 +438,10 @@ def seqlen_records(args: Namespace, runs: list[Run]) -> None:
 
 
 def main() -> None:
-    parser = ArgumentParser(
-        description=__doc__, formatter_class=RawDescriptionHelpFormatter
-    )
-    parser.add_argument(
-        "--experiments", nargs="+", choices=list(DESIGN), default=list(DESIGN)
-    )
-    parser.add_argument(
-        "--sets", nargs="+", help="only these sets (default: each experiment's)"
-    )
-    parser.add_argument(
-        "--sizes", nargs="+", type=int, help="these sizes instead of each set's"
-    )
+    parser = parse_common_args(__doc__)
+    parser.add_argument("--experiments", nargs="+", choices=list(DESIGN), default=list(DESIGN))
+    parser.add_argument("--sets", nargs="+", help="only these sets (default: each experiment's)")
+    parser.add_argument("--sizes", nargs="+", type=int, help="these sizes instead of each set's")
     parser.add_argument(
         "--replicates",
         nargs="+",
@@ -486,10 +463,6 @@ def main() -> None:
         help="round_limit: rounds",
     )
     parser.add_argument(
-        "--accelerator", default="auto", help="p2v-bme -a (default: auto)"
-    )
-    parser.add_argument("--devices", default="auto", help="p2v-bme -d (default: auto)")
-    parser.add_argument(
         "--exact-max",
         type=int,
         default=EXACT_MAX,
@@ -507,13 +480,8 @@ def main() -> None:
         type=Path,
         default=Path(DEFAULT_DATASETS_DIR) / "cmaple" / "simulated",
     )
-    parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
-    parser.add_argument("--p2vbme", default=P2VBME)
     parser.add_argument("--bme-scores", default=BME_SCORES)
     parser.add_argument("--eval-cmaple-rf", default=EVAL_CMAPLE_RF)
-    parser.add_argument(
-        "--overwrite", action="store_true", help="run again what exists"
-    )
     args = parser.parse_args()
 
     runs = design(args)
