@@ -33,15 +33,15 @@ the input of `--supports`.
 
 ## Report (`<prefix>.json`)
 
-| Field                             | Contents                                                                                                                                            |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `version`, `command_line`, `date` | the program's version, the arguments, the end time (UTC)                                                                                            |
-| `substitution_model`              | `name`; for GTR+GC also `rates` (AC, AG, AT, CG, CT, GT), `alpha` and `fit` (pairs used, iterations, convergence, log-likelihood, base frequencies) |
-| `bme_length`                      | the tree length, the sum of the BME branch lengths (below); `null` without branch lengths                                                           |
-| `rounds_run`, `stop_reason`       | search rounds, and why the search stopped: `converged`, `max_rounds`, `time_limit` or `none`                                                        |
-| `bootstrap`                       | with `-b`: the replicates and their trees file; with `-b B`, the mean TBE and exact supports                                                        |
-| `time`, `warnings`                | wall time (s), warnings                                                                                                                             |
-| `details`                         | with `--report-full`: input size, settings as used, devices, time per stage, peak memory, gain per round                                            |
+| Field                             | Contents                                                                                                                                                             |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`, `command_line`, `date` | the program's version, the arguments, the end time (UTC)                                                                                                             |
+| `substitution_model`              | `name`; for GTR and GTR+GC also `rates` (AC, AG, AT, CG, CT, GT), `alpha` (GTR+GC) and `fit` (pairs used, iterations, convergence, log-likelihood, base frequencies) |
+| `bme_length`                      | the tree length, the sum of the BME branch lengths (below); `null` without branch lengths                                                                            |
+| `rounds_run`, `stop_reason`       | search rounds, and why the search stopped: `converged`, `max_rounds`, `time_limit` or `none`                                                                         |
+| `bootstrap`                       | with `-b`: the replicates and their trees file; with `-b B`, the mean TBE and exact supports                                                                         |
+| `time`, `warnings`                | wall time (s), warnings                                                                                                                                              |
+| `details`                         | with `--report-full`: input size, settings as used, devices, time per stage, peak memory, gain per round                                                             |
 
 With `-b A-B`, the search fields add up over the replicates. With `--supports`, the report has `supports` instead: the
 files, the numbers of trees and leaves, and the mean TBE and exact supports.

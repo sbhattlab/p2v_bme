@@ -3,8 +3,8 @@
  *
  * The distance of a pair of sequences under each model, from the pair's counts: n[4 * i + j] is the number of sites
  * where sequence a has base i and sequence b has base j (A, C, G, T), over the sites valid in both.
- * In order: the models and their parameters, the pair counts, one formula per model (GTR+GC's in eigen_dist.hpp), and
- * pair_distance, which applies the run's model.
+ * In order: the models and their parameters, the pair counts, one formula per model (GTR's and GTR+GC's in
+ * eigen_dist.hpp), and pair_distance, which applies the run's model.
  * Distances are in expected substitutions per site, and always finite (config.hpp: NO_OVERLAP_DISTANCE, MAX_DISTANCE).
  * The formulas are inline host/device templates on the floating-point type, so the GPU kernels (float) and the CPU
  * device run the same code.
@@ -35,19 +35,19 @@ namespace p2vbme {
 
 // ---- Models ----------------------------------------------------------------------------------------------
 
-enum class Model : int32_t { JC69, K80, F81, F84, TN93, LogDet, GTR_GC };
+enum class Model : int32_t { JC69, K80, F81, F84, TN93, LogDet, GTR, GTR_GC };
 
-// Canonical name: JC69, K80, F81, F84, TN93, LogDet, GTR+GC.
+// Canonical name: JC69, K80, F81, F84, TN93, LogDet, GTR, GTR+GC.
 const char *model_name(Model model);
 
-// IQ-TREE-style names, case-insensitive: JC69 (JC), K80 (K2P), F81, F84, TN93 (TN), LogDet, GTR+GC.
-// Throws std::runtime_error for an unknown name, for +G (continuous gamma is +GC) and for GTR without +GC.
+// IQ-TREE-style names, case-insensitive: JC69 (JC), K80 (K2P), F81, F84, TN93 (TN), LogDet, GTR, GTR+GC.
+// Throws std::runtime_error for an unknown name and for +G (continuous gamma is +GC).
 Model parse_model(const std::string &name);
 
 // The substitution model of a run: the model and its parameters.
 struct SubstitutionModel {
     Model model = Model::JC69;
-    double rates[N_GTR_RATES] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; // GTR+GC exchangeabilities AC, AG, AT, CG, CT, GT
+    double rates[N_GTR_RATES] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; // GTR, GTR+GC exchangeabilities AC, AG, AT, CG, CT, GT
     double alpha = 1.0;                                         // GTR+GC: gamma shape of the rates across sites
     double base_freqs[N_BASES] = {0.0, 0.0, 0.0, 0.0}; // F81, F84, TN93: the alignment's base frequencies (A, C,
                                                        // G, T); all 0: not given (count_base_frequencies)
@@ -284,6 +284,9 @@ template <class T> P2V_HD inline T pair_distance(const DistanceParams<T> &p, con
         break;
     case Model::LogDet:
         d = logdet_distance<T>(n);
+        break;
+    case Model::GTR:
+        d = eigen_distance<T, false>(n, p.rates, p.alpha, p.inv_alpha);
         break;
     case Model::GTR_GC:
         d = eigen_distance<T>(n, p.rates, p.alpha, p.inv_alpha);

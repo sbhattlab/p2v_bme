@@ -28,7 +28,8 @@ namespace {
 
 using namespace p2vbme;
 
-const Model MODELS[] = {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC};
+const Model MODELS[] = {Model::JC69, Model::K80,    Model::F81, Model::F84,
+                        Model::TN93, Model::LogDet, Model::GTR, Model::GTR_GC};
 
 double cpu_distance(const Alignment &aln, const SubstitutionModel &dm, int32_t a, int32_t b) {
     if (a == b)
@@ -86,7 +87,8 @@ TEST(DeviceGpu, EdgeLengthPassMatchesCpu) {
         const SubstitutionModel dm = distance_model(model);
         dev->set_distance(dm);
         std::vector<double> dAB(N), dAO(N), dBO(N);
-        const double tol = model == Model::GTR_GC ? 2e-4 : 2e-5; /* float on the GPU, double here */
+        const double tol =
+            model == Model::GTR || model == Model::GTR_GC ? 2e-4 : 2e-5; /* float on the GPU, double here */
         // single pairs: cap 1 for the outside representatives (in_* unused)
         dev->edge_lengths(N, 1, N, c1.data(), c2.data(), 2, in_len.data(), in_leaves.data(), in_w.data(),
                           out_len.data(), out_leaves.data(), out_w.data(), dAB.data(), dAO.data(), dBO.data());

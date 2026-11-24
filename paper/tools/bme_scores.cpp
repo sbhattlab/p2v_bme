@@ -55,6 +55,8 @@ constexpr float EVALUATOR_P_MAX = 0.74f; // the evaluator's cap on a pair's mism
 std::vector<float> distance_matrix(const Alignment &aln, p2vbme::SubstitutionModel model) {
     if (model.model == p2vbme::Model::GTR_GC)
         throw std::runtime_error("GTR+GC needs the fitted rates and alpha; not supported here");
+    if (model.model == p2vbme::Model::GTR)
+        throw std::runtime_error("GTR needs the fitted rates; not supported here");
     p2vbme::base_frequencies(aln.packed.data(), aln.n_taxa, aln.n_words, model.base_freqs);
     const p2vbme::DistanceParams<float> params = p2vbme::distance_params<float>(model);
     const int32_t n = aln.n_taxa;

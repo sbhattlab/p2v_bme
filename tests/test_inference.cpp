@@ -102,7 +102,8 @@ std::vector<std::vector<int32_t>> unrooted_by_insertion(const std::vector<int64_
     return adj;
 }
 
-const Model MODELS[] = {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC};
+const Model MODELS[] = {Model::JC69, Model::K80,    Model::F81, Model::F84,
+                        Model::TN93, Model::LogDet, Model::GTR, Model::GTR_GC};
 
 // Splits of a rooted tree as sorted leaf sets (each side once, by the side without leaf 0), for RF.
 std::vector<std::vector<int32_t>> splits(const Tree &t, int32_t N) {
@@ -421,6 +422,38 @@ TEST(Inference, GtrGcParameters) {
         std::fill(s, s + N_GTR_RATES, scale);
         EXPECT_TRUE(warnings().empty()) << scale;
     }
+}
+
+// GTR needs exchangeabilities > 0 with a finite sum, as GTR+GC, and no alpha.
+// Exchangeabilities outside the range checked in single precision run, with a warning (none in double precision).
+TEST(Inference, GtrParameters) {
+    const Alignment aln = simulate_alignment(random_tree(10, 0.1, 0.1, 1), 50, SimulationModel(), 2);
+    Devices devices = failing_devices(1, "none");
+    Settings opt;
+    opt.tree_init = TreeInit::Random;
+    opt.substitution_model.model = Model::GTR;
+    auto refused = [&](const char *what) {
+        return thrown_message([&] { infer(aln, opt, devices); }).find(what) != std::string::npos;
+    };
+    auto warnings = [&] { return infer(aln, opt, devices).warnings; };
+    const double inf = std::numeric_limits<double>::infinity(), nan = std::numeric_limits<double>::quiet_NaN();
+
+    opt.substitution_model.alpha = 0.0; // not used
+    EXPECT_TRUE(warnings().empty());
+    double *s = opt.substitution_model.rates;
+    for (double r : {0.0, -1.0, inf, nan}) {
+        s[4] = r;
+        EXPECT_TRUE(refused("GTR: exchangeabilities must be finite and > 0")) << r;
+    }
+    std::fill(s, s + N_GTR_RATES, 1e308);
+    EXPECT_TRUE(refused("GTR: the sum of the exchangeabilities"));
+    std::fill(s, s + N_GTR_RATES, 1.0);
+    s[1] = 2.0 * GTR_FLOAT_RATE_RATIO_MAX;
+    const std::vector<std::string> w = warnings();
+    ASSERT_EQ(w.size(), 1u);
+    EXPECT_EQ(w[0].rfind("GTR: the largest exchangeability is 200 times the smallest, above 100", 0), 0u) << w[0];
+    opt.precision = Precision::Double;
+    EXPECT_TRUE(warnings().empty());
 }
 
 // Base frequencies must be finite and >= 0: NaN, inf and negative values are refused.

@@ -4,8 +4,8 @@
  * The standard bootstrap (Felsenstein 1985): replicate alignments of the searched alignment's columns, drawn with
  * replacement; a tree inferred from each as the main tree was; and the supports of the main tree's branches over the
  * replicate trees (TBE and exact, support.hpp).
- * Replicates keep the main run's model parameters (the GTR+GC fit, the base frequencies) instead of refitting them, as
- * the paper did, and need no branch lengths.
+ * Replicates keep the main run's model parameters (the GTR or GTR+GC fit, the base frequencies) instead of refitting
+ * them, as the paper did, and need no branch lengths.
  *
  * Seeds: replicate r (1..B) has the seed replicate_seed(--seed, r), which seeds its search; its columns come from a
  * stream of their own, derive_seed(that seed, SALT_BOOTSTRAP_COLUMNS).

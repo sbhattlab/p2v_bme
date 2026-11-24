@@ -4,6 +4,7 @@
  * The GTR+GC fit (gtr_fit.hpp): on tables of simulated pairs it returns the same bits as the paper's fit and recovers
  * the true parameters, and it finds them exactly in noise-free tables; tables with too few sites are not fitted; the
  * pairs it draws; the fit of an alignment.
+ * The GTR fit (no rate variation) on the same kinds of tables.
  */
 #include <algorithm>
 #include <cmath>
@@ -272,6 +273,46 @@ TEST(GtrFit, FindsTheParametersOfNoiseFreeTables) {
         }
 }
 
+/* GTR: on the tables of the paper's case without rate variation, the fit recovers the exchangeabilities as closely
+ * as the paper's check asks of GTR+GC, and its likelihood is at least GTR+GC's (whose alpha stops at its upper end). */
+TEST(GtrFit, GtrRecoversTheTruth) {
+    const Case &c = CASES[3];
+    ASSERT_LT(c.alpha, 0.0) << "not the case without rate variation";
+    JumpSimulator sim{c.seed};
+    const std::vector<PairCounts> tables = sim.simulate(c.s, c.pi, c.alpha, 0.05, c.d_hi, c.n_pairs, c.n_sites);
+    const GtrFit fit = fit_gtr_counts(tables);
+    EXPECT_TRUE(fit.converged);
+    EXPECT_EQ(fit.n_pairs, c.n_pairs);
+    EXPECT_TRUE(std::isinf(fit.alpha));
+    double rate_sum = 0.0, rate_error = 0.0;
+    for (int k = 0; k < N_GTR_RATES; ++k)
+        rate_sum += c.s[k];
+    for (int k = 0; k < N_GTR_RATES; ++k)
+        rate_error = std::max(rate_error, std::fabs(std::log(fit.rates[k] / (c.s[k] * N_GTR_RATES / rate_sum))));
+    EXPECT_LT(rate_error, c.rate_tol);
+    EXPECT_GE(fit.log_lik, fit_gtr_gc_counts(tables).log_lik);
+}
+
+/* GTR: in noise-free tables without rate variation the fit finds the true exchangeabilities. */
+TEST(GtrFit, GtrFindsTheParametersOfNoiseFreeTables) {
+    const SimulationModel m = model_gtr();
+    double rate_sum = 0.0;
+    for (double r : m.rates)
+        rate_sum += r;
+    const int32_t n_pairs = 5000;
+    const double n_sites = 1e5;
+    for (auto [d_lo, d_hi] : {std::pair<double, double>{0.01, 0.1}, {0.02, 0.3}, {0.1, 1.5}}) {
+        SCOPED_TRACE("d in [" + std::to_string(d_lo) + ", " + std::to_string(d_hi) + "]");
+        std::vector<PairCounts> tables(n_pairs);
+        for (int32_t p = 0; p < n_pairs; ++p) // distances log-spaced, in increasing order
+            tables[p] = expected_counts(m, d_lo * std::pow(d_hi / d_lo, (double)p / (n_pairs - 1)), n_sites);
+        const GtrFit fit = fit_gtr_counts(tables);
+        EXPECT_TRUE(fit.converged);
+        for (int k = 0; k < N_GTR_RATES; ++k)
+            EXPECT_LT(std::fabs(std::log(fit.rates[k] / (m.rates[k] * N_GTR_RATES / rate_sum))), 1e-3) << "rate " << k;
+    }
+}
+
 /* Tables with fewer than GTR_FIT_MIN_SITES sites are left out; with none left, nothing is fitted. */
 TEST(GtrFit, TooFewSitesNotFitted) {
     std::vector<PairCounts> tables(10, PairCounts{});
@@ -283,6 +324,12 @@ TEST(GtrFit, TooFewSitesNotFitted) {
         EXPECT_FALSE(fit.converged);
         EXPECT_EQ(fit.alpha, 1.0);
         for (double r : fit.rates)
+            EXPECT_EQ(r, 1.0);
+        const GtrFit gtr = fit_gtr_counts(t);
+        EXPECT_EQ(gtr.n_pairs, 0);
+        EXPECT_FALSE(gtr.converged);
+        EXPECT_TRUE(std::isinf(gtr.alpha));
+        for (double r : gtr.rates)
             EXPECT_EQ(r, 1.0);
     }
 }
@@ -347,4 +394,16 @@ TEST(GtrFit, FitsTheCountsOfTheDrawnPairs) {
         EXPECT_GT(fit.time, 0.0);
     }
     EXPECT_THROW(fit_gtr_gc(aln, 0, seed), std::invalid_argument);
+
+    // GTR: the same pairs
+    const GtrFit expected_gtr = fit_gtr_counts(tables);
+    ASSERT_EQ(expected_gtr.n_pairs, n_pairs);
+    for (int t : {1, 3}) {
+        const GtrFit fit = fit_gtr(aln, n_pairs, seed, t);
+        for (int k = 0; k < N_GTR_RATES; ++k)
+            EXPECT_EQ(fit.rates[k], expected_gtr.rates[k]) << t << " threads, rate " << k;
+        EXPECT_EQ(fit.log_lik, expected_gtr.log_lik) << t << " threads";
+        EXPECT_GT(fit.time, 0.0);
+    }
+    EXPECT_THROW(fit_gtr(aln, 0, seed), std::invalid_argument);
 }

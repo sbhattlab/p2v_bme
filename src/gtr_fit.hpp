@@ -3,7 +3,7 @@
  *
  * The GTR+GC parameters of an alignment, fitted without a tree: the six exchangeabilities and the gamma shape alpha
  * that eigen_distance (eigen_dist.hpp) needs, by maximum composite likelihood over the base-count tables of random
- * sequence pairs.
+ * sequence pairs; and GTR's, the exchangeabilities alone, without rate variation across sites.
  * The paper's fit (its supplement's penalised composite likelihood), ported from its code with the same arithmetic, so
  * that it returns the same bits on the same tables.
  *
@@ -31,6 +31,9 @@
  * and base frequencies, as under JC69 or F81), since the likelihood is then flat in alpha.
  * The penalty on the rate variance 1 / alpha is negligible beside the likelihood whenever alpha is determined, and
  * otherwise selects equal rates across sites (alpha at its upper bound).
+ *
+ * GTR: the same model at alpha = infinity, m_k(d) = exp(lambda_k d) in place of (1 - lambda_k d / alpha)^(-alpha), and
+ * the same estimator without the penalty: one BFGS search of the exchangeabilities, from equal rates.
  *
  * Double precision throughout, on the host (OpenMP).
  * In single precision the cells of close pairs lose up to ~40% to cancellation (d = 1e-7), and the objective (~1e8
@@ -69,13 +72,13 @@ constexpr double GTR_FIT_RATE_VARIANCE_PENALTY = 1.0;
 struct GtrFit {
     double rates[N_GTR_RATES] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; // exchangeabilities AC, AG, AT, CG, CT, GT, mean 1
     double base_freqs[N_BASES] = {0.25, 0.25, 0.25, 0.25};      // pi, pooled over the pairs used (A, C, G, T)
-    double alpha = 1.0;                                         // gamma shape of the rates across sites
+    double alpha = 1.0;                                         // gamma shape of the rates across sites (GTR: infinity)
     double log_lik = 0.0;                                       // composite log-likelihood at the optimum (no penalty)
     int32_t n_pairs = 0; // pairs used (>= GTR_FIT_MIN_SITES shared valid sites); 0: not fitted, defaults kept
     int32_t n_iterations =
         0;                  // BFGS iterations, summed over the searches of the exchangeabilities (the scan's left out)
     bool converged = false; // Brent's method and every BFGS search stopped on their own criteria
-    double time = 0.0;      // seconds: the pair counts and the fit (fit_gtr_gc only)
+    double time = 0.0;      // seconds: the pair counts and the fit (fit_gtr and fit_gtr_gc only)
 };
 
 // Fits GTR+GC to pair count tables: tables -> (rates, alpha), with the pooled base frequencies.
@@ -85,6 +88,10 @@ struct GtrFit {
 // threads: at most this many (0: omp_get_max_threads()); each parallel loop uses at most one per 1,000 pairs.
 // The result does not depend on the number of threads: the pairs' terms are added in index order.
 GtrFit fit_gtr_gc_counts(const std::vector<PairCounts> &tables, int threads = 0);
+
+// Fits GTR to pair count tables: tables -> rates, with the pooled base frequencies (alpha = infinity).
+// As fit_gtr_gc_counts otherwise; the defaults left without tables are equal rates.
+GtrFit fit_gtr_counts(const std::vector<PairCounts> &tables, int threads = 0);
 
 // Draws the pairs of the fit: (n_taxa, n_pairs, seed) -> pairs (a, b), a != b.
 // More than n_pairs pairs in all: n_pairs uniform draws with replacement, the paper's draw (a uniform among all, then
@@ -97,6 +104,9 @@ std::vector<std::pair<int32_t, int32_t>> draw_fit_pairs(int32_t n_taxa, int32_t 
 // draws; threads as fit_gtr_gc_counts.
 // Throws std::invalid_argument if n_pairs < 1.
 GtrFit fit_gtr_gc(const Alignment &aln, int32_t n_pairs, uint64_t seed, int threads = 0);
+
+// Fits GTR to an alignment: (aln, n_pairs, seed) -> rates, as fit_gtr_gc fits GTR+GC.
+GtrFit fit_gtr(const Alignment &aln, int32_t n_pairs, uint64_t seed, int threads = 0);
 
 } // namespace p2vbme
 

@@ -26,11 +26,11 @@ constexpr double DEFAULT_TIME_LIMIT = 0.0; // seconds after which no new round s
 // Representatives kept per clade in a window (1..REPRESENTATIVE_CAP_MAX).
 constexpr int32_t DEFAULT_REPRESENTATIVE_CAP = 64;
 constexpr int32_t DEFAULT_SAMPLE_SIZE = 0;    // sample-and-place start: 0 = the default size (see "Start tree")
-constexpr uint64_t DEFAULT_SEED = 1;          // seeds the start tree and the GTR+GC fit's pairs
+constexpr uint64_t DEFAULT_SEED = 1;          // seeds the start tree and the GTR or GTR+GC fit's pairs
 constexpr bool DEFAULT_BRANCH_LENGTHS = true; // estimate BME branch lengths
 // Representatives kept per subtree for branch lengths (as in a window).
 constexpr int32_t DEFAULT_BL_REPRESENTATIVE_CAP = 64;
-constexpr int32_t DEFAULT_GTR_FIT_PAIRS = 100000; // GTR+GC: sequence pairs drawn to fit the rates and alpha
+constexpr int32_t DEFAULT_GTR_FIT_PAIRS = 100000; // GTR, GTR+GC: sequence pairs drawn to fit the model's parameters
 
 // ---- Limits ------------------------------------------------------------------------------------------
 
@@ -64,6 +64,7 @@ constexpr double EPS = 1e-30;
 // Outside it, the error grows: about 1% at alpha = 0.001, and several-fold on rare pairs when one exchangeability is
 // 1,000 times the others.
 // infer() warns outside it in single precision; it requires only alpha > 0 and exchangeabilities > 0.
+// GTR gets the exchangeabilities' warning too: its distance shares GTR+GC's eigenvalue steps.
 constexpr double GTR_FLOAT_ALPHA_MIN = 0.05;
 constexpr double GTR_FLOAT_ALPHA_MAX = 1e3;
 constexpr double GTR_FLOAT_RATE_RATIO_MAX = 100.0; // largest / smallest exchangeability

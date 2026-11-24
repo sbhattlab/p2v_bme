@@ -19,12 +19,12 @@ decompress them first.
 | Option                      | Default        | Meaning                                                                                                                                                 |
 | --------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-s, --alignment FILE`      | required       | the alignment                                                                                                                                           |
-| `-m, --model MODEL`         | required       | `JC69`, `K80`, `F81`, `F84`, `TN93`, `LogDet` or `GTR+GC` ([models.md](models.md))                                                                      |
+| `-m, --model MODEL`         | required       | `JC69`, `K80`, `F81`, `F84`, `TN93`, `LogDet`, `GTR` or `GTR+GC` ([models.md](models.md))                                                               |
 | `-p, --prefix STR`          | alignment path | output prefix                                                                                                                                           |
 | `-a, --accelerator`         | `auto`         | `cpu`, `gpu`, or `auto` (the GPU if one is found, else the CPU)                                                                                         |
 | `-d, --devices`             | `auto`         | GPU: `auto` (the first), `N` (the first N) or a list (`0,2`; `1,` for GPU 1 only); CPU: `auto` (all cores but one, or `OMP_NUM_THREADS`) or `N` threads |
 | `-b, --bootstrap B\|A-B`    | `0`            | `B` bootstrap replicates after the tree; `A-B`: replicates A to B only, without the tree                                                                |
-| `--seed N`                  | `1`            | seed of the start tree, the GTR+GC fit and the bootstrap                                                                                                |
+| `--seed N`                  | `1`            | seed of the start tree, the GTR or GTR+GC fit and the bootstrap                                                                                         |
 | `-q, --quiet`               |                | no progress on stdout (it still goes to `<prefix>.log`)                                                                                                 |
 | `-v, --version`             |                | print the version                                                                                                                                       |
 | `-h, --help` / `--help-all` |                | print the core / all options                                                                                                                            |
@@ -33,9 +33,9 @@ The results do not depend on the number of threads or GPUs.
 
 ## Substitution model options
 
-| Option              | Default  | Meaning                                                                               |
-| ------------------- | -------- | ------------------------------------------------------------------------------------- |
-| `--gtr-fit-pairs N` | `100000` | GTR+GC: sequence pairs used to fit the rates and alpha ([models.md](models.md#gtrgc)) |
+| Option              | Default  | Meaning                                                                                      |
+| ------------------- | -------- | -------------------------------------------------------------------------------------------- |
+| `--gtr-fit-pairs N` | `100000` | GTR, GTR+GC: sequence pairs used to fit the rates (and alpha) ([models.md](models.md#gtrgc)) |
 
 ## Search options
 
