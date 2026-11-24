@@ -1086,53 +1086,31 @@ def table_scaling_methods(results: Path) -> Outputs:
 
     One row per run: dataset tag, method key, size, time, RF error, host and GPU memory.
     """
-    rows: list[dict] = []
-    for r in our_runs(results, "scaling"):
-        rows.append(
-            {
-                "dataset": r["set"],
-                "method": "P2V",
-                "n": r["n"],
-                "time_s": r["time_s"],
-                "rf_pct": r["rf_pct"],
-                "host_memory_mb": r["host_memory_mb"],
-                "gpu_memory_peak_mib": r["gpu_memory_peak_mib"],
-                "source": r["source_path"],
-            }
-        )
+    columns = [
+        "dataset",
+        "method",
+        "n",
+        "time_s",
+        "rf_pct",
+        "host_memory_mb",
+        "gpu_memory_peak_mib",
+    ]
+    ours = run_frame(results, "scaling").rename(columns={"set": "dataset", "source_path": "source"})
+    ours = ours.assign(method="P2V")[[*columns, "source"]]
+    others = []
     for d in optional(dipper_runs, results):
         m = d["methods"]["DIPPER-GPU"]
-        if m.get("rf", -1) < 0 or "rf_pct" not in m:
-            continue
-        rows.append(
-            {
-                "dataset": d["tag"],
-                "method": "DIPPER",
-                "n": d["N"],
-                "time_s": m["time"],
-                "rf_pct": m["rf_pct"],
-                "host_memory_mb": m["peak_ram_mb"],
-                "gpu_memory_peak_mib": m.get("gpu_vram_mb", ""),
-                "source": "baselines/dipper/runs.jsonl",
-            }
-        )
+        if m.get("rf", -1) >= 0 and "rf_pct" in m:
+            row = (d["tag"], "DIPPER", d["N"], m["time"], m["rf_pct"], m["peak_ram_mb"])
+            others.append((*row, m.get("gpu_vram_mb", pd.NA), "baselines/dipper/runs.jsonl"))
     cpu = optional(default_runs, results)
     for path in sorted((results / "baselines" / "default_yule").glob("*.json")):
         cpu.append(dict(json.loads(path.read_text()), tag="yule10k"))
     for r in cpu:
-        rows.append(
-            {
-                "dataset": r["tag"],
-                "method": ALIAS[r["method"]],
-                "n": r["N"],
-                "time_s": r["time"],
-                "rf_pct": r["rf_pct"],
-                "host_memory_mb": r["peak_ram_mb"],
-                "gpu_memory_peak_mib": "",
-                "source": "baselines",
-            }
-        )
-    return {"scaling_methods.tsv": rows}
+        row = (r["tag"], ALIAS[r["method"]], r["N"], r["time"], r["rf_pct"], r["peak_ram_mb"])
+        others.append((*row, pd.NA, "baselines"))
+    others = pd.DataFrame(others, columns=[*columns, "source"], dtype=object)
+    return {"scaling_methods.tsv": pd.concat([ours, others])}
 
 
 def table_silva_support(results: Path) -> Outputs:
