@@ -19,6 +19,9 @@ else()
   set(P2VBME_CUDA_FOUND OFF)
 endif()
 option(P2VBME_CUDA "Build the GPU code (needs the CUDA toolkit)" ${P2VBME_CUDA_FOUND})
+# The prebuilt binary (the release preset): the CUDA runtime, libstdc++, libgcc and libgomp linked into p2v-bme, so that
+# it needs only glibc and, for the GPU, an NVIDIA driver.
+option(P2VBME_STATIC_RUNTIME "Link the CUDA and C++ runtimes into p2v-bme" OFF)
 if(P2VBME_CUDA)
   if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
     set(CMAKE_CUDA_ARCHITECTURES native)
@@ -29,6 +32,12 @@ if(P2VBME_CUDA)
   find_package(CUDAToolkit REQUIRED)
 endif()
 
+# The prebuilt binary links libgomp in too: its static archive in place of the shared library.
+if(P2VBME_STATIC_RUNTIME)
+  execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libgomp.a OUTPUT_VARIABLE P2VBME_LIBGOMP
+                  OUTPUT_STRIP_TRAILING_WHITESPACE)
+  set(OpenMP_gomp_LIBRARY ${P2VBME_LIBGOMP} CACHE FILEPATH "libgomp, linked into p2v-bme" FORCE)
+endif()
 find_package(OpenMP REQUIRED COMPONENTS C CXX)
 
 # The version is set once, in project(); development builds also record the git revision.
@@ -103,7 +112,11 @@ target_link_libraries(p2vbme PRIVATE p2vbme_json)
 if(P2VBME_CUDA)
   target_sources(p2vbme PRIVATE src/device_gpu.cu)
   target_compile_definitions(p2vbme PRIVATE P2VBME_WITH_CUDA)
-  target_link_libraries(p2vbme PUBLIC CUDA::cudart)
+  if(P2VBME_STATIC_RUNTIME)
+    target_link_libraries(p2vbme PUBLIC CUDA::cudart_static)
+  else()
+    target_link_libraries(p2vbme PUBLIC CUDA::cudart)
+  endif()
 endif()
 
 # The CPU code counts bits with __builtin_popcountll (the CPU device, the pair counts). On x86-64, -mpopcnt makes it the
@@ -123,6 +136,9 @@ target_link_libraries(p2vbme_cli PUBLIC p2vbme PRIVATE cxxopts::cxxopts)
 add_executable(p2v-bme src/main.cpp)
 target_compile_options(p2v-bme PRIVATE -O3)
 target_link_libraries(p2v-bme PRIVATE p2vbme_cli p2vbme p2vbme_io p2vbme_processing OpenMP::OpenMP_CXX)
+if(P2VBME_STATIC_RUNTIME)
+  target_link_options(p2v-bme PRIVATE -static-libstdc++ -static-libgcc)
+endif()
 install(TARGETS p2v-bme)
 
 # ---- reference library (C99), as a shared library for the Python helpers --------------------------------
