@@ -1,5 +1,5 @@
 """Fig. 2d: RF error of Phylo2VecME, MAPLE and CMAPLE on the simulated pandemic alignments,
-by mean branch length (as Fig. 2c draws their times).
+by mean branch length in substitutions per branch (as Fig. 2c draws their times).
 
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
 Options: --tables-dir, --img-dir
@@ -18,8 +18,8 @@ from plots._config import PANDEMIC, STYLE
 from plots.utils import OURS, method_style, parser, read_tsv, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
-UNIT = 1e-4  # branch lengths on the x axis in units of 10^-4 substitutions per site
-DODGE = {"MAPLE": -0.07, "CMAPLE": 0.0, "Phylo2VecME": 0.07}  # side by side, in x units
+SITES = 30000  # every pandemic alignment: x = mean branch length x SITES = substitutions per branch
+DODGE = {"MAPLE": -0.21, "CMAPLE": 0.0, "Phylo2VecME": 0.21}  # side by side, in x units
 TOP = 40  # per cent: headroom above the data, so that the legend clears them (as Fig. 2c)
 
 
@@ -41,7 +41,7 @@ def main() -> None:
             lo.append(mu[-1] - min(values))
             hi.append(max(values) - mu[-1])
         ax.errorbar(
-            [b / UNIT + DODGE[method] for b in scales],
+            [b * SITES + DODGE[method] for b in scales],
             mu,
             yerr=[lo, hi],
             elinewidth=0.75,
@@ -51,11 +51,11 @@ def main() -> None:
             zorder=5 if key == OURS else 3,
             **method_style(key),
         )
-    ax.set_xticks([b / UNIT for b in scales])
-    ax.set_xticklabels([f"{b / UNIT:g}" for b in scales])
-    ax.set_xlim(0.25, 1.75)
+    ax.set_xticks([b * SITES for b in scales])
+    ax.set_xticklabels([f"{b * SITES:g}" for b in scales])
+    ax.set_xlim(0.75, 5.25)
     ax.set_ylim(0, TOP)
-    ax.set_xlabel(r"Branch length ($\times10^{-4}$)")
+    ax.set_xlabel("Substitutions per branch")
     ax.set_ylabel("RF error (%)")
     ax.grid(axis="y", color="#E5E5E5", linewidth=0.5)
     ax.set_axisbelow(True)
