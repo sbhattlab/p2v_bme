@@ -12,7 +12,7 @@ Flow:    the paths from each selected clade's best node to the root
            v
          one row per clade: triangle, name, unique sequences,
          best F1, transfer support (TBE) of its stem; backbone nodes with TBE >= 75% marked
-Outputs: img/fig3/fig3a_silva_clades.{pdf,svg}
+Outputs: img/fig3/fig3a_silva_clades.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig3a_silva_clades
 """

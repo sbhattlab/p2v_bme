@@ -3,7 +3,7 @@
 Inputs:  data/tables/scaling.tsv, random_tree.tsv                      (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    mean and sample SD of the time at each size, one series per dataset
-Outputs: img/fig2/fig2a_scaling_time.{pdf,svg}
+Outputs: img/fig2/fig2a_scaling_time.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig2a_scaling_time
 """

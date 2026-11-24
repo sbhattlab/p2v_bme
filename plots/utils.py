@@ -60,7 +60,7 @@ def read_tsv(tables_dir: Path, name: str) -> list[dict[str, str]]:
 
 def save(fig: plt.Figure, img_dir: Path, name: str, **kwargs) -> None:
     """Saves a figure once per format in its figure's folder, without timestamps:
-    (figure, folder, name) -> img_dir/<FIGURE_FOLDERS>/name.{pdf,svg}."""
+    (figure, folder, name) -> img_dir/<FIGURE_FOLDERS>/name.{pdf,svg,png}."""
     figure = re.match(r"figS?\d+", name)
     if figure is None or figure[0] not in FIGURE_FOLDERS:
         raise SystemExit(f"{name}: no folder for this figure in FIGURE_FOLDERS (plots/_config.py)")
@@ -248,7 +248,7 @@ def method_legend(fig: plt.Figure, stats: dict) -> None:
 
 def method_figures(args: Namespace, panel: str, name: str, legend: bool = False) -> None:
     """Draws one panel of Figs S1-S3, every method's bars at each size:
-    (args, panel, name) -> img_dir/<folder>/figS<N><name>.{pdf,svg} for each dataset.
+    (args, panel, name) -> img_dir/<folder>/figS<N><name>.{pdf,svg,png} for each dataset.
 
     name starts with the panel's letter (a_scaling_time); legend adds the methods' legend above.
     """

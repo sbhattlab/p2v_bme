@@ -158,7 +158,7 @@ Every table of the paper (`--tables`; default: all). A table whose results are m
 - **Requires:** `make_tables`
 - **Inputs:** `data/tables/<name>.tsv`
 - **Outputs:** `img/fig2/` (Fig. 2 with Figs S1-S4) and `img/fig3/` (Fig. 3 with Fig. S5): `<figure>.pdf`,
-  `<figure>.svg`
+  `<figure>.svg`, `<figure>.png`
 
 | Script                            | Figure                                                         | Reads                                       |
 | --------------------------------- | -------------------------------------------------------------- | ------------------------------------------- |

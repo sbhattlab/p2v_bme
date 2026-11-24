@@ -3,7 +3,7 @@
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    per program and size: mean over the three branch-length scales, the bar spans their range
-Outputs: img/fig2/fig2c_pandemic_time.{pdf,svg}
+Outputs: img/fig2/fig2c_pandemic_time.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig2c_pandemic_time
 """

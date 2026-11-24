@@ -5,7 +5,7 @@ from typing import Final, TypedDict
 
 DEFAULT_TABLES_DIR: Final = "data/tables"  # figure data written by paper/make_tables.py
 DEFAULT_IMG_DIR: Final = "img"  # figure outputs (git-ignored)
-FIGURE_FORMATS: Final = ("pdf", "svg")  # every figure is saved once per format
+FIGURE_FORMATS: Final = ("pdf", "svg", "png")  # every figure is saved once per format
 STYLE: Final = "plots/paper.mplstyle"  # every figure
 
 # Matplotlib metadata without timestamps, so that an unchanged figure is an unchanged file

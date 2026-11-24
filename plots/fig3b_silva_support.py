@@ -5,7 +5,7 @@ Inputs:  data/tables/silva_support.tsv                                  (make_ta
 Options: --tables-dir, --img-dir
 Flow:    per bin of split size (smaller side):
          median TBE and interquartile range, with the bin's branch count
-Outputs: img/fig3/fig3b_silva_support.{pdf,svg}
+Outputs: img/fig3/fig3b_silva_support.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig3b_silva_support
 """

@@ -8,7 +8,7 @@ Flow:    each dataset (rnasim -> S1, jc10k -> S2, yule10k -> S3)
            v
          one bar per method and size:
          the mean, from the panel's floor (log axis); the whisker spans the replicates
-Outputs: img/fig2/figS1c_scaling_host_memory.{pdf,svg}, figS2c_..., figS3c_...
+Outputs: img/fig2/figS1c_scaling_host_memory.{pdf,svg,png}, figS2c_..., figS3c_...
 
     pixi run -e paper python -m plots.figS1c_scaling_host_memory
 """

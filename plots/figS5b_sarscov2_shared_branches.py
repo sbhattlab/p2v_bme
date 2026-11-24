@@ -5,7 +5,7 @@ Inputs:  data/tables/viridian_substitutions.tsv                         (make_ta
 Options: --tables-dir, --img-dir
 Flow:    per bin of substitutions on the branch:
          the share of branches also in the other tree, for each tree
-Outputs: img/fig3/figS5b_sarscov2_shared_branches.{pdf,svg}
+Outputs: img/fig3/figS5b_sarscov2_shared_branches.{pdf,svg,png}
 
     pixi run -e paper python -m plots.figS5b_sarscov2_shared_branches
 """
