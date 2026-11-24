@@ -50,12 +50,11 @@ target_compile_options(test_gtr_fit PRIVATE -O2 -Wall -Wextra)
 target_link_libraries(test_gtr_fit PRIVATE p2vbme_gtr_fit p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_gtr_fit)
 
-# infer() on the CPU (any build): brute force at small N, SPR optimality by the reference library, workers;
+# infer() on the CPU (any build): brute force at small N and for SPR optimality, workers;
 # InferenceGpu.* on the GPU: a search under every model, CPU against GPU
-add_executable(test_inference test_inference.cpp ${BME_REFERENCE_SOURCE})
-target_include_directories(test_inference PRIVATE ${BME_REFERENCE_INCLUDE})
-target_compile_options(test_inference PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O2 -Wall -Wextra> $<$<COMPILE_LANGUAGE:C>:-O2>)
-target_link_libraries(test_inference PRIVATE p2vbme p2vbme_processing p2vbme_simulations GTest::gtest_main m)
+add_executable(test_inference test_inference.cpp)
+target_compile_options(test_inference PRIVATE -O2 -Wall -Wextra)
+target_link_libraries(test_inference PRIVATE p2vbme p2vbme_processing p2vbme_simulations GTest::gtest_main)
 gtest_discover_tests(test_inference TEST_FILTER "-InferenceGpu.*" DISCOVERY_TIMEOUT 60)
 if(P2VBME_CUDA)
   gtest_discover_tests(test_inference TEST_FILTER "InferenceGpu.*" PROPERTIES ${GPU_TEST_PROPERTIES}
