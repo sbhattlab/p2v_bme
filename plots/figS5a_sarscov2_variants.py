@@ -90,8 +90,7 @@ def main() -> None:
         handles=handles,
         loc="upper left",
         bbox_to_anchor=(0.02, 1.0),
-        ncol=2,
-        columnspacing=1.2,
+        ncol=1,
         handletextpad=0.2,
     )
     save(fig, args.img_dir, "figS5a_sarscov2_variants", bbox_inches=None)
