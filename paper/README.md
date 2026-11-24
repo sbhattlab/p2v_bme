@@ -167,7 +167,7 @@ Every table of the paper (`--tables`; default: all). A table whose results are m
 | `fig2c_pandemic_time`             | 2c: time of Phylo2VecME, MAPLE and CMAPLE, pandemic sets       | `maple.tsv`                                 |
 | `fig2d_pandemic_rf_error`         | 2d: RF error of the three programs by branch length, pandemic  | `maple.tsv`                                 |
 | `fig3a_silva_clades`              | 3a: the SILVA 144 tree reduced to the domains and major clades | `silva_clades.tsv`, `silva_clade_paths.tsv` |
-| `fig3b_silva_support`             | 3b: TBE of the SILVA 144 tree's branches by split size         | `silva_support.tsv`                         |
+| `fig3b_silva_support`             | 3b: SILVA 144 branches by support class and split size         | `silva_support.tsv`                         |
 | `fig3c_sarscov2_resolution`       | 3c: resolution of the SARS-CoV-2 tree by sampling month        | `viridian_resolution.tsv`                   |
 | `figS1_scaling`                   | S1-S3: time, RF error, host and GPU memory of every method     | `scaling_methods.tsv`                       |
 | `figS4_seqlen_effect`             | S4: RF error on 1,000 and 10,000 sites                         | `scaling_methods.tsv`                       |
