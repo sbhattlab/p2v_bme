@@ -1,72 +1,72 @@
-"""Fig. 2d: RF error of Phylo2VecME against that of MAPLE and CMAPLE,
-on the same simulated pandemic alignments.
+"""Fig. 2d: RF error of Phylo2VecME, MAPLE and CMAPLE on the simulated pandemic alignments,
+by mean branch length (as Fig. 2c draws their times).
 
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
 Options: --tables-dir, --img-dir
-Flow:    one point per alignment (size x branch-length scale) and program;
-         the diagonal marks equal error
+Flow:    per program and branch-length scale: the mean over the three sizes, the whisker spans them;
+         the programs side by side at each scale, as their errors nearly coincide
 Outputs: img/fig2/fig2d_pandemic_rf_error.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig2d_pandemic_rf_error
 """
 
+import statistics
+
 import matplotlib.pyplot as plt
 
-from plots._config import PANDEMIC, SPEC, STYLE
-from plots.utils import parser, read_tsv, save
+from plots._config import PANDEMIC, STYLE
+from plots.utils import OURS, method_style, parser, read_tsv, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
-LIMIT = 28  # per cent, both axes
+UNIT = 1e-4  # branch lengths on the x axis in units of 10^-4 substitutions per site
+DODGE = {"MAPLE": -0.07, "CMAPLE": 0.0, "Phylo2VecME": 0.07}  # side by side, in x units
+TOP = 40  # per cent: headroom above the data, so that the legend clears them (as Fig. 2c)
 
 
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
-    paired: dict[tuple[int, float], dict[str, float]] = {}
-    for r in read_tsv(args.tables_dir, "maple"):
-        paired.setdefault((int(r["n"]), float(r["mean_branch_length"])), {})[r["method"]] = float(
-            r["rf_pct"]
-        )
-    spec = {method: SPEC[key] for method, key in PANDEMIC}
+    rows = read_tsv(args.tables_dir, "maple")
+    scales = sorted({float(r["mean_branch_length"]) for r in rows})
+    rf = {
+        (r["method"], int(r["n"]), float(r["mean_branch_length"])): float(r["rf_pct"]) for r in rows
+    }
     fig, ax = plt.subplots(figsize=FIGSIZE)
     fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.96)
-    gap = 0.0
-    # MAPLE as larger open markers, CMAPLE as smaller filled ones on top:
-    # both stay visible where they overlap
-    for method in ("MAPLE", "CMAPLE"):
-        x = [g[method] for g in paired.values()]
-        y = [g["Phylo2VecME"] for g in paired.values()]
-        gap = max([gap, *(abs(a - b) for a, b in zip(x, y))])
-        if method == "MAPLE":
-            ax.scatter(
-                x,
-                y,
-                label=method,
-                marker=spec[method]["marker"],
-                s=26,
-                linewidths=0.85,
-                facecolors="none",
-                edgecolors=spec[method]["color"],
-                zorder=3,
-            )
-        else:
-            ax.scatter(
-                x,
-                y,
-                label=method,
-                marker=spec[method]["marker"],
-                s=16,
-                linewidths=0.85,
-                color=spec[method]["color"],
-                zorder=4,
-            )
-    ax.plot([0, LIMIT], [0, LIMIT], color="#AAAAAA", linewidth=0.8, linestyle="--", zorder=1)
-    ax.set(xlim=(0, LIMIT), ylim=(0, LIMIT), xticks=[0, 10, 20], yticks=[0, 10, 20])
-    ax.set_xlabel("Baseline RF error (%)")
-    ax.set_ylabel("Phylo2VecME RF error (%)")
-    ax.legend(loc="upper left", frameon=False, handletextpad=0.3)
+    for method, key in PANDEMIC:
+        mu, lo, hi = [], [], []
+        for b in scales:
+            values = [v for (m, _n, s), v in rf.items() if m == method and s == b]
+            mu.append(statistics.mean(values))
+            lo.append(mu[-1] - min(values))
+            hi.append(max(values) - mu[-1])
+        ax.errorbar(
+            [b / UNIT + DODGE[method] for b in scales],
+            mu,
+            yerr=[lo, hi],
+            elinewidth=0.75,
+            capsize=2,
+            capthick=0.7,
+            label=method,
+            zorder=5 if key == OURS else 3,
+            **method_style(key),
+        )
+    ax.set_xticks([b / UNIT for b in scales])
+    ax.set_xticklabels([f"{b / UNIT:g}" for b in scales])
+    ax.set_xlim(0.25, 1.75)
+    ax.set_ylim(0, TOP)
+    ax.set_xlabel(r"Branch length ($\times10^{-4}$)")
+    ax.set_ylabel("RF error (%)")
+    ax.grid(axis="y", color="#E5E5E5", linewidth=0.5)
+    ax.set_axisbelow(True)
+    ax.legend(loc="upper right", frameon=False, handletextpad=0.4)
     save(fig, args.img_dir, "fig2d_pandemic_rf_error")
-    print(f"largest RF gap to a baseline: {gap:.6f} percentage points")
+    gap = max(
+        abs(rf[("Phylo2VecME", n, s)] - v)
+        for (m, n, s), v in rf.items()
+        if m in ("MAPLE", "CMAPLE") and ("Phylo2VecME", n, s) in rf
+    )
+    print(f"largest RF gap to MAPLE or CMAPLE on one alignment: {gap:.6f} percentage points")
 
 
 if __name__ == "__main__":
