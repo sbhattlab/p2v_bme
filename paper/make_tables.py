@@ -17,18 +17,17 @@ Options: --results-dir, --tables-dir, --tables (default: all), --overwrite
 Flow:    each table
            |
            v
-         its results -> rows                              (a table whose results are missing is
+         its results -> a table                           (a table whose results are missing is
            |                                              skipped, with a note)
-           |
            v
-         data/tables/<name>.tsv (the rows) and <name>.md (the table, under its caption)
-Outputs: data/tables/<table>.md for scaling, maple, bootstrap, baseline_10k, silva_support,
-         comparators, random_tree, seqlen, representative_sensitivity, fastme, gtr_fit, silva_gtdb,
-         viridian_variants, viridian_support, viridian_thresholds;
-         data/tables/<data>.tsv behind the tables and figures (scaling, scaling_runs, random_tree,
-         maple, bootstrap, bootstrap_by_size, baseline_10k, silva_support, scaling_methods,
-         silva_clades, silva_clade_paths, viridian_variants, viridian_substitutions,
-         viridian_resolution)
+         data/tables/tableS<N>_<name>.md (df.to_markdown), and the data a figure reads as a .tsv
+Outputs: data/tables/tableS<N>_<name>.md, numbered as in the supplement:
+         S1 representative_sensitivity, S2 gtr_fit, S3 fastme, S4 scaling, S5 maple, S6 bootstrap,
+         S7 comparators, S8 baseline_10k, S9 seqlen, S10 random_tree, S11 viridian_support,
+         S12 viridian_variants, S13 viridian_thresholds, S14 silva_support, S15 silva_gtdb;
+         data/tables/<data>.tsv, the figures' data: scaling, random_tree, maple, silva_support,
+         scaling_methods, silva_clades, silva_clade_paths, viridian_variants,
+         viridian_substitutions, viridian_resolution
 
     pixi run -e paper python -m paper.make_tables
     pixi run -e paper python -m paper.make_tables --tables scaling maple --overwrite
@@ -129,7 +128,7 @@ def one_file(folder: Path, pattern: str) -> Path:
 
 
 def short_gpu(name: str) -> str:
-    """Shortens a GPU name for captions: 'NVIDIA H200' -> 'H200'."""
+    """Shortens a GPU name: 'NVIDIA H200' -> 'H200'."""
     return GPU_MODELS.get(name, name.removeprefix("NVIDIA "))
 
 
@@ -248,7 +247,8 @@ def one(values: set, what: str):
 
 
 def one_of(what: str):
-    """Makes an aggregator for values that must agree: what they are -> (values -> the one value)."""
+    """Makes an aggregator for values that must agree:
+    what they are -> (values -> the one value)."""
     return lambda values: one(set(values), what)
 
 
@@ -377,7 +377,8 @@ def scaling_rows(results: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def table_scaling(results: Path) -> Outputs:
-    """Builds Table S4 (scaling) and Fig. 2a,b's data: results -> {tableS4_scaling.md, scaling.tsv}."""
+    """Builds Table S4 (scaling) and Fig. 2a,b's data:
+    results -> {tableS4_scaling.md, scaling.tsv}."""
     scale, _ = scaling_rows(results)
     table = pd.DataFrame(
         {
