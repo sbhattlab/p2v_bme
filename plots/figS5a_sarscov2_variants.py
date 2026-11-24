@@ -18,6 +18,9 @@ from plots._config import SPEC, STYLE
 from plots.utils import parser, read_tsv, save
 
 FIGSIZE = (84 / 25.4, 66 / 25.4)  # panel a of the 150 mm wide figure
+# The two label columns left of the axes, in axes widths:
+# names left-aligned, genome counts right-aligned
+NAME_X, COUNT_X = -0.57, -0.03
 
 
 def main() -> None:
@@ -61,7 +64,13 @@ def main() -> None:
         )
     ax.text(116, -0.95, "subst.", ha="center", va="center")
     ax.set_yticks(range(len(rows)))
-    ax.set_yticklabels([f"{v['name']}  {float(v['genomes']):,.0f}" for v in rows])
+    ax.set_yticklabels([])
+    columns = ax.get_yaxis_transform()  # x in axes widths, y in rows
+    for y, v in enumerate(rows):
+        ax.text(NAME_X, y, v["name"], transform=columns, ha="left", va="center")
+        count = f"{float(v['genomes']):,.0f}"
+        ax.text(COUNT_X, y, count, transform=columns, ha="right", va="center")
+    ax.text(COUNT_X, -0.95, "genomes", transform=columns, ha="right", va="center")
     ax.set_ylim(len(rows) - 0.5, -1.4)
     ax.set_xlim(-4, 124)
     ax.spines["bottom"].set_bounds(-4, 104)
