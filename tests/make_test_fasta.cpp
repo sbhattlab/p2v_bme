@@ -12,6 +12,10 @@
 #include "newick.hpp"
 #include "simulations.hpp"
 
+// The missing sites below go in sequences 3 and 4, at site 5 and sites 10-13, and the copies are of t1 and t2.
+static const int32_t MIN_TAXA = 5;
+static const int32_t MIN_SITES = 14;
+
 static bool write_fasta(const std::string &path, const std::vector<std::string> &names,
                         const std::vector<std::string> &seqs) {
     FILE *f = fopen(path.c_str(), "w");
@@ -30,6 +34,10 @@ int main(int argc, char **argv) {
     const std::string out = argv[1];
     const int32_t n = atoi(argv[2]), sites = atoi(argv[3]);
     const uint64_t seed = strtoull(argv[4], NULL, 10);
+    if (n < MIN_TAXA || sites < MIN_SITES) {
+        fprintf(stderr, "make_test_fasta: N must be >= %d and SITES >= %d\n", MIN_TAXA, MIN_SITES);
+        return 2;
+    }
     const p2vbme::Tree tree = p2vbme::random_tree(n, 0.01, 0.1, seed);
     const p2vbme::Alignment aln = p2vbme::simulate_alignment(tree, sites, p2vbme::SimulationModel(), seed + 1);
     const char bases[p2vbme::N_BASES] = {'A', 'C', 'G', 'T'};

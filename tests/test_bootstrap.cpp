@@ -117,8 +117,44 @@ TEST(Bootstrap, SupportsOnTheCpu) {
     EXPECT_THROW(bootstrap(aln, opt, devices, main_run.tree, 0), std::invalid_argument);
 }
 
-/* Labels of the full tree: the searched tree's supports through the node map, "100/100" on the nodes joining copies,
- * none on leaves and trivial branches, and the root's two children sharing one label. */
+/* Replicates run in ranges (1-2, then 3-3) give the bootstrap's trees, in order, and its supports. */
+TEST(Bootstrap, ReplicateRangesGiveTheSameTreesAndSupports) {
+    const Alignment aln = small_alignment();
+    Settings opt;
+    opt.accelerator = Accelerator::Cpu;
+    opt.threads = 2;
+    const Result main_run = run_infer(aln, opt);
+    Devices devices = devices_for(opt);
+    std::vector<int32_t> boot_order;
+    std::vector<Tree> boot_trees, range_trees;
+    const BootstrapResult boot =
+        bootstrap(aln, opt, devices, main_run.tree, 3, nullptr, [&](int32_t r, const Result &res) {
+            boot_order.push_back(r);
+            boot_trees.push_back(res.tree);
+        });
+    EXPECT_EQ(boot_order, (std::vector<int32_t>{1, 2, 3}));
+    SupportCounter counter(main_run.tree);
+    const ReplicateCallback keep = [&](int32_t, const Result &res) {
+        EXPECT_TRUE(res.tree.branch_lengths.empty());
+        counter.add(res.tree);
+        range_trees.push_back(res.tree);
+    };
+    bootstrap_replicates(aln, opt, devices, 1, 2, keep);
+    bootstrap_replicates(aln, opt, devices, 3, 3, keep);
+    ASSERT_EQ(range_trees.size(), boot_trees.size());
+    for (size_t i = 0; i < boot_trees.size(); ++i) {
+        EXPECT_EQ(range_trees[i].c1, boot_trees[i].c1);
+        EXPECT_EQ(range_trees[i].c2, boot_trees[i].c2);
+    }
+    EXPECT_EQ(counter.tbe(), boot.tbe);
+    EXPECT_EQ(counter.exact(), boot.exact);
+    EXPECT_THROW(bootstrap_replicate(aln, opt, devices, 0), std::invalid_argument);
+    EXPECT_THROW(bootstrap_replicates(aln, opt, devices, 0, 1, keep), std::invalid_argument);
+    EXPECT_THROW(bootstrap_replicates(aln, opt, devices, 3, 2, keep), std::invalid_argument);
+}
+
+/* Labels of the full tree: the searched tree's supports through the node map, none on leaves, trivial branches and the
+ * nodes joining copies, and the root's two children sharing one label. */
 TEST(Bootstrap, SupportLabels) {
     // searched tree on 4 kept sequences: (0,(1,(2,3))): node 4 = (2,3), node 5 = (1,4), root 6 = (0,5)
     Tree searched;
@@ -137,9 +173,9 @@ TEST(Bootstrap, SupportLabels) {
     for (int32_t leaf = 0; leaf < 5; ++leaf)
         EXPECT_EQ(labels[leaf], "") << leaf;
     EXPECT_EQ(labels[map[4]], "97.33/85");
-    EXPECT_EQ(labels[map[0]], "100/100"); // the node joining sequence 0 and its copy
-    // the root's other child: on the full tree its split {1,2,3} | {0,4} is the copies' branch, so the same label
-    EXPECT_EQ(labels[map[5]], "100/100");
+    EXPECT_EQ(labels[map[0]], ""); // the node joining sequence 0 and its copy
+    // the root's other child: on the full tree its split {1,2,3} | {0,4} is the copies' branch, so no label either
+    EXPECT_EQ(labels[map[5]], "");
     EXPECT_EQ(labels[8], ""); // the root
     EXPECT_THROW(support_labels(boot, {0, 1}, full), std::invalid_argument);
 }

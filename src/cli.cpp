@@ -73,6 +73,28 @@ int32_t parse_cpu_threads(const std::string &d) {
     return v;
 }
 
+// Reads -b into the report: B (replicates 1..B after the tree; 0 = none) or A-B (replicates A..B alone).
+// Throws std::runtime_error for anything else, or A-B without 1 <= A <= B.
+void parse_bootstrap_option(p2vbme::Report &run) {
+    const std::string &b = run.bootstrap;
+    auto number = [&](const std::string &s) -> int32_t {
+        if (s.empty() || s.size() > 9 || s.find_first_not_of("0123456789") != std::string::npos)
+            throw std::runtime_error("-b takes B or A-B (replicates A to B), e.g. -b 100 or -b 26-50, not '" + b + "'");
+        return std::stoi(s);
+    };
+    const size_t dash = b.find('-');
+    if (dash == std::string::npos) {
+        run.bootstrap_last = number(b);
+        run.bootstrap_first = run.bootstrap_last > 0 ? 1 : 0;
+        return;
+    }
+    run.bootstrap_first = number(b.substr(0, dash));
+    run.bootstrap_last = number(b.substr(dash + 1));
+    run.bootstrap_only = true;
+    if (run.bootstrap_first < 1 || run.bootstrap_last < run.bootstrap_first)
+        throw std::runtime_error("-b A-B needs 1 <= A <= B, not '" + b + "'");
+}
+
 } // namespace
 
 CommandLine parse_command_line(int argc, char **argv) {
@@ -95,8 +117,10 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value<std::string>()->default_value("auto"))
         ("d,devices", "GPU: auto (the first GPU), N (the first N) or a list such as 0,2; CPU: auto (all "
          "cores but one, or OMP_NUM_THREADS if set) or N threads", cxxopts::value<std::string>()->default_value("auto"))
-        ("b,bootstrap", "replicates of the standard bootstrap (0 = none); the supports of the tree's branches "
-         "(TBE/exact, in %) go to <prefix>.support.nwk", cxxopts::value(result.report.bootstrap), "B")
+        ("b,bootstrap", "the standard bootstrap: B replicates after the tree, whose branches get their supports "
+         "(TBE/exact, in %) in <prefix>.support.nwk; or A-B: replicates A to B alone, as -b B with the same --seed "
+         "runs them (to spread B over jobs). The replicates' trees go to <prefix>.boottrees (0 = none)",
+         cxxopts::value(result.report.bootstrap), "B|A-B")
         ("seed", "seed of the start tree, of the GTR+GC fit's pairs and of the bootstrap", cxxopts::value(opt.seed),
          "N")
         ("q,quiet", "print no progress (warnings and errors still go to stderr)")
@@ -124,11 +148,13 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value(opt.sample_size), "N");
     cli.add_options("Branch lengths and output")
         ("no-branch-lengths", "do not estimate BME branch lengths")
-        ("bl-representative-cap", "representatives kept per subtree for branch lengths (1-256)",
-         cxxopts::value(opt.bl_representative_cap), "N")
         ("no-neg-as-zero", "write negative branch lengths as they are (default: as 0)")
         ("report-full", "add the details to <prefix>.json: input, settings as used, devices, time per stage, "
          "memory, gain of each round");
+    cli.add_options("Bootstrap")
+        ("supports", "with -t TREE and no alignment: the supports (TBE/exact, in %) of TREE's branches over the "
+         "trees in FILE (one Newick per line, e.g. the .boottrees of -b; TREE is pruned to their leaves) go to "
+         "<prefix>.support.nwk (default prefix: TREE)", cxxopts::value<std::string>(), "FILE");
     cli.add_options("Input")
         ("no-dedup", "keep all identical sequences (default: two of each group are kept for the search and the "
          "others put back next to them, with zero-length branches)");
@@ -145,7 +171,8 @@ CommandLine parse_command_line(int argc, char **argv) {
         return done(0);
     }
     if (args.count("help-all")) {
-        std::cout << cli.help({"", "Substitution model", "Search", "Start tree", "Branch lengths and output", "Input"})
+        std::cout << cli.help({"", "Substitution model", "Search", "Start tree", "Branch lengths and output",
+                               "Bootstrap", "Input"})
                   << '\n';
         return done(0);
     }
@@ -155,6 +182,21 @@ CommandLine parse_command_line(int argc, char **argv) {
     }
     if (!args.unmatched().empty())
         throw std::runtime_error("unexpected argument '" + args.unmatched()[0] + "' (see --help)");
+    if (args.count("supports")) { // trees only: no alignment, no search
+        if (!args.count("tree") || args.count("alignment") || args.count("model") || args.count("bootstrap")) {
+            std::cerr << "p2v-bme: --supports needs -t TREE, and no -s, -m or -b (see --help-all)\n";
+            return done(2);
+        }
+        p2vbme::Report &run = result.report;
+        for (int a = 0; a < argc; ++a)
+            run.command_line.push_back(argv[a]);
+        result.quiet = args.count("quiet") > 0;
+        run.supports = args["supports"].as<std::string>();
+        run.tree_init = args["tree"].as<std::string>();
+        run.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : run.tree_init;
+        run.neg_as_zero = !args.count("no-neg-as-zero");
+        return result;
+    }
     if (!args.count("alignment") || !args.count("model")) {
         std::cerr << "p2v-bme: -s ALIGNMENT and -m MODEL are required (see --help)\n";
         return done(2);
@@ -176,8 +218,7 @@ CommandLine parse_command_line(int argc, char **argv) {
     result.devices = args["devices"].as<std::string>();
     run.tree_init = args["tree"].as<std::string>();
     run.dedup = !args.count("no-dedup");
-    if (run.bootstrap < 0)
-        throw std::runtime_error("bootstrap replicates must be >= 0");
+    parse_bootstrap_option(run);
     run.full = args.count("report-full") > 0;
     return result;
 }

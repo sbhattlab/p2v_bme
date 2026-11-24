@@ -27,8 +27,8 @@ test-asan = "cmake --preset asan && cmake --build --preset asan -j 8 && ctest --
 test-python = { cmd = "python -m pytest tests/python", depends-on = ["build"] }
 
 # ---- paper environment ---------------------------------------------------------------------------------
-# Python for the pipeline, plots and Python-side tests, plus the baseline programs the pipeline runs (those
-# folders and their tasks are added to the repository later).
+# Python for the paper's scripts (paper/) and the plots (plots/), plus the comparison programs they run.
+# Scripts run as modules: pixi run -e paper python -m paper.run_benchmarks --help
 [feature.paper.dependencies]
 python = "3.12.*"
 numpy = ">=2.5.4,<3"
@@ -41,6 +41,10 @@ fasttree = "2.2.*"
 
 [feature.paper.activation.env]
 PYTHONPATH = "$PIXI_PROJECT_ROOT"
+
+[feature.paper.tasks]
+# Every paper script and plot on tiny simulated inputs, on the CPU (CI runs it)
+check-paper = { cmd = "python -m paper.check_entry_points", depends-on = ["build"] }
 
 [environments]
 paper = ["paper"]

@@ -55,30 +55,52 @@ Alignment resample_columns(const Alignment &aln, const std::vector<int32_t> &col
     return out;
 }
 
-BootstrapResult bootstrap(const Alignment &aln, const Settings &settings, Devices &devices, const Tree &reference,
-                          int32_t n_replicates, const LogCallback &log) {
-    if (n_replicates < 1)
-        throw std::invalid_argument("bootstrap: the number of replicates must be >= 1");
-    const double t0 = wall_sec();
-    SupportCounter counter(reference);
+Result bootstrap_replicate(const Alignment &aln, const Settings &settings, Devices &devices, int32_t replicate,
+                           const LogCallback &log) {
+    if (replicate < 1)
+        throw std::invalid_argument("bootstrap: replicates are numbered from 1");
     Settings rep = settings;
     rep.branch_lengths = false;
     if (rep.tree_init == TreeInit::Given)
         rep.tree_init = TreeInit::Sample;
-    for (int32_t r = 1; r <= n_replicates; ++r) {
+    rep.seed = replicate_seed(settings.seed, replicate);
+    const Alignment columns =
+        resample_columns(aln, draw_columns(aln.n_sites, derive_seed(rep.seed, SALT_BOOTSTRAP_COLUMNS)));
+    return infer(columns, rep, devices, nullptr, log);
+}
+
+void bootstrap_replicates(const Alignment &aln, const Settings &settings, Devices &devices, int32_t first, int32_t last,
+                          const ReplicateCallback &on_replicate, const LogCallback &log) {
+    if (first < 1 || last < first)
+        throw std::invalid_argument("bootstrap: replicates are numbered from 1, the first no later than the last");
+    for (int32_t r = first; r <= last; ++r) {
         const double t_rep = wall_sec();
-        rep.seed = replicate_seed(settings.seed, r);
-        const Alignment replicate =
-            resample_columns(aln, draw_columns(aln.n_sites, derive_seed(rep.seed, SALT_BOOTSTRAP_COLUMNS)));
-        const Result res = infer(replicate, rep, devices, nullptr, nullptr);
-        counter.add(res.tree);
+        const Result res = bootstrap_replicate(aln, settings, devices, r);
+        if (on_replicate)
+            on_replicate(r, res);
         if (log) {
             char line[128];
-            std::snprintf(line, sizeof(line), "bootstrap replicate %d/%d: %d rounds in %.2f s", r, n_replicates,
-                          res.rounds_run, wall_sec() - t_rep);
+            std::snprintf(line, sizeof(line), "bootstrap replicate %d/%d: %d rounds in %.2f s", r, last, res.rounds_run,
+                          wall_sec() - t_rep);
             log(line);
         }
     }
+}
+
+BootstrapResult bootstrap(const Alignment &aln, const Settings &settings, Devices &devices, const Tree &reference,
+                          int32_t n_replicates, const LogCallback &log, const ReplicateCallback &on_replicate) {
+    if (n_replicates < 1)
+        throw std::invalid_argument("bootstrap: the number of replicates must be >= 1");
+    const double t0 = wall_sec();
+    SupportCounter counter(reference);
+    bootstrap_replicates(
+        aln, settings, devices, 1, n_replicates,
+        [&](int32_t r, const Result &res) {
+            counter.add(res.tree);
+            if (on_replicate)
+                on_replicate(r, res);
+        },
+        log);
     BootstrapResult out;
     out.n_replicates = n_replicates;
     out.tbe = counter.tbe();
@@ -95,22 +117,13 @@ std::vector<std::string> support_labels(const BootstrapResult &boot, const std::
     if (boot.tbe.size() != node_map.size() || boot.exact.size() != node_map.size())
         throw std::invalid_argument("support_labels: one support and one map entry per node of the searched tree");
     std::vector<std::string> labels(n_nodes);
-    std::vector<bool> from_internal(n_nodes, false); // stands for an internal node of the searched tree
-    const size_t n_searched_leaves = (node_map.size() + 1) / 2;
     for (size_t u = 0; u < node_map.size(); ++u) {
         const int32_t v = node_map[u];
         if (v < 0 || v >= n_nodes)
             throw std::invalid_argument("support_labels: the node map leaves the full tree");
-        if (u >= n_searched_leaves)
-            from_internal[v] = true;
         if (boot.tbe[u] != NO_SUPPORT)
             labels[v] = format_support(boot.tbe[u]) + "/" + format_support(boot.exact[u]);
     }
-    // the other internal nodes join identical copies (one of them stands for a searched leaf, the kept copy)
-    const std::string full = format_support(100.0) + "/" + format_support(100.0);
-    for (int32_t v = N; v < n_nodes - 1; ++v)
-        if (!from_internal[v])
-            labels[v] = full;
     const int32_t root = n_nodes - 1, a = full_tree.c1[root], b = full_tree.c2[root];
     if (labels[a].empty() && a >= N)
         labels[a] = labels[b];

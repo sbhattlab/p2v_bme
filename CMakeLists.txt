@@ -130,6 +130,12 @@ install(TARGETS p2v-bme)
 option(P2VBME_NATIVE "Build the reference library and its test for this machine's CPU (-march=native)" OFF)
 add_subdirectory(src/reference)
 
+# ---- the paper's tools ----------------------------------------------------------------------------------
+option(P2VBME_BUILD_PAPER_TOOLS "Build the compiled tools of the paper's scripts (paper/tools)" OFF)
+if(P2VBME_BUILD_PAPER_TOOLS)
+  add_subdirectory(paper)
+endif()
+
 # ---- tests ----------------------------------------------------------------------------------------------
 include(CTest)
 if(BUILD_TESTING)
