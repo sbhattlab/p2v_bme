@@ -234,6 +234,11 @@ def distinct(alignment: Path, out: Path, max_sites: int, min_sites: int, overwri
     if not overwrite and (out / "distinct.json").exists():
         return
     alignment = source(alignment)
+    print(
+        f"distinct: reading {alignment} twice (column counts, then the kept columns); "
+        "this might take a while",
+        flush=True,
+    )
     out.mkdir(parents=True, exist_ok=True)
     counts = None
     label_ids: tuple[dict[str, int], dict[str, int]] = ({}, {})
