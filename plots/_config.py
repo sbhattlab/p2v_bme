@@ -63,16 +63,18 @@ SPEC: Final = {
 # The datasets of the scaling figures (S1-S3) and their figure numbers
 SCALING_FIGURES: Final = {"rnasim": "figS1", "jc10k": "figS2", "yule10k": "figS3"}
 
-# Fig. 2a,b: dataset in the data, legend label, colour, marker, line style, filled marker.
-# Every series is Phylo2VecME, so all are shades of its orange (ColorBrewer Oranges:
-# dark, its own, light), each with its own marker and line style.
-# Lightness, unlike hue, survives tinted screens and colour blindness.
-# The random-tree series is drawn last,
+# Fig. 2a,b: dataset in the data, legend label, colour, marker, line style, filled marker,
+# intensity (alpha).
+# Every series is Phylo2VecME: RNASim takes its vermilion, the JC series teal, a hue no method uses
+# (apart from vermilion for colour-blind readers and on tinted screens).
+# Three intensities: the PASTA-tree series in full, the random-tree series lighter, and Fig. 2b's
+# inherited splits (fig2b_scaling_rf_error.py) lightest.
+# In legend order; the random-tree series is drawn last,
 # so that it stays visible where it runs along the other JC series.
 SCALING_SERIES: Final = [
-    ("JC", "JC (PASTA)", "#7F2704", "o", "-", True),
-    ("RNASim", "RNASim (PASTA)", SPEC["P2V"]["color"], "s", "--", True),
-    ("JC random tree", "JC random tree", "#FD8D3C", "^", "-.", True),
+    ("RNASim", "RNASim (PASTA)", SPEC["P2V"]["color"], "s", "--", True, 1.0),
+    ("JC", "JC (PASTA)", "#1B9E77", "o", "-", True, 1.0),
+    ("JC random tree", "JC random tree", "#1B9E77", "^", "-.", True, 0.55),
 ]
 
 # Fig. 2c,d: the pandemic programs, as named in maple.tsv, and their key in SPEC

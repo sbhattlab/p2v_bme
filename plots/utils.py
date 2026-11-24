@@ -83,7 +83,7 @@ def save(fig: plt.Figure, img_dir: Path, name: str, **kwargs) -> None:
 def scaling_series(ax: plt.Axes, rows: list[dict[str, str]], field: str) -> None:
     """Draws a field's mean and SD per size for every dataset of SCALING_SERIES:
     (axes, rows, field) -> None."""
-    for dataset, label, colour, marker, linestyle, filled in SCALING_SERIES:
+    for dataset, label, colour, marker, linestyle, filled, alpha in SCALING_SERIES:
         group = sorted((r for r in rows if r["dataset"] == dataset), key=lambda r: int(r["n"]))
         if not group:
             print(f"no data for {dataset}: its series is not drawn")
@@ -105,6 +105,7 @@ def scaling_series(ax: plt.Axes, rows: list[dict[str, str]], field: str) -> None
             elinewidth=0.75,
             capsize=2,
             capthick=0.7,
+            alpha=alpha,
             label=label,
         )
 
