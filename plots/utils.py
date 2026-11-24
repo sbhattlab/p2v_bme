@@ -165,9 +165,8 @@ PANELS = {
     "host": ("host_memory_mb", 1 / MIB_PER_GIB, "Host memory (GiB)"),
     "gpu": ("gpu_memory_peak_mib", 1 / MIB_PER_GIB, "GPU memory (GiB)"),
 }
-# One row of the full-width four-panel page; the panel with the methods' legend is taller
-METHOD_FIGSIZE = (7.2, 2.1)
-METHOD_FIGSIZE_LEGEND = (7.2, 2.6)
+# One full-width page per dataset: the four panels in two rows, the methods' legend above
+SCALING_PAGE = (7.2, 5.4)
 
 
 def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: float) -> dict:
@@ -200,11 +199,11 @@ def method_lines(ax: plt.Axes, stats: dict, panel: str, step_at: int | None = No
 
     step_at: the size from which the dataset is built differently; the line reaches it dashed.
     """
-    for (n, key), (mu, lo, hi) in stats.items():
-        if lo <= FLOORS[panel] or hi >= TOPS[panel]:
-            raise SystemExit(
-                f"{key} N={n}: {lo}..{hi} outside the {panel} axis {FLOORS[panel]}..{TOPS[panel]}"
-            )
+    # the panel's fixed range, so that S1-S3 compare;
+    # widened (never clipped) if data fall outside it
+    lows = [lo for _mu, lo, _hi in stats.values()]
+    highs = [hi for _mu, _lo, hi in stats.values()]
+    bottom, top = min(FLOORS[panel], min(lows) / 2), max(TOPS[panel], max(highs) * 2)
     for key in PLOTTED:
         points = sorted((n, v) for (n, k), v in stats.items() if k == key)
         if not points:
@@ -246,7 +245,7 @@ def method_lines(ax: plt.Axes, stats: dict, panel: str, step_at: int | None = No
     ax.set_yscale("log")
     ax.yaxis.set_minor_locator(LogLocator(base=10, subs=range(2, 10)))
     ax.yaxis.set_minor_formatter(NullFormatter())
-    ax.set_ylim(FLOORS[panel], TOPS[panel])
+    ax.set_ylim(bottom, top)
     if panel != "time":
         ax.yaxis.set_major_locator(FixedLocator([0.01, 0.1, 1, 10, 100, 1000]))
         ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
@@ -269,24 +268,28 @@ def method_legend(fig: plt.Figure, stats: dict) -> None:
     )
 
 
-def method_figures(args: Namespace, panel: str, name: str, legend: bool = False) -> None:
-    """Draws one panel of Figs S1-S3, every method's line over the sizes:
-    (args, panel, name) -> img_dir/<folder>/figS<N><name>.{pdf,svg,png} for each dataset.
-
-    name starts with the panel's letter (a_scaling_time); legend adds the methods' legend above.
-    """
-    field, scale, ylabel = PANELS[panel]
+def method_pages(args: Namespace) -> None:
+    """Draws Figs S1-S3, one page per dataset:
+    runtime, RF error, host and GPU memory of every method over the number of sequences:
+    args -> img_dir/<folder>/figS<N>_scaling.{pdf,svg,png}."""
     rows = read_tsv(args.tables_dir, "scaling_methods")
     for dataset, figure in SCALING_FIGURES.items():
-        stats = method_stats(rows, dataset, field, scale)
-        if not stats:
-            print(f"no {field} data for {dataset}: {figure}{name[0]} not drawn")
-            continue
-        fig, ax = plt.subplots(figsize=METHOD_FIGSIZE_LEGEND if legend else METHOD_FIGSIZE)
-        fig.subplots_adjust(left=0.09, right=0.985, top=0.80 if legend else 0.95, bottom=0.2)
-        step = EXPANDED_FROM if panel == "rf" and dataset in EXPANDED_DATASETS else None
-        method_lines(ax, stats, panel, step)
-        ax.set_ylabel(ylabel)
-        if legend:
-            method_legend(fig, stats)
-        save(fig, args.img_dir, f"{figure}{name}")
+        fig, axes = plt.subplots(2, 2, figsize=SCALING_PAGE, sharex=True)
+        fig.subplots_adjust(left=0.09, right=0.985, top=0.87, bottom=0.09, hspace=0.12, wspace=0.27)
+        drawn: dict = {}
+        for ax, letter, panel in zip(axes.flat, "abcd", PANELS):
+            field, scale, ylabel = PANELS[panel]
+            ax.text(-0.2, 1.0, letter, transform=ax.transAxes, fontweight="bold", va="bottom")
+            stats = method_stats(rows, dataset, field, scale)
+            if not stats:
+                print(f"no {field} data for {dataset}: {figure}{letter} left empty")
+                ax.set_axis_off()
+                continue
+            step = EXPANDED_FROM if panel == "rf" and dataset in EXPANDED_DATASETS else None
+            method_lines(ax, stats, panel, step)
+            ax.set_ylabel(ylabel)
+            drawn.update(stats)
+        for ax in axes[0]:
+            ax.set_xlabel("")  # the x axis is shared: labelled once, under the bottom row
+        method_legend(fig, drawn)
+        save(fig, args.img_dir, f"{figure}_scaling")

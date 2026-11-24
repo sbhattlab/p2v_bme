@@ -70,10 +70,7 @@ fig2d_pandemic_rf_error = "python -m plots.fig2d_pandemic_rf_error"
 fig3a_silva_clades = "python -m plots.fig3a_silva_clades"
 fig3b_silva_support = "python -m plots.fig3b_silva_support"
 fig3c_sarscov2_resolution = "python -m plots.fig3c_sarscov2_resolution"
-figS1a_scaling_time = "python -m plots.figS1a_scaling_time"
-figS1b_scaling_rf_error = "python -m plots.figS1b_scaling_rf_error"
-figS1c_scaling_host_memory = "python -m plots.figS1c_scaling_host_memory"
-figS1d_scaling_gpu_memory = "python -m plots.figS1d_scaling_gpu_memory"
+figS1_scaling = "python -m plots.figS1_scaling"
 figS4_seqlen_effect = "python -m plots.figS4_seqlen_effect"
 figS5a_sarscov2_variants = "python -m plots.figS5a_sarscov2_variants"
 figS5b_sarscov2_shared_branches = "python -m plots.figS5b_sarscov2_shared_branches"
@@ -83,10 +80,7 @@ fig2 = { cmd = "echo 'All fig2 plots done.'", depends-on = [
   "fig2b_scaling_rf_error",
   "fig2c_pandemic_time",
   "fig2d_pandemic_rf_error",
-  "figS1a_scaling_time",
-  "figS1b_scaling_rf_error",
-  "figS1c_scaling_host_memory",
-  "figS1d_scaling_gpu_memory",
+  "figS1_scaling",
   "figS4_seqlen_effect",
 ] }
 # Fig. 3 with Fig. S5 (SARS-CoV-2 variants and shared branches)
