@@ -921,8 +921,7 @@ def table_bootstrap(results: Path) -> Outputs:
 
 def table_baseline_10k(results: Path) -> Outputs:
     """Builds Table S6 (baseline_10k): results -> {baseline_10k.md, baseline_10k.tsv}."""
-    sample = our_runs(results, "scaling")
-    random = our_runs(results, "random_start")
+    ours = {"sample": run_frame(results, "scaling"), "random": run_frame(results, "random_start")}
     dipper = dipper_runs(results)
     cases = [
         ("Phylo2VecME sample", "sample", "sample"),
@@ -933,90 +932,75 @@ def table_baseline_10k(results: Path) -> Outputs:
         ("FastTree ML", "FastTree-ML", "supplied random tree"),
         ("VeryFastTree ML", "VFT-ML", "supplied random tree"),
     ]
-    rows: list[dict] = []
+    runs: list[tuple] = []  # (dataset, method, time, RF, CPU threads, GPUs, source) per run
     for tag, label in DATASETS.items():
-        for method, key, initialisation in cases:
-            if key in ("sample", "random"):
-                mine = [
-                    r
-                    for r in (sample if key == "sample" else random)
-                    if r["set"] == tag and r["n"] == 10000
-                ]
-                selected = [
-                    {
-                        "time": r["time_s"],
-                        "rf_pct": r["rf_pct"],
-                        "cpu_threads": r["cpu_threads"],
-                        "gpu_count": r["gpu_count"],
-                        "source_path": r["source_path"],
-                    }
-                    for r in mine
-                ]
-            else:
-                if key == "DIPPER-GPU":
-                    sources = [
-                        (
-                            f"baselines/dipper/runs.jsonl[{tag},N=10000,rep={d['rep']}]",
-                            d,
-                        )
-                        for d in dipper
-                        if d["tag"] == tag and d["N"] == 10000
-                    ]
-                else:
-                    sources = [
-                        (str(p.relative_to(results)), json.loads(p.read_text()))
-                        for p in sorted(
-                            (results / "baselines" / "random_start").glob(f"{tag}_N10000_rep*.json")
-                        )
-                    ]
-                selected = []
-                for source, data in sources:
-                    if key not in data["methods"]:
-                        continue
+        sources = {
+            "DIPPER-GPU": [
+                (f"baselines/dipper/runs.jsonl[{tag},N=10000,rep={d['rep']}]", d)
+                for d in dipper
+                if d["tag"] == tag and d["N"] == 10000
+            ],
+            "": [
+                (str(p.relative_to(results)), json.loads(p.read_text()))
+                for p in sorted(
+                    (results / "baselines" / "random_start").glob(f"{tag}_N10000_rep*.json")
+                )
+            ],
+        }
+        for method, key, _ in cases:
+            found = len(runs)
+            if key in ours:
+                mine = ours[key][(ours[key]["set"] == tag) & (ours[key]["n"] == 10000)]
+                columns = ["time_s", "rf_pct", "cpu_threads", "gpu_count", "source_path"]
+                runs += [(label, method, *r) for r in mine[columns].itertuples(index=False)]
+            for source, data in sources.get(key, sources[""]) if key not in ours else []:
+                if key in data["methods"]:
                     m = data["methods"][key]
-                    selected.append(
-                        {
-                            "time": m["time"],
-                            "rf_pct": m["rf_pct"],
-                            "cpu_threads": m.get("cpu_cores", data.get("cpu_cores", "")),
-                            "gpu_count": m.get("n_gpus", 1 if key == "DIPPER-GPU" else 0),
-                            "source_path": source,
-                        }
-                    )
-            if not selected:
+                    threads = m.get("cpu_cores", data.get("cpu_cores", pd.NA))
+                    gpu_count = m.get("n_gpus", 1 if key == "DIPPER-GPU" else 0)
+                    runs.append((label, method, m["time"], m["rf_pct"], threads, gpu_count, source))
+            if len(runs) == found:
                 raise MissingResults(f"baseline_10k: no {method} runs on {tag} at 10,000 leaves")
-            row: dict = {
-                "dataset": label,
-                "n": 10000,
-                "method": method,
-                "initialisation": initialisation,
-                "n_replicates": len(selected),
-            }
-            row["time_s_mean"], row["time_s_sd"] = mean_sd([s["time"] for s in selected])
-            row["rf_pct_mean"], row["rf_pct_sd"] = mean_sd([s["rf_pct"] for s in selected])
-            ours = key in ("sample", "random")
-            row.update(
-                gpu_count=one({s["gpu_count"] for s in selected}, "GPU counts"),
-                cpu_threads=one({s["cpu_threads"] for s in selected}, "CPU thread counts"),
-                source_paths="|".join(s["source_path"] for s in selected),
-                source_key="p2v-bme report" if ours else f"methods.{key}",
-                timing_scope=(TIMING if ours else "archived comparator process wall time"),
-                interpretation="CPU ME/ML and random Phylo2VecME are random-start search stress tests; "
-                "hardware differs",
-                sd_definition="sample SD (ddof=1)",
-            )
-            rows.append(row)
-    replicates = one({r["n_replicates"] for r in rows}, "replicate counts")
+    frame = pd.DataFrame(
+        runs,
+        columns=["dataset", "method", "time", "rf_pct", "cpu_threads", "gpu_count", "source_path"],
+        dtype=object,
+    )
+    rows = frame.groupby(["dataset", "method"], sort=False, as_index=False).agg(
+        n_replicates=("time", "size"),
+        time_s_mean=("time", mean_of),
+        time_s_sd=("time", sd_of),
+        rf_pct_mean=("rf_pct", mean_of),
+        rf_pct_sd=("rf_pct", sd_of),
+        gpu_count=("gpu_count", one_of("GPU counts")),
+        cpu_threads=("cpu_threads", one_of("CPU thread counts")),
+        source_paths=("source_path", "|".join),
+    )
+    keys = {method: key for method, key, _ in cases}
+    rows.insert(1, "n", 10000)
+    rows.insert(3, "initialisation", rows["method"].map({m: i for m, _, i in cases}))
+    rows = rows.assign(
+        source_key=rows["method"].map(
+            lambda m: "p2v-bme report" if keys[m] in ours else f"methods.{keys[m]}"
+        ),
+        timing_scope=rows["method"].map(
+            lambda m: TIMING if keys[m] in ours else "archived comparator process wall time"
+        ),
+        interpretation="CPU ME/ML and random Phylo2VecME are random-start search stress tests; "
+        "hardware differs",
+        sd_definition="sample SD (ddof=1)",
+    )
+    replicates = one(set(rows["n_replicates"]), "replicate counts")
     body = [
         [
             r["dataset"],
             r["method"],
             *estimate(r, "time_s"),
             *estimate(r, "rf_pct"),
-            str(r["cpu_threads"]) if r["cpu_threads"] != "" else "—",
+            "—" if blank(r["cpu_threads"]) else str(r["cpu_threads"]),
             str(r["gpu_count"]),
         ]
-        for r in rows
+        for r in rows.to_dict("records")
     ]
     tex = markdown(
         "Recovery from a random starting tree at 10,000 leaves. Values are means with the sample SD across "
