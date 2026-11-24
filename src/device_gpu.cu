@@ -16,8 +16,11 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "config.hpp"
@@ -58,11 +61,41 @@ std::string cuda_version(int v) { return std::to_string(v / 1000) + "." + std::t
                              cudaGetErrorString(err) + " [" + call + ", device_gpu.cu:" + std::to_string(line) + "]");
 }
 
-// cudaMalloc that reports running out of memory: the GPU, the size requested and the memory free.
+// The memory this process holds on each GPU through gpu_alloc, and the most it held at once.
+// Other processes and the CUDA context are not counted.
+struct GpuAllocations {
+    std::mutex mutex;
+    std::unordered_map<void *, std::pair<int, size_t>> blocks; // pointer -> (GPU, bytes)
+    std::unordered_map<int, size_t> in_use, peak;              // GPU -> bytes
+};
+
+GpuAllocations &gpu_allocations() {
+    static GpuAllocations allocations;
+    return allocations;
+}
+
+// Returns the most memory this process held on a GPU at once through gpu_alloc: GPU -> bytes.
+size_t gpu_peak_bytes(int dev) {
+    GpuAllocations &a = gpu_allocations();
+    std::lock_guard<std::mutex> lock(a.mutex);
+    const auto it = a.peak.find(dev);
+    return it == a.peak.end() ? 0 : it->second;
+}
+
+// cudaMalloc that counts the memory on its GPU and reports running out of memory: the GPU, the size requested and
+// the memory free.
 void gpu_alloc_bytes(void **ptr, size_t bytes, int line) {
     const cudaError_t err = cudaMalloc(ptr, bytes);
-    if (err == cudaSuccess)
+    if (err == cudaSuccess) {
+        int dev = -1;
+        cudaGetDevice(&dev);
+        GpuAllocations &a = gpu_allocations();
+        std::lock_guard<std::mutex> lock(a.mutex);
+        a.blocks[*ptr] = {dev, bytes};
+        const size_t in_use = a.in_use[dev] += bytes;
+        a.peak[dev] = std::max(a.peak[dev], in_use);
         return;
+    }
     if (err != cudaErrorMemoryAllocation)
         cuda_fail(err, "cudaMalloc", line);
     cudaGetLastError(); // clear the (non-sticky) allocation error
@@ -77,6 +110,20 @@ void gpu_alloc_bytes(void **ptr, size_t bytes, int line) {
     throw std::runtime_error(msg);
 }
 #define gpu_alloc(ptr, bytes) gpu_alloc_bytes((void **)(ptr), (bytes), __LINE__)
+
+// cudaFree for memory from gpu_alloc, which stops counting it on its GPU; null is allowed, as in cudaFree.
+cudaError_t gpu_free(void *ptr) {
+    if (ptr != nullptr) {
+        GpuAllocations &a = gpu_allocations();
+        std::lock_guard<std::mutex> lock(a.mutex);
+        const auto it = a.blocks.find(ptr);
+        if (it != a.blocks.end()) {
+            a.in_use[it->second.first] -= it->second.second;
+            a.blocks.erase(it);
+        }
+    }
+    return cudaFree(ptr);
+}
 
 // ---- 2. Pairwise distances from the bit-packed alignment ----
 
@@ -1565,32 +1612,32 @@ struct RnaSimGpuWorkspace {
         if (stream)
             cudaStreamDestroy(stream);
         stream = NULL;
-        cudaFree(d_repr_offsets);
-        cudaFree(d_repr_leaves);
-        cudaFree(d_repr_weights);
-        cudaFree(d_perm);
-        cudaFree(d_D);
-        cudaFree(d_subdist);
-        cudaFree(d_nd_u);
-        cudaFree(d_row_scratch);
-        cudaFree(d_v_curr);
-        cudaFree(d_c1_r);
-        cudaFree(d_c2_r);
-        cudaFree(d_v_map);
-        cudaFree(d_parent_u);
-        cudaFree(d_sub_size);
-        cudaFree(d_tin);
-        cudaFree(d_adj_u);
-        cudaFree(d_best_delta);
-        cudaFree(d_best_j);
-        cudaFree(d_curr_L);
-        cudaFree(d_heavy_a);
-        cudaFree(d_heavy_b);
+        gpu_free(d_repr_offsets);
+        gpu_free(d_repr_leaves);
+        gpu_free(d_repr_weights);
+        gpu_free(d_perm);
+        gpu_free(d_D);
+        gpu_free(d_subdist);
+        gpu_free(d_nd_u);
+        gpu_free(d_row_scratch);
+        gpu_free(d_v_curr);
+        gpu_free(d_c1_r);
+        gpu_free(d_c2_r);
+        gpu_free(d_v_map);
+        gpu_free(d_parent_u);
+        gpu_free(d_sub_size);
+        gpu_free(d_tin);
+        gpu_free(d_adj_u);
+        gpu_free(d_best_delta);
+        gpu_free(d_best_j);
+        gpu_free(d_curr_L);
+        gpu_free(d_heavy_a);
+        gpu_free(d_heavy_b);
         d_heavy_a = d_heavy_b = NULL;
         heavy_cap = 0;
-        cudaFree(d_grp_first);
+        gpu_free(d_grp_first);
         d_grp_first = NULL;
-        cudaFree(d_bu);
+        gpu_free(d_bu);
         d_bu = NULL;
     }
 };
@@ -1654,8 +1701,8 @@ class GpuWindowKernels final : public WindowKernels {
         }
         const int32_t n_heavy = (int32_t)gpu_ws.h_heavy_a.size();
         if ((size_t)n_heavy > gpu_ws.heavy_cap) {
-            cudaFree(gpu_ws.d_heavy_a);
-            cudaFree(gpu_ws.d_heavy_b);
+            gpu_free(gpu_ws.d_heavy_a);
+            gpu_free(gpu_ws.d_heavy_b);
             gpu_ws.d_heavy_a = gpu_ws.d_heavy_b = NULL;
             gpu_ws.heavy_cap = 0;
             gpu_alloc(&gpu_ws.d_heavy_a, (size_t)n_heavy * sizeof(int32_t));
@@ -1809,14 +1856,14 @@ class GpuDevice final : public Device {
     ~GpuDevice() override {
         cudaSetDevice(id_);
         for (Rows &r : rows_)
-            cudaFree(r.d);
+            gpu_free(r.d);
         ws_.destroy();
     }
 
     void load(const uint64_t *packed, int32_t n_taxa, int32_t n_words) override {
         CUDA_CHECK(cudaSetDevice(id_));
         for (Rows &r : rows_)
-            cudaFree(r.d);
+            gpu_free(r.d);
         rows_.clear(); // if the copy below fails, the device holds no alignment (packed() throws)
         n_words_ = n_words;
         const size_t total_u64 = (size_t)n_taxa * 5 * (size_t)n_words;
@@ -1845,14 +1892,14 @@ class GpuDevice final : public Device {
         k_gather_rows<<<4096, 256>>>(packed(), d_idx, n0, row_words, sub.d);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
-        cudaFree(d_idx);
+        gpu_free(d_idx);
         rows_.push_back(sub);
     }
 
     void pop_subset() override {
         CUDA_CHECK(cudaSetDevice(id_));
         CUDA_CHECK(cudaDeviceSynchronize());
-        cudaFree(rows_.back().d);
+        gpu_free(rows_.back().d);
         rows_.pop_back();
     }
 
@@ -1865,12 +1912,7 @@ class GpuDevice final : public Device {
 
     std::string name() const override { return "GPU " + std::to_string(id_) + ": " + gpu_name(id_); }
 
-    double memory_in_use_mb() const override {
-        size_t free_b = 0, total_b = 0;
-        CUDA_CHECK(cudaSetDevice(id_));
-        CUDA_CHECK(cudaMemGetInfo(&free_b, &total_b));
-        return (double)(total_b - free_b) / 1048576.0;
-    }
+    double memory_peak_mb() const override { return (double)gpu_peak_bytes(id_) / 1048576.0; }
 
     void nearest_sampled(const int32_t *queries, int32_t n_queries, const int32_t *samples, int32_t n_samples,
                          int32_t *best_pos) override {
@@ -1887,9 +1929,9 @@ class GpuDevice final : public Device {
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
         CUDA_CHECK(cudaMemcpy(best_pos, d_best, (size_t)nq_g * sizeof(int32_t), cudaMemcpyDeviceToHost));
-        cudaFree(d_q);
-        cudaFree(d_s);
-        cudaFree(d_best);
+        gpu_free(d_q);
+        gpu_free(d_s);
+        gpu_free(d_best);
     }
 
     std::unique_ptr<WindowKernels> window_kernels() override {
@@ -1952,17 +1994,17 @@ class GpuDevice final : public Device {
         std::copy(hAO.begin(), hAO.end(), dAO);
         std::copy(hBO.begin(), hBO.end(), dBO);
 
-        cudaFree(d_c1_g);
-        cudaFree(d_c2_g);
-        cudaFree(d_in_len_g);
-        cudaFree(d_in_leaves_g);
-        cudaFree(d_in_weights_g);
-        cudaFree(d_out_len_g);
-        cudaFree(d_out_leaves_g);
-        cudaFree(d_out_weights_g);
-        cudaFree(d_dAB_g);
-        cudaFree(d_dAO_g);
-        cudaFree(d_dBO_g);
+        gpu_free(d_c1_g);
+        gpu_free(d_c2_g);
+        gpu_free(d_in_len_g);
+        gpu_free(d_in_leaves_g);
+        gpu_free(d_in_weights_g);
+        gpu_free(d_out_len_g);
+        gpu_free(d_out_leaves_g);
+        gpu_free(d_out_weights_g);
+        gpu_free(d_dAB_g);
+        gpu_free(d_dAO_g);
+        gpu_free(d_dBO_g);
     }
 
   private:

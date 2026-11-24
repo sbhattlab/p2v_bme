@@ -99,8 +99,8 @@ void detail_memory(JsonWriter &w, const Report &run) {
     w.key("memory");
     w.begin_object();
     w.field("host_ram_mib", peak_host_ram_mib()); // peak
-    // GPU-wide (other processes included) and not a peak
-    w.field("gpu_memory_in_use_at_end_mib", run.gpu_memory_in_use_at_end_mib);
+    // peak, the run's own allocations (no CUDA context, no other processes)
+    w.field("gpu_memory_peak_mib", run.gpu_memory_peak_mib);
     w.end_object();
 }
 

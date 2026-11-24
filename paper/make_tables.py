@@ -176,9 +176,14 @@ def rf_from(path: Path) -> float | str:
     )
 
 
+# Experiments already warned about reports without gpu_memory_peak_mib (our_runs reads an experiment once per table)
+warned_no_peak: set[str] = set()
+
+
 def our_runs(results: Path, experiment: str) -> list[dict]:
     """Reads our runs of one experiment: (results dir, experiment) -> one row per p2v-bme report, in run order."""
     rows: list[dict] = []
+    no_peak = 0  # GPU reports without gpu_memory_peak_mib
     for path in (results / experiment).glob("*/*/*.json"):
         m = RUN.fullmatch(path.stem)
         if m is None:  # .vs_true.json, .score.json, ...: their stems hold a dot
@@ -187,6 +192,8 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
         details = report["details"]
         t = details["time"]
         gpus = [d.split(": ", 1)[1] for d in details["devices"] if d.startswith("GPU")]
+        # Reports from before gpu_memory_peak_mib measured the whole card instead: no value for them
+        no_peak += bool(gpus) and "gpu_memory_peak_mib" not in details["memory"]
         side = lambda name: path.with_name(f"{path.stem}.{name}.json")  # noqa: E731
         score = side("score")
         evaluation = side("eval")
@@ -207,8 +214,8 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
                 topology_time_s=t["start_tree"] + t["search"],
                 branch_time_s=t["branch_lengths"],
                 host_memory_mb=details["memory"]["host_ram_mib"],
-                gpu_memory_mb=(
-                    details["memory"]["gpu_memory_in_use_at_end_mib"] if gpus else ""
+                gpu_memory_peak_mib=(
+                    details["memory"].get("gpu_memory_peak_mib", "") if gpus else ""
                 ),
                 gpu_count=len(gpus),
                 gpu_model=short_gpu(gpus[0]) if gpus else "",
@@ -241,6 +248,13 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
     )
     if not rows:
         raise MissingResults(f"{results / experiment}/<set>/<n>/rep<r>_seed<s>.json")
+    if no_peak and experiment not in warned_no_peak:
+        warned_no_peak.add(experiment)
+        print(
+            f"make_tables: {experiment}: {no_peak} GPU reports have no gpu_memory_peak_mib"
+            " (written by an earlier p2v-bme); their GPU memory is left blank",
+            file=stderr,
+        )
     return rows
 
 
@@ -405,7 +419,7 @@ def scaling_rows(results: Path) -> tuple[list[dict], list[dict]]:
                         cpu_threads=r["cpu_threads"],
                         recorded_init_mode=r["start_tree"],
                         host_memory_mb=r["host_memory_mb"],
-                        gpu_memory_mb=r["gpu_memory_mb"],
+                        gpu_memory_peak_mib=r["gpu_memory_peak_mib"],
                         source_path=r["source_path"],
                         source_key="p2v-bme report",
                         timing_scope=TIMING,
@@ -1082,7 +1096,7 @@ def table_scaling_methods(results: Path) -> dict[str, list[dict] | str]:
                 time_s=r["time_s"],
                 rf_pct=r["rf_pct"],
                 host_memory_mb=r["host_memory_mb"],
-                gpu_memory_mb=r["gpu_memory_mb"],
+                gpu_memory_peak_mib=r["gpu_memory_peak_mib"],
                 source=r["source_path"],
             )
         )
@@ -1098,7 +1112,7 @@ def table_scaling_methods(results: Path) -> dict[str, list[dict] | str]:
                 time_s=m["time"],
                 rf_pct=m["rf_pct"],
                 host_memory_mb=m["peak_ram_mb"],
-                gpu_memory_mb=m.get("gpu_vram_mb", ""),
+                gpu_memory_peak_mib=m.get("gpu_vram_mb", ""),
                 source="baselines/dipper/runs.jsonl",
             )
         )
@@ -1114,7 +1128,7 @@ def table_scaling_methods(results: Path) -> dict[str, list[dict] | str]:
                 time_s=r["time"],
                 rf_pct=r["rf_pct"],
                 host_memory_mb=r["peak_ram_mb"],
-                gpu_memory_mb="",
+                gpu_memory_peak_mib="",
                 source="baselines",
             )
         )

@@ -384,7 +384,7 @@ template <class T> class CpuDevice final : public Device {
         return "CPU worker " + std::to_string(worker_) + " (" + (sizeof(T) == 4 ? "single" : "double") + " precision)";
     }
 
-    double memory_in_use_mb() const override { return 0.0; }
+    double memory_peak_mb() const override { return 0.0; }
 
     // The nearest sample of each query by p-distance (as k_nearest_sample: the same float p, ties to the lower
     // position).

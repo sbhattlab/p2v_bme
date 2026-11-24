@@ -44,7 +44,7 @@ class FailingDevice : public Device {
     int32_t max_window() const override { return WORKSPACE_MAX_K; }
     void synchronize() override {}
     std::string name() const override { return "failing device"; }
-    double memory_in_use_mb() const override { return 0.0; }
+    double memory_peak_mb() const override { return 0.0; }
     void nearest_sampled(const int32_t *, int32_t n_queries, const int32_t *, int32_t, int32_t *best_pos) override {
         fail("nearest_sampled");
         for (int32_t i = 0; i < n_queries; ++i)
