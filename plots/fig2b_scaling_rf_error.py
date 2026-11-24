@@ -50,7 +50,7 @@ def main() -> None:
     plt.style.use(STYLE)
     rows = scaling_data(args.tables_dir)
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.86)
+    fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.96)
     scaling_series(ax, rows, "rf_pct")
     backbone_series(ax, rows)
     scaling_axes(ax)
@@ -82,7 +82,6 @@ def main() -> None:
         borderaxespad=0.15,
         borderpad=0.2,
     )
-    ax.set_title("Topological error", loc="left", pad=8)
     ax.set_ylabel("Normalised RF error (%)")
     save(fig, args.img_dir, "fig2b_scaling_rf_error")
 

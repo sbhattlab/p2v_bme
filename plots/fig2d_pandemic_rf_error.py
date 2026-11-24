@@ -29,7 +29,7 @@ def main() -> None:
         )
     spec = {method: SPEC[key] for method, key in PANDEMIC}
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.86)
+    fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.96)
     gap = 0.0
     # MAPLE as larger open markers, CMAPLE as smaller filled ones on top:
     # both stay visible where they overlap
@@ -64,7 +64,6 @@ def main() -> None:
     ax.set(xlim=(0, LIMIT), ylim=(0, LIMIT), xticks=[0, 10, 20], yticks=[0, 10, 20])
     ax.set_xlabel("Baseline RF error (%)")
     ax.set_ylabel("Phylo2VecME RF error (%)")
-    ax.set_title("Pandemic RF error", loc="left", pad=8)
     ax.legend(loc="upper left", frameon=False, handletextpad=0.3)
     save(fig, args.img_dir, "fig2d_pandemic_rf_error")
     print(f"largest RF gap to a baseline: {gap:.6f} percentage points")

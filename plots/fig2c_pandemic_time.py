@@ -28,7 +28,7 @@ def main() -> None:
     plt.style.use(STYLE)
     rows = read_tsv(args.tables_dir, "maple")
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.86)
+    fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.96)
     for method, key in PANDEMIC:
         spec = SPEC[key]
         means, los, his = [], [], []
@@ -68,7 +68,6 @@ def main() -> None:
     ax.tick_params(axis="x", which="minor", bottom=False)
     ax.set_xlabel("Number of sequences")
     ax.set_ylabel("Time (s)")
-    ax.set_title("Pandemic runtime", loc="left", pad=8)
     ax.grid(axis="y", which="major", color="#E5E5E5", linewidth=0.5)
     ax.set_axisbelow(True)
     ax.legend(loc="upper left", frameon=False, handlelength=1.5)
