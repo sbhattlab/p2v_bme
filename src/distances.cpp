@@ -26,6 +26,8 @@ const char *model_name(Model model) {
         return "TN93";
     case Model::LogDet:
         return "LogDet";
+    case Model::GTR:
+        return "GTR";
     case Model::GTR_GC:
         return "GTR+GC";
     }

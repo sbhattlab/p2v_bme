@@ -168,7 +168,8 @@ TEST(Distances, EdgeCases) {
     const PairCounts all_diff = {{0, 10, 10, 10, 10, 0, 10, 10, 10, 10, 0, 10, 10, 10, 10, 0}};
     /* T missing from sequence b: LogDet undefined */
     const PairCounts no_t = {{30, 2, 3, 0, 1, 25, 1, 0, 2, 1, 28, 0, 3, 2, 1, 0}};
-    for (Model m : {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR_GC}) {
+    for (Model m :
+         {Model::JC69, Model::K80, Model::F81, Model::F84, Model::TN93, Model::LogDet, Model::GTR, Model::GTR_GC}) {
         EXPECT_EQ(distance<float>(m, none), 2.0f) << model_name(m);
         EXPECT_EQ(distance<double>(m, same), 0.0) << model_name(m);
         EXPECT_EQ(distance<double>(m, poly_a), 0.0) << model_name(m);

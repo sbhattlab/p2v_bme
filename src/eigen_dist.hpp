@@ -2,8 +2,9 @@
  * eigen_dist.hpp
  *
  * The eigenvalue GTR+GC distance (Penn et al. 2025, Bull. Math. Biol. 87, 32, doi:10.1007/s11538-024-01403-z) with
- * given GTR exchangeabilities and gamma shape alpha (eigen_distance, which pair_distance in distances.hpp calls), and
- * the GTR rate matrix it needs. Per-pair code, inline and __host__ __device__, templated on the floating-point type.
+ * given GTR exchangeabilities and gamma shape alpha (eigen_distance, which pair_distance in distances.hpp calls), its
+ * limit without rate variation across sites (GTR), and the GTR rate matrix it needs. Per-pair code, inline and
+ * __host__ __device__, templated on the floating-point type.
  *
  * For a pair (a, b) with pair counts n: K = (n + 1e-5) / (L + 16e-5), F^a and F^b its row and column sums, and
  * sigma_1 >= sigma_2 >= sigma_3 the non-trivial singular values of
@@ -14,6 +15,8 @@
  * combines the three modes by weighted least squares,
  *   d = sum_k w_k |lambda_k| g(sigma_k) / sum_k w_k lambda_k^2,  w_k = s_k^(2 + 2/alpha) / (1 - s_k^2 + 1e-4),
  * with s_k = sigma_k, then EIGEN_REWEIGHT_PASSES refits with s_k = (1 + |lambda_k| d / alpha)^(-alpha).
+ * GTR is the limit alpha -> infinity of each step: g(sigma) = -ln(sigma), w_k = s_k^2 / (1 - s_k^2 + 1e-4) and
+ * s_k = exp(-|lambda_k| d).
  * Saturation: a saturated mode (sigma at 1e-4) gets almost no weight in the first fit, but the reweighting passes
  * weight each mode by its model-implied s_k, so a fully saturated direction can still pull the distance to the cap (the
  * paper's GPU implementation behaves the same). pair_distance (distances.hpp) gives the pairs without a shared valid
@@ -141,11 +144,14 @@ template <class T> P2V_HD inline void sym4x4_rank3_eigenvalues(const T M[16], co
 
 // ---- The eigenvalue GTR+GC distance ----------------------------------------------------------------------
 
+// Estimates a pair's GTR+GC distance, or with GAMMA false its GTR distance: (counts c, s_rates, alpha) -> d.
 // s_rates: exchangeabilities (AC, AG, AT, CG, CT, GT); alpha > 0 and inv_alpha = 1 / alpha (computed once by the
 // caller, as the paper's GPU implementation does).
+// GAMMA false: no rate variation across sites, the limit alpha -> infinity of each step; alpha and inv_alpha are not
+// used.
 // Assumes a pair that shares a valid site and is not identical, as pair_distance (distances.hpp) ensures.
 // pair_distance also caps the result.
-template <class T>
+template <class T, bool GAMMA = true>
 P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_rates[N_GTR_RATES], T alpha,
                                T inv_alpha) {
     uint32_t r0 = c[0] + c[1] + c[2] + c[3];
@@ -229,11 +235,15 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
             nl = T(1e-6);
         neg_lam[k] = nl;
         T log_sig = std::log(sig);
-        T u = -log_sig * inv_alpha;
-        if (u > T(20))
-            u = T(20);
-        y[k] = alpha * std::expm1(u);
-        lw[k] = (T(2) + T(2) * inv_alpha) * log_sig - std::log(T(1) - sig * sig + T(1e-4));
+        if constexpr (GAMMA) {
+            T u = -log_sig * inv_alpha;
+            if (u > T(20))
+                u = T(20);
+            y[k] = alpha * std::expm1(u);
+        } else {
+            y[k] = -log_sig;
+        }
+        lw[k] = (GAMMA ? T(2) + T(2) * inv_alpha : T(2)) * log_sig - std::log(T(1) - sig * sig + T(1e-4));
         if (lw[k] > max_lw)
             max_lw = lw[k];
     }
@@ -252,16 +262,21 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
         T d_curr = (d_ab > T(MAX_DISTANCE)) ? T(MAX_DISTANCE) : d_ab;
         max_lw = -T(INFINITY);
         for (int k = 0; k < 3; ++k) {
-            T base = T(1) + (d_curr * neg_lam[k]) * inv_alpha;
-            if (base < T(1))
-                base = T(1);
-            T log_mu = -alpha * std::log(base);
+            T log_mu;
+            if constexpr (GAMMA) {
+                T base = T(1) + (d_curr * neg_lam[k]) * inv_alpha;
+                if (base < T(1))
+                    base = T(1);
+                log_mu = -alpha * std::log(base);
+            } else {
+                log_mu = -d_curr * neg_lam[k];
+            }
             if (log_mu > T(-1e-6))
                 log_mu = T(-1e-6);
             if (log_mu < log_mu_min)
                 log_mu = log_mu_min;
             T mu_k = std::exp(log_mu);
-            lw[k] = (T(2) + T(2) * inv_alpha) * log_mu - std::log(T(1) - mu_k * mu_k + T(1e-4));
+            lw[k] = (GAMMA ? T(2) + T(2) * inv_alpha : T(2)) * log_mu - std::log(T(1) - mu_k * mu_k + T(1e-4));
             if (lw[k] > max_lw)
                 max_lw = lw[k];
         }
