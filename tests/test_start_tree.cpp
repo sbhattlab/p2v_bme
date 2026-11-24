@@ -6,8 +6,7 @@
  */
 #include <gtest/gtest.h>
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 
 #include "fake_device_test_helpers.hpp"

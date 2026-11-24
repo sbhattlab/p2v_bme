@@ -10,10 +10,10 @@
  * matrix has one packed kernel for every model (k_build_condensed_D_packed).
  */
 #include <cuda_runtime.h>
-#include <stdint.h>
-#include <stdio.h>
 
 #include <algorithm>
+#include <cstdint>
+#include <cstdio>
 #include <functional>
 #include <memory>
 #include <stdexcept>

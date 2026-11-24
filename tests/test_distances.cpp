@@ -9,9 +9,8 @@
  *   - GTR+GC's exchangeabilities: scaling them all gives the same distance;
  *   - edge cases (no shared site, identical, saturated, undefined LogDet) and the model names.
  */
-#include <math.h>
-
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <vector>

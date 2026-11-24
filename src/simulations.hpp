@@ -7,7 +7,7 @@
 #ifndef P2VBME_SIMULATIONS_HPP
 #define P2VBME_SIMULATIONS_HPP
 
-#include <stdint.h>
+#include <cstdint>
 
 #include "core.hpp"
 

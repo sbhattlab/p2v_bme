@@ -1,9 +1,9 @@
 // Unit tests for the FASTA reader: packing into bitplanes, input errors.
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <random>
 #include <stdexcept>
-#include <stdint.h>
 #include <string>
 #include <utility>
 #include <vector>

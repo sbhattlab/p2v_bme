@@ -3,8 +3,8 @@
 #ifndef P2VBME_TESTS_DISTANCE_TEST_HELPERS_HPP
 #define P2VBME_TESTS_DISTANCE_TEST_HELPERS_HPP
 
-#include <math.h>
-#include <stdint.h>
+#include <cmath>
+#include <cstdint>
 
 #include "core.hpp"
 #include "distances.hpp"
@@ -24,7 +24,7 @@ inline PairCounts expected_counts(const SimulationModel &m, double t, double L =
     PairCounts c;
     for (int i = 0; i < N_BASES; ++i)
         for (int j = 0; j < N_BASES; ++j)
-            c.n[N_BASES * i + j] = (uint32_t)llround(L * m.freqs[i] / fsum * P[i][j]);
+            c.n[N_BASES * i + j] = (uint32_t)std::llround(L * m.freqs[i] / fsum * P[i][j]);
     return c;
 }
 
@@ -69,10 +69,10 @@ inline void jacobi(double A[4][4], double V[4][4], double d[4]) {
             break;
         for (int p = 0; p < 4; ++p)
             for (int q = p + 1; q < 4; ++q) {
-                if (fabs(A[p][q]) < 1e-300)
+                if (std::fabs(A[p][q]) < 1e-300)
                     continue;
-                const double th = 0.5 * atan2(2 * A[p][q], A[q][q] - A[p][p]);
-                const double c = cos(th), s = sin(th);
+                const double th = 0.5 * std::atan2(2 * A[p][q], A[q][q] - A[p][p]);
+                const double c = std::cos(th), s = std::sin(th);
                 for (int k = 0; k < 4; ++k) {
                     const double akp = A[k][p], akq = A[k][q];
                     A[k][p] = c * akp - s * akq;
@@ -106,16 +106,16 @@ inline PairCounts expected_counts_gamma(const SimulationModel &m, double t, doub
     double S[N_BASES][N_BASES], V[N_BASES][N_BASES], lam[N_BASES];
     for (int i = 0; i < N_BASES; ++i)
         for (int j = 0; j < N_BASES; ++j)
-            S[i][j] = sqrt(pi[i]) * Q[i][j] / sqrt(pi[j]);
+            S[i][j] = std::sqrt(pi[i]) * Q[i][j] / std::sqrt(pi[j]);
     jacobi(S, V, lam);
     PairCounts c;
     for (int i = 0; i < N_BASES; ++i)
         for (int j = 0; j < N_BASES; ++j) {
             double p = 0.0;
             for (int k = 0; k < N_BASES; ++k)
-                p += V[i][k] * pow(1.0 - lam[k] * t / alpha, -alpha) * V[j][k];
-            p *= sqrt(pi[j] / pi[i]);
-            c.n[N_BASES * i + j] = (uint32_t)llround(L * pi[i] * p);
+                p += V[i][k] * std::pow(1.0 - lam[k] * t / alpha, -alpha) * V[j][k];
+            p *= std::sqrt(pi[j] / pi[i]);
+            c.n[N_BASES * i + j] = (uint32_t)std::llround(L * pi[i] * p);
         }
     return c;
 }

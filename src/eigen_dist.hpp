@@ -1,9 +1,9 @@
 /*
  * eigen_dist.hpp
  *
- * The eigenvalue GTR+GC distance (Penn et al. 2025, Bull. Math. Biol. 87, 32, doi:10.1007/s11538-024-01403-z) with
- * given GTR exchangeabilities and gamma shape alpha (eigen_distance, which pair_distance in distances.hpp calls), and
- * the GTR rate matrix it needs. Per-pair code, inline and __host__ __device__, templated on the floating-point type.
+ * The eigenvalue GTR+GC distance (Penn et al. 2025) with given GTR exchangeabilities and gamma shape alpha
+ * (eigen_distance, which pair_distance in distances.hpp calls), and the GTR rate matrix it needs.
+ * Per-pair code, inline and __host__ __device__, templated on the floating-point type.
  *
  * For a pair (a, b) with pair counts n: K = (n + 1e-5) / (L + 16e-5), F^a and F^b its row and column sums, and
  * sigma_1 >= sigma_2 >= sigma_3 the non-trivial singular values of
@@ -24,13 +24,17 @@
  * Not ported: the paper's C distance library's projection onto the bases present when a base is missing (its "reduced
  * alphabet"); here a base absent from both sequences gives a pseudocount-only row of K~ (singular value 1/4), which
  * reads as a strongly diverged mode, as in the paper's GPU implementation.
+ *
+ * Reference
+ *   Penn, M. J., Scheidwasser, N., Donnelly, C. A., Duchêne, D. A. & Bhatt, S. (2025). Bayesian Inference of
+ *     Phylogenetic Distances: Revisiting the Eigenvalue Approach. Bulletin of Mathematical Biology 87, 32.
+ *     doi:10.1007/s11538-024-01403-z
  */
 #ifndef P2VBME_EIGEN_DIST_HPP
 #define P2VBME_EIGEN_DIST_HPP
 
-#include <stdint.h>
-
 #include <cmath>
+#include <cstdint>
 
 #include "config.hpp"
 #include "core.hpp"
