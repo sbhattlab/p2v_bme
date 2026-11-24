@@ -37,38 +37,15 @@ Outputs: data/results/viridian/
     pixi run -e paper python -m paper.run_viridian --steps tree replicates --replicates 1-25
 """
 
+import json
+
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from io import TextIOWrapper
-from json import dumps, loads
 from pathlib import Path
 from zipfile import ZipFile
 
-from numpy import (
-    arange,
-    argsort,
-    array,
-    bincount,
-    concatenate,
-    cumsum,
-    flatnonzero,
-    full,
-    inf,
-    int64,
-    isinf,
-    isnan,
-    lexsort,
-    maximum,
-    median,
-    minimum,
-    nan,
-    ndarray,
-    percentile,
-    searchsorted,
-    unique,
-    where,
-    zeros,
-)
-from pandas import DataFrame, Timestamp, read_csv, to_datetime
+import numpy as np
+import pandas as pd
 
 from paper._config import DEFAULT_DATASETS_DIR, DEFAULT_RESULTS_DIR, P2VBME
 from paper.utils import (
@@ -137,7 +114,7 @@ VARIANTS = (
     "B.1.429",
     "B.1.526",
 )
-SUBSTITUTIONS = ((0.5, 1.5), (1.5, 2.5), (2.5, 3.5), (3.5, 5.5), (5.5, inf))
+SUBSTITUTIONS = ((0.5, 1.5), (1.5, 2.5), (2.5, 3.5), (3.5, 5.5), (5.5, np.inf))
 SUPPORT = (
     (0.0, 0.05),
     (0.05, 0.3),
@@ -200,13 +177,13 @@ def maple_tree(jsonl_zip: Path, alignment: Path, out: Path, overwrite: bool) -> 
         return
     names, sites = alignment_names(alignment)
     with ZipFile(jsonl_zip) as z, TextIOWrapper(z.open(MAPLE_JSONL), encoding="utf-8") as fh:
-        total = loads(fh.readline())["total_nodes"]
+        total = json.loads(fh.readline())["total_nodes"]
         if total != 2 * len(names) - 1:
             raise SystemExit(f"{total} nodes for {len(names)} genomes: the tree is not binary")
-        parent, x, is_tip = full(total, -1, int64), zeros(total), zeros(total, bool)
+        parent, x, is_tip = np.full(total, -1, np.int64), np.zeros(total), np.zeros(total, bool)
         label, meta = [""] * total, {}
         for line in fh:
-            d = loads(line)
+            d = json.loads(line)
             i = d["node_id"]
             parent[i], x[i], label[i], is_tip[i] = (
                 d["parent_id"],
@@ -220,9 +197,9 @@ def maple_tree(jsonl_zip: Path, alignment: Path, out: Path, overwrite: bool) -> 
                     d.get("meta_date", ""),
                     d.get("meta_country", ""),
                 )
-    if sorted(label[i] for i in flatnonzero(is_tip)) != sorted(names):
+    if sorted(label[i] for i in np.flatnonzero(is_tip)) != sorted(names):
         raise SystemExit("MAPLE's tree does not hold every genome of the alignment once")
-    roots = flatnonzero(parent == arange(total))
+    roots = np.flatnonzero(parent == np.arange(total))
     if roots.size != 1:
         raise SystemExit(f"{roots.size} roots")
     root = int(roots[0])
@@ -230,14 +207,14 @@ def maple_tree(jsonl_zip: Path, alignment: Path, out: Path, overwrite: bool) -> 
     for i in range(total):
         if i != root:
             children[parent[i]].append(i)
-    if any(len(children[i]) != 2 for i in flatnonzero(~is_tip)):
+    if any(len(children[i]) != 2 for i in np.flatnonzero(~is_tip)):
         raise SystemExit("an internal node does not have two children")
     length = x - x[parent]  # x_dist: distance from the root on the display scale
     length[root] = 0.0
     if (length < -1e-6).any():
         raise SystemExit("negative branch length")
     known = label.index(KNOWN[0])
-    length = maximum(length, 0.0) / (length[known] / KNOWN[1])  # substitutions per site
+    length = np.maximum(length, 0.0) / (length[known] / KNOWN[1])  # substitutions per site
     parts, stack = [], [(root, 0)]
     while stack:
         u, state = stack.pop()
@@ -253,8 +230,8 @@ def maple_tree(jsonl_zip: Path, alignment: Path, out: Path, overwrite: bool) -> 
             parts.append(")" if u == root else f"):{length[u]:.7g}")
     out.mkdir(parents=True, exist_ok=True)
     (out / "maple.nwk").write_text("".join(parts) + ";\n")
-    tips = flatnonzero(is_tip)
-    DataFrame(
+    tips = np.flatnonzero(is_tip)
+    pd.DataFrame(
         {
             "strain": [label[u] for u in tips],
             "lineage": [meta[u][0] for u in tips],
@@ -263,7 +240,7 @@ def maple_tree(jsonl_zip: Path, alignment: Path, out: Path, overwrite: bool) -> 
             "sub": length[tips] * sites,
         }
     ).to_csv(out / "tips.tsv", sep="\t", index=False, float_format="%.5f")
-    inner = ~is_tip & (arange(total) != root)
+    inner = ~is_tip & (np.arange(total) != root)
     counts = (
         int((length[inner] == 0).sum()),
         int((length[inner] * sites >= MIN_SUBSTITUTIONS).sum()),
@@ -292,13 +269,13 @@ def search_time(report: dict) -> float:
 # ---- Records ----
 
 
-def bins(d: DataFrame, column: str, edges: tuple, fields: dict[str, str]) -> list[dict]:
+def bins(d: pd.DataFrame, column: str, edges: tuple, fields: dict[str, str]) -> list[dict]:
     """Averages the named columns over [lo, hi) bins of one column:
     (table, column, bins, fields) -> rows."""
     rows = []
     for lo, hi in edges:
         e = d[(d[column] >= lo) & (d[column] < hi)]
-        row = {"from": lo, "to": None if isinf(hi) else hi, "branches": len(e)}
+        row = {"from": lo, "to": None if np.isinf(hi) else hi, "branches": len(e)}
         rows.append(row | {name: pct(e[col]) for name, col in fields.items()})
     return rows
 
@@ -312,7 +289,7 @@ def unalias(name: str, key: dict) -> str:
     return name
 
 
-def branches(tree: dict, sites: int, labels: dict[str, dict]) -> DataFrame:
+def branches(tree: dict, sites: int, labels: dict[str, dict]) -> pd.DataFrame:
     """Tabulates the internal branches of a tree:
     (tree, sites, {column: tree with labels}) -> one row per branch.
 
@@ -320,11 +297,11 @@ def branches(tree: dict, sites: int, labels: dict[str, dict]) -> DataFrame:
     its exact and transfer support as fractions (<column>_exact, <column>_tbe).
     """
     n = len(tree["names"])
-    node = arange(n, tree["parent"].size - 1)  # internal nodes but the root
+    node = np.arange(n, tree["parent"].size - 1)  # internal nodes but the root
     size = tree["size"][node]
     table = {
         "node": node,
-        "p": minimum(size, n - size),
+        "p": np.minimum(size, n - size),
         "sub": tree["length"][node] * sites,
     }
     for column, other in labels.items():
@@ -332,20 +309,20 @@ def branches(tree: dict, sites: int, labels: dict[str, dict]) -> DataFrame:
             raise SystemExit(f"{column}: the support file is not the same tree")
         table[f"{column}_exact"] = other["exact"][node] / 100.0
         table[f"{column}_tbe"] = other["tbe"][node] / 100.0
-    return DataFrame(table).set_index("node")
+    return pd.DataFrame(table).set_index("node")
 
 
-def transfer_distance(member: ndarray, tree: dict) -> int:
+def transfer_distance(member: np.ndarray, tree: dict) -> int:
     """Finds the fewest genomes to move to obtain a split of the tree:
     (genome set in the tree's leaf order, tree) -> d."""
     n = member.size
-    prefix = concatenate([[0], cumsum(member)])
+    prefix = np.concatenate([[0], np.cumsum(member)])
     inside = prefix[tree["first"] + tree["size"]] - prefix[tree["first"]]
     d = prefix[-1] + tree["size"] - 2 * inside
-    return int(minimum(d, n - d).min())
+    return int(np.minimum(d, n - d).min())
 
 
-def best(member: ndarray, tree: dict, length: ndarray) -> tuple[int, int, int, int]:
+def best(member: np.ndarray, tree: dict, length: np.ndarray) -> tuple[int, int, int, int]:
     """Finds a lineage's branch: (genomes in leaf order, tree, sub per node)
     -> (node, misplaced, size, least misplaced).
 
@@ -354,23 +331,23 @@ def best(member: ndarray, tree: dict, length: ndarray) -> tuple[int, int, int, i
     length is negative where a node has no branch (leaves, the root).
     """
     n = member.size
-    prefix = concatenate([[0], cumsum(member)])
+    prefix = np.concatenate([[0], np.cumsum(member)])
     first, size = tree["first"], tree["size"]
     d = int(member.sum()) + size - 2 * (prefix[first + size] - prefix[first])
-    d = minimum(d, n - d)
+    d = np.minimum(d, n - d)
     d[length < 0] = n
     least = int(d.min())
-    near = flatnonzero(d <= least + TOLERANCE)
-    k = int(near[lexsort((d[near], -length[near]))[0]])  # the longest, then the closest
+    near = np.flatnonzero(d <= least + TOLERANCE)
+    k = int(near[np.lexsort((d[near], -length[near]))[0]])  # the longest, then the closest
     return k, int(d[k]), int(size[k]), least
 
 
 def lineage_rows(
     ours: dict,
     maple: dict,
-    o: DataFrame,
-    m: DataFrame,
-    tips: DataFrame,
+    o: pd.DataFrame,
+    m: pd.DataFrame,
+    tips: pd.DataFrame,
     alias: dict,
     least: int,
 ):
@@ -390,12 +367,13 @@ def lineage_rows(
     )
     index = {name: g for g, name in enumerate(tips.strain)}
     leaf_genome = {
-        tag: array([index[x] for x in t["names"]]) for tag, t in (("ours", ours), ("maple", maple))
+        tag: np.array([index[x] for x in t["names"]])
+        for tag, t in (("ours", ours), ("maple", maple))
     }
     trees = {"ours": (ours, o), "maple": (maple, m)}
     rows = []
     for g in keep:
-        member = zeros(n, int64)
+        member = np.zeros(n, np.int64)
         member[groups[g]] = 1
         row = {
             "lineage": short.get(g, g),
@@ -405,7 +383,7 @@ def lineage_rows(
         }
         clades = {}
         for tag, (tree, table) in trees.items():
-            length = full(tree["parent"].size, -1.0)
+            length = np.full(tree["parent"].size, -1.0)
             length[table.index.to_numpy()] = table["sub"].to_numpy()
             k, d, size, least_d = best(member[leaf_genome[tag]], tree, length)
             r = table.loc[k]
@@ -422,18 +400,18 @@ def lineage_rows(
                 f"{tag}_moved_per_tree": (1 - r.boot_tbe) * (r.p - 1),
             }
         for tag, other in (("ours", "maple"), ("maple", "ours")):
-            clade = zeros(n, int64)
+            clade = np.zeros(n, np.int64)
             clade[clades[tag]] = 1
             row[f"{tag}_to_{other}"] = transfer_distance(clade[leaf_genome[other]], trees[other][0])
         row["ours_repeat"] = o.loc[row["ours_node"]].repeats_exact
         row["maple_repeat"] = m.loc[row["maple_node"]].repeats_exact
         rows.append(row)
-    return DataFrame(rows, columns=LINEAGE_COLUMNS)
+    return pd.DataFrame(rows, columns=LINEAGE_COLUMNS)
 
 
 def smallest_supported_clade(
-    parent: ndarray, n: int, supported: ndarray, root_leaf: int
-) -> tuple[ndarray, ndarray]:
+    parent: np.ndarray, n: int, supported: np.ndarray, root_leaf: int
+) -> tuple[np.ndarray, np.ndarray]:
     """Finds the smallest supported clade around every genome:
     (tree, supported internal nodes) -> (node, far).
 
@@ -448,39 +426,41 @@ def smallest_supported_clade(
         chain.append(int(node))
         node = parent[node]
     chain = chain[::-1]
-    on_chain = zeros(total, bool)
+    on_chain = np.zeros(total, bool)
     on_chain[chain] = True
-    depth = full(total, -1, int64)
-    depth[chain] = arange(len(chain))
-    near = full(total, -1, int64)  # lowest supported node at or above a node, off the chain
+    depth = np.full(total, -1, np.int64)
+    depth[chain] = np.arange(len(chain))
+    near = np.full(total, -1, np.int64)  # lowest supported node at or above a node, off the chain
     for node in range(total - 1, n - 1, -1):  # parents before children
         above = parent[node]
         if depth[node] < 0 and above >= 0:
             depth[node] = depth[above]
         inherited = near[above] if above >= 0 else -1
         near[node] = node if (supported[node - n] and not on_chain[node]) else inherited
-    below = full(len(chain) + 1, -1, int64)  # first supported chain node further down the chain
+    below = np.full(
+        len(chain) + 1, -1, np.int64
+    )  # first supported chain node further down the chain
     for j in range(len(chain) - 1, -1, -1):
         below[j] = chain[j] if supported[chain[j] - n] else below[j + 1]
     leaf_parent = parent[:n]
     inner = near[leaf_parent]
     outer = below[depth[leaf_parent] + 1]
-    return where(inner >= 0, inner, outer), inner < 0
+    return np.where(inner >= 0, inner, outer), inner < 0
 
 
 def resolution(
-    ours: dict, o: DataFrame, tips: DataFrame, alias: dict, min_genomes: int
-) -> DataFrame:
+    ours: dict, o: pd.DataFrame, tips: pd.DataFrame, alias: dict, min_genomes: int
+) -> pd.DataFrame:
     """Tabulates how finely genomes are placed, by sampling month:
     (tree, branch table, tips) -> rows per threshold."""
     n = len(tips)
     index = {name: g for g, name in enumerate(tips.strain)}
-    genome = array([index[x] for x in ours["names"]])  # genome of each leaf
-    leaf = full(n, -1, int64)
-    leaf[genome] = arange(n)
+    genome = np.array([index[x] for x in ours["names"]])  # genome of each leaf
+    leaf = np.full(n, -1, np.int64)
+    leaf[genome] = np.arange(n)
     root_leaf = int(leaf[index[ROOT_STRAIN]])
     internal = ours["parent"].size - n
-    tbe, substitutions = full(internal, -1.0), zeros(internal)
+    tbe, substitutions = np.full(internal, -1.0), np.zeros(internal)
     tbe[o.index.to_numpy() - n] = o.boot_tbe.fillna(-1.0).to_numpy()
     substitutions[o.index.to_numpy() - n] = o["sub"].to_numpy()
     lo, hi = ours["first"][n:], ours["first"][n:] + ours["size"][n:]
@@ -494,20 +474,20 @@ def resolution(
 
     by_leaf = tips.iloc[genome].reset_index(drop=True)  # one row per leaf, in leaf order
     group = by_leaf.lineage.map({x: group_of(x) for x in by_leaf.lineage.unique()}).to_numpy()
-    date = to_datetime(
+    date = pd.to_datetime(
         by_leaf.date.where(by_leaf.date.str.fullmatch(r"20\d\d-\d\d-\d\d")),
         errors="coerce",
     )
-    day = (date - Timestamp(FIRST_DAY)).dt.days.fillna(-1).astype(int64).to_numpy()
-    day = where(day < 0, -1, day)  # no full date, or a date before the pandemic
-    month = where(day >= 0, date.dt.strftime("%Y-%m").to_numpy(dtype=object), "")
-    names, counts = unique(month[day >= 0], return_counts=True)
+    day = (date - pd.Timestamp(FIRST_DAY)).dt.days.fillna(-1).astype(np.int64).to_numpy()
+    day = np.where(day < 0, -1, day)  # no full date, or a date before the pandemic
+    month = np.where(day >= 0, date.dt.strftime("%Y-%m").to_numpy(dtype=object), "")
+    names, counts = np.unique(month[day >= 0], return_counts=True)
     kept = [x for x, c in zip(names, counts) if c >= min_genomes]
 
-    def members(node: ndarray, far: ndarray, prefix: ndarray) -> ndarray:
-        k = maximum(node - n, 0)
-        inside = where(node >= 0, prefix[hi[k]] - prefix[lo[k]], 0)
-        return where((node < 0) | far, prefix[-1] - inside, inside)
+    def members(node: np.ndarray, far: np.ndarray, prefix: np.ndarray) -> np.ndarray:
+        k = np.maximum(node - n, 0)
+        inside = np.where(node >= 0, prefix[hi[k]] - prefix[lo[k]], 0)
+        return np.where((node < 0) | far, prefix[-1] - inside, inside)
 
     clades = [
         smallest_supported_clade(
@@ -518,18 +498,18 @@ def resolution(
         )
         for t in THRESHOLDS
     ]
-    everyone = arange(n + 1)
+    everyone = np.arange(n + 1)
     size = [members(node, far, everyone) for node, far in clades]
-    window = zeros((len(THRESHOLDS), n), int64)  # contemporaries of each genome in its clade
-    total = zeros(n, int64)  # all contemporaries of each genome
-    by_day = argsort(day, kind="stable")
-    starts = searchsorted(day[by_day], arange(day.max() + 2))
+    window = np.zeros((len(THRESHOLDS), n), np.int64)  # contemporaries of each genome in its clade
+    total = np.zeros(n, np.int64)  # all contemporaries of each genome
+    by_day = np.argsort(day, kind="stable")
+    starts = np.searchsorted(day[by_day], np.arange(day.max() + 2))
     for d in range(day.max() + 1):
         asked = by_day[starts[d] : starts[d + 1]]
         if not len(asked):
             continue
         near = (day >= max(d - HALF_WINDOW_DAYS, 0)) & (day <= d + HALF_WINDOW_DAYS)
-        prefix = concatenate([[0], cumsum(near)])
+        prefix = np.concatenate([[0], np.cumsum(near)])
         total[asked] = prefix[-1]
         for i, (node, far) in enumerate(clades):
             window[i, asked] = members(node[asked], far[asked], prefix)
@@ -540,15 +520,15 @@ def resolution(
             row = {"threshold": threshold, "month": name, "genomes": int(here.sum())}
             row |= {f"share_{g}": float((group[here] == g).mean()) for g in GROUPS}
             for key, values in (("clade", size[i][here]),):
-                q25, q50, q75 = percentile(values, [25, 50, 75])
+                q25, q50, q75 = np.percentile(values, [25, 50, 75])
                 row |= {f"{key}_q25": q25, f"{key}_median": q50, f"{key}_q75": q75}
             row["clade_share_at_most_100"] = float((size[i][here] <= 100).mean())
-            q25, q50, q75 = percentile(window[i, here], [25, 50, 75])
+            q25, q50, q75 = np.percentile(window[i, here], [25, 50, 75])
             row |= {"window_q25": q25, "window_median": q50, "window_q75": q75}
-            row["window_total_median"] = float(median(total[here]))
-            row["window_share_median"] = float(median(window[i, here] / total[here]))
+            row["window_total_median"] = float(np.median(total[here]))
+            row["window_share_median"] = float(np.median(window[i, here] / total[here]))
             rows.append(row)
-    return DataFrame(rows)
+    return pd.DataFrame(rows)
 
 
 def records(out: Path, alias_path: Path, min_month: int, min_lineage: int) -> None:
@@ -577,8 +557,8 @@ def records(out: Path, alias_path: Path, min_month: int, min_lineage: int) -> No
             "repeats": read_tree(sup / "maple.repeats.support.nwk"),
         },
     )
-    tips = read_csv(out / "tips.tsv", sep="\t", dtype=str, keep_default_na=False)
-    alias = loads(alias_path.read_text(encoding="utf-8"))
+    tips = pd.read_csv(out / "tips.tsv", sep="\t", dtype=str, keep_default_na=False)
+    alias = json.loads(alias_path.read_text(encoding="utf-8"))
 
     runs = sorted((out / "boot").glob("rep*.json")), sorted((out / "repeat").glob("seed*.json"))
     boot_s = [search_time(read_json(p)) for p in runs[0]]
@@ -591,10 +571,10 @@ def records(out: Path, alias_path: Path, min_month: int, min_lineage: int) -> No
         "reference_s": search_time(report),
         "rounds_run": report["rounds_run"],
         # nan for a report from before gpu_memory_peak_mib (it measured the whole card)
-        "gpu_memory_gib": report["details"]["memory"].get("gpu_memory_peak_mib", nan) / 1024,
+        "gpu_memory_gib": report["details"]["memory"].get("gpu_memory_peak_mib", np.nan) / 1024,
         "host_memory_gib": report["details"]["memory"]["host_ram_mib"] / 1024,
         "bootstrap_trees": len(boot_s),
-        "bootstrap_mean_s": float(sum(boot_s) / len(boot_s)) if boot_s else nan,
+        "bootstrap_mean_s": float(sum(boot_s) / len(boot_s)) if boot_s else np.nan,
         "bootstrap_total_gpu_h": float(sum(boot_s) / 3600),
         "repeat_searches": len(runs[1]),
     }
@@ -741,8 +721,8 @@ def records(out: Path, alias_path: Path, min_month: int, min_lineage: int) -> No
     resolution(ours, o, tips, alias, min_month).to_csv(
         out / "resolution_by_month.tsv", sep="\t", index=False, float_format="%.6g"
     )
-    lines = [dumps({"run": "tree"} | report)]
-    lines += [dumps({"run": p.stem} | read_json(p)) for p in (*runs[0], *runs[1])]
+    lines = [json.dumps({"run": "tree"} | report)]
+    lines += [json.dumps({"run": p.stem} | read_json(p)) for p in (*runs[0], *runs[1])]
     (out / "runs.jsonl").write_text("\n".join(lines) + "\n")
     print(f"records: {len(b)} branches of our tree ({len(real)} real), {len(lin)} lineages")
 
