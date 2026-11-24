@@ -152,6 +152,11 @@ TOPS = {"time": 3e4, "rf": 130, "host": 1000, "gpu": 100}
 # The new method is drawn stronger than the methods it is compared with
 OURS = "P2V"
 COMPARED_ALPHA = 0.6
+# From 10^6 sequences, the PASTA-tree datasets expand the 100,000-sequence alignment
+# with small clades, so their RF error is not on a par with the smaller sizes.
+# The RF line steps there with a dashed segment.
+EXPANDED_FROM = 1_000_000
+EXPANDED_DATASETS = ("rnasim", "jc10k")
 MIB_PER_GIB = 1024.0
 # Each panel's column in scaling_methods.tsv, its scale and its y label
 PANELS = {
@@ -188,9 +193,12 @@ def method_style(key: str) -> dict:
     }
 
 
-def method_lines(ax: plt.Axes, stats: dict, panel: str) -> None:
+def method_lines(ax: plt.Axes, stats: dict, panel: str, step_at: int | None = None) -> None:
     """Draws each method's mean at each size as a line on log-log axes, with the range as whiskers:
-    (axes, stats, panel) -> None."""
+    (axes, stats, panel, step) -> None.
+
+    step_at: the size from which the dataset is built differently; the line reaches it dashed.
+    """
     for (n, key), (mu, lo, hi) in stats.items():
         if lo <= FLOORS[panel] or hi >= TOPS[panel]:
             raise SystemExit(
@@ -204,15 +212,30 @@ def method_lines(ax: plt.Axes, stats: dict, panel: str) -> None:
         mu = [p[1][0] for p in points]
         whiskers = [[p[1][0] - p[1][1] for p in points], [p[1][2] - p[1][0] for p in points]]
         style = method_style(key)
+        zorder = 5 if key == OURS else 3
         ax.errorbar(
             n,
             mu,
             yerr=whiskers,
+            color=style["color"],
+            marker=style["marker"],
+            markersize=style["markersize"],
+            alpha=style["alpha"],
+            linestyle="none",  # the line is drawn below, in pieces
             elinewidth=0.9 if key == OURS else 0.6,
             capsize=1.8,
-            zorder=5 if key == OURS else 3,
-            **style,
+            zorder=zorder,
         )
+        # the line: solid within each design, dashed across the step between them
+        cut = next((i for i, x in enumerate(n) if step_at is not None and x >= step_at), len(n))
+        line = {k: style[k] for k in ("color", "linewidth", "alpha")}
+        for xs, ys, ls in (
+            (n[:cut], mu[:cut], style["linestyle"]),
+            (n[cut - 1 : cut + 1] if 0 < cut < len(n) else [], mu[cut - 1 : cut + 1], "--"),
+            (n[cut:], mu[cut:], style["linestyle"]),
+        ):
+            if len(xs) > 1:
+                ax.plot(xs, ys, linestyle=ls, zorder=zorder, **line)
     ax.set_xscale("log")
     ax.set_xlim(650, 1.5e7)
     ax.xaxis.set_major_locator(LogLocator(base=10))
@@ -260,7 +283,8 @@ def method_figures(args: Namespace, panel: str, name: str, legend: bool = False)
             continue
         fig, ax = plt.subplots(figsize=METHOD_FIGSIZE_LEGEND if legend else METHOD_FIGSIZE)
         fig.subplots_adjust(left=0.09, right=0.985, top=0.80 if legend else 0.95, bottom=0.2)
-        method_lines(ax, stats, panel)
+        step = EXPANDED_FROM if panel == "rf" and dataset in EXPANDED_DATASETS else None
+        method_lines(ax, stats, panel, step)
         ax.set_ylabel(ylabel)
         if legend:
             method_legend(fig, stats)
