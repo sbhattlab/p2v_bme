@@ -1,8 +1,9 @@
 """Fig. 3c: how finely the SARS-CoV-2 tree places genomes, by sampling month (Viridian genomes).
 
 For each genome, the smallest clade around it whose branch has at least 70% transfer support and half a
-substitution: the line is the monthly median of the genomes of that clade sampled within 15 days of the genome (its
-contemporaries), with the interquartile range shaded; the dashed line counts all genomes sampled in those 31 days.
+substitution: the line is the monthly median of the genomes of that clade sampled within 15 days of the genome,
+with the interquartile range shaded; the dashed line counts all genomes sampled in those 31 days, so the axis counts
+genomes sampled in the same 31 days for both.
 Dots take the colour of the month's most common variant; the strip above shows each variant's share.
 
 Inputs:  data/tables/viridian_resolution.tsv                            (make_tables.py)
@@ -97,7 +98,7 @@ def main() -> None:
         color="#444444",
         linewidth=2.4 * SCALE,
         zorder=2,
-        label="Median and interquartile range",
+        label="In the smallest supported clade (median, interquartile range)",
     )
     ax.plot(
         x,
@@ -106,7 +107,7 @@ def main() -> None:
         linewidth=1.6 * SCALE,
         linestyle=(0, (3, 2)),
         zorder=1,
-        label="All genomes sampled in the same 31 days",
+        label="All",
     )
     ax.legend(
         frameon=False,
@@ -130,7 +131,7 @@ def main() -> None:
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _pos: f"{int(v):,}"))
     ax.yaxis.set_minor_formatter(NullFormatter())
     ax.set_ylabel(
-        "Contemporaries in the\nsmallest supported clade",
+        "Genomes sampled in\nthe same 31 days",
         fontweight="bold",
     )
     ticks = [i for i, m in enumerate(months) if m[5:7] in QUARTER]
