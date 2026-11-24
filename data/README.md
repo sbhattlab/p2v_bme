@@ -23,7 +23,7 @@ data/
 | `cmaple/`                                  | `download_data` | `SupplementaryData.zip`; `simulated/`: the nine pandemic sets extracted from it (`.maple` alignments, true trees, CMAPLE's and MAPLE's trees and logs)                                                                          | CMAPLE's supplementary data, version 1.0.0, doi:10.5281/zenodo.11003148 (later versions lack the sets); CC BY 4.0 | Ly-Trong et al. 2024, doi:10.1093/molbev/msae134                                                                                                                     |
 | `viridian/`                                | `download_data` | `12733488/`: the 2M SARS-CoV-2 genomes (`.maple`, extracted from the zip); `15546527/`: MAPLE's tree with each genome's lineage and date (`.jsonl.zip`); `alias_key.json`: the Pango alias key, pango-designation `dbfab0d`     | doi:10.5281/zenodo.12733488 and doi:10.5281/zenodo.15546527; CC BY 4.0; alias key: CC BY-NC 4.0                   | De Maio et al. 2025, doi:10.1038/s41586-025-09567-x; Pango: Rambaut et al. 2020, doi:10.1038/s41564-020-0770-5                                                       |
 
-- Each download folder has `download.json`: the URL, size and MD5 of every file, and when it was checked.
+- Each source's `download_<source>.json`, in its folder: the URL, size and MD5 of every file, and when it was checked.
 - Simulated sets: `<n>` is the number of sequences, `<r>` the replicate (0-4); `simulate_data --help` gives the sizes,
   generators and seeds of each set.
 - Not made by any script: the `jc1m/` and `rna1m/` subsets that `run_fastme` reads by default (random subsets of the

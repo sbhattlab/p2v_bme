@@ -40,7 +40,7 @@ The tasks, in the order they run:
 - **Command:** `pixi run -e paper download_data`
 - **Requires:** `curl`; about 25 GB of disk (SILVA's alignment: 20 GB)
 - **Inputs:** the deposits' URLs (RNASim, SILVA 144, CMAPLE, Viridian)
-- **Outputs:** `data/datasets/<source>/`, with `download.json`
+- **Outputs:** `data/datasets/<source>/`, with `download_<source>.json`
 
 Fetches each file unless a copy with the deposit's size and MD5 exists, and extracts from the zips the files the scripts
 read. `--sources` picks the datasets; `--sources silva144-arb` adds SILVA's ARB database (7.2 GB), needed only by
