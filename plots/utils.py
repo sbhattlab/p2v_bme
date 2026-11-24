@@ -5,10 +5,10 @@ import re
 import statistics
 
 from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
-from csv import DictReader
 from pathlib import Path
 
 import matplotlib
+import pandas as pd
 
 # The backend is set before pyplot is imported, hence the imports below it
 matplotlib.use("Agg")
@@ -54,8 +54,8 @@ def read_tsv(tables_dir: Path, name: str) -> list[dict[str, str]]:
     path = tables_dir / f"{name}.tsv"
     if not path.exists():
         raise SystemExit(f"{path} is missing: run python -m paper.make_tables first")
-    with path.open(newline="") as fh:
-        return list(DictReader(fh, delimiter="\t"))
+    table = pd.read_csv(path, sep="\t", dtype=str, keep_default_na=False)
+    return [{str(k): v for k, v in row.items()} for row in table.to_dict("records")]
 
 
 def save(fig: plt.Figure, img_dir: Path, name: str, **kwargs) -> None:
