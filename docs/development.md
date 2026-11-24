@@ -47,14 +47,13 @@ pixi run ctest --preset ci
 
 Options, set at configure time (`-D<option>=<value>`); later builds in the same folder keep them:
 
-| Option                     | Default                 | Meaning                                                                                               |
-| -------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------- |
-| `P2VBME_CUDA`              | `ON` if CUDA is found   | build the GPU code                                                                                    |
-| `CMAKE_CUDA_ARCHITECTURES` | `native`                | the GPUs to compile for: those of the build machine, or e.g. `90` (H100)                              |
-| `P2VBME_BUILD_PAPER_TOOLS` | `ON` in the presets     | build the paper's tools (`paper/tools`) into `build/`                                                 |
-| `P2VBME_NATIVE`            | `OFF`                   | compile the reference library of the tests (`src/reference`) for this machine's CPU (`-march=native`) |
-| `BUILD_TESTING`            | `ON`                    | build the tests                                                                                       |
-| `P2VBME_STATIC_RUNTIME`    | `OFF` (`release`: `ON`) | link the CUDA runtime, libstdc++, libgcc and libgomp into p2v-bme                                     |
+| Option                     | Default                 | Meaning                                                                  |
+| -------------------------- | ----------------------- | ------------------------------------------------------------------------ |
+| `P2VBME_CUDA`              | `ON` if CUDA is found   | build the GPU code                                                       |
+| `CMAKE_CUDA_ARCHITECTURES` | `native`                | the GPUs to compile for: those of the build machine, or e.g. `90` (H100) |
+| `P2VBME_BUILD_PAPER_TOOLS` | `ON` in the presets     | build the paper's tools (`paper/tools`) into `build/`                    |
+| `BUILD_TESTING`            | `ON`                    | build the tests                                                          |
+| `P2VBME_STATIC_RUNTIME`    | `OFF` (`release`: `ON`) | link the CUDA runtime, libstdc++, libgcc and libgomp into p2v-bme        |
 
 The version is set in `project()` of `CMakeLists.txt`; `pixi.toml` and `CITATION.cff` repeat it, so a release changes
 all three.
@@ -68,8 +67,6 @@ all three.
   `cli` (CPU) and, in CUDA builds, `cli_gpu` (the `gpu` marker); `pixi run test-python` runs them directly.
 - **Inputs:** the tests simulate their alignments; `pixi run make_test_fasta` (`tests/make_test_fasta.cpp`) writes one
   with its true tree ([examples/README.md](../examples/README.md#how-they-were-made)).
-- **The reference library** (`src/reference`) computes the method on a stored distance matrix, as an oracle for small
-  trees in the tests; p2v-bme does not use it.
 
 ## Formatting and checks
 
