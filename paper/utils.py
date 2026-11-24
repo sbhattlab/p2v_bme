@@ -6,9 +6,12 @@ import re
 import shutil
 import subprocess
 
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from pathlib import Path
 
 import numpy as np
+
+from paper._config import DEFAULT_RESULTS_DIR, P2VBME
 
 
 def read_json(path: Path) -> dict:
@@ -21,6 +24,19 @@ def write_json(path: Path, data: dict) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
+
+
+def parse_common_args(doc: str, devices: bool = True) -> ArgumentParser:
+    """Builds the command line the p2v-bme scripts share:
+    docstring -> parser with --results-dir, --p2vbme, --overwrite, and --accelerator, --devices."""
+    parser = ArgumentParser(description=doc, formatter_class=RawDescriptionHelpFormatter)
+    parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
+    parser.add_argument("--p2vbme", default=P2VBME)
+    parser.add_argument("--overwrite", action="store_true", help="redo what exists")
+    if devices:
+        parser.add_argument("--accelerator", default="auto", help="p2v-bme -a (default: auto)")
+        parser.add_argument("--devices", default="auto", help="p2v-bme -d (default: auto)")
+    return parser
 
 
 def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> dict:

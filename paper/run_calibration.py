@@ -42,16 +42,17 @@ Outputs: data/results/calibration/<set>/<n>/ref.{nwk,json}, boot<r>.{boottrees,j
 import json
 import re
 
-from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
+from argparse import Namespace
 from pathlib import Path
 
 import numpy as np
 
-from paper._config import DEFAULT_DATASETS_DIR, DEFAULT_RESULTS_DIR, P2VBME
+from paper._config import DEFAULT_DATASETS_DIR
 from paper.utils import (
     auc,
     branch_table,
     compare_to_truth,
+    parse_common_args,
     pct,
     read_json,
     run_p2vbme,
@@ -526,7 +527,7 @@ def write_summary(args: Namespace, name: str, summary: dict) -> None:
 
 
 def main() -> None:
-    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
+    parser = parse_common_args(__doc__)
     parser.add_argument(
         "--sets",
         nargs="+",
@@ -551,17 +552,12 @@ def main() -> None:
         default=N_REPEATS,
         help="repeat searches, seeds 2..repeats + 1",
     )
-    parser.add_argument("--accelerator", default="auto", help="p2v-bme -a (default: auto)")
-    parser.add_argument("--devices", default="auto", help="p2v-bme -d (default: auto)")
     parser.add_argument("--datasets-dir", type=Path, default=Path(DEFAULT_DATASETS_DIR))
     parser.add_argument(
         "--cmaple-dir",
         type=Path,
         default=Path(DEFAULT_DATASETS_DIR) / "cmaple" / "simulated",
     )
-    parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
-    parser.add_argument("--p2vbme", default=P2VBME)
-    parser.add_argument("--overwrite", action="store_true", help="run again what exists")
     args = parser.parse_args()
     if args.replicates is None:
         args.replicates = list(range(1, args.bootstrap + 1))

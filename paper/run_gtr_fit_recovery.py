@@ -29,13 +29,11 @@ Outputs: data/results/gtr_fit/runs/<alignment>.{nwk,json}    p2v-bme's reports
 import os
 import subprocess
 
-from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from pathlib import Path
 
 import numpy as np
 
-from paper._config import DEFAULT_RESULTS_DIR, P2VBME
-from paper.utils import read_json
+from paper.utils import parse_common_args, read_json
 
 RATES = np.array([1.0, 4.0, 1.0, 1.0, 4.0, 1.0])  # true exchangeabilities AC, AG, AT, CG, CT, GT
 PI = np.array([0.30, 0.20, 0.27, 0.23])  # true base frequencies A, C, G, T
@@ -175,7 +173,7 @@ def fit(p2vbme: str, fasta: Path, prefix: Path, pairs: int, threads: int) -> dic
 
 
 def main() -> None:
-    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
+    parser = parse_common_args(__doc__, devices=False)
     parser.add_argument("--sequences", type=int, default=1000)
     parser.add_argument("--replicates", type=int, nargs="+", default=[0, 1, 2, 3, 4])
     parser.add_argument("--alphas", type=float, nargs="+", default=[0.5, 2.0])
@@ -196,13 +194,6 @@ def main() -> None:
         action="store_true",
         help="keep the simulated alignments next to the reports",
     )
-    parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="fit again alignments whose report exists",
-    )
-    parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
-    parser.add_argument("--p2vbme", default=P2VBME)
     args = parser.parse_args()
 
     out_dir = args.results_dir / "gtr_fit"

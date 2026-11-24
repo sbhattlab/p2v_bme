@@ -50,17 +50,11 @@ import json
 import subprocess
 import time
 
-from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from pathlib import Path
 
-from paper._config import (
-    BME_SCORES,
-    DEFAULT_DATASETS_DIR,
-    DEFAULT_RESULTS_DIR,
-    FASTME,
-    P2VBME,
-)
+from paper._config import BME_SCORES, DEFAULT_DATASETS_DIR, FASTME
 from paper.utils import (
+    parse_common_args,
     read_json,
     run_p2vbme,
     supports,
@@ -302,7 +296,7 @@ def score_case(
 
 
 def main() -> None:
-    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
+    parser = parse_common_args(__doc__)
     parser.add_argument(
         "--sets",
         nargs="+",
@@ -320,17 +314,12 @@ def main() -> None:
         help="only these replicates (default: as the paper, per set and size)",
     )
     parser.add_argument("--arms", nargs="+", default=list(ARMS), choices=ARMS)
-    parser.add_argument("--accelerator", default="auto", help="p2v-bme -a (cpu, gpu, auto)")
-    parser.add_argument("--devices", default="auto", help="p2v-bme -d")
     parser.add_argument(
         "--keep-matrix",
         action="store_true",
         help="keep the PHYLIP matrices (N^2 values each)",
     )
-    parser.add_argument("--overwrite", action="store_true", help="rerun steps whose outputs exist")
     parser.add_argument("--datasets-dir", type=Path, default=Path(DEFAULT_DATASETS_DIR))
-    parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
-    parser.add_argument("--p2vbme", default=P2VBME)
     parser.add_argument("--bme-scores", default=BME_SCORES)
     parser.add_argument("--fastme", default=FASTME)
     args = parser.parse_args()

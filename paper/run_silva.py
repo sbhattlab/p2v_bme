@@ -55,22 +55,16 @@ import re
 import shutil
 import subprocess
 
-from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from collections.abc import Iterator
 from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np
 
-from paper._config import (
-    DEFAULT_DATASETS_DIR,
-    DEFAULT_RESULTS_DIR,
-    FASTTREE,
-    P2VBME,
-    REATTACH_LEFT_OUT,
-)
+from paper._config import DEFAULT_DATASETS_DIR, FASTTREE, REATTACH_LEFT_OUT
 from paper.utils import (
     concatenate_trees,
+    parse_common_args,
     read_json,
     read_tree,
     run_p2vbme,
@@ -1191,7 +1185,7 @@ def gtdb(
 
 
 def main() -> None:
-    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
+    parser = parse_common_args(__doc__)
     parser.add_argument(
         "--steps",
         nargs="+",
@@ -1205,13 +1199,6 @@ def main() -> None:
         default=Path(ALIGNMENT),
         help="SILVA's aligned FASTA (or .gz)",
     )
-    parser.add_argument(
-        "--results-dir",
-        type=Path,
-        default=Path(DEFAULT_RESULTS_DIR),
-        help="results folder; this script writes into its silva/",
-    )
-    parser.add_argument("--p2vbme", default=P2VBME)
     parser.add_argument("--reattach-left-out", default=REATTACH_LEFT_OUT)
     parser.add_argument(
         "--bootstrap",
@@ -1232,8 +1219,6 @@ def main() -> None:
         help="sequences with fewer valid sites left out",
     )
     parser.add_argument("--seed", type=int, default=1, help="seed of the tree and of the bootstrap")
-    parser.add_argument("--accelerator", default="auto")
-    parser.add_argument("--devices", default="auto")
     parser.add_argument(
         "--leaveout-runs",
         nargs="+",
@@ -1255,9 +1240,6 @@ def main() -> None:
     )
     parser.add_argument(
         "--workers", type=int, default=16, help="processes reading the bootstrap trees"
-    )
-    parser.add_argument(
-        "--overwrite", action="store_true", help="run steps whose outputs exist again"
     )
     args = parser.parse_args()
     args.results_dir = args.results_dir / "silva"

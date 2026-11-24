@@ -44,20 +44,15 @@ Outputs: data/results/<experiment>/<set>/<n>/<run>.{nwk,json}, <run>.vs_true.{su
 import json
 import subprocess
 
-from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
+from argparse import Namespace
 from pathlib import Path
 from typing import NamedTuple
 
-from paper._config import (
-    BME_SCORES,
-    DEFAULT_DATASETS_DIR,
-    DEFAULT_RESULTS_DIR,
-    EVAL_CMAPLE_RF,
-    P2VBME,
-)
+from paper._config import BME_SCORES, DEFAULT_DATASETS_DIR, EVAL_CMAPLE_RF
 from paper.utils import (
     branch_table,
     compare_to_truth,
+    parse_common_args,
     read_json,
     run_p2vbme,
     supports,
@@ -448,7 +443,7 @@ def seqlen_records(args: Namespace, runs: list[Run]) -> None:
 
 
 def main() -> None:
-    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
+    parser = parse_common_args(__doc__)
     parser.add_argument("--experiments", nargs="+", choices=list(DESIGN), default=list(DESIGN))
     parser.add_argument("--sets", nargs="+", help="only these sets (default: each experiment's)")
     parser.add_argument("--sizes", nargs="+", type=int, help="these sizes instead of each set's")
@@ -472,8 +467,6 @@ def main() -> None:
         default=list(ROUND_LIMITS),
         help="round_limit: rounds",
     )
-    parser.add_argument("--accelerator", default="auto", help="p2v-bme -a (default: auto)")
-    parser.add_argument("--devices", default="auto", help="p2v-bme -d (default: auto)")
     parser.add_argument(
         "--exact-max",
         type=int,
@@ -492,11 +485,8 @@ def main() -> None:
         type=Path,
         default=Path(DEFAULT_DATASETS_DIR) / "cmaple" / "simulated",
     )
-    parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
-    parser.add_argument("--p2vbme", default=P2VBME)
     parser.add_argument("--bme-scores", default=BME_SCORES)
     parser.add_argument("--eval-cmaple-rf", default=EVAL_CMAPLE_RF)
-    parser.add_argument("--overwrite", action="store_true", help="run again what exists")
     args = parser.parse_args()
 
     runs = design(args)

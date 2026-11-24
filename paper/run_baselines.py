@@ -53,22 +53,14 @@ import socket
 import subprocess
 import time
 
-from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
+from argparse import Namespace
 from contextlib import nullcontext
 from datetime import datetime, timezone
 from fnmatch import fnmatch
 from pathlib import Path
 
-from paper._config import (
-    DEFAULT_DATASETS_DIR,
-    DEFAULT_RESULTS_DIR,
-    EVAL_CMAPLE_RF,
-    FASTME,
-    FASTTREE,
-    P2VBME,
-    VERYFASTTREE,
-)
-from paper.utils import read_json, run_p2vbme, with_edge_lengths, write_json
+from paper._config import DEFAULT_DATASETS_DIR, EVAL_CMAPLE_RF, FASTME, FASTTREE, VERYFASTTREE
+from paper.utils import parse_common_args, read_json, run_p2vbme, with_edge_lengths, write_json
 
 # The recorded files the tables and figures read (paths below the source's RECORDS_ROOT),
 # and the folder of data/results/baselines/ each goes to (the same as --run writes)
@@ -579,7 +571,7 @@ def collect(folder: Path, out: Path) -> None:
 
 
 def main() -> None:
-    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
+    parser = parse_common_args(__doc__, devices=False)
     parser.add_argument(
         "--run",
         nargs="+",
@@ -605,10 +597,7 @@ def main() -> None:
     parser.add_argument("--threads", type=int, help="--run: CPU threads (default: 64, DIPPER 12)")
     parser.add_argument("--gpu", default="0", help="--run dipper: GPU index (CUDA_VISIBLE_DEVICES)")
     parser.add_argument("--dipper", help="--run dipper: the DIPPER program")
-    parser.add_argument("--overwrite", action="store_true", help="import or run again what exists")
     parser.add_argument("--datasets-dir", type=Path, default=Path(DEFAULT_DATASETS_DIR))
-    parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
-    parser.add_argument("--p2vbme", default=P2VBME)
     parser.add_argument("--eval-cmaple-rf", default=EVAL_CMAPLE_RF)
     parser.add_argument("--fasttree", default=FASTTREE)
     parser.add_argument("--veryfasttree", default=VERYFASTTREE)

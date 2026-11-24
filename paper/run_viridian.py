@@ -39,7 +39,6 @@ Outputs: data/results/viridian/
 
 import json
 
-from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from io import TextIOWrapper
 from pathlib import Path
 from zipfile import ZipFile
@@ -47,10 +46,11 @@ from zipfile import ZipFile
 import numpy as np
 import pandas as pd
 
-from paper._config import DEFAULT_DATASETS_DIR, DEFAULT_RESULTS_DIR, P2VBME
+from paper._config import DEFAULT_DATASETS_DIR
 from paper.utils import (
     auc,
     concatenate_trees,
+    parse_common_args,
     pct,
     read_json,
     read_tree,
@@ -728,7 +728,7 @@ def records(out: Path, alias_path: Path, min_month: int, min_lineage: int) -> No
 
 
 def main() -> None:
-    parser = ArgumentParser(description=__doc__, formatter_class=RawDescriptionHelpFormatter)
+    parser = parse_common_args(__doc__)
     parser.add_argument(
         "--steps",
         nargs="+",
@@ -749,13 +749,6 @@ def main() -> None:
         help="Pango alias key",
     )
     parser.add_argument(
-        "--results-dir",
-        type=Path,
-        default=Path(DEFAULT_RESULTS_DIR),
-        help="results folder; this script writes into its viridian/",
-    )
-    parser.add_argument("--p2vbme", default=P2VBME)
-    parser.add_argument(
         "--bootstrap",
         type=int,
         default=100,
@@ -766,8 +759,6 @@ def main() -> None:
     )
     parser.add_argument("--repeats", default="2-9", help="seeds of the repeat searches")
     parser.add_argument("--seed", type=int, default=1, help="seed of the tree and of the bootstrap")
-    parser.add_argument("--accelerator", default="auto")
-    parser.add_argument("--devices", default="auto")
     parser.add_argument(
         "--min-month-genomes",
         type=int,
@@ -776,9 +767,6 @@ def main() -> None:
     )
     parser.add_argument(
         "--min-lineage-genomes", type=int, default=1000, help="smallest lineage matched"
-    )
-    parser.add_argument(
-        "--overwrite", action="store_true", help="run steps whose outputs exist again"
     )
     args = parser.parse_args()
     args.results_dir = args.results_dir / "viridian"
