@@ -49,11 +49,12 @@ def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> d
     (-s) this function writes <prefix>.host.json: the CPU threads the run had (OMP_NUM_THREADS, else the cores it may
     use), which the tables state for GPU runs.
     A failed run leaves no report (only its log): it runs again.
+    The report decides: p2v-bme gets --overwrite, so the other outputs of a run without a report do not stop it.
     """
     report = Path(f"{prefix}.json")
     if overwrite or not report.exists():
         report.parent.mkdir(parents=True, exist_ok=True)
-        run([p2vbme, *args, "-p", str(prefix), "-q"], check=True)
+        run([p2vbme, *args, "-p", str(prefix), "-q", "--overwrite"], check=True)
         if "-s" in args:
             threads = environ.get("OMP_NUM_THREADS")
             host = {
