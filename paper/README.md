@@ -130,9 +130,9 @@ gamma rates, compared with the true shape and exchangeabilities.
 ## SARS-CoV-2 genomes
 
 - **Command:** `pixi run -e paper run_viridian`
-- **Requires:** `pixi run build`; `download_data --sources viridian`; the Pango alias key (cov-lineages/
-  pango-designation) at `data/datasets/viridian/alias_key.json` for the records step, which no script downloads
-- **Inputs:** `data/datasets/viridian/12733488/extracted/*.maple`, `data/datasets/viridian/15546527/*.jsonl.zip`
+- **Requires:** `pixi run build`; `download_data --sources viridian`
+- **Inputs:** `data/datasets/viridian/12733488/extracted/*.maple`, `data/datasets/viridian/15546527/*.jsonl.zip`,
+  `data/datasets/viridian/alias_key.json` (the Pango alias key, for the records step)
 - **Outputs:** `data/results/viridian/`
 
 `--steps`, in order: `maple` (MAPLE's tree and each genome's lineage and date), `tree` (`-m JC69`), `replicates` (the
