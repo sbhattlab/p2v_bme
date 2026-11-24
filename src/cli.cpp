@@ -101,8 +101,8 @@ CommandLine parse_command_line(int argc, char **argv) {
     CommandLine result;
     p2vbme::Settings &opt = result.settings; // the numeric options are parsed into it; not given: its defaults
     cxxopts::Options cli("p2v-bme", "Balanced minimum evolution tree from an aligned DNA alignment (FASTA), by the "
-                                    "Phylo2Vec minibatch search.\nWrites <prefix>.nwk (unrooted tree) and "
-                                    "<prefix>.json (run report).\n");
+                                    "Phylo2Vec minibatch search.\nWrites <prefix>.nwk (unrooted tree), "
+                                    "<prefix>.json (run report) and <prefix>.log (what it prints).\n");
     cli.custom_help("-s ALIGNMENT -m MODEL [options]");
     // clang-format off
     cli.add_options()
@@ -111,7 +111,7 @@ CommandLine parse_command_line(int argc, char **argv) {
         ("m,model", "substitution model of the distances: JC69, K80, F81, F84, TN93, LogDet or GTR+GC (its rates "
          "and alpha fitted to the alignment)",
          cxxopts::value<std::string>(), "MODEL")
-        ("p,prefix", "output prefix: <prefix>.nwk, <prefix>.json (default: the alignment's file name)",
+        ("p,prefix", "output prefix: <prefix>.nwk, <prefix>.json, <prefix>.log (default: the alignment's file name)",
          cxxopts::value<std::string>(), "STR")
         ("a,accelerator", "cpu, gpu or auto (auto: the GPU if one is found, else the CPU)",
          cxxopts::value<std::string>()->default_value("auto"))
@@ -123,7 +123,7 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value(result.report.bootstrap), "B|A-B")
         ("seed", "seed of the start tree, of the GTR+GC fit's pairs and of the bootstrap", cxxopts::value(opt.seed),
          "N")
-        ("q,quiet", "print no progress (warnings and errors still go to stderr)")
+        ("q,quiet", "print no progress (it still goes to <prefix>.log; warnings and errors still go to stderr)")
         ("v,version", "print the version")
         ("h,help", "print the core options")
         ("help-all", "print all options");

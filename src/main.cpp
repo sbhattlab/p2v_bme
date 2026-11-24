@@ -6,6 +6,7 @@
  * (cli), the devices (device), the alignment (io), before inference (processing), inference, after inference,
  * the tree (newick) and the report.
  * Progress on stdout (none with -q); warnings and errors on stderr.
+ * <prefix>.log gets all of it, the progress also with -q.
  * With -b the bootstrap replicates' trees go to <prefix>.boottrees; -b A-B runs those replicates without the tree.
  * With --supports it only reads trees: the supports of a tree's branches over saved replicate trees.
  */
@@ -19,6 +20,7 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <streambuf>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -35,17 +37,67 @@
 
 namespace {
 
+// Writes what a stream gets to the log as well, or only to the log (screen null: stdout with -q).
+// It keeps no buffer, so the log gets the lines of stdout and stderr in the order they are written.
+class TeeBuffer : public std::streambuf {
+  public:
+    TeeBuffer(std::streambuf *screen, std::streambuf *log) : screen_(screen), log_(log) {}
+
+  protected:
+    int overflow(int c) override {
+        if (traits_type::eq_int_type(c, traits_type::eof()))
+            return traits_type::not_eof(c);
+        if (screen_)
+            screen_->sputc(traits_type::to_char_type(c));
+        return log_->sputc(traits_type::to_char_type(c));
+    }
+    std::streamsize xsputn(const char *s, std::streamsize n) override {
+        if (screen_)
+            screen_->sputn(s, n);
+        return log_->sputn(s, n);
+    }
+    int sync() override {
+        const int screen = screen_ ? screen_->pubsync() : 0;
+        return log_->pubsync() == 0 && screen == 0 ? 0 : -1;
+    }
+
+  private:
+    std::streambuf *screen_, *log_;
+};
+
+// <prefix>.log: copies stdout and stderr to the log while it lives (stdout only to the log with -q).
+// Opened before the run reads anything, as IQ-TREE and RAxML-NG open theirs: an unwritable prefix fails at once, and a
+// failed run leaves its log with the error, no empty outputs.
+class RunLog {
+  public:
+    RunLog(const std::string &path, bool quiet)
+        : file_(path), out_(quiet ? nullptr : std::cout.rdbuf(), file_.rdbuf()),
+          err_(std::cerr.rdbuf(), file_.rdbuf()) {
+        if (!file_)
+            throw std::runtime_error("cannot write " + path);
+        cout_ = std::cout.rdbuf(&out_);
+        cerr_ = std::cerr.rdbuf(&err_);
+    }
+    ~RunLog() {
+        std::cout.flush();
+        std::cout.rdbuf(cout_);
+        std::cerr.rdbuf(cerr_);
+    }
+    RunLog(const RunLog &) = delete;
+    RunLog &operator=(const RunLog &) = delete;
+
+  private:
+    std::ofstream file_;
+    TeeBuffer out_, err_;
+    std::streambuf *cout_ = nullptr, *cerr_ = nullptr;
+};
+
 // --supports: the supports of the branches of the tree -t over the replicate trees of a file, written as labels of the
 // tree to <prefix>.support.nwk, with a report <prefix>.json.
 // The tree is pruned to the replicates' leaves (the trees of -b have only the sequences searched), the
 // supports are counted on that tree, and its branches carry them in the whole tree; the other branches get none.
-void supports_of_saved_trees(p2vbme::Report &run, bool progress) {
+void supports_of_saved_trees(p2vbme::Report &run) {
     const double t0 = omp_get_wtime();
-    for (const std::string ext : {".support.nwk", ".json"}) {
-        std::ofstream f(run.prefix + ext, std::ios::app);
-        if (!f)
-            throw std::runtime_error("cannot write " + run.prefix + ext);
-    }
     std::vector<std::string> names, replicate_names;
     const p2vbme::Tree tree = p2vbme::read_newick_with_names(run.tree_init, names);
     std::unique_ptr<p2vbme::SupportCounter> counter;
@@ -90,16 +142,16 @@ void supports_of_saved_trees(p2vbme::Report &run, bool progress) {
     supports.mean_exact = counter->mean_exact();
     run.time_total = omp_get_wtime() - t0;
     p2vbme::write_supports_report(run.prefix + ".json", run, supports);
-    if (progress)
-        std::cout << "p2v-bme: supports of " << N << " leaves' branches over " << n_replicates << " trees (on their "
-                  << supports.n_leaves_supported << " leaves): mean TBE " << std::fixed << std::setprecision(2)
-                  << supports.mean_tbe << ", mean exact " << supports.mean_exact << "; wrote " << run.prefix
-                  << ".support.nwk, " << run.prefix << ".json" << std::endl;
+    std::cout << "p2v-bme: supports of " << N << " leaves' branches over " << n_replicates << " trees (on their "
+              << supports.n_leaves_supported << " leaves): mean TBE " << std::fixed << std::setprecision(2)
+              << supports.mean_tbe << ", mean exact " << supports.mean_exact << "; wrote " << run.prefix
+              << ".support.nwk, " << run.prefix << ".json" << std::endl;
 }
 
 } // namespace
 
 int main(int argc, char **argv) {
+    std::unique_ptr<RunLog> run_log; // lives until the end of main, so that the log also gets the error
     try {
         // Time: start of main
         const double t0 = omp_get_wtime();
@@ -109,9 +161,10 @@ int main(int argc, char **argv) {
             return args.exit_code;
         p2vbme::Settings &opt = args.settings;
         p2vbme::Report &run = args.report;
-        const bool progress = !args.quiet;
+        // Output: open <prefix>.log first (an unwritable prefix fails here); the other outputs come at the end
+        run_log = std::make_unique<RunLog>(run.prefix + ".log", args.quiet);
         if (!run.supports.empty()) {
-            supports_of_saved_trees(run, progress);
+            supports_of_saved_trees(run);
             return 0;
         }
         // Device: leave one core free (the CPU workers with --devices auto, the host threads of GPU runs), unless
@@ -131,22 +184,8 @@ int main(int argc, char **argv) {
         }
         parse_devices_option(args.devices, on_gpu, opt);
 
-        // Output: fail now if the outputs cannot be written; the replicates' trees are appended to an emptied file
         const bool with_tree = !run.bootstrap_only, with_supports = run.bootstrap_last > 0 && with_tree;
-        std::vector<std::string> outputs;
-        if (with_tree)
-            outputs.push_back(".nwk");
-        outputs.push_back(".json");
-        if (with_supports)
-            outputs.push_back(".support.nwk");
-        for (const std::string &ext : outputs) {
-            std::ofstream f(run.prefix + ext, std::ios::app);
-            if (!f)
-                throw std::runtime_error("cannot write " + run.prefix + ext);
-        }
         const std::string boottrees = run.prefix + ".boottrees";
-        if (run.bootstrap_last > 0 && !std::ofstream(boottrees, std::ios::trunc))
-            throw std::runtime_error("cannot write " + boottrees);
 
         // Device: select the devices (this checks the device settings), before the read so that errors come early
         p2vbme::Devices devices = p2vbme::select_devices(accelerator, opt.precision, opt.devices, opt.threads);
@@ -161,9 +200,8 @@ int main(int argc, char **argv) {
         run.time_read = omp_get_wtime() - t_read;
         run.n_taxa = aln.n_taxa;
         run.n_sites = aln.n_sites;
-        if (progress)
-            std::cout << "p2v-bme: read " << aln.n_taxa << " sequences x " << aln.n_sites << " sites in " << std::fixed
-                      << std::setprecision(2) << run.time_read << " s" << std::endl;
+        std::cout << "p2v-bme: read " << aln.n_taxa << " sequences x " << aln.n_sites << " sites in " << std::fixed
+                  << std::setprecision(2) << run.time_read << " s" << std::endl;
 
         // Data: if identical sequences, two of each group stay in the search, the rest are put back after it.
         // F81, F84, TN93: base frequencies are counted on the whole input, before the copies are set aside
@@ -188,17 +226,15 @@ int main(int argc, char **argv) {
                 run.warnings.push_back(note);
                 std::cerr << "p2v-bme: warning: " << note << '\n';
             }
-            if (progress) {
-                std::cout << "p2v-bme: GTR+GC fit on " << fit.n_pairs << " pairs in " << std::setprecision(2)
-                          << fit.time << " s: alpha " << std::setprecision(4) << opt.substitution_model.alpha
-                          << ", rates (AC, AG, AT, CG, CT, GT)" << std::setprecision(3);
-                for (double r : opt.substitution_model.rates)
-                    std::cout << ' ' << r;
-                std::cout << std::endl;
-            }
+            std::cout << "p2v-bme: GTR+GC fit on " << fit.n_pairs << " pairs in " << std::setprecision(2) << fit.time
+                      << " s: alpha " << std::setprecision(4) << opt.substitution_model.alpha
+                      << ", rates (AC, AG, AT, CG, CT, GT)" << std::setprecision(3);
+            for (double r : opt.substitution_model.rates)
+                std::cout << ' ' << r;
+            std::cout << std::endl;
         }
         run.n_identical_removed = dd.n_removed();
-        if (progress && dd.n_removed() > 0)
+        if (dd.n_removed() > 0)
             std::cout << "p2v-bme: " << dd.n_removed()
                       << " identical sequences set aside (two of each group kept): " << aln.n_taxa << " left"
                       << std::endl;
@@ -223,13 +259,17 @@ int main(int argc, char **argv) {
             opt.tree_init = p2vbme::TreeInit::Given;
         }
 
-        p2vbme::LogCallback log, boot_log;
-        if (progress) {
-            log = [](const std::string &line) { std::cout << line << std::endl; };
-            boot_log = [](const std::string &line) { std::cout << "p2v-bme: " << line << std::endl; };
-        }
-        // Bootstrap: each replicate's tree, on the sequences searched, as one line of <prefix>.boottrees
+        const p2vbme::LogCallback log = [](const std::string &line) { std::cout << line << std::endl; };
+        const p2vbme::LogCallback boot_log = [](const std::string &line) {
+            std::cout << "p2v-bme: " << line << std::endl;
+        };
+        // Bootstrap: each replicate's tree, on the sequences searched, as one line of <prefix>.boottrees.
+        // The file is emptied when the first replicate is saved, so a run that fails before leaves no empty file.
+        bool boottrees_started = false;
         const p2vbme::ReplicateCallback save_tree = [&](int32_t, const p2vbme::Result &rep) {
+            if (!boottrees_started && !std::ofstream(boottrees, std::ios::trunc))
+                throw std::runtime_error("cannot write " + boottrees);
+            boottrees_started = true;
             p2vbme::append_newick_unrooted(boottrees, aln.names, rep.tree);
         };
         p2vbme::Result res;
@@ -293,13 +333,13 @@ int main(int argc, char **argv) {
         run.time_total = omp_get_wtime() - t0;
         // Output: write the report
         p2vbme::write_report(run.prefix + ".json", run, opt, res);
-        if (progress && with_tree)
+        if (with_tree)
             std::cout << "p2v-bme: " << run.tree_init << " start, " << res.rounds_run << " rounds, BME length "
                       << std::fixed << std::setprecision(6) << res.bme_length << "; " << std::setprecision(2)
                       << run.time_total << " s in total; wrote " << run.prefix << ".nwk, "
                       << (with_supports ? run.prefix + ".support.nwk, " + boottrees + ", " : "") << run.prefix
                       << ".json" << std::endl;
-        else if (progress)
+        else
             std::cout << "p2v-bme: bootstrap replicates " << run.bootstrap << ", " << res.rounds_run << " rounds; "
                       << std::fixed << std::setprecision(2) << run.time_total << " s in total; wrote " << boottrees
                       << ", " << run.prefix << ".json" << std::endl;
