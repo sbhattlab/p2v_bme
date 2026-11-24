@@ -29,13 +29,15 @@ the system.
 
 ## CMake
 
-Three configure presets (`CMakePresets.json`), each with a build and a test preset of the same name:
+Four configure presets (`CMakePresets.json`), each with a build preset of the same name, and a test preset for all but
+`release`:
 
-| Preset    | Folder        | Build                                                                       |
-| --------- | ------------- | --------------------------------------------------------------------------- |
-| `default` | `build/`      | the package, the tests and the paper's tools; the GPU code if CUDA is found |
-| `ci`      | `build-ci/`   | CPU only, warnings as errors, as in CI                                      |
-| `asan`    | `build-asan/` | CPU only, with AddressSanitizer and UndefinedBehaviorSanitizer              |
+| Preset    | Folder           | Build                                                                                                          |
+| --------- | ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| `default` | `build/`         | the package, the tests and the paper's tools; the GPU code if CUDA is found                                    |
+| `ci`      | `build-ci/`      | CPU only, warnings as errors, as in CI                                                                         |
+| `asan`    | `build-asan/`    | CPU only, with AddressSanitizer and UndefinedBehaviorSanitizer                                                 |
+| `release` | `build-release/` | p2v-bme alone, as the prebuilt binary: GPU code for compute capability 7.5 to 12.0 and PTX, runtimes linked in |
 
 ```bash
 pixi run cmake --preset ci
@@ -45,13 +47,14 @@ pixi run ctest --preset ci
 
 Options, set at configure time (`-D<option>=<value>`); later builds in the same folder keep them:
 
-| Option                     | Default               | Meaning                                                                                               |
-| -------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------- |
-| `P2VBME_CUDA`              | `ON` if CUDA is found | build the GPU code                                                                                    |
-| `CMAKE_CUDA_ARCHITECTURES` | `native`              | the GPUs to compile for: those of the build machine, or e.g. `90` (H100)                              |
-| `P2VBME_BUILD_PAPER_TOOLS` | `ON` in the presets   | build the paper's tools (`paper/tools`) into `build/`                                                 |
-| `P2VBME_NATIVE`            | `OFF`                 | compile the reference library of the tests (`src/reference`) for this machine's CPU (`-march=native`) |
-| `BUILD_TESTING`            | `ON`                  | build the tests                                                                                       |
+| Option                     | Default                 | Meaning                                                                                               |
+| -------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| `P2VBME_CUDA`              | `ON` if CUDA is found   | build the GPU code                                                                                    |
+| `CMAKE_CUDA_ARCHITECTURES` | `native`                | the GPUs to compile for: those of the build machine, or e.g. `90` (H100)                              |
+| `P2VBME_BUILD_PAPER_TOOLS` | `ON` in the presets     | build the paper's tools (`paper/tools`) into `build/`                                                 |
+| `P2VBME_NATIVE`            | `OFF`                   | compile the reference library of the tests (`src/reference`) for this machine's CPU (`-march=native`) |
+| `BUILD_TESTING`            | `ON`                    | build the tests                                                                                       |
+| `P2VBME_STATIC_RUNTIME`    | `OFF` (`release`: `ON`) | link the CUDA runtime, libstdc++, libgcc and libgomp into p2v-bme                                     |
 
 The version is set in `project()` of `CMakeLists.txt`; `pixi.toml` and `CITATION.cff` repeat it, so a release changes
 all three.
@@ -85,5 +88,8 @@ On each pull request and push to main:
 - pre-commit.ci runs the hooks, except ty and pytest, and pushes its fixes to the pull request;
 - GitHub Actions (`.github/workflows`), on CPU runners: `ci-cpp.yml` builds the `ci` preset and runs the C++ tests;
   `ci-python.yml` runs ty, the command-line tests (`-m "not gpu"`) and `check-paper`.
+- `cd-binary.yml` builds the prebuilt binary (the `release` preset, in NVIDIA's CUDA 12.8 image on Rocky Linux 8) and
+  runs the examples with it on a runner without CUDA: on each push to main as a workflow artifact, and on each published
+  release as files attached to the release.
 
 The runners have no GPU: run the GPU tests locally (`pixi run test`) before a pull request that touches the GPU code.
