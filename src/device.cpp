@@ -28,11 +28,7 @@ void check_devices(Accelerator accelerator, Precision precision) {
         throw std::runtime_error("the GPU computes in single precision; double precision runs on the CPU "
                                  "(--accelerator cpu)");
     if (accelerator == Accelerator::Gpu && visible_gpus() < 1)
-#ifdef P2VBME_WITH_CUDA
-        throw std::runtime_error("no GPU found; run on the CPU (--accelerator cpu)");
-#else
-        throw std::runtime_error("this p2v-bme was built without CUDA; run on the CPU (--accelerator cpu)");
-#endif
+        throw std::runtime_error(no_gpu_reason() + "; run on the CPU (--accelerator cpu)");
 }
 
 } // namespace

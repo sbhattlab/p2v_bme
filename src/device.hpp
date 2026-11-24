@@ -89,6 +89,10 @@ using Devices = std::vector<std::unique_ptr<Device>>;
 // Number of visible GPUs (0 without CUDA or without a GPU).
 int visible_gpus();
 
+// Says why no GPU is visible, for messages: "" if one is; else, e.g., "no GPU found", "no NVIDIA driver found", a
+// driver too old for this build's CUDA, or "this p2v-bme was built without CUDA".
+std::string no_gpu_reason();
+
 // One device per GPU number in gpu_ids (empty: all visible GPUs), each with a workspace for windows of up to
 // WORKSPACE_MAX_K pieces.
 // Throws std::runtime_error if a GPU does not exist or there is none.
