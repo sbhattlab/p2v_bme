@@ -6,9 +6,10 @@ platforms = ["linux-64"]
 version = "0.1.0"
 
 # ---- package environment (default) ------------------------------------------------------------------
-# What building and testing p2v-bme needs, plus pre-commit (.pre-commit-config.yaml). C/C++ compilers, CMake and
-# nvcc come from the system (cc, g++, cmake, nvcc on PATH).
+# What building and testing p2v-bme needs, plus pre-commit (.pre-commit-config.yaml). C/C++ compilers and nvcc come
+# from the system (cc, g++, nvcc on PATH).
 [dependencies]
+cmake = ">=4.5.1,<5"
 cxxopts = "3.2.*"
 gtest = "1.18.*"
 benchmark = ">=1.10.0,<2"
