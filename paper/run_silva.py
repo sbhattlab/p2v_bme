@@ -5,9 +5,10 @@ Inputs:  data/datasets/silva144/SILVA_144_SSURef_tax_silva_full_align_trunc.fast
                                                                                 (download_data.py)
          --arb-dump: the SILVA 144 ARB database as text, made with ARB's tools
          (only for the gtdb step)
-Options: --steps, --replicates, --bootstrap, --max-sites, --min-sites, --seed, --accelerator,
-         --devices, --leaveout-runs, --arb-dump, --fasttree, --workers, --overwrite
-Flow:    distinct     the alignment p2v-bme searches: the 1,600 best-occupied columns (--max-sites),
+Options: --steps, --replicates, --bootstrap, --max-sites, --min-sites, --rank-first, --seed,
+         --accelerator, --devices, --leaveout-runs, --arb-dump, --fasttree, --workers, --overwrite
+Flow:    distinct     the alignment p2v-bme searches: the 1,600 columns most occupied in the
+           |          first 50,000 sequences (--max-sites, --rank-first),
            |          the sequences with at least 1,200 valid sites there
            |          (--min-sites; the others are left out);
            |          one sequence per group of identical ones (the paper's representative);
@@ -111,10 +112,11 @@ INCERTAE_SEDIS = "Incertae Sedis"  # SILVA's name for an unplaced rank
 MIN_TAXON = 5  # GTDB taxa with fewer labelled sequences are not scored
 # Columns of the GTDB-classified sequences kept: at least this share of A/C/G/T
 GTDB_MIN_OCCUPANCY = 0.10
-VALID = np.zeros(256, bool)  # what p2v-bme counts as a valid site
 CANONICAL = np.full(256, ord("-"), np.uint8)  # the base p2v-bme reads, '-' for a missing site
 for _c, _b in zip(b"ACGTUacgtu", b"ACGTTACGTT"):
-    VALID[_c], CANONICAL[_c] = True, _b
+    CANONICAL[_c] = _b
+OCCUPIED = np.ones(256, bool)  # what the paper's column ranking counts: all but '-', '.', ' '
+OCCUPIED[list(b"-. ")] = False
 
 
 # ---- The alignment p2v-bme searches ----
@@ -200,11 +202,14 @@ def representatives(group: np.ndarray, phylum: np.ndarray, genus: np.ndarray) ->
     return mask
 
 
-def distinct(alignment: Path, out: Path, max_sites: int, min_sites: int, overwrite: bool) -> None:
+def distinct(
+    alignment: Path, out: Path, max_sites: int, min_sites: int, rank_first: int, overwrite: bool
+) -> None:
     """Writes the alignment p2v-bme searches:
     alignment -> searched.fa, left_out.fa, distinct.fa, distinct.json, taxonomy.tsv.
 
-    Columns: the max_sites with the most valid bases (ties: the earlier column),
+    Columns: the max_sites with the most characters other than '-', '.' and ' '
+    in the first rank_first sequences (all if 0), as in the paper (ties: the earlier column),
     in order, with characters other than A, C, G, T/U as '-' (missing).
     Sequences with fewer than min_sites valid sites there go to left_out.fa,
     the others to searched.fa.
@@ -225,13 +230,14 @@ def distinct(alignment: Path, out: Path, max_sites: int, min_sites: int, overwri
     label_ids: tuple[dict[str, int], dict[str, int]] = ({}, {})
     labels: tuple[list[int], list[int]] = ([], [])
     with open(out / "taxonomy.tsv", "w", encoding="utf-8") as tax:
-        for header, seq in fasta_records(alignment):
+        for i, (header, seq) in enumerate(fasta_records(alignment)):
             name, _, path = header.decode().partition(" ")
             tax.write(f"{name}\t{path.strip()}\n")
             for ids, label, x in zip(label_ids, labels, dedup_labels(path.strip())):
                 label.append(ids.setdefault(x, len(ids)))
-            valid = VALID[np.frombuffer(seq, np.uint8)]
-            counts = valid.astype(np.int64) if counts is None else counts + valid
+            if rank_first == 0 or i < rank_first:
+                occupied = OCCUPIED[np.frombuffer(seq, np.uint8)]
+                counts = occupied.astype(np.int64) if counts is None else counts + occupied
     if counts is None:
         raise SystemExit(f"{alignment}: no sequences")
     n_columns = counts.size
@@ -272,6 +278,7 @@ def distinct(alignment: Path, out: Path, max_sites: int, min_sites: int, overwri
             "columns": n_columns,
             "max_sites": max_sites,
             "min_sites": min_sites,
+            "rank_first": rank_first,
             "left_out": n_left_out,
             "searched": n_sequences - n_left_out,
             "distinct": len(groups),
@@ -1222,6 +1229,12 @@ def main() -> None:
         default=1200,
         help="sequences with fewer valid sites left out",
     )
+    parser.add_argument(
+        "--rank-first",
+        type=int,
+        default=50000,
+        help="columns ranked on the first this many sequences, as in the paper (0: all)",
+    )
     parser.add_argument("--seed", type=int, default=1, help="seed of the tree and of the bootstrap")
     parser.add_argument(
         "--leaveout-runs",
@@ -1256,7 +1269,7 @@ def main() -> None:
     ]
     for step in args.steps:
         if step == "distinct":
-            distinct(args.alignment, out, args.max_sites, args.min_sites, ow)
+            distinct(args.alignment, out, args.max_sites, args.min_sites, args.rank_first, ow)
         elif step == "tree":
             run_p2vbme(exe, run_args, out / "tree", ow)
             reattach(out, args.reattach_left_out, ow)
