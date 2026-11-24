@@ -3,7 +3,7 @@
 Inputs:  data/tables/scaling_methods.tsv                                (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    per method with runs at both lengths: mean and range of the RF error (hollow: 1,000 sites, filled: 10,000)
-Outputs: img/figS4_seqlen_effect.{pdf,svg}
+Outputs: img/fig2/figS4_seqlen_effect.{pdf,svg}
 
     pixi run -e paper python -m plots.figS4_seqlen_effect
 """

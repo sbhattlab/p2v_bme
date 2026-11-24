@@ -12,7 +12,7 @@ Flow:    the months at the 70% threshold, checked for gaps
            |
            v
          variant strip and resolution curve on a shared month axis
-Outputs: img/fig3c_sarscov2_resolution.{pdf,svg}
+Outputs: img/fig3/fig3c_sarscov2_resolution.{pdf,svg}
 
     pixi run -e paper python -m plots.fig3c_sarscov2_resolution
 """

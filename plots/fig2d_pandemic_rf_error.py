@@ -3,7 +3,7 @@
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    one point per alignment (size x branch-length scale) and program; the diagonal marks equal error
-Outputs: img/fig2d_pandemic_rf_error.{pdf,svg}
+Outputs: img/fig2/fig2d_pandemic_rf_error.{pdf,svg}
 
     pixi run -e paper python -m plots.fig2d_pandemic_rf_error
 """

@@ -3,7 +3,7 @@
 Inputs:  data/tables/viridian_variants.tsv                              (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    one row per variant, largest first: transfer support (filled), exact support (hollow), substitutions
-Outputs: img/figS5a_sarscov2_variants.{pdf,svg}
+Outputs: img/fig3/figS5a_sarscov2_variants.{pdf,svg}
 
     pixi run -e paper python -m plots.figS5a_sarscov2_variants
 """

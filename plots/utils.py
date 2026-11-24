@@ -3,6 +3,7 @@
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from csv import DictReader
 from pathlib import Path
+from re import match
 from statistics import mean
 
 import matplotlib
@@ -22,6 +23,7 @@ from matplotlib.ticker import (  # noqa: E402
 from plots._config import (  # noqa: E402
     DEFAULT_IMG_DIR,
     DEFAULT_TABLES_DIR,
+    FIGURE_FOLDERS,
     FIGURE_FORMATS,
     SAVE_METADATA,
     SCALING_SERIES,
@@ -54,7 +56,14 @@ def read_tsv(tables_dir: Path, name: str) -> list[dict[str, str]]:
 
 
 def save(fig: plt.Figure, img_dir: Path, name: str, **kwargs) -> None:
-    """Saves a figure once per format, without timestamps: (figure, folder, name) -> img_dir/name.{pdf,svg}."""
+    """Saves a figure once per format in its figure's folder, without timestamps: (figure, folder, name) ->
+    img_dir/<FIGURE_FOLDERS>/name.{pdf,svg}."""
+    figure = match(r"figS?\d+", name)
+    if figure is None or figure[0] not in FIGURE_FOLDERS:
+        raise SystemExit(
+            f"{name}: no folder for this figure in FIGURE_FOLDERS (plots/_config.py)"
+        )
+    img_dir = img_dir / FIGURE_FOLDERS[figure[0]]
     img_dir.mkdir(parents=True, exist_ok=True)
     for ext in FIGURE_FORMATS:
         fig.savefig(
