@@ -101,8 +101,8 @@ def main() -> None:
     ]
     fig.legend(
         handles=handles,
-        loc="upper left",
-        bbox_to_anchor=(0.02, 1.0),
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.0),
         ncol=1,
         handletextpad=0.2,
     )
