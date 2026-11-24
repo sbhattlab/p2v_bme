@@ -1296,12 +1296,16 @@ def table_representatives(results: Path) -> Outputs:
     the scored BME length minus that of the P = 64 tree of the same replicate,
     RF to that tree, and the search time (starting tree and rounds, no branch lengths).
     """
-    runs = our_runs(results, "representatives")
-    reference = {(r["set"], r["n"], r["rep"]): r for r in runs if r["cap"] == 64}
+    runs = run_frame(results, "representatives")
+    # the reference of a replicate: the last of its P = 64 runs in run order (the second seed)
+    reference = runs.loc[runs["cap"] == 64, ["set", "n", "rep", "scored_length"]]
+    reference = reference.drop_duplicates(["set", "n", "rep"], keep="last")
+    runs = runs.merge(reference, on=["set", "n", "rep"], how="left", suffixes=("", "_ref"))
+    runs["delta"] = runs["scored_length"] - runs["scored_length_ref"]
 
     def cell(values: list[float], decimals: int) -> list[str]:
         """Formats a mean and its SD: values -> [mean, SD], a dash for none, the SD blank for one."""
-        values = [v for v in values if v != ""]
+        values = [v for v in values if not blank(v)]
         if not values:
             return ["–", ""]
         # mean and SD to 3 decimals first, as the sweep's summary printed them,
@@ -1315,27 +1319,25 @@ def table_representatives(results: Path) -> Outputs:
 
     lines = []
     for tag, label in DATASETS.items():
-        for n in sorted({r["n"] for r in runs if r["set"] == tag}):
-            for cap in sorted({r["cap"] for r in runs if r["set"] == tag and r["n"] == n}):
-                group = [r for r in runs if (r["set"], r["n"], r["cap"]) == (tag, n, cap)]
-                ref = cap == 64
-                delta = [
-                    r["scored_length"] - reference[(tag, n, r["rep"])]["scored_length"]
-                    for r in group
-                    if (tag, n, r["rep"]) in reference and r["scored_length"] != ""
+        groups = runs[runs["set"] == tag].groupby(["n", "cap"], as_index=False)
+        for g in groups.agg(
+            rf=("rf_pct", list),
+            delta=("delta", list),
+            rf_vs=("rf_vs_cap64_pct", list),
+            time=("topology_time_s", list),
+        ).to_dict("records"):
+            ref = g["cap"] == 64
+            lines.append(
+                [
+                    label,
+                    f"{g['n']:,}",
+                    str(g["cap"]),
+                    *cell(g["rf"], 3),
+                    *(["ref.", ""] if ref else cell(g["delta"], 3)),
+                    *(["ref.", ""] if ref else cell(g["rf_vs"], 3)),
+                    *cell(g["time"], 1 if statistics.mean(g["time"]) < 100 else 0),
                 ]
-                time = [r["topology_time_s"] for r in group]
-                lines.append(
-                    [
-                        label,
-                        f"{n:,}",
-                        str(cap),
-                        *cell([r["rf_pct"] for r in group], 3),
-                        *(["ref.", ""] if ref else cell(delta, 3)),
-                        *(["ref.", ""] if ref else cell([r["rf_vs_cap64_pct"] for r in group], 3)),
-                        *cell(time, 1 if statistics.mean(time) < 100 else 0),
-                    ]
-                )
+            )
     caption = (
         "**Sensitivity to the cap on representatives.** Each run uses the recorded configuration "
         "(sample-and-place start, eight rounds, tolerance stop) with only the cap P changed; P = 64 is the recorded "
