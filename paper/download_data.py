@@ -9,12 +9,17 @@ Sources (licence; what to cite, DOIs as in the dataset check of the paper):
                doi:10.1093/nar/gkaf1247; dataset doi:10.82364/144/SSU/Ref/FASTA/aligned).
   silva144-arb SILVA 144 SSU Ref ARB database, the source of the GTDB labels (field tax_gtdb; CC BY 4.0, GTDB itself
                CC BY-SA 4.0; cite Westram et al. 2011, doi:10.1002/9781118010518.ch46, and GTDB). Dumping the labels
-               needs ARB, which is not in the pixi environments.
-  cmaple       CMAPLE's benchmark record (Zenodo 10.5281/zenodo.11180100, CC BY 4.0; Ly-Trong et al. 2024,
-               doi:10.1093/molbev/msae134); the nine simulated pandemic sets are extracted from its zip.
+               needs ARB, which is not in the pixi environments. Fetched only when named in --sources (7.2 GB, read
+               only by run_silva's gtdb step).
+  cmaple       CMAPLE's supplementary data, version 1.0.0 (Zenodo 10.5281/zenodo.11003148, CC BY 4.0; Ly-Trong et
+               al. 2024, doi:10.1093/molbev/msae134); later versions lack the simulated sets. The nine simulated
+               pandemic sets are extracted from its zip (Validation/cmaple_vs_maple/simulated): alignments made by
+               CMAPLE's authors with AliSim on random Yule-Harding trees (30,000 sites, GTR+F+G+I, mean branch length
+               5e-5, 1e-4 or 1.5e-4), their true trees, and CMAPLE's and MAPLE's trees and run logs.
   viridian     Viridian's 2M SARS-CoV-2 genomes processed with MAPLE (Zenodo 10.5281/zenodo.12733488 and
                10.5281/zenodo.15546527, CC BY 4.0; De Maio et al. 2025, doi:10.1038/s41586-025-09567-x); the
-               alignment and the trees are extracted from their zips.
+               files run_viridian reads: the alignment, extracted from its zip, and MAPLE's tree with each genome's
+               lineage and date (the .jsonl zip, read as it is).
 
 Inputs:  the deposits' URLs (below)
 Options: --sources, --datasets-dir, --dry-run, --overwrite
@@ -50,7 +55,7 @@ APPLES2 = (
     "https://raw.githubusercontent.com/balabanmetin/apples2-data/5f8de20764899b9f95f5fda4fb5be867ed045211/"
     "singlegene/rnasim/variable-size/rnasim-source"
 )
-SILVA = "https://www.arb-silva.de/no_cache/download/archive/release_144"
+SILVA = "https://ftp.arb-silva.de/release_144"
 ZENODO = "https://zenodo.org/api/records"
 # source -> files: (folder below the source's, name, URL, bytes, MD5); MD5 None: from the deposit's .md5 file
 FILES = {
@@ -93,27 +98,9 @@ FILES = {
         for record, name, size, digest in (
             (
                 15546527,
-                "Viridian_noShortDel_deeper_SPRTA0611_subs.txt",
-                699003,
-                "501cd6c4bcfad511910c6b58024bcc8f",
-            ),
-            (
-                15546527,
-                "Viridian_2M_noShortDel_deeper_SPRTA0611_tree.tree.zip",
-                25656581,
-                "674cf1ca7164cd75b8c565be3db76d78",
-            ),
-            (
-                15546527,
                 "Viridian_2M_noShortDel_deeper_SPRTA0611_tree_combined.jsonl.zip",
                 152502098,
                 "7d3f3c580f7b1a2c9db927319f37e5e7",
-            ),
-            (
-                15546527,
-                "Viridian_2M_noShortDel_deeper_SPRTA0611_metaData_combined.tsv.gz",
-                82020800,
-                "6a98e094d056b9d16a1d6d57009768f1",
             ),
             (
                 12733488,
@@ -121,24 +108,13 @@ FILES = {
                 73120005,
                 "2b7884b6a7f5e086eb80aaf96fcce859",
             ),
-            (
-                12733488,
-                "Viridian_2M_SARS-CoV-2_MAPLE_tree.tree.zip",
-                24502097,
-                "eec948025c4a397f9ca99198bb32f54f",
-            ),
-            (
-                12733488,
-                "Viridian_2M_SARS-CoV-2_MAPLE_subs.txt",
-                698996,
-                "8446b99303abeb2eccb97564112bd41c",
-            ),
         )
     ],
 }
-CMAPLE_RECORD = 11180100
-CMAPLE_BYTES = 447443155  # the record's one zip
-# The nine simulated pandemic sets: alignment, true tree, CMAPLE's and MAPLE's trees, by size and branch-length scale
+CMAPLE_RECORD = 11003148  # version 1.0.0; later versions lack the simulated sets
+CMAPLE_BYTES = 1660813065  # the record's one zip
+# The nine simulated pandemic sets: alignment, true tree, CMAPLE's and MAPLE's trees and their run logs, by size and
+# branch-length scale
 CMAPLE_SIZES = ("100K", "200K", "500K")
 CMAPLE_SCALES = ("0.00005", "0.0001", "0.00015")
 CMAPLE_MEMBERS = [
@@ -150,12 +126,12 @@ CMAPLE_MEMBERS = [
         f"tree_{size}_{scale}.nwk",
         f"aln_{size}_{scale}.maple.treefile",
         f"aln_{size}_{scale}_wo_ref_tree.tree",
+        f"CMaple_{size}_{scale}.log",
+        f"Maple_{size}_{scale}.log",
     )
 ]
-VIRIDIAN_MEMBERS = (
-    ".maple",
-    ".tree",
-)  # members extracted from the Viridian zips, by suffix
+VIRIDIAN_MEMBERS = (".maple",)  # members extracted from the Viridian zips, by suffix
+OPT_IN = ("silva144-arb",)  # sources fetched only when named in --sources
 
 
 def file_md5(path: Path) -> str:
@@ -318,8 +294,8 @@ def main() -> None:
         "--sources",
         nargs="+",
         choices=sources,
-        default=sources,
-        help="what to download",
+        default=[s for s in sources if s not in OPT_IN],
+        help=f"what to download (default: all but {', '.join(OPT_IN)})",
     )
     parser.add_argument(
         "--datasets-dir",
