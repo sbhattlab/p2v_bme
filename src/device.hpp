@@ -34,7 +34,7 @@ class Device {
 
     // Loads the alignment, replacing any previous one.
     // `packed` is laid out as in Alignment (n_taxa rows of 5 x n_words bitplanes).
-    // The GPU device copies it.
+    // The GPU device copies it and returns once the copy is complete.
     // The CPU device reads it in place, so `packed` must stay valid until the next load() or the device's destruction.
     virtual void load(const uint64_t *packed, int32_t n_taxa, int32_t n_words) = 0;
     // Sets the distance model of the window solve and the edge-length pass (JC69 until set).

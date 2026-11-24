@@ -1801,6 +1801,9 @@ class GpuDevice final : public Device {
         r.n = n_taxa;
         gpu_alloc(&r.d, total_u64 * sizeof(uint64_t));
         CUDA_CHECK(cudaMemcpy(r.d, packed, total_u64 * sizeof(uint64_t), cudaMemcpyHostToDevice));
+        // A copy from pageable memory can return before the data lands on the GPU.
+        // The window kernels run on a stream that does not wait for it, so wait here.
+        CUDA_CHECK(cudaDeviceSynchronize());
         rows_.push_back(r);
     }
 
