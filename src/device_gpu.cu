@@ -1103,13 +1103,13 @@ __device__ __forceinline__ void dev_run_parallel_spr_dfs(
     const float *__restrict__ nd_u, const float *__restrict__ row_root, const float *__restrict__ row_o0,
     const float *__restrict__ row_o1, float *__restrict__ edge_delta, SprSharedQueue *__restrict__ sq) {
     for (int32_t u = threadIdx.x; u < n_nodes_u; u += blockDim.x) {
-        edge_delta[u] = 1e30f;
+        edge_delta[u] = (float)NO_MOVE;
     }
     __syncthreads();
     if (threadIdx.x == 0) {
-        edge_delta[(parent_u[tree_root] == parent) ? tree_root : parent] = 1e30f;
-        edge_delta[(parent_u[other0] == parent) ? other0 : parent] = 1e30f;
-        edge_delta[(parent_u[other1] == parent) ? other1 : parent] = 1e30f;
+        edge_delta[(parent_u[tree_root] == parent) ? tree_root : parent] = (float)NO_MOVE;
+        edge_delta[(parent_u[other0] == parent) ? other0 : parent] = (float)NO_MOVE;
+        edge_delta[(parent_u[other1] == parent) ? other1 : parent] = (float)NO_MOVE;
         dev_seed_half_tree_fifo(other0, other1, parent, 0, n_leaves, n_nodes_u, adj_u, parent_u, sub_size, nd_u,
                                 row_root, row_o1, edge_delta, sq, &sq->bounds[0], &sq->bounds[1]);
     } else if (threadIdx.x == 32) {
@@ -1162,7 +1162,7 @@ __global__ void k_spr_rows_top1(int32_t r_start, int32_t n_leaves, int32_t n_nod
     }
     if (other0 == -1) {
         if (threadIdx.x == 0) {
-            best_delta_out[i] = 1e30f;
+            best_delta_out[i] = (float)NO_MOVE;
             best_j_out[i] = -1;
         }
         return;
@@ -1172,7 +1172,7 @@ __global__ void k_spr_rows_top1(int32_t r_start, int32_t n_leaves, int32_t n_nod
                              &subdist[(size_t)tree_root * n_nodes_u], &subdist[(size_t)other0 * n_nodes_u],
                              &subdist[(size_t)other1 * n_nodes_u], edge_delta, &s_q);
 
-    float b_val = 1e30f;
+    float b_val = (float)NO_MOVE;
     int32_t b_j = -1;
     for (int32_t du = threadIdx.x; du < root_u; du += blockDim.x) {
         float val = edge_delta[du];
@@ -1798,7 +1798,7 @@ class GpuWindowKernels final : public WindowKernels {
         CUDA_CHECK(cudaStreamSynchronize(gpu_ws.stream));
         best_delta.assign(h_best_delta.begin(), h_best_delta.end()); // exact: float to double
         // rows 0 and K - 1 have no move (the kernel leaves them unwritten)
-        best_delta[0] = best_delta[K - 1] = 1e30;
+        best_delta[0] = best_delta[K - 1] = NO_MOVE;
         h_best_j[0] = h_best_j[K - 1] = -1;
     }
 
