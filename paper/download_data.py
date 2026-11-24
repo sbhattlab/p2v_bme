@@ -30,8 +30,9 @@ Flow:    each source
            |
            v
          zips: the members the scripts read, extracted and checked against the zip's CRC
-Outputs: data/datasets/<source>/...                 the files as published, and what was extracted from them
-         data/datasets/<source>/download.json       URL, size and MD5 of every file, and when it was checked
+Outputs: data/datasets/<source>/...                     the files as published, and what was extracted from them
+         data/datasets/<source>/download_<source>.json  URL, size and MD5 of every file, and when it was checked
+         (silva144-arb writes to silva144/)
 
     pixi run -e paper python -m paper.download_data --sources rnasim --dry-run
 """
@@ -280,7 +281,7 @@ def download(source: str, folder: Path, dry_run: bool, overwrite: bool) -> None:
             )
         record.append(entry)
     checked = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    (folder / "download.json").write_text(
+    (folder / f"download_{source}.json").write_text(
         dumps({"source": source, "checked_utc": checked, "files": record}, indent=1)
     )
 
