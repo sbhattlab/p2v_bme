@@ -1,4 +1,5 @@
-"""Plot constants: folders, output formats, the method colours shared by every figure, and the figure styles."""
+"""Plot constants: folders, output formats, the method colours shared by every figure,
+and the figure styles."""
 
 from typing import TypedDict
 
@@ -22,8 +23,10 @@ FIGURE_FOLDERS = {
 }
 
 
-# One entry per method, used identically in every figure: key, legend label, colour, marker, filled, line style.
-# Hue encodes the family: vermilion = Phylo2VecME, purple = DIPPER, blues = ML searches, greys = ME searches.
+# One entry per method, used identically in every figure:
+# key, legend label, colour, marker, filled, line style.
+# Hue encodes the family: vermilion = Phylo2VecME,
+# purple = DIPPER, blues = ML searches, greys = ME searches.
 METHODS = [
     ("FastTree-ME", "FastTree-ME", "#8A8A8A", "s", True, "-"),
     ("VFT-ME", "VeryFastTree-ME", "#4D4D4D", "^", True, "-"),
@@ -49,8 +52,9 @@ SPEC = {m[0]: Method(label=m[1], color=m[2], marker=m[3], filled=m[4], ls=m[5]) 
 # The datasets of the scaling figures (S1-S3) and their figure numbers
 SCALING_FIGURES = {"rnasim": "figS1", "jc10k": "figS2", "yule10k": "figS3"}
 
-# Fig. 2a,b: dataset in the data, legend label, colour, marker, line style, filled marker. The random-tree series is
-# drawn last, dashed and with squares, so that it stays visible where it runs along the other JC series.
+# Fig. 2a,b: dataset in the data, legend label, colour, marker, line style, filled marker.
+# The random-tree series is drawn last, dashed and with squares,
+# so that it stays visible where it runs along the other JC series.
 SCALING_SERIES = [
     ("JC", "JC (PASTA)", "#0072B2", "o", "-", True),
     ("RNASim", "RNASim (PASTA)", "#D55E00", "o", "-", True),

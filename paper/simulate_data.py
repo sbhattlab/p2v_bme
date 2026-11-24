@@ -1,38 +1,51 @@
-"""Simulated datasets of the paper: RNASim subsets, JC69 alignments on their trees and on Yule trees, expansions.
+"""Simulated datasets of the paper:
+RNASim subsets, JC69 alignments on their trees and on Yule trees, expansions.
 
-Every simulated input of the scaling, comparator, sequence-length, representative, FastME and calibration tables and
-figures, with the paper's generators and seeds, so that the alignments equal the paper's.
+Every simulated input of the scaling, comparator, sequence-length, representative, FastME and
+calibration tables and figures, with the paper's generators and seeds,
+so that the alignments equal the paper's.
 
-Inputs:  data/datasets/rnasim/{true_topo.tree, aln_dna.fa.xz}      (download_data.py; RNASim's 200,000 sequences)
-Options: --sets, --sizes, --replicates, --datasets-dir, --sim-jc69, --expansion-base, --fastme-base, --overwrite
+Inputs:  data/datasets/rnasim/{true_topo.tree, aln_dna.fa.xz}
+           (download_data.py; RNASim's 200,000 sequences)
+Options: --sets, --sizes, --replicates, --datasets-dir, --sim-jc69, --expansion-base, --fastme-base,
+         --overwrite
 Flow:    each set x size x replicate r
            |
            v
-         tree   rnasim, jc*: N leaves of the RNASim tree drawn by random.Random(42 + r) and the tree they induce
-                (JC: branch lengths / 3,200); yule10k: a Yule tree (seed 770000 + r, height 0.2 at 10^6 leaves);
-                rnasim, jc10k at 10^6 and 10^7: replicate 0 at 10^5 with each leaf a ten-leaf clade, once or twice
+         tree   rnasim, jc*: N leaves of the RNASim tree drawn by random.Random(42 + r) and the tree
+                they induce (JC: branch lengths / 3,200);
+                yule10k: a Yule tree (seed 770000 + r, height 0.2 at 10^6 leaves);
+                rnasim, jc10k at 10^6 and 10^7: replicate 0 at 10^5 with each leaf a ten-leaf clade,
+                once or twice
            |
            v
          sites  rnasim: RNASim's own (1,596 sites); jc*: sim_jc69_fast (seed 20261104 + 1000 r);
-                yule10k: sim_jc69_fast (seed 20261114 + 1000 r); expansions: on each new branch, each site redrawn
-                from the four bases with probability 2^-7 (numpy seed 20261104)
+                yule10k: sim_jc69_fast (seed 20261114 + 1000 r);
+                expansions: on each new branch, each site redrawn from the four bases
+                with probability 2^-7 (numpy seed 20261104)
            |
            v
-         the random start tree the comparison programs started from (uniform; seeds as the paper's runs)
+         the random start tree the comparison programs started from
+         (uniform; seeds as the paper's runs)
 
-         fastme: the FastME comparison's sets, n sequences kept in order with their true tree restricted to them, and
-         a uniform random start tree (seed r + 1): jc10k, rnasim from the 10^4-sequence set of replicate r, drawn by
-         numpy default_rng(r + 1); jc1m, rna1m from the 10^6-sequence jc10k or rnasim set, subset r of n drawn by
-         default_rng(1000 n + r)
+         fastme: the FastME comparison's sets, n sequences kept in order with their true tree
+         restricted to them, and a uniform random start tree (seed r + 1):
+         jc10k, rnasim from the 10^4-sequence set of replicate r, drawn by numpy default_rng(r + 1);
+         jc1m, rna1m from the 10^6-sequence jc10k or rnasim set,
+         subset r of n drawn by default_rng(1000 n + r)
 Outputs: data/datasets/<set>/<n>/rep<r>.fa              leaves T0 ... T<n-1>, one line per sequence
-         data/datasets/<set>/<n>/rep<r>.true.nwk        unrooted; branch lengths (substitutions per site) where the
-                                                        sites were simulated on them (jc*, yule10k)
+         data/datasets/<set>/<n>/rep<r>.true.nwk        unrooted; branch lengths
+                                                        (substitutions per site) where the sites
+                                                        were simulated on them (jc*, yule10k)
          data/datasets/<set>/<n>/rep<r>.random_start.nwk  unrooted, every branch 0.05
-         data/datasets/fastme/<set>/<n>/rep<r>.{fa,true.nwk,random_start.nwk}   the same, without branch lengths;
-                                                        the random start rooted, as the paper gave it to both programs
-         Sets: rnasim, jc10k (10^3-10^7; replicate 0 only above 10^5), jc1k (10^4), yule10k (10^3-10^7),
-         jc100k and jc1000k (10^5 and 10^6 sites on the JC trees, at 10^4 and 10^5), fastme (jc10k and rnasim at
-         1,000, 2,000, 5,000 and 10,000; jc1m and rna1m: 100 subsets at 1,000 and 2,000, 20 at 5,000).
+         data/datasets/fastme/<set>/<n>/rep<r>.{fa,true.nwk,random_start.nwk}
+                                                        the same, without branch lengths;
+                                                        the random start rooted,
+                                                        as the paper gave it to both programs
+         Sets: rnasim, jc10k (10^3-10^7; replicate 0 only above 10^5), jc1k (10^4),
+         yule10k (10^3-10^7), jc100k and jc1000k (10^5 and 10^6 sites on the JC trees,
+         at 10^4 and 10^5), fastme (jc10k and rnasim at 1,000, 2,000, 5,000 and 10,000;
+         jc1m and rna1m: 100 subsets at 1,000 and 2,000, 20 at 5,000).
          Expanded leaf i descends from leaf i // 10 (10^6) or i // 100 (10^7) of the 10^5 replicate.
 
     pixi run -e paper python -m paper.simulate_data --sets rnasim jc10k --sizes 1000 5000
@@ -72,8 +85,9 @@ from paper._config import DEFAULT_DATASETS_DIR, SIM_JC69
 PAPER_SIZES = (1000, 5000, 10000, 50000, 100000, 1000000, 10000000)
 SEQLEN_SIZES = (10000, 100000)
 REPLICATES = (0, 1, 2, 3, 4)
-# set -> sites (0: RNASim's own), 64-bit words per sequence in the paper's packed alignments (the expansion's random
-# stream depends on it), default sizes, the simulator's seed base (0: not simulated)
+# set -> sites (0: RNASim's own), 64-bit words per sequence in the paper's packed alignments
+# (the expansion's random stream depends on it),
+# default sizes, the simulator's seed base (0: not simulated)
 SETS = {
     "rnasim": (0, 25, PAPER_SIZES, 0),
     "jc10k": (10000, 160, PAPER_SIZES, 20261104),
@@ -87,14 +101,15 @@ EXPANDED_SETS = (
     "jc10k",
 )  # above the expansion base these sets expand replicate 0
 EXPANSION_BASE = 100000
-# The FastME comparison's sets (folder fastme/<set>/<n>/): subsets of the 10^4-sequence sets, as the paper's
+# The FastME comparison's sets (folder fastme/<set>/<n>/):
+# subsets of the 10^4-sequence sets, as the paper's
 FASTME = "fastme"
 FASTME_SETS = ("jc10k", "rnasim")
 FASTME_SIZES = (1000, 2000, 5000, 10000)
 FASTME_BASE = 10000  # the size of the sets they are drawn from
 FASTME_SEED_STEP = 1  # subset and random start seed: replicate + 1
-# jc1m, rna1m: subsets of the 10^6-sequence set (replicate 0) of jc10k and rnasim; subset k of n drawn with seed
-# 1000 n + k
+# jc1m, rna1m: subsets of the 10^6-sequence set (replicate 0) of jc10k and rnasim;
+# subset k of n drawn with seed 1000 n + k
 FASTME_1M_SETS = {"jc1m": "jc10k", "rna1m": "rnasim"}
 FASTME_1M_SUBSETS = {1000: 100, 2000: 100, 5000: 20}  # subsets per size
 FASTME_1M_SEED_STEP = 1000
@@ -111,8 +126,9 @@ EXPANSION_SEED = 20261104
 # Yule trees: one birth rate at every size, that of a tree of 10^6 lineages with expected height 0.2
 YULE_ANCHOR_N = 1_000_000
 YULE_ANCHOR_HEIGHT = 0.2
-# Expansion: the ten-leaf clade ((((0,1),(2,3)),((4,5),(6,7))),(8,9)); one mutation draw per branch of it (the leaves
-# below the branch share it); a site is redrawn where 7 random words all have its bit set, so with probability 2^-7
+# Expansion: the ten-leaf clade ((((0,1),(2,3)),((4,5),(6,7))),(8,9));
+# one mutation draw per branch of it (the leaves below the branch share it);
+# a site is redrawn where 7 random words all have its bit set, so with probability 2^-7
 CLADE = 10
 CLADE_GROUPS = [
     [0, 1, 2, 3, 4, 5, 6, 7],
@@ -134,11 +150,12 @@ BASES = frombuffer(b"ACGT", dtype=uint8)
 GAP = ord("-")
 
 
-# ---- Trees -------------------------------------------------------------------------------------------------------
+# ---- Trees ---------------------------------------------------------------------------------------
 
 
 def parse_newick(text: str) -> tuple[list[list[int]], list[str], list[float]]:
-    """Parses a Newick tree as the paper's scripts did: text -> (children, name, length) per node, root 0."""
+    """Parses a Newick tree as the paper's scripts did:
+    text -> (children, name, length) per node, root 0."""
     children: list[list[int]] = [[]]
     name, length, parent = [""], [0.0], [-1]
     curr, i, n = 0, 0, len(text)
@@ -182,9 +199,11 @@ def parse_newick(text: str) -> tuple[list[list[int]], list[str], list[float]]:
 def induce_subtree(
     children: list[list[int]], name: list[str], length: list[float], keep: set[str]
 ) -> tuple[list[list[int]], list[str], list[float], int]:
-    """Restricts a tree to some leaves: (tree, leaf names) -> (children, name, length, root) of the induced tree.
+    """Restricts a tree to some leaves:
+    (tree, leaf names) -> (children, name, length, root) of the induced tree.
 
-    Nodes left with one child are merged into it (lengths added); multifurcations become binary with zero lengths.
+    Nodes left with one child are merged into it (lengths added);
+    multifurcations become binary with zero lengths.
     """
     order, stack = [], [0]
     while stack:
@@ -229,10 +248,11 @@ def rooted_arrays(
     leaf_id: dict[str, int],
     scale: float,
 ) -> tuple[ndarray, ndarray, ndarray]:
-    """Numbers a tree as the paper's bundles: (tree, leaf ids) -> (c1, c2, branch length / scale) per node.
+    """Numbers a tree as the paper's bundles:
+    (tree, leaf ids) -> (c1, c2, branch length / scale) per node.
 
-    Leaves 0..N-1, internal nodes N..2N-2 in post-order (children first, root last); leaves' lengths at least 1e-6,
-    the root's 0.
+    Leaves 0..N-1, internal nodes N..2N-2 in post-order (children first, root last);
+    leaves' lengths at least 1e-6, the root's 0.
     """
     n = len(leaf_id)
     order, stack = [], [root]
@@ -268,7 +288,8 @@ def rooted_arrays(
 
 
 def uniform_random_tree(n: int, seed: int) -> tuple[ndarray, ndarray]:
-    """Draws the comparison programs' random start tree: (n, seed) -> (c1, c2), as the paper's bundles."""
+    """Draws the comparison programs' random start tree:
+    (n, seed) -> (c1, c2), as the paper's bundles."""
     rng = default_rng(seed)
     v = rng.integers(0, arange(1, n, dtype=int64), dtype=int32).tolist()
     perm = rng.permutation(n).astype(int32)
@@ -291,15 +312,18 @@ def uniform_random_tree(n: int, seed: int) -> tuple[ndarray, ndarray]:
 
 
 def yule_birth_rate() -> float:
-    """Computes the Yule trees' birth rate: () -> the rate at which 10^6 lineages have expected height 0.2."""
+    """Computes the Yule trees' birth rate:
+    () -> the rate at which 10^6 lineages have expected height 0.2."""
     j = arange(YULE_ANCHOR_N, 1, -1, dtype=float64)
     return float((1.0 / j).sum() / YULE_ANCHOR_HEIGHT)
 
 
 def yule_tree(n: int, rep: int) -> tuple[ndarray, ndarray, ndarray]:
-    """Draws a Yule tree: (n, replicate) -> (c1, c2, branch length), internal nodes in order of creation.
+    """Draws a Yule tree: (n, replicate) -> (c1, c2, branch length),
+    internal nodes in order of creation.
 
-    Going back in time, two of the j lineages alive join after an exponential time of rate j x birth rate.
+    Going back in time, two of the j lineages alive join after an exponential time of
+    rate j x birth rate.
     """
     rng = default_rng(YULE_SEED + rep)
     j = arange(n, 1, -1, dtype=float64)
@@ -329,9 +353,11 @@ def yule_tree(n: int, rep: int) -> tuple[ndarray, ndarray, ndarray]:
 
 
 def expand_tree(c1: ndarray, c2: ndarray, n_base: int) -> tuple[ndarray, ndarray]:
-    """Replaces each leaf by the ten-leaf clade: (c1, c2) on n_base leaves -> (c1, c2) on 10 n_base leaves.
+    """Replaces each leaf by the ten-leaf clade:
+    (c1, c2) on n_base leaves -> (c1, c2) on 10 n_base leaves.
 
-    Leaf x becomes leaves 10x..10x+9; the clade's internal nodes come first, then the old internal nodes in order.
+    Leaf x becomes leaves 10x..10x+9;
+    the clade's internal nodes come first, then the old internal nodes in order.
     """
     n = n_base * CLADE
     out1 = zeros(2 * n - 1, dtype=int32)
@@ -405,7 +431,8 @@ def write_tree(path: Path, c1: ndarray, c2: ndarray, lengths: ndarray | None) ->
 
 
 def write_random_start(path: Path, c1: ndarray, c2: ndarray) -> None:
-    """Writes a random start tree as the paper's runs gave it to the comparison programs: every branch 0.05."""
+    """Writes a random start tree as the paper's runs gave it to the comparison programs:
+    every branch 0.05."""
     n, root = (len(c1) + 1) // 2, len(c1) - 1
     lengths = full(len(c1), START_LENGTH)
     gone = c2[root] if c2[root] >= n else c1[root]
@@ -417,8 +444,8 @@ def write_random_start(path: Path, c1: ndarray, c2: ndarray) -> None:
 def write_rooted_tree(path: Path, c1: ndarray, c2: ndarray) -> None:
     """Writes a tree on leaves T0..T<n-1> as rooted Newick without lengths: (path, c1, c2) -> None.
 
-    From the root 2n - 2, children in c1, c2 order, as the paper's FastME comparison gave its random start to both
-    programs: p2v-bme's search depends on how its start tree is rooted.
+    From the root 2n - 2, children in c1, c2 order, as the paper's FastME comparison gave its random
+    start to both programs: p2v-bme's search depends on how its start tree is rooted.
     Internal nodes must be in post-order (children first), as uniform_random_tree draws them.
     """
     n = (len(c1) + 1) // 2
@@ -431,7 +458,7 @@ def write_rooted_tree(path: Path, c1: ndarray, c2: ndarray) -> None:
     path.write_text(text[2 * n - 2] + ";\n")
 
 
-# ---- Sequences ---------------------------------------------------------------------------------------------------
+# ---- Sequences -----------------------------------------------------------------------------------
 
 
 def pack(seqs: ndarray, words: int) -> ndarray:
@@ -450,7 +477,8 @@ def pack(seqs: ndarray, words: int) -> ndarray:
 
 
 def unpack(planes: ndarray, sites: int) -> ndarray:
-    """Unpacks bit planes: rows x 5 x words uint64 -> rows x sites ASCII, '-' where no base is set."""
+    """Unpacks bit planes: rows x 5 x words uint64
+    -> rows x sites ASCII, '-' where no base is set."""
     bits = unpackbits(planes.view(uint8).reshape(planes.shape[0], 5, -1), axis=2, bitorder="little")
     bits = bits[:, :, :sites].astype(bool)
     out = full((planes.shape[0], sites), GAP, dtype=uint8)
@@ -460,7 +488,8 @@ def unpack(planes: ndarray, sites: int) -> ndarray:
 
 
 def write_fasta_rows(handle, seqs: ndarray, first: int) -> None:
-    """Appends sequences to an open FASTA file: (handle, rows x sites ASCII, number of the first) -> None."""
+    """Appends sequences to an open FASTA file:
+    (handle, rows x sites ASCII, number of the first) -> None."""
     for i, row in enumerate(seqs):
         handle.write(b">T%d\n" % (first + i))
         handle.write(row.tobytes())
@@ -468,7 +497,8 @@ def write_fasta_rows(handle, seqs: ndarray, first: int) -> None:
 
 
 def read_fasta(path: Path) -> tuple[list[str], list[str]]:
-    """Reads a FASTA file (.xz too): path -> (names, sequences); a name is the header's first word."""
+    """Reads a FASTA file (.xz too):
+    path -> (names, sequences); a name is the header's first word."""
     names: list[str] = []
     seqs: list[str] = []
     chunks: list[str] = []
@@ -488,10 +518,11 @@ def read_fasta(path: Path) -> tuple[list[str], list[str]]:
 
 
 def mutate_level(rng: Generator, parent: ndarray, words: int) -> ndarray:
-    """Makes ten children of each sequence: rows x 5 x words planes -> 10 rows x 5 x words, children of a row together.
+    """Makes ten children of each sequence:
+    rows x 5 x words planes -> 10 rows x 5 x words, children of a row together.
 
-    For each branch of the ten-leaf clade, each valid site is redrawn uniformly from the four bases with
-    probability 2^-7, in every leaf below the branch.
+    For each branch of the ten-leaf clade, each valid site is redrawn uniformly from the four bases
+    with probability 2^-7, in every leaf below the branch.
     """
     rows = parent.shape[0]
     valid = parent[:, 4, :]
@@ -521,10 +552,11 @@ def simulate_jc(
     seed: int,
     fasta: Path,
 ) -> None:
-    """Simulates JC69 sites along a tree with sim_jc69_fast: (tree, sites, seed) -> FASTA T0..T<n-1>.
+    """Simulates JC69 sites along a tree with sim_jc69_fast:
+    (tree, sites, seed) -> FASTA T0..T<n-1>.
 
-    Each 64-site word has a random stream of its own (from the seed and the word), so a longer alignment repeats the
-    sites of a shorter one on the same tree and seed.
+    Each 64-site word has a random stream of its own (from the seed and the word),
+    so a longer alignment repeats the sites of a shorter one on the same tree and seed.
     """
     n = (len(c1) + 1) // 2
     with TemporaryDirectory(dir=fasta.parent) as tmp:
@@ -552,7 +584,7 @@ def simulate_jc(
         )
 
 
-# ---- Datasets ----------------------------------------------------------------------------------------------------
+# ---- Datasets ------------------------------------------------------------------------------------
 
 
 class Rnasim:
@@ -565,7 +597,8 @@ class Rnasim:
         self.seqs: dict[str, str] = {}
 
     def subset(self, n: int, rep: int, scale: float) -> tuple[ndarray, ndarray, ndarray, list[str]]:
-        """Draws a replicate's leaves: (n, replicate, scale) -> (c1, c2, lengths / scale, RNASim names of T0...)."""
+        """Draws a replicate's leaves:
+        (n, replicate, scale) -> (c1, c2, lengths / scale, RNASim names of T0...)."""
         if self.tree is None:
             self.tree = parse_newick((self.folder / "true_topo.tree").read_text().strip())
             self.leaves = [nm for kids, nm in zip(self.tree[0], self.tree[1]) if not kids]
@@ -589,7 +622,8 @@ class Rnasim:
 
 
 def start_seed(name: str, n: int, rep: int, expanded: bool) -> int:
-    """Gives the random start tree's seed as the paper's runs: (set, n, replicate, expanded?) -> seed."""
+    """Gives the random start tree's seed as the paper's runs:
+    (set, n, replicate, expanded?) -> seed."""
     if name == "yule10k":
         return YULE_START_SEED + rep
     return START_SEED + n if expanded else START_SEED + START_SEED_STEP * rep + n
@@ -654,11 +688,13 @@ def make_dataset(name: str, n: int, rep: int, out: Path, rnasim: Rnasim, args: N
 def make_fastme_set(
     name: str, n: int, rep: int, out: Path, rnasim: Rnasim, args: Namespace
 ) -> None:
-    """Writes one set of the FastME comparison: (set, n, replicate) -> <out>/rep<r>.{fa,true.nwk,random_start.nwk}.
+    """Writes one set of the FastME comparison:
+    (set, n, replicate) -> <out>/rep<r>.{fa,true.nwk,random_start.nwk}.
 
-    As the paper's: the sequences sorted(default_rng(r + 1).choice(N, n)) of the N-sequence set of replicate r
-    (N = --fastme-base, 10^4; made first if missing), renamed T0..T<n-1> in that order; that set's true tree restricted
-    to them (topology only); a uniform random start tree (seed r + 1), written rooted.
+    As the paper's: the sequences sorted(default_rng(r + 1).choice(N, n)) of the N-sequence set of
+    replicate r (N = --fastme-base, 10^4; made first if missing), renamed T0..T<n-1> in that order;
+    that set's true tree restricted to them (topology only);
+    a uniform random start tree (seed r + 1), written rooted.
     """
     base = args.datasets_dir / name / str(args.fastme_base)
     if not (base / f"rep{rep}.random_start.nwk").exists():
@@ -686,12 +722,15 @@ def make_fastme_subsets(
     rnasim: Rnasim,
     args: Namespace,
 ) -> None:
-    """Writes subsets of a 10^6-sequence set for the FastME comparison: (set, [(n, k)]) -> fastme/<set>/<n>/rep<k>.*.
+    """Writes subsets of a 10^6-sequence set for the FastME comparison:
+    (set, [(n, k)]) -> fastme/<set>/<n>/rep<k>.*.
 
-    As the paper's (jc1m, rna1m): subset k of n = the sequences sorted(default_rng(1000 n + k).choice(N, n)) of the
-    N-sequence set of replicate 0 (N = 10 x --expansion-base, 10^6; made first if missing), renamed T0..T<n-1> in
-    that order; that set's true tree restricted to them (topology only); a uniform random start tree (seed k + 1),
-    written rooted. One pass over the large alignment writes the sequences of every subset.
+    As the paper's (jc1m, rna1m):
+    subset k of n = the sequences sorted(default_rng(1000 n + k).choice(N, n)) of the N-sequence set
+    of replicate 0 (N = 10 x --expansion-base, 10^6; made first if missing),
+    renamed T0..T<n-1> in that order; that set's true tree restricted to them (topology only);
+    a uniform random start tree (seed k + 1), written rooted.
+    One pass over the large alignment writes the sequences of every subset.
     """
     size = CLADE * args.expansion_base
     source = args.datasets_dir / source_set / str(size)
@@ -736,7 +775,8 @@ def make_fastme_subsets(
 
 
 def make_fastme(args: Namespace, rnasim: Rnasim) -> None:
-    """Makes the FastME comparison's sets that are missing: args -> data/datasets/fastme/<set>/<n>/rep<r>.*."""
+    """Makes the FastME comparison's sets that are missing:
+    args -> data/datasets/fastme/<set>/<n>/rep<r>.*."""
     replicates = args.replicates if args.replicates is not None else REPLICATES
     for name in FASTME_SETS:
         for n in sorted(args.sizes or FASTME_SIZES):

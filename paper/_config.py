@@ -1,4 +1,5 @@
-"""Paths and programs of the paper's scripts, relative to the repository root (run the scripts from there)."""
+"""Paths and programs of the paper's scripts, relative to the repository root
+(run the scripts from there)."""
 
 DEFAULT_DATA_DIR = "data"
 DEFAULT_DATASETS_DIR = f"{DEFAULT_DATA_DIR}/datasets"  # downloads and simulated sets

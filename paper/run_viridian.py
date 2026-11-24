@@ -1,34 +1,38 @@
-"""SARS-CoV-2 genomes (Viridian): tree, bootstrap, repeat searches and MAPLE's tree (Fig. 3c; tables viridian_support,
-viridian_variants, viridian_thresholds; Supplementary Fig. viridian-support).
+"""SARS-CoV-2 genomes (Viridian): tree, bootstrap, repeat searches and MAPLE's tree
+(Fig. 3c; tables viridian_support, viridian_variants, viridian_thresholds;
+Supplementary Fig. viridian-support).
 
-Inputs:  data/datasets/viridian/12733488/extracted/Viridian_2Malignment_filtered_masked_noShortDeletions.maple
-         data/datasets/viridian/15546527/Viridian_2M_noShortDel_deeper_SPRTA0611_tree_combined.jsonl.zip
-           (MAPLE 0.6.11's tree with each genome's Pango lineage and date)
-         data/datasets/viridian/alias_key.json      Pango alias key (cov-lineages/pango-designation)  (download_data.py)
+Inputs:  data/datasets/viridian/                                    (download_data.py)
+           12733488/extracted/Viridian_2Malignment_filtered_masked_noShortDeletions.maple
+           15546527/Viridian_2M_noShortDel_deeper_SPRTA0611_tree_combined.jsonl.zip
+             (MAPLE 0.6.11's tree with each genome's Pango lineage and date)
+           alias_key.json   Pango alias key (cov-lineages/pango-designation)
 Options: --steps, --replicates, --repeats, --seed, --accelerator, --devices, --min-month-genomes,
          --min-lineage-genomes, --overwrite
 Flow:    maple        MAPLE's tree with the genomes' names, and each genome's lineage and date
            |
            v
-         tree         p2v-bme -s ALIGNMENT -m JC69 --no-dedup --seed 1   (every genome searched, as in the paper)
-           |
+         tree         p2v-bme -s ALIGNMENT -m JC69 --no-dedup --seed 1
+           |          (every genome searched, as in the paper)
            v
          replicates   p2v-bme ... -b r-r      (one run per replicate; spread them with --replicates)
            |
            v
-         repeats      p2v-bme ... --seed s, s = 2..9          (repeat searches on the unchanged alignment)
-           |
+         repeats      p2v-bme ... --seed s, s = 2..9
+           |          (repeat searches on the unchanged alignment)
            v
-         supports     p2v-bme -t TREE --supports FILE: our tree and MAPLE's over the bootstrap trees, the repeat
-           |          searches and each other
+         supports     p2v-bme -t TREE --supports FILE: our tree and MAPLE's over the bootstrap
+           |          trees, the repeat searches and each other
            v
-         records      agreement and support by branch length, named variants and lineages, local resolution by
-                      sampling month
+         records      agreement and support by branch length,
+                      named variants and lineages, local resolution by sampling month
 Outputs: data/results/viridian/
-           maple.nwk, tips.tsv                          MAPLE's tree (rooted, as published) and the genomes
-           tree.{nwk,json}, boot/rep<r>.{boottrees,json}, repeat/seed<s>.{nwk,json}, boot.nwk, repeats.nwk
+           maple.nwk, tips.tsv   MAPLE's tree (rooted, as published) and the genomes
+           tree.{nwk,json}, boot/rep<r>.{boottrees,json}, repeat/seed<s>.{nwk,json},
+           boot.nwk, repeats.nwk
            supports/{tree,maple}.{boot,repeats,maple,ours}.{support.nwk,json}
-           summary.json, lineages.tsv, resolution_by_month.tsv, runs.jsonl   (the paper's record names and fields)
+           summary.json, lineages.tsv, resolution_by_month.tsv, runs.jsonl
+             (the paper's record names and fields)
 
     pixi run -e paper python -m paper.run_viridian --steps tree replicates --replicates 1-25
 """
@@ -83,7 +87,8 @@ DATA = f"{DEFAULT_DATASETS_DIR}/viridian"
 ALIGNMENT = f"{DATA}/12733488/extracted/Viridian_2Malignment_filtered_masked_noShortDeletions.maple"
 MAPLE_JSONL = "Viridian_2M_noShortDel_deeper_SPRTA0611_tree_combined.jsonl"
 STEPS = ("maple", "tree", "replicates", "repeats", "supports", "records")
-# MAPLE's JSONL stores distances on a display scale; one branch of the published Newick tree fixes it.
+# MAPLE's JSONL stores distances on a display scale;
+# one branch of the published Newick tree fixes it.
 KNOWN = (
     "ERR7458074",
     4.40086731633712e-05,
@@ -169,7 +174,8 @@ LINEAGE_COLUMNS = ["lineage", "full", "who", "genomes"] + [
 
 
 def alignment_names(path: Path) -> tuple[list[str], int]:
-    """Reads a .maple alignment's genome names and length: path -> (names without the reference, sites)."""
+    """Reads a .maple alignment's genome names and length:
+    path -> (names without the reference, sites)."""
     names, sites, in_reference = [], 0, False
     with open(path, "rb") as fh:
         for line in fh:
@@ -185,7 +191,8 @@ def alignment_names(path: Path) -> tuple[list[str], int]:
 
 
 def maple_tree(jsonl_zip: Path, alignment: Path, out: Path, overwrite: bool) -> None:
-    """Writes MAPLE's tree with the genomes' names and a table of the genomes: (JSONL, alignment) -> maple.nwk, tips.tsv.
+    """Writes MAPLE's tree with the genomes' names and a table of the genomes:
+    (JSONL, alignment) -> maple.nwk, tips.tsv.
 
     Branch lengths in substitutions per site; the tree stays rooted as published.
     """
@@ -276,7 +283,8 @@ def maple_tree(jsonl_zip: Path, alignment: Path, out: Path, overwrite: bool) -> 
 
 
 def search_time(report: dict) -> float:
-    """Sums the timed stages of a run as the paper times them: report -> seconds (start tree, search, branch lengths)."""
+    """Sums the timed stages of a run as the paper times them:
+    report -> seconds (start tree, search, branch lengths)."""
     t = report["details"]["time"]
     return t["start_tree"] + t["search"] + t["branch_lengths"]
 
@@ -285,7 +293,8 @@ def search_time(report: dict) -> float:
 
 
 def bins(d: DataFrame, column: str, edges: tuple, fields: dict[str, str]) -> list[dict]:
-    """Averages the named columns over [lo, hi) bins of one column: (table, column, bins, fields) -> rows."""
+    """Averages the named columns over [lo, hi) bins of one column:
+    (table, column, bins, fields) -> rows."""
     rows = []
     for lo, hi in edges:
         e = d[(d[column] >= lo) & (d[column] < hi)]
@@ -304,10 +313,11 @@ def unalias(name: str, key: dict) -> str:
 
 
 def branches(tree: dict, sites: int, labels: dict[str, dict]) -> DataFrame:
-    """Tabulates the internal branches of a tree: (tree, sites, {column: tree with labels}) -> one row per branch.
+    """Tabulates the internal branches of a tree:
+    (tree, sites, {column: tree with labels}) -> one row per branch.
 
-    Columns: node, p (genomes on the smaller side), sub (substitutions), and for each labelled tree its exact and
-    transfer support as fractions (<column>_exact, <column>_tbe).
+    Columns: node, p (genomes on the smaller side), sub (substitutions), and for each labelled tree
+    its exact and transfer support as fractions (<column>_exact, <column>_tbe).
     """
     n = len(tree["names"])
     node = arange(n, tree["parent"].size - 1)  # internal nodes but the root
@@ -326,7 +336,8 @@ def branches(tree: dict, sites: int, labels: dict[str, dict]) -> DataFrame:
 
 
 def transfer_distance(member: ndarray, tree: dict) -> int:
-    """Finds the fewest genomes to move to obtain a split of the tree: (genome set in the tree's leaf order, tree) -> d."""
+    """Finds the fewest genomes to move to obtain a split of the tree:
+    (genome set in the tree's leaf order, tree) -> d."""
     n = member.size
     prefix = concatenate([[0], cumsum(member)])
     inside = prefix[tree["first"] + tree["size"]] - prefix[tree["first"]]
@@ -335,10 +346,12 @@ def transfer_distance(member: ndarray, tree: dict) -> int:
 
 
 def best(member: ndarray, tree: dict, length: ndarray) -> tuple[int, int, int, int]:
-    """Finds a lineage's branch: (genomes in leaf order, tree, sub per node) -> (node, misplaced, size, least misplaced).
+    """Finds a lineage's branch: (genomes in leaf order, tree, sub per node)
+    -> (node, misplaced, size, least misplaced).
 
-    The fewest misplaced genomes of any branch is the transfer distance; among the branches within TOLERANCE of it,
-    the longest is taken. length is negative where a node has no branch (leaves, the root).
+    The fewest misplaced genomes of any branch is the transfer distance;
+    among the branches within TOLERANCE of it, the longest is taken.
+    length is negative where a node has no branch (leaves, the root).
     """
     n = member.size
     prefix = concatenate([[0], cumsum(member)])
@@ -361,7 +374,8 @@ def lineage_rows(
     alias: dict,
     least: int,
 ):
-    """Matches every Pango lineage of >= least genomes in both trees: (trees, branch tables, tips) -> rows."""
+    """Matches every Pango lineage of >= least genomes in both trees:
+    (trees, branch tables, tips) -> rows."""
     n = len(tips)
     full_names = {lab: unalias(lab, alias) for lab in tips.lineage.unique()}
     groups: dict[str, list[int]] = {}
@@ -420,10 +434,12 @@ def lineage_rows(
 def smallest_supported_clade(
     parent: ndarray, n: int, supported: ndarray, root_leaf: int
 ) -> tuple[ndarray, ndarray]:
-    """Finds the smallest supported clade around every genome: (tree, supported internal nodes) -> (node, far).
+    """Finds the smallest supported clade around every genome:
+    (tree, supported internal nodes) -> (node, far).
 
-    node is -1 when no branch qualifies; far is True when the clade is all genomes not under the node, which is the
-    case on the path from the stored root to root_leaf (the tree is read as rooted at that genome).
+    node is -1 when no branch qualifies;
+    far is True when the clade is all genomes not under the node, which is the case on the path from
+    the stored root to root_leaf (the tree is read as rooted at that genome).
     """
     total = parent.size
     chain = []  # internal nodes from root_leaf up to the stored root
@@ -455,7 +471,8 @@ def smallest_supported_clade(
 def resolution(
     ours: dict, o: DataFrame, tips: DataFrame, alias: dict, min_genomes: int
 ) -> DataFrame:
-    """Tabulates how finely genomes are placed, by sampling month: (tree, branch table, tips) -> rows per threshold."""
+    """Tabulates how finely genomes are placed, by sampling month:
+    (tree, branch table, tips) -> rows per threshold."""
     n = len(tips)
     index = {name: g for g, name in enumerate(tips.strain)}
     genome = array([index[x] for x in ours["names"]])  # genome of each leaf
@@ -535,7 +552,8 @@ def resolution(
 
 
 def records(out: Path, alias_path: Path, min_month: int, min_lineage: int) -> None:
-    """Writes the records of the analysis: (results folder) -> summary.json, lineages.tsv, resolution_by_month.tsv."""
+    """Writes the records of the analysis:
+    (results folder) -> summary.json, lineages.tsv, resolution_by_month.tsv."""
     report = read_json(out / "tree.json")
     sites = report["details"]["input"]["sites"]
     sup = out / "supports"
@@ -785,7 +803,8 @@ def main() -> None:
     args = parser.parse_args()
     args.results_dir = args.results_dir / "viridian"
     out, exe, ow = args.results_dir, args.p2vbme, args.overwrite
-    # Without dedup, as the paper's runs: every genome is searched, also the third and later identical copies
+    # Without dedup, as the paper's runs:
+    # every genome is searched, also the third and later identical copies
     run = [
         "-s",
         str(args.alignment),

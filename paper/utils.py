@@ -45,11 +45,13 @@ def write_json(path: Path, data: dict) -> None:
 def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> dict:
     """Runs p2v-bme unless its report exists: (args, prefix) -> the report <prefix>.json.
 
-    args are p2v-bme's options without -p; the run writes <prefix>.nwk, <prefix>.json and <prefix>.log, and for a search
-    (-s) this function writes <prefix>.host.json: the CPU threads the run had (OMP_NUM_THREADS, else the cores it may
-    use), which the tables state for GPU runs.
+    args are p2v-bme's options without -p;
+    the run writes <prefix>.nwk, <prefix>.json and <prefix>.log,
+    and for a search (-s) this function writes <prefix>.host.json: the CPU threads the run had
+    (OMP_NUM_THREADS, else the cores it may use), which the tables state for GPU runs.
     A failed run leaves no report (only its log): it runs again.
-    The report decides: p2v-bme gets --overwrite, so the other outputs of a run without a report do not stop it.
+    The report decides: p2v-bme gets --overwrite,
+    so the other outputs of a run without a report do not stop it.
     """
     report = Path(f"{prefix}.json")
     if overwrite or not report.exists():
@@ -63,9 +65,11 @@ def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> d
 
 
 def supports(p2vbme: str, tree: Path, replicates: Path, prefix: Path, overwrite: bool) -> dict:
-    """Computes the supports of a tree's branches over replicate trees: (tree, replicates, prefix) -> report.
+    """Computes the supports of a tree's branches over replicate trees:
+    (tree, replicates, prefix) -> report.
 
-    Writes <prefix>.support.nwk (labels "TBE/exact" in %) and <prefix>.json; skipped if the report exists.
+    Writes <prefix>.support.nwk (labels "TBE/exact" in %) and <prefix>.json;
+    skipped if the report exists.
     """
     return run_p2vbme(p2vbme, ["-t", str(tree), "--supports", str(replicates)], prefix, overwrite)
 
@@ -74,7 +78,8 @@ def compare_to_truth(p2vbme: str, tree: Path, true_tree: Path, overwrite: bool) 
     """Compares a tree with the true tree: (tree, true tree) -> {rf_pct, mean_tbe, mean_exact}.
 
     Writes <tree without .nwk>.vs_true.{support.nwk,json}.
-    For binary trees on the same leaves, the normalised RF distance RF / (2 (n - 3)) is 1 - mean exact support.
+    For binary trees on the same leaves, the normalised RF distance RF / (2 (n - 3)) is
+    1 - mean exact support.
     """
     prefix = Path(str(tree).removesuffix(".nwk") + ".vs_true")
     s = supports(p2vbme, tree, true_tree, prefix, overwrite)["supports"]
@@ -96,10 +101,12 @@ def support_labels(path: Path) -> list[tuple[float, float]]:
 
 
 def branch_table(path: Path) -> tuple[int, dict[str, ndarray]]:
-    """Reads the branches above the internal nodes of a Newick tree, in the file's order: path -> (n leaves, columns).
+    """Reads the branches above the internal nodes of a Newick tree, in the file's order:
+    path -> (n leaves, columns).
 
-    Columns: node (n_leaves + k for the k-th closing bracket), size (leaves below the node, as the file roots the
-    tree), p (leaves on the smaller side), length (nan if none), tbe and exact (a "TBE/exact" label in %, nan if none).
+    Columns: node (n_leaves + k for the k-th closing bracket),
+    size (leaves below the node, as the file roots the tree), p (leaves on the smaller side),
+    length (nan if none), tbe and exact (a "TBE/exact" label in %, nan if none).
     The root (the outermost bracket) has no branch and is left out.
     Two files written for the same tree list the same branches in the same order.
     """
@@ -139,12 +146,15 @@ def branch_table(path: Path) -> tuple[int, dict[str, ndarray]]:
 
 
 def read_tree(path: Path) -> dict:
-    """Reads a Newick tree into node arrays: path -> {names, parent, first, size, length, tbe, exact}.
+    """Reads a Newick tree into node arrays:
+    path -> {names, parent, first, size, length, tbe, exact}.
 
-    Leaves are nodes 0 .. n-1 in the file's order (a depth-first order), internal nodes n, n+1, ... in the order of
-    their closing brackets, so children come before their parent and the root (outermost bracket) is last.
+    Leaves are nodes 0 .. n-1 in the file's order (a depth-first order),
+    internal nodes n, n+1, ... in the order of their closing brackets,
+    so children come before their parent and the root (outermost bracket) is last.
     The leaves below node u are first[u] .. first[u] + size[u] - 1; parent is -1 at the root.
-    length: the branch above the node (nan if none); tbe, exact: its "TBE/exact" label in % (nan if none).
+    length: the branch above the node (nan if none);
+    tbe, exact: its "TBE/exact" label in % (nan if none).
     Names must not be quoted.
     """
     text = Path(path).read_text().strip()
@@ -168,7 +178,8 @@ def read_tree(path: Path) -> dict:
     sorted_keys = key[order]
 
     def enclosing(levels: ndarray, positions: ndarray) -> ndarray:
-        """Finds the ")" of the bracket enclosing each position: (its level, position) -> internal node index."""
+        """Finds the ")" of the bracket enclosing each position:
+        (its level, position) -> internal node index."""
         at = searchsorted(sorted_keys, levels * (chars.size + 1) + positions)
         found = order[minimum(at, order.size - 1)]
         ok = (at < order.size) & (level[found] == levels)
@@ -205,7 +216,8 @@ def read_tree(path: Path) -> dict:
 def with_edge_lengths(tree: Path, edge: float, out: Path) -> Path:
     """Writes a tree's topology with every edge of the same length: (tree, length) -> out.
 
-    Branch lengths and internal labels are dropped; the comparison programs read start trees with lengths.
+    Branch lengths and internal labels are dropped;
+    the comparison programs read start trees with lengths.
     """
     text = Path(tree).read_text().strip()
     text = sub(r":[^,();]*", "", text)
@@ -234,7 +246,8 @@ def span(text: str) -> list[int]:
 
 
 def auc(score: ndarray, positive: ndarray) -> float:
-    """Computes the area under the ROC curve of a score for a true/false outcome: (score, outcome) -> AUC.
+    """Computes the area under the ROC curve of a score for a true/false outcome:
+    (score, outcome) -> AUC.
 
     By rank sum, tied scores sharing their mean rank.
     """
@@ -247,5 +260,6 @@ def auc(score: ndarray, positive: ndarray) -> float:
 
 
 def pct(x) -> float:
-    """Averages a 0/1 or 0..1 series in per cent: series -> per cent (nan if empty; a pandas Series skips nan)."""
+    """Averages a 0/1 or 0..1 series in per cent:
+    series -> per cent (nan if empty; a pandas Series skips nan)."""
     return float(100.0 * x.mean()) if len(x) else nan

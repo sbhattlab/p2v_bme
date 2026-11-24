@@ -1,25 +1,27 @@
 """Recovery of the GTR+GC parameters by p2v-bme's fit on simulated alignments (table gtr_fit).
 
-Alignments of 1,000 sequences are simulated on a random ultrametric tree under GTR with unequal base frequencies and
-gamma rates across sites, at two divergence levels (median p-distance) and three lengths, with the paper's simulation
-code and seeds, so each alignment is the one the paper's fit saw. p2v-bme fits each one (-m GTR+GC, no search) and
-the fitted shape and exchangeabilities are compared with the truth.
+Alignments of 1,000 sequences are simulated on a random ultrametric tree under GTR with unequal base
+frequencies and gamma rates across sites, at two divergence levels (median p-distance) and three
+lengths, with the paper's simulation code and seeds,
+so each alignment is the one the paper's fit saw.
+p2v-bme fits each one (-m GTR+GC, no search) and the fitted shape and exchangeabilities are
+compared with the truth.
 
 Inputs:  none (simulated)
-Options: --sequences, --replicates, --alphas, --sites, --divergence, --pairs, --threads, --keep-fasta, --overwrite,
-         paths
+Options: --sequences, --replicates, --alphas, --sites, --divergence, --pairs, --threads,
+         --keep-fasta, --overwrite, paths
 Flow:    each alpha x sites x divergence x replicate
            |
            v
          simulate the alignment (the paper's code and seeds) -> FASTA
            |
            v
-         p2v-bme -m GTR+GC --max-rounds 0 --no-branch-lengths -t random -a cpu     (skipped if its report exists)
-           |
+         p2v-bme -m GTR+GC --max-rounds 0 --no-branch-lengths -t random -a cpu
+           |      (skipped if its report exists)
            v
          alpha_hat, RMS error of the log exchangeabilities
-Outputs: data/results/gtr_fit/runs/<alignment>.{nwk,json}       p2v-bme's reports
-         data/results/gtr_fit/recovery.tsv                     one row per alignment (make_tables.py)
+Outputs: data/results/gtr_fit/runs/<alignment>.{nwk,json}    p2v-bme's reports
+         data/results/gtr_fit/recovery.tsv                   one row per alignment (make_tables.py)
 
     pixi run -e paper python -m paper.run_gtr_fit_recovery
 """
@@ -65,11 +67,12 @@ COLUMNS = (
     "iterations\tfit_seconds\tconverged\tpairs"
 )
 
-# ---- The paper's simulation, unchanged ------------------------------------------------------------------------
+# ---- The paper's simulation, unchanged -----------------------------------------------------------
 
 
 def gtr_eigen(rates: ndarray, pi: ndarray) -> tuple[ndarray, ndarray, ndarray]:
-    """Decomposes the GTR rate matrix scaled to one substitution per unit time: (rates, pi) -> (lam, vr, vl)."""
+    """Decomposes the GTR rate matrix scaled to one substitution per unit time:
+    (rates, pi) -> (lam, vr, vl)."""
     s = zeros((4, 4))
     s[triu_indices(4, 1)] = rates
     s = s + s.T
@@ -83,7 +86,8 @@ def gtr_eigen(rates: ndarray, pi: ndarray) -> tuple[ndarray, ndarray, ndarray]:
 
 
 def yule_tree(n: int, rng: Generator) -> tuple[ndarray, ndarray]:
-    """Draws a random ultrametric tree on n leaves: n -> (parent of every node, node heights); root 2n - 2."""
+    """Draws a random ultrametric tree on n leaves:
+    n -> (parent of every node, node heights); root 2n - 2."""
     parent = full(2 * n - 1, -1, dtype=int64)
     height = zeros(2 * n - 1)
     live = list(range(n))
@@ -101,7 +105,8 @@ def yule_tree(n: int, rng: Generator) -> tuple[ndarray, ndarray]:
 def pair_distances(
     parent: ndarray, height: ndarray, n: int, n_pairs: int, rng: Generator
 ) -> ndarray:
-    """Measures random leaf pairs: (tree, n_pairs) -> twice the height of each pair's common ancestor."""
+    """Measures random leaf pairs: (tree, n_pairs)
+    -> twice the height of each pair's common ancestor."""
     out = empty(n_pairs)
     for k in range(n_pairs):
         a, b = rng.choice(n, size=2, replace=False)
@@ -124,7 +129,8 @@ def expected_p(
 
 
 def simulate(n: int, sites: int, alpha: float, target_p: float, rng: Generator) -> ndarray:
-    """Simulates an alignment on a Yule tree scaled to a median p-distance: -> n x sites codes 0..3."""
+    """Simulates an alignment on a Yule tree scaled to a median p-distance:
+    -> n x sites codes 0..3."""
     lam, vr, vl = gtr_eigen(RATES, PI)
     parent, height = yule_tree(n, rng)
     d = pair_distances(parent, height, n, PAIRS_FOR_SCALE, rng)
@@ -156,7 +162,7 @@ def write_fasta(seqs: ndarray, path: Path) -> None:
             handle.write(b">t%d\n" % k + letters[row].tobytes() + b"\n")
 
 
-# ---- p2v-bme's fit -----------------------------------------------------------------------------------------
+# ---- p2v-bme's fit -------------------------------------------------------------------------------
 
 
 def fit(p2vbme: str, fasta: Path, prefix: Path, pairs: int, threads: int) -> dict:

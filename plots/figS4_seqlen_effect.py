@@ -1,8 +1,10 @@
-"""Fig. S4: RF error at 10,000 sequences on JC alignments of 1,000 and 10,000 sites, for every method.
+"""Fig. S4: RF error at 10,000 sequences on JC alignments of 1,000 and 10,000 sites,
+for every method.
 
 Inputs:  data/tables/scaling_methods.tsv                                (make_tables.py)
 Options: --tables-dir, --img-dir
-Flow:    per method with runs at both lengths: mean and range of the RF error (hollow: 1,000 sites, filled: 10,000)
+Flow:    per method with runs at both lengths:
+         mean and range of the RF error (hollow: 1,000 sites, filled: 10,000)
 Outputs: img/fig2/figS4_seqlen_effect.{pdf,svg}
 
     pixi run -e paper python -m plots.figS4_seqlen_effect

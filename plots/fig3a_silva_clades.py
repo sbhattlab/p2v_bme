@@ -1,15 +1,17 @@
-"""Fig. 3a: the SILVA 144 tree reduced to the three domains and 20 major clades, with counts, F1 and support.
+"""Fig. 3a: the SILVA 144 tree reduced to the three domains and 20 major clades,
+with counts, F1 and support.
 
 Inputs:  data/tables/silva_clades.tsv, silva_clade_paths.tsv            (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    the paths from each selected clade's best node to the root
            |
            v
-         the tree they induce, rooted on the branch above the smallest clade holding Archaea and Eukaryota
+         the tree they induce, rooted on the branch above the smallest clade holding
+         Archaea and Eukaryota
            |
            v
-         one row per clade: triangle, name, unique sequences, best F1, transfer support (TBE) of its stem;
-         backbone nodes with TBE >= 75% marked
+         one row per clade: triangle, name, unique sequences,
+         best F1, transfer support (TBE) of its stem; backbone nodes with TBE >= 75% marked
 Outputs: img/fig3/fig3a_silva_clades.{pdf,svg}
 
     pixi run -e paper python -m plots.fig3a_silva_clades
@@ -82,7 +84,8 @@ def read_clades(tables_dir) -> tuple[dict, dict]:
 
 
 def induced_tree(clades: dict, paths: dict) -> dict:
-    """Builds the tree induced by the selected clades and the domains: (clades, paths) -> nested dict, rooted."""
+    """Builds the tree induced by the selected clades and the domains:
+    (clades, paths) -> nested dict, rooted."""
     adj: dict[int, dict[int, tuple[float, float]]] = {}
     above: dict[int, tuple[float, float]] = (
         {}
@@ -99,7 +102,8 @@ def induced_tree(clades: dict, paths: dict) -> dict:
     euk = [int(r["node"]) for r in paths["Eukaryota"]]
     arc = {int(r["node"]) for r in paths["Archaea"]}
     euk_node, arc_node = int(clades["Eukaryota"]["best_node"]), int(clades["Archaea"]["best_node"])
-    # The smallest clade holding both Archaea and Eukaryota: the figure is rooted on the branch above it
+    # The smallest clade holding both Archaea and Eukaryota:
+    # the figure is rooted on the branch above it
     ae = next(x for x in euk if x in arc)
     if ae == euk[-1]:
         raise SystemExit(
@@ -161,7 +165,8 @@ def induced_tree(clades: dict, paths: dict) -> dict:
 
 
 def place(node: dict, x0: float, counter: list[int]) -> float:
-    """Sets the x (square-root branch lengths) and y (row) of every node: -> the largest x below the node."""
+    """Sets the x (square-root branch lengths) and y (row) of every node:
+    -> the largest x below the node."""
     step = 0.0 if node["node"] == -1 else 0.016 + 0.36 * sqrt(max(0.0, node["length"]))
     node["x0"], node["x"] = x0, x0 + step
     if node["leaf"]:
@@ -174,7 +179,8 @@ def place(node: dict, x0: float, counter: list[int]) -> float:
 
 
 def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
-    """Draws a node, its row if it is a selected clade, and its subtree: (axes, node, column x) -> None."""
+    """Draws a node, its row if it is a selected clade, and its subtree:
+    (axes, node, column x) -> None."""
     x0, x1, y = node["x0"], node["x"], node["y"]
     tips = columns["tips"]
     if node["node"] != -1:

@@ -1,25 +1,34 @@
-"""Every table of the paper and the data behind its figures, from the raw results (Tables S1-S15; Figs 2, 3, S1-S5).
+"""Every table of the paper and the data behind its figures,
+from the raw results (Tables S1-S15; Figs 2, 3, S1-S5).
 
 Inputs:  data/results/                                    (the run_*.py scripts)
-           scaling/, random_start/, seqlen/,              our runs: <set>/<n>/rep<r>_seed<s>[_cap<P>].json (p2v-bme
-           representatives/, pandemic/                    report) with .vs_true.json, .backbone.json,
-                                                          .vs_cap64.json (p2v-bme --supports), .score.json, .eval.json
-           calibration/, fastme/, gtr_fit/, silva/,       records scored from our trees, in the paper's file formats
-           viridian/, seqlen/diagnose_10k_sequences.jsonl
-           baselines/                                     the comparison programs' recorded results (run_baselines.py)
+           scaling/, random_start/, seqlen/,              our runs:
+           representatives/, pandemic/                    <set>/<n>/rep<r>_seed<s>[_cap<P>].json
+                                                          (p2v-bme report) with .vs_true.json,
+                                                          .backbone.json, .vs_cap64.json
+                                                          (p2v-bme --supports), .score.json,
+                                                          .eval.json
+           calibration/, fastme/, gtr_fit/, silva/,       records scored from our trees,
+           viridian/,                                     in the paper's file formats
+           seqlen/diagnose_10k_sequences.jsonl
+           baselines/                                     the comparison programs' recorded results
+                                                          (run_baselines.py)
 Options: --results-dir, --tables-dir, --tables (default: all), --overwrite
 Flow:    each table
            |
            v
-         its results -> rows                              (a table whose results are missing is skipped, with a note)
+         its results -> rows                              (a table whose results are missing is
+           |                                              skipped, with a note)
            |
            v
          data/tables/<name>.tsv (the rows) and <name>.tex (the LaTeX table)
-Outputs: data/tables/<table>.tex for scaling, maple, bootstrap, baseline_10k, silva_support, comparators,
-         random_tree, seqlen, representative_sensitivity, fastme, gtr_fit, silva_gtdb, viridian_variants,
-         viridian_support, viridian_thresholds; data/tables/<data>.tsv behind the tables and figures (scaling,
-         scaling_runs, random_tree, maple, bootstrap, bootstrap_by_size, baseline_10k, silva_support, scaling_methods,
-         silva_clades, silva_clade_paths, viridian_variants, viridian_substitutions, viridian_resolution)
+Outputs: data/tables/<table>.tex for scaling, maple, bootstrap, baseline_10k, silva_support,
+         comparators, random_tree, seqlen, representative_sensitivity, fastme, gtr_fit, silva_gtdb,
+         viridian_variants, viridian_support, viridian_thresholds;
+         data/tables/<data>.tsv behind the tables and figures (scaling, scaling_runs, random_tree,
+         maple, bootstrap, bootstrap_by_size, baseline_10k, silva_support, scaling_methods,
+         silva_clades, silva_clade_paths, viridian_variants, viridian_substitutions,
+         viridian_resolution)
 
     pixi run -e paper python -m paper.make_tables
     pixi run -e paper python -m paper.make_tables --tables scaling maple --overwrite
@@ -63,7 +72,8 @@ ALIAS = {
     "FastTree-ME": "FastTree-ME",
 }
 
-# RNASim calibration: bootstrap replicates and repeat searches per reference tree (run_calibration.py)
+# RNASim calibration: bootstrap replicates and repeat searches per reference tree
+# (run_calibration.py)
 CALIBRATION_BOOTSTRAPS = 64
 CALIBRATION_SEEDS = 8
 
@@ -154,10 +164,11 @@ def short_gpu(name: str) -> str:
 
 
 def threads_of(report: Path, details: dict) -> int | str:
-    """Reads the CPU threads of one of our runs: (report, its details) -> the count ('' if not recorded).
+    """Reads the CPU threads of one of our runs:
+    (report, its details) -> the count ('' if not recorded).
 
-    CPU runs: their workers ("CPU: 16 threads" in the report); GPU runs: the host threads that run_p2vbme recorded in
-    <prefix>.host.json.
+    CPU runs: their workers ("CPU: 16 threads" in the report);
+    GPU runs: the host threads that run_p2vbme recorded in <prefix>.host.json.
     """
     workers = [d for d in details["devices"] if d.startswith("CPU: ")]
     if workers:
@@ -167,19 +178,22 @@ def threads_of(report: Path, details: dict) -> int | str:
 
 
 def rf_from(path: Path) -> float | str:
-    """Reads the RF error of a p2v-bme --supports comparison: report -> 100 - mean exact support ('' if none).
+    """Reads the RF error of a p2v-bme --supports comparison:
+    report -> 100 - mean exact support ('' if none).
 
     For binary trees on the same leaves, RF / (2 (n - 3)) = 1 - (shared splits) / (n - 3).
     """
     return 100.0 - loads(path.read_text())["supports"]["mean_exact"] if path.exists() else ""
 
 
-# Experiments already warned about reports without gpu_memory_peak_mib (our_runs reads an experiment once per table)
+# Experiments already warned about reports without gpu_memory_peak_mib
+# (our_runs reads an experiment once per table)
 warned_no_peak: set[str] = set()
 
 
 def our_runs(results: Path, experiment: str) -> list[dict]:
-    """Reads our runs of one experiment: (results dir, experiment) -> one row per p2v-bme report, in run order."""
+    """Reads our runs of one experiment:
+    (results dir, experiment) -> one row per p2v-bme report, in run order."""
     rows: list[dict] = []
     no_peak = 0  # GPU reports without gpu_memory_peak_mib
     for path in (results / experiment).glob("*/*/*.json"):
@@ -249,7 +263,8 @@ def our_runs(results: Path, experiment: str) -> list[dict]:
 
 
 def one(values: set, what: str):
-    """Returns the one value of a set: (values, what they are) -> value; mixed values are an error."""
+    """Returns the one value of a set:
+    (values, what they are) -> value; mixed values are an error."""
     if len(values) != 1:
         raise SystemExit(f"mixed {what} in the run records: {sorted(map(str, values))}")
     return next(iter(values))
@@ -261,9 +276,11 @@ def gpus(count: int, model: str) -> str:
 
 
 def hardware(rows: list[dict], threads_too: bool = True) -> str:
-    """Describes the hardware of our runs: rows -> 'one H200 GPU and 12 CPU threads', or '16 CPU threads' on the CPU.
+    """Describes the hardware of our runs:
+    rows -> 'one H200 GPU and 12 CPU threads', or '16 CPU threads' on the CPU.
 
-    The GPUs alone without threads_too (as the bootstrap caption), or for reports without the CPU threads.
+    The GPUs alone without threads_too (as the bootstrap caption),
+    or for reports without the CPU threads.
     """
     count = one({r["gpu_count"] for r in rows}, "GPU counts")
     threads = one({r["cpu_threads"] for r in rows}, "CPU thread counts")
@@ -274,13 +291,15 @@ def hardware(rows: list[dict], threads_too: bool = True) -> str:
 
 
 def program_hardware(records: list[dict]) -> str:
-    """Describes the hardware of comparison runs with gpu_name and cpu_cores: -> 'one H200 GPU and 12 CPU threads'."""
+    """Describes the hardware of comparison runs with gpu_name and cpu_cores:
+    -> 'one H200 GPU and 12 CPU threads'."""
     model = short_gpu(one({r["gpu_name"] for r in records}, "GPU models"))
     return f"{gpus(1, model)} and {one({r['cpu_cores'] for r in records}, 'CPU thread counts')} CPU threads"
 
 
 def ours_and_dipper(ours: str, dipper: str) -> str:
-    """Writes the caption sentence on the hardware of Phylo2VecME and DIPPER, joined when it is the same."""
+    """Writes the caption sentence on the hardware of Phylo2VecME and DIPPER,
+    joined when it is the same."""
     return (
         rf"\method\ and DIPPER: {ours}."
         if ours == dipper
@@ -294,7 +313,8 @@ def dipper_runs(results: Path) -> list[dict]:
 
 
 def default_runs(results: Path) -> list[dict]:
-    """Reads FastTree and VeryFastTree in their default pipelines on the PASTA-tree datasets: -> one record per run.
+    """Reads FastTree and VeryFastTree in their default pipelines on the PASTA-tree datasets:
+    -> one record per run.
 
     Runs started from our tree (method names ending in -fromP2V) are left out.
     """
@@ -305,7 +325,8 @@ def default_runs(results: Path) -> list[dict]:
 
 
 def optional(read, results: Path) -> list[dict]:
-    """Reads comparison runs that a table can do without: (reader, results) -> its records, or none."""
+    """Reads comparison runs that a table can do without:
+    (reader, results) -> its records, or none."""
     try:
         return read(results)
     except MissingResults as missing:
@@ -353,7 +374,8 @@ def seconds(x: float) -> str:
 
 
 def booktabs(name: str, caption: str, columns: str, header: str, body: list[str]) -> str:
-    """Builds a one-header booktabs table: (label suffix, caption, column spec, header, rows) -> LaTeX."""
+    """Builds a one-header booktabs table:
+    (label suffix, caption, column spec, header, rows) -> LaTeX."""
     expected = len(columns.replace(" ", "")) - 1
     for line in [header, *body]:
         if line.count("&") != expected:
@@ -371,7 +393,8 @@ def booktabs(name: str, caption: str, columns: str, header: str, body: list[str]
 
 
 def scaling_rows(results: Path) -> tuple[list[dict], list[dict]]:
-    """Aggregates the sample-and-place runs on the PASTA-tree datasets: results -> (per size, per run)."""
+    """Aggregates the sample-and-place runs on the PASTA-tree datasets:
+    results -> (per size, per run)."""
     runs = [r for r in our_runs(results, "scaling") if r["set"] in DATASETS]
     if not runs:
         raise MissingResults(f"{results}/scaling/{{{','.join(DATASETS)}}}")
@@ -491,7 +514,8 @@ def yule_runs(results: Path) -> list[dict]:
 
 
 def table_random_tree(results: Path) -> dict[str, list[dict] | str]:
-    """Builds Table S8 (random_tree) and Fig. 2's third series: results -> {random_tree.tex, random_tree.tsv}."""
+    """Builds Table S8 (random_tree) and Fig. 2's third series:
+    results -> {random_tree.tex, random_tree.tsv}."""
     ours = yule_runs(results)
     rows: list[dict] = []
     for n in sorted({r["n"] for r in ours}):
@@ -682,7 +706,8 @@ def table_maple(results: Path) -> dict[str, list[dict] | str]:
 
 
 def table_bootstrap(results: Path) -> dict[str, list[dict] | str]:
-    """Builds Table S4 (bootstrap): results -> {bootstrap.tex, bootstrap.tsv, bootstrap_by_size.tsv}."""
+    """Builds Table S4 (bootstrap):
+    results -> {bootstrap.tex, bootstrap.tsv, bootstrap_by_size.tsv}."""
     folder = results / "calibration"
     data = read_record(folder / "rnasim_bootstrap_calibration_summary.json")
     y = read_record(folder / "calibration_1000000.json")
@@ -1009,7 +1034,8 @@ def table_comparators(results: Path) -> dict[str, list[dict] | str]:
 
 
 def table_scaling_methods(results: Path) -> dict[str, list[dict] | str]:
-    """Collects every method's runs on the simulated sets (Figs S1-S4): results -> {scaling_methods.tsv}.
+    """Collects every method's runs on the simulated sets (Figs S1-S4):
+    results -> {scaling_methods.tsv}.
 
     One row per run: dataset tag, method key, size, time, RF error, host and GPU memory.
     """
@@ -1063,7 +1089,8 @@ def table_scaling_methods(results: Path) -> dict[str, list[dict] | str]:
 
 
 def table_silva_support(results: Path) -> dict[str, list[dict] | str]:
-    """Builds Table S12 (silva_support) and Fig. 3b's data: results -> {silva_support.tex, silva_support.tsv}."""
+    """Builds Table S12 (silva_support) and Fig. 3b's data:
+    results -> {silva_support.tex, silva_support.tsv}."""
     path = one_file(results / "silva", "silva144_dedup_tbe_B*_quantiles.json")
     data = read_record(path)
     rows: list[dict] = []
@@ -1112,10 +1139,11 @@ def table_silva_support(results: Path) -> dict[str, list[dict] | str]:
 
 
 def table_silva_clades(results: Path) -> dict[str, list[dict] | str]:
-    """Collects Fig. 3a's data: results -> {silva_clades.tsv (one row per clade), silva_clade_paths.tsv}.
+    """Collects Fig. 3a's data: results
+    -> {silva_clades.tsv (one row per clade), silva_clade_paths.tsv}.
 
-    A clade's path is its best node and its ancestors up to the root, each with the branch above it (length, TBE
-    and leaves below).
+    A clade's path is its best node and its ancestors up to the root,
+    each with the branch above it (length, TBE and leaves below).
     """
     bio = read_record(one_file(results / "silva", "silva144_real_biology_B*.json"))
     clades, paths = [], []
@@ -1182,7 +1210,8 @@ def table_silva_gtdb(results: Path) -> dict[str, list[dict] | str]:
 def table_seqlen(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S7 (seqlen): results -> {seqlen.tex}.
 
-    RF columns from our runs (10,000 sites: the scaling runs on JC10k); length from the exact rescoring.
+    RF columns from our runs (10,000 sites: the scaling runs on JC10k);
+    length from the exact rescoring.
     """
     sites = {"jc10k": r"$10^4$", "jc100k": r"$10^5$", "jc1000k": r"$10^6$"}
     exact = defaultdict(list)
@@ -1226,8 +1255,9 @@ def table_seqlen(results: Path) -> dict[str, list[dict] | str]:
 def table_representatives(results: Path) -> dict[str, list[dict] | str]:
     """Builds Table S14 (representative_sensitivity): results -> {representative_sensitivity.tex}.
 
-    Per dataset, size and cap P: RF to the true tree, the scored BME length minus that of the P = 64 tree of the same
-    replicate, RF to that tree, and the search time (starting tree and rounds, no branch lengths).
+    Per dataset, size and cap P: RF to the true tree,
+    the scored BME length minus that of the P = 64 tree of the same replicate,
+    RF to that tree, and the search time (starting tree and rounds, no branch lengths).
     """
     runs = our_runs(results, "representatives")
     reference = {(r["set"], r["n"], r["rep"]): r for r in runs if r["cap"] == 64}
@@ -1236,7 +1266,8 @@ def table_representatives(results: Path) -> dict[str, list[dict] | str]:
         values = [v for v in values if v != ""]
         if not values:
             return "--"
-        # mean and SD to 3 decimals first, as the sweep's summary printed them, then to the cell's decimals
+        # mean and SD to 3 decimals first, as the sweep's summary printed them,
+        # then to the cell's decimals
         if len(values) == 1:
             return f"${round(values[0], 3):.{decimals}f}$"
         return (
@@ -1441,7 +1472,8 @@ def table_gtr_fit(results: Path) -> dict[str, list[dict] | str]:
 
 
 def table_viridian(results: Path) -> dict[str, list[dict] | str]:
-    """Builds Tables S9-S11 (viridian_*) and the data of Figs 3c, S5: results -> their .tex and .tsv."""
+    """Builds Tables S9-S11 (viridian_*) and the data of Figs 3c, S5:
+    results -> their .tex and .tsv."""
     s = read_record(results / "viridian" / "summary.json")
     months = read_tsv(results / "viridian" / "resolution_by_month.tsv")
     runs = s["runs"]

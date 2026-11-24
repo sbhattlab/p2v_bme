@@ -1,30 +1,39 @@
-"""Bootstrap calibration: the supports of a reference tree's branches against the true tree (table bootstrap; the
-supplement's calibration on independent lineages).
+"""Bootstrap calibration: the supports of a reference tree's branches against the true tree
+(table bootstrap; the supplement's calibration on independent lineages).
 
 Inputs:  data/datasets/<set>/<n>/rep0.fa, rep0.true.nwk                         (simulate_data.py)
-         data/datasets/cmaple/simulated/aln_100K_0.0001.maple, tree_100K_0.0001.nwk and the CMAPLE and MAPLE trees
+         data/datasets/cmaple/simulated/aln_100K_0.0001.maple, tree_100K_0.0001.nwk
+         and the CMAPLE and MAPLE trees
          aln_100K_0.0001.maple.treefile, aln_100K_0.0001_wo_ref_tree.tree     (download_data.py)
-Options: --sets, --steps, --replicates, --bootstrap, --repeats, --accelerator, --devices, --datasets-dir, --cmaple-dir,
-         --results-dir, --p2vbme, --overwrite
-Flow:    each calibration set (RNASim 10^5 and 10^6, random tree 10^6, pandemic 10^5; random tree 10^7 on request)
+Options: --sets, --steps, --replicates, --bootstrap, --repeats, --accelerator, --devices,
+         --datasets-dir, --cmaple-dir, --results-dir, --p2vbme, --overwrite
+Flow:    each calibration set
+         (RNASim 10^5 and 10^6, random tree 10^6, pandemic 10^5; random tree 10^7 on request)
            |
            v
          ref      p2v-bme -s <alignment> -m JC69 --no-dedup --seed 1 --report-full
-         boot     p2v-bme ... --seed 1 -b r-r                               r = 1..64, one run each (--replicates)
-         seed     p2v-bme ... --seed s --no-branch-lengths                  s = 2..9: the search's noise alone
-           |      (each run skipped if its report exists; --no-dedup: every tree on every sequence, as in the paper)
+         boot     p2v-bme ... --seed 1 -b r-r                r = 1..64, one run each (--replicates)
+         seed     p2v-bme ... --seed s --no-branch-lengths   s = 2..9: the search's noise alone
+           |      (each run skipped if its report exists;
+           |      --no-dedup: every tree on every sequence, as in the paper)
            v
-         score    p2v-bme -t ref.nwk --supports {boot.nwk, seed.nwk, the true tree; pandemic: CMAPLE's, MAPLE's tree}
-           |      (once every tree of the set exists; multifurcations of the other trees resolved as the paper did)
+         score    p2v-bme -t ref.nwk --supports
+           |      {boot.nwk, seed.nwk, the true tree; pandemic: CMAPLE's, MAPLE's tree}
+           |      (once every tree of the set exists;
+           |      multifurcations of the other trees resolved as the paper did)
            v
          per-branch tables (columns of the paper's support_calibration) and their summaries
-Outputs: data/results/calibration/<set>/<n>/ref.{nwk,json}, boot<r>.{boottrees,json}, seed<s>.{nwk,json}
+Outputs: data/results/calibration/<set>/<n>/ref.{nwk,json}, boot<r>.{boottrees,json},
+         seed<s>.{nwk,json}
          .../boot.nwk, seed.nwk                                   the replicate trees, one per line
          .../ref.{boot,seed,vs_true,vs_cmaple,vs_maple}.{support.nwk,json}
-         .../<tag>_{boot,seed}_branches.tsv     node size p branch_length exact tbe delta_true correct true_transfer
-                                                (+ the same against the CMAPLE and MAPLE trees for the pandemic set)
-         data/results/calibration/rnasim_bootstrap_calibration_summary.json, maple_bootstrap_calibration_summary.json,
-         calibration_<n>.json (random trees): the paper's summaries
+         .../<tag>_{boot,seed}_branches.tsv     node size p branch_length exact tbe delta_true
+                                                correct true_transfer
+                                                (+ the same against the CMAPLE and MAPLE trees
+                                                for the pandemic set)
+         data/results/calibration/rnasim_bootstrap_calibration_summary.json,
+         maple_bootstrap_calibration_summary.json, calibration_<n>.json (random trees):
+         the paper's summaries
          <tag>: rnasim_100000, rnasim_1000000, yule10k_1000000, yule10k_10000000, maple_00001_100000
 
     pixi run -e paper python -m paper.run_calibration --sets rnasim_100000 --steps boot --replicates 1-16
@@ -65,7 +74,8 @@ N_BOOTSTRAP = 64
 N_REPEATS = 8  # repeat searches with seeds 2..9 on the unchanged alignment
 PANDEMIC = "cmaple_0.0001"  # 100,000 sequences, 30,000 sites, mean branch length 1e-4
 
-# tag -> (set, n), as the paper's runs name them; other sizes of a simulated set as <set>_<n> (calibration())
+# tag -> (set, n), as the paper's runs name them;
+# other sizes of a simulated set as <set>_<n> (calibration())
 CALIBRATIONS = {
     "rnasim_100000": ("rnasim", 100_000),
     "rnasim_1000000": ("rnasim", 1_000_000),
@@ -123,7 +133,8 @@ FORMATS = ["%d", "%d", "%d", "%.7g", "%.6f", "%.6f", "%d", "%d", "%.6f"]
 
 
 def calibration(tag: str) -> tuple[str, int]:
-    """Reads a calibration set's tag: tag -> (set, n); a paper tag, or <set>_<n> of a simulated set (e.g. a tiny test)."""
+    """Reads a calibration set's tag:
+    tag -> (set, n); a paper tag, or <set>_<n> of a simulated set (e.g. a tiny test)."""
     if tag in CALIBRATIONS:
         return CALIBRATIONS[tag]
     set_name, _, n = tag.rpartition("_")
@@ -133,7 +144,8 @@ def calibration(tag: str) -> tuple[str, int]:
 
 
 def files_of(args: Namespace, tag: str) -> dict[str, Path]:
-    """Finds a calibration set's inputs: tag -> {alignment, true, and for the pandemic set cmaple, maple}."""
+    """Finds a calibration set's inputs:
+    tag -> {alignment, true, and for the pandemic set cmaple, maple}."""
     set_name, n = calibration(tag)
     if set_name == PANDEMIC:
         stem = args.cmaple_dir / f"aln_{n // 1000}K_{set_name.removeprefix('cmaple_')}"
@@ -167,13 +179,15 @@ def run_names(args: Namespace) -> dict[str, list[tuple[str, list[str]]]]:
 
 
 def infer(args: Namespace, tag: str) -> None:
-    """Runs the selected steps' trees of one calibration set unless their reports exist: tag -> trees."""
+    """Runs the selected steps' trees of one calibration set unless their reports exist:
+    tag -> trees."""
     alignment = files_of(args, tag)["alignment"]
     if not alignment.exists():
         raise FileNotFoundError(
             f"{alignment} is missing: run simulate_data.py or download_data.py first"
         )
-    # Without dedup, as the paper's runs: the replicate trees then hold every sequence, as the reference does
+    # Without dedup, as the paper's runs:
+    # the replicate trees then hold every sequence, as the reference does
     common = [
         "-s",
         str(alignment),
@@ -199,9 +213,11 @@ def infer(args: Namespace, tag: str) -> None:
 
 
 def binary_tree(tree: Path, out: Path) -> Path:
-    """Resolves the multifurcations of a Newick tree as the paper's packing did: (tree, out) -> a binary tree.
+    """Resolves the multifurcations of a Newick tree as the paper's packing did:
+    (tree, out) -> a binary tree.
 
-    A node with children c1..ck (k > 2; the root: k > 3) becomes (((c1, c2), c3) ..., ck), the new branches of length 0.
+    A node with children c1..ck (k > 2; the root: k > 3) becomes (((c1, c2), c3) ..., ck),
+    the new branches of length 0.
     Returns tree itself when it is binary; otherwise writes out (unless it exists) and returns it.
     """
     if out.exists():
@@ -237,10 +253,12 @@ def gather(trees: list[Path], out: Path, overwrite: bool) -> None:
 
 
 def compared_to(sup: dict[str, ndarray], against: Path, name: str) -> dict[str, ndarray]:
-    """Compares the reference's branches with another tree: (supports' branches, file against it, name) -> columns.
+    """Compares the reference's branches with another tree:
+    (supports' branches, file against it, name) -> columns.
 
-    delta_<name>: the leaves to move to obtain a split of the other tree; <name>_correct: 1 if it has the split;
-    <name>_transfer: the transfer index to it (the paper's columns; "true" gives delta_true, correct, true_transfer).
+    delta_<name>: the leaves to move to obtain a split of the other tree;
+    <name>_correct: 1 if it has the split; <name>_transfer:
+    the transfer index to it (the paper's columns; "true" gives delta_true, correct, true_transfer).
     """
     _, other = branch_table(against)
     assert array_equal(sup["size"], other["size"]), f"{against} is not on the reference tree"
@@ -257,7 +275,8 @@ def compared_to(sup: dict[str, ndarray], against: Path, name: str) -> dict[str, 
 
 
 def score(args: Namespace, tag: str) -> None:
-    """Scores the reference's branches once every tree exists: tag -> <tag>_{boot,seed}_branches.tsv."""
+    """Scores the reference's branches once every tree exists:
+    tag -> <tag>_{boot,seed}_branches.tsv."""
     folder, files = folder_of(args, tag), files_of(args, tag)
     names = run_names(args)
     boot_trees = [folder / f"boot{r:03d}.boottrees" for r in range(1, args.bootstrap + 1)]
@@ -385,7 +404,8 @@ def rnasim_summary(args: Namespace) -> None:
 
 
 def maple_summary(args: Namespace) -> None:
-    """Summarises the pandemic calibration by branch length and size: tables -> maple_bootstrap_..._summary.json."""
+    """Summarises the pandemic calibration by branch length and size:
+    tables -> maple_bootstrap_..._summary.json."""
     tag = "maple_00001_100000"
     folder = folder_of(args, tag)
     paths = [folder / f"{tag}_{kind}_branches.tsv" for kind in ("boot", "seed")]
@@ -506,7 +526,8 @@ def random_tree_summary(args: Namespace, tag: str) -> None:
 
 
 def write_summary(args: Namespace, name: str, summary: dict) -> None:
-    """Writes a summary next to the calibration folders: (name, summary) -> data/results/calibration/<name>."""
+    """Writes a summary next to the calibration folders:
+    (name, summary) -> data/results/calibration/<name>."""
     out = args.results_dir / "calibration" / name
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(dumps(summary, indent=2) + "\n")

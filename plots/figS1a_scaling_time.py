@@ -1,11 +1,13 @@
-"""Figs S1a, S2a, S3a: running time of every method at each size, on RNASim, JC10k and random-tree JC.
+"""Figs S1a, S2a, S3a: running time of every method at each size,
+on RNASim, JC10k and random-tree JC.
 
 Inputs:  data/tables/scaling_methods.tsv                                (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    each dataset (rnasim -> S1, jc10k -> S2, yule10k -> S3)
            |
            v
-         one bar per method and size: the mean, from the panel's floor (log axis); the whisker spans the replicates
+         one bar per method and size:
+         the mean, from the panel's floor (log axis); the whisker spans the replicates
 Outputs: img/fig2/figS1a_scaling_time.{pdf,svg}, figS2a_..., figS3a_...
 
     pixi run -e paper python -m plots.figS1a_scaling_time

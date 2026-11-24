@@ -1,8 +1,10 @@
-"""Fig. 2d: RF error of Phylo2VecME against that of MAPLE and CMAPLE, on the same simulated pandemic alignments.
+"""Fig. 2d: RF error of Phylo2VecME against that of MAPLE and CMAPLE,
+on the same simulated pandemic alignments.
 
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
 Options: --tables-dir, --img-dir
-Flow:    one point per alignment (size x branch-length scale) and program; the diagonal marks equal error
+Flow:    one point per alignment (size x branch-length scale) and program;
+         the diagonal marks equal error
 Outputs: img/fig2/fig2d_pandemic_rf_error.{pdf,svg}
 
     pixi run -e paper python -m plots.fig2d_pandemic_rf_error

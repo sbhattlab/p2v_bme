@@ -1,8 +1,10 @@
-"""Fig. 3b: transfer support of every internal branch of the SILVA 144 tree, by the size of its split.
+"""Fig. 3b: transfer support of every internal branch of the SILVA 144 tree,
+by the size of its split.
 
 Inputs:  data/tables/silva_support.tsv                                  (make_tables.py)
 Options: --tables-dir, --img-dir
-Flow:    per bin of split size (smaller side): median TBE and interquartile range, with the bin's branch count
+Flow:    per bin of split size (smaller side):
+         median TBE and interquartile range, with the bin's branch count
 Outputs: img/fig3/fig3b_silva_support.{pdf,svg}
 
     pixi run -e paper python -m plots.fig3b_silva_support

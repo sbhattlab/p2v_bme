@@ -1,18 +1,23 @@
-"""Runs every paper script and plot on tiny simulated inputs, on the CPU, as CI does (a check, not a result).
+"""Runs every paper script and plot on tiny simulated inputs, on the CPU, as CI does
+(a check, not a result).
 
 Inputs:  build/p2v-bme, build/make_test_fasta and the paper's tools (cmake --preset default)
 Options: --work-dir, --keep
 Flow:    a 300-sequence alignment and its tree from make_test_fasta stand in for RNASim's
            |
            v
-         download_data --dry-run; simulate_data (60 sequences; FastME sets of 30, also from a 600-sequence expansion);
-         run_benchmarks, run_calibration, run_fastme, run_gtr_fit_recovery, run_baselines --run default on them;
-         run_silva's steps up to the supports on the alignment with five sequences cut short (left out by
-         --min-sites); --help of run_viridian, whose input (Viridian) has no tiny stand-in here
+         download_data --dry-run;
+         simulate_data (60 sequences; FastME sets of 30, also from a 600-sequence expansion);
+         run_benchmarks, run_calibration, run_fastme, run_gtr_fit_recovery,
+         run_baselines --run default on them;
+         run_silva's steps up to the supports on the alignment with five sequences cut short
+         (left out by --min-sites);
+         --help of run_viridian, whose input (Viridian) has no tiny stand-in here
            |
            v
          make_tables, then each plot whose data the tiny runs make; --help of the others
-Outputs: tmp/paper_check/ (removed at the end unless --keep); a failing step stops the check with its error
+Outputs: tmp/paper_check/ (removed at the end unless --keep);
+         a failing step stops the check with its error
 
     pixi run -e paper check-paper
 """
@@ -41,7 +46,8 @@ PLOTS_DRAWN = (
 
 
 def step(*args: str) -> None:
-    """Runs one entry point with the paper environment's Python: (module, options) -> None; stops on failure."""
+    """Runs one entry point with the paper environment's Python:
+    (module, options) -> None; stops on failure."""
     print("check_entry_points:", " ".join(args), flush=True)
     run([executable, "-m", *args], check=True)
 

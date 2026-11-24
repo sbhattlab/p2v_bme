@@ -1,33 +1,44 @@
-"""FastME comparison: p2v-bme and FastME on the same distance matrix, every tree rescored exactly (table fastme).
+"""FastME comparison: p2v-bme and FastME on the same distance matrix,
+every tree rescored exactly (table fastme).
 
-Both programs minimise the BME length of the same matrix (p2v-bme's JC69 distances, written by bme_scores).
-Every output tree is rescored in double precision from the full matrix by bme_scores, which shares no code with the
-search. Three arms per case:
-  sample  each program's own start: p2v-bme sample-and-place (seed rep + 1); FastME BIONJ, NNI and SPR, rerun from
-          its own output until the topology stops changing, at most 5 reruns (its time: the first run alone)
-  rand    the same random start tree for both (the set's, rooted as the paper's); FastME rerun from it until the
-          topology stops changing, at most 8 runs (its time: all runs)
+Both programs minimise the BME length of the same matrix
+(p2v-bme's JC69 distances, written by bme_scores).
+Every output tree is rescored in double precision from the full matrix by bme_scores,
+which shares no code with the search.
+Three arms per case:
+  sample  each program's own start: p2v-bme sample-and-place (seed rep + 1);
+          FastME BIONJ, NNI and SPR, rerun from its own output until the topology stops changing,
+          at most 5 reruns (its time: the first run alone)
+  rand    the same random start tree for both (the set's, rooted as the paper's);
+          FastME rerun from it until the topology stops changing,
+          at most 8 runs (its time: all runs)
   polish  p2v-bme started from FastME's converged tree of the sample arm
-and an SPR check of our trees (sample, rand): FastME's SPR from our tree until the topology stops changing.
-FastME keeps a start tree unless its result is shorter than the start's branch lengths add up to, so, as in the paper's
-runs, every start is given branch lengths of 1 (far above any BME length): FastME then returns its result.
+and an SPR check of our trees (sample, rand):
+FastME's SPR from our tree until the topology stops changing.
+FastME keeps a start tree unless its result is shorter than the start's branch lengths add up to,
+so, as in the paper's runs, every start is given branch lengths of 1 (far above any BME length):
+FastME then returns its result.
 
 Inputs:  data/datasets/fastme/<set>/<n>/rep<r>.fa, rep<r>.true.nwk, rep<r>.random_start.nwk
-                                                                     (simulate_data.py --sets fastme)
-         sets jc10k, rnasim (1,000-10,000 sequences, 5 replicates: subsets of the 10^4-sequence sets); jc1m, rna1m
-         (random subsets of the 10^6-sequence alignments: 100 replicates at 1,000 and 2,000, 20 at 5,000)
-Options: --sets, --sizes, --replicates, --arms, --accelerator, --devices, --keep-matrix, --overwrite, paths
+                                                                   (simulate_data.py --sets fastme)
+         sets jc10k, rnasim (1,000-10,000 sequences, 5 replicates:
+         subsets of the 10^4-sequence sets);
+         jc1m, rna1m (random subsets of the 10^6-sequence alignments:
+         100 replicates at 1,000 and 2,000, 20 at 5,000)
+Options: --sets, --sizes, --replicates, --arms, --accelerator, --devices, --keep-matrix,
+         --overwrite, paths
 Flow:    each set x size x replicate
            |
            v
          bme_scores --phylip: the JC69 matrix as p2v-bme computes it
            |
            v
-         p2v-bme (sample, rand, polish) and FastME (BIONJ start, the random start) to convergence, FastME's SPR from
-         our trees                                              (each step skipped if its output exists)
-           |
+         p2v-bme (sample, rand, polish) and FastME (BIONJ start, the random start) to convergence,
+         FastME's SPR from our trees
+           |      (each step skipped if its output exists)
            v
-         bme_scores: exact lengths; p2v-bme --supports: RF to the true tree and between the programs' trees
+         bme_scores: exact lengths;
+         p2v-bme --supports: RF to the true tree and between the programs' trees
 Outputs: data/results/fastme/<set>/<n>/rep<r>_*.{nwk,json}       trees, p2v-bme reports, FastME runs
          data/results/fastme/<set>/<n>/rep<r>.case.json            the case's record
          data/results/fastme/cases.jsonl                           every case found (make_tables.py)
@@ -70,7 +81,8 @@ ARMS = ("sample", "rand", "polish")
 MODEL = "JC69"
 FASTME_NNI_SPR = ["-n", "B", "-s"]  # BME NNI and SPR, the better of both
 FASTME_SPR = ["-s"]
-# FastME to convergence, as the paper's runs: reruns until the topology stops changing, at most this many
+# FastME to convergence, as the paper's runs:
+# reruns until the topology stops changing, at most this many
 FASTME_RERUNS = 5  # after the run from BIONJ
 FASTME_RUNS_FROM_START = 8  # from a given start tree
 START_EDGE = 1.0  # branch length of every start tree (see the module's docstring)
@@ -89,7 +101,8 @@ def exact_lengths(tool: str, fasta: Path, trees: list[Path]) -> list[float]:
 
 
 def run_fastme(fastme: str, phylip: Path, args: list[str], out: Path) -> float:
-    """Runs FastME once on one thread: (matrix, options, output tree) -> wall seconds; its log goes to <out>.info."""
+    """Runs FastME once on one thread:
+    (matrix, options, output tree) -> wall seconds; its log goes to <out>.info."""
     t0 = perf_counter()
     cmd = [
         fastme,
@@ -118,11 +131,15 @@ def fastme_to_convergence(
     prefix: Path,
     overwrite: bool,
 ) -> dict:
-    """Reruns FastME from its own output until the topology stops changing: (start, moves) -> run record.
+    """Reruns FastME from its own output until the topology stops changing:
+    (start, moves) -> run record.
 
-    As the paper's runs: start None, BIONJ (FastME's default start), then at most 5 reruns; else that tree, at most 8
-    runs. Every run starts from its input with branch lengths of 1. The result is the last run's tree.
-    Record (also <prefix>.json): passes [{tree, wall_s, L}], tree and L (the last run's), wall_s (all runs).
+    As the paper's runs: start None, BIONJ (FastME's default start), then at most 5 reruns;
+    else that tree, at most 8 runs.
+    Every run starts from its input with branch lengths of 1.
+    The result is the last run's tree.
+    Record (also <prefix>.json): passes [{tree, wall_s, L}],
+    tree and L (the last run's), wall_s (all runs).
     """
     record_path = Path(f"{prefix}.json")
     if record_path.exists() and not overwrite:
@@ -161,7 +178,8 @@ def fastme_to_convergence(
 
 
 def rf_pct(p2vbme: str, tree: Path, other: Path, prefix: Path, overwrite: bool) -> float:
-    """Computes the normalised RF distance of two binary trees in %: (tree, other) -> 100 - mean exact support."""
+    """Computes the normalised RF distance of two binary trees in %:
+    (tree, other) -> 100 - mean exact support."""
     return 100.0 - supports(p2vbme, tree, other, prefix, overwrite)["supports"]["mean_exact"]
 
 
@@ -246,7 +264,8 @@ def score_case(
     references = {"sample": converged, "polish": converged}
     times = {"sample": first["wall_s"], "polish": first["wall_s"]}
     if "rand" in arms:
-        # the set's random start, rooted as the paper gave it to both programs (p2v-bme's search depends on the rooting)
+        # the set's random start, rooted as the paper gave it to both programs
+        # (p2v-bme's search depends on the rooting)
         starts["rand"] = fasta.with_name(f"{name}.random_start.nwk")
         references["rand"] = fastme(starts["rand"], FASTME_NNI_SPR, "fastme_rand")
         times["rand"] = references["rand"]["wall_s"]

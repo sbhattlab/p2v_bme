@@ -1,36 +1,44 @@
-"""Comparison programs: FastTree, VeryFastTree, FastME, DIPPER, MAPLE and CMAPLE (tables comparators, baseline_10k,
-maple; the comparator series of the scaling figures).
+"""Comparison programs: FastTree, VeryFastTree, FastME, DIPPER, MAPLE and CMAPLE
+(tables comparators, baseline_10k, maple; the comparator series of the scaling figures).
 
-They do not depend on p2v-bme, so their recorded runs can be reused: --source copies the paper's records unchanged
-into data/results/baselines/, with their provenance. --run shows how they were made and makes them again, in the
-same layout, family by family (one of the two is needed):
-  default       FastTree and VeryFastTree, each from its own start tree: -nt -fastest -nosupport, -nocat on the
-                JC69 sets (no rate variation simulated), -noml for the ME rows; 64 threads
-  random_start  the same programs and FastME (BME SPR, its own JC69 distances) from one random start tree
+They do not depend on p2v-bme, so their recorded runs can be reused:
+--source copies the paper's records unchanged into data/results/baselines/, with their provenance.
+--run shows how they were made and makes them again,
+in the same layout, family by family (one of the two is needed):
+  default       FastTree and VeryFastTree, each from its own start tree:
+                -nt -fastest -nosupport, -nocat on the JC69 sets (no rate variation simulated),
+                -noml for the ME rows; 64 threads
+  random_start  the same programs and FastME (BME SPR, its own JC69 distances)
+                from one random start tree
   dipper        DIPPER on one GPU: -i m -o t -d 2 --force-binary; 12 threads
-  maple         MAPLE and CMAPLE: their published trees and logs (CMAPLE benchmark sets) scored against the truth
+  maple         MAPLE and CMAPLE: their published trees and logs (CMAPLE benchmark sets)
+                scored against the truth
 Every tree is scored against the true tree by eval_cmaple_rf (true splits missed, all splits).
 
-Inputs:  import: the paper's recorded runs, from a git repository (--source, --ref) or a folder (--source)
-         --run: data/datasets/<set>/<n>/rep<r>.fa, rep<r>.true.nwk (simulate_data.py); MAPLE and CMAPLE:
-         data/datasets/cmaple/simulated/ (download_data.py)
-Options: --run FAMILY..., --sets, --sizes, --replicates, --threads, --gpu, --dipper, --source, --ref, --overwrite, paths
-Flow:    import: each recorded file -> its folder of data/results/baselines/ (RECORDS)   (skipped if it exists)
+Inputs:  import: the paper's recorded runs, from a git repository (--source, --ref)
+         or a folder (--source)
+         --run: data/datasets/<set>/<n>/rep<r>.fa, rep<r>.true.nwk (simulate_data.py);
+         MAPLE and CMAPLE: data/datasets/cmaple/simulated/ (download_data.py)
+Options: --run FAMILY..., --sets, --sizes, --replicates, --threads, --gpu, --dipper, --source,
+         --ref, --overwrite, paths
+Flow:    import: each recorded file -> its folder of data/results/baselines/ (RECORDS)
+                 (skipped if it exists)
          --run: each family x set x size x replicate
            |
            v
-         the program (wall time, CPU time and peak memory from the OS)          (skipped if its record exists)
-           |
+         the program (wall time, CPU time and peak memory from the OS)
+           |      (skipped if its record exists)
            v
-         eval_cmaple_rf against the true tree -> one JSON record, the program's version, host and threads
-Outputs: data/results/baselines/default/runs.jsonl                  default pipelines, PASTA-tree sets <= 50,000
-         data/results/baselines/default_100k/<tag>_rep<r>_100000_<method>.json
-         data/results/baselines/default_yule/yule10k_rep<r>_<n>_<method>.json
-         data/results/baselines/random_start/<tag>_N<n>_rep<r>.json   random start
-         data/results/baselines/dipper/runs.jsonl                     DIPPER
-         data/results/baselines/maple/cmaple_benchmark_summary.json   MAPLE, CMAPLE ("simulated": cmaple, maple)
-         data/results/baselines/PROVENANCE.json                       import: commit, each file's recorded path and
-                                                                      sha256
+         eval_cmaple_rf against the true tree -> one JSON record,
+         the program's version, host and threads
+Outputs: data/results/baselines/
+           default/runs.jsonl                   default pipelines, PASTA-tree sets <= 50,000
+           default_100k/<tag>_rep<r>_100000_<method>.json
+           default_yule/yule10k_rep<r>_<n>_<method>.json
+           random_start/<tag>_N<n>_rep<r>.json  random start
+           dipper/runs.jsonl                    DIPPER
+           maple/cmaple_benchmark_summary.json  MAPLE, CMAPLE ("simulated": cmaple, maple)
+           PROVENANCE.json                      import: commit, each file's recorded path and sha256
 
     pixi run -e paper python -m paper.run_baselines --source <repository of the records> --ref main
     pixi run -e paper python -m paper.run_baselines --run default --sets rnasim --sizes 1000 --replicates 0
@@ -61,8 +69,8 @@ from paper._config import (
 )
 from paper.utils import read_json, run_p2vbme, with_edge_lengths, write_json
 
-# The recorded files the tables and figures read (paths below the source's RECORDS_ROOT), and the folder of
-# data/results/baselines/ each goes to (the same as --run writes)
+# The recorded files the tables and figures read (paths below the source's RECORDS_ROOT),
+# and the folder of data/results/baselines/ each goes to (the same as --run writes)
 RECORDS = (
     ("pasta_default/runs.jsonl", "default"),
     ("pasta_default/README.md", "default"),
@@ -99,17 +107,19 @@ DEFAULT_METHODS = ("FastTree-ML", "VeryFastTree-ML", "FastTree-ME", "VeryFastTre
 JC69_SETS_PREFIXES = ("jc", "yule")  # simulated under JC69: -nocat
 RANDOM_START_EDGE = 0.05  # branch length of every edge of the random start tree, as recorded
 DIPPER_FLAGS = ["-i", "m", "-o", "t", "-d", "2", "--force-binary"]
-# MAPLE and CMAPLE: the CMAPLE benchmark's simulated sets (sequences, mean branch length), 30,000 sites
+# MAPLE and CMAPLE: the CMAPLE benchmark's simulated sets (sequences, mean branch length),
+# 30,000 sites
 MAPLE_SIZES = ("100K", "200K", "500K")
 MAPLE_BRANCH_LENGTHS = ("0.00005", "0.0001", "0.00015")
 MAPLE_SITES = 30000
 
 
-# ---- Import of the recorded results ----------------------------------------------------------------------
+# ---- Import of the recorded results --------------------------------------------------------------
 
 
 def recorded_files(source: Path, ref: str | None) -> tuple[list[str], str]:
-    """Lists the recorded files below RECORDS_ROOT: (repository or folder, ref) -> (paths, commit or "")."""
+    """Lists the recorded files below RECORDS_ROOT:
+    (repository or folder, ref) -> (paths, commit or "")."""
     if ref is not None:
         commit = run(
             ["git", "-C", str(source), "rev-parse", ref],
@@ -151,7 +161,8 @@ def read_recorded(source: Path, ref: str | None, path: str) -> bytes:
 
 
 def target_of(path: str) -> str | None:
-    """Places a recorded file in our layout: path below RECORDS_ROOT -> path below baselines/ (None: not read)."""
+    """Places a recorded file in our layout:
+    path below RECORDS_ROOT -> path below baselines/ (None: not read)."""
     for pattern, folder in RECORDS:
         if fnmatch(path, pattern):
             return f"{folder}/{Path(path).name.removeprefix(RANDOM_START_PREFIX)}"
@@ -159,7 +170,8 @@ def target_of(path: str) -> str | None:
 
 
 def import_records(source: Path, ref: str | None, out: Path, overwrite: bool) -> None:
-    """Copies the recorded comparator results unchanged into our layout: (source, ref) -> out/, out/PROVENANCE.json.
+    """Copies the recorded comparator results unchanged into our layout:
+    (source, ref) -> out/, out/PROVENANCE.json.
 
     PROVENANCE.json keeps the source's commit and each file's recorded path and sha256.
     """
@@ -189,11 +201,12 @@ def import_records(source: Path, ref: str | None, out: Path, overwrite: bool) ->
     print(f"run_baselines: {len(files)} recorded files in {out}")
 
 
-# ---- Runs ------------------------------------------------------------------------------------------------
+# ---- Runs ----------------------------------------------------------------------------------------
 
 
 def timed(cmd: list[str], env: dict | None = None, stdout: Path | None = None) -> dict:
-    """Runs a program and measures it: command -> {time, cpu_time_sec, peak_ram_mb} (wall s, CPU s, MiB)."""
+    """Runs a program and measures it:
+    command -> {time, cpu_time_sec, peak_ram_mb} (wall s, CPU s, MiB)."""
     t0 = perf_counter()
     with open(stdout, "w") if stdout else nullcontext(DEVNULL) as sink:
         proc = Popen(cmd, env=env, stdout=sink, stderr=DEVNULL)
@@ -221,7 +234,8 @@ def version(program: str) -> str:
 
 
 def score(eval_rf: str, true_tree: Path, tree: Path, sites: int) -> dict:
-    """Scores a tree against the true tree with eval_cmaple_rf: (truth, tree, sites) -> its JSON record."""
+    """Scores a tree against the true tree with eval_cmaple_rf:
+    (truth, tree, sites) -> its JSON record."""
     out = run(
         [eval_rf, str(true_tree), str(tree), str(sites)],
         check=True,
@@ -262,7 +276,8 @@ def default_record(out: Path, tag: str, n: int, rep: int, method: str) -> Path:
 
 
 def run_default(args, out: Path, tag: str, n: int, rep: int) -> None:
-    """Runs FastTree and VeryFastTree in their default pipelines on one alignment: -> one record per method."""
+    """Runs FastTree and VeryFastTree in their default pipelines on one alignment:
+    -> one record per method."""
     fasta = args.datasets_dir / tag / str(n) / f"rep{rep}.fa"
     true_tree = fasta.with_name(f"rep{rep}.true.nwk")
     for method in DEFAULT_METHODS:
@@ -325,7 +340,8 @@ def write_phylip_alignment(fasta: Path, out: Path) -> None:
 
 
 def run_random_start(args, out: Path, tag: str, n: int, rep: int) -> None:
-    """Runs the programs from one random start tree on one alignment: -> random_start/<tag>_N<n>_rep<r>.json."""
+    """Runs the programs from one random start tree on one alignment:
+    -> random_start/<tag>_N<n>_rep<r>.json."""
     record_path = out / "random_start" / f"{tag}_N{n}_rep{rep}.json"
     if record_path.exists() and not args.overwrite:
         return
@@ -489,7 +505,8 @@ def run_dipper(args, out: Path, tag: str, n: int, rep: int) -> None:
 
 
 def log_time_memory(log: Path) -> tuple[float | None, float | None]:
-    """Reads a program's run time and peak memory from its log: path -> (seconds, MiB), None where absent."""
+    """Reads a program's run time and peak memory from its log:
+    path -> (seconds, MiB), None where absent."""
     if not log.exists():
         return None, None
     text = log.read_text(errors="replace")
@@ -508,7 +525,8 @@ def log_time_memory(log: Path) -> tuple[float | None, float | None]:
 
 
 def run_maple(args, out: Path) -> None:
-    """Scores MAPLE's and CMAPLE's published trees of the CMAPLE benchmark: -> maple/cmaple_benchmark_summary.json."""
+    """Scores MAPLE's and CMAPLE's published trees of the CMAPLE benchmark:
+    -> maple/cmaple_benchmark_summary.json."""
     record_path = out / "maple" / "cmaple_benchmark_summary.json"
     if record_path.exists() and not args.overwrite:
         return
@@ -545,7 +563,8 @@ def run_maple(args, out: Path) -> None:
 
 
 def collect(folder: Path, out: Path) -> None:
-    """Gathers one-record files into one JSONL file, as recorded: (folder of records, out) -> out."""
+    """Gathers one-record files into one JSONL file, as recorded:
+    (folder of records, out) -> out."""
     records = [read_json(p) for p in sorted(folder.glob("*.json"))]
     if records:
         out.write_text("".join(dumps(r) + "\n" for r in records))

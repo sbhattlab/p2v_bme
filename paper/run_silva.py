@@ -1,16 +1,20 @@
-"""SILVA Release 144: tree, bootstrap, supports, biology, domains, leave-out series, GTDB (Fig. 3a,b; tables
-silva_support, silva_gtdb).
+"""SILVA Release 144: tree, bootstrap, supports, biology, domains, leave-out series, GTDB
+(Fig. 3a,b; tables silva_support, silva_gtdb).
 
-Inputs:  data/datasets/silva144/SILVA_144_SSURef_tax_silva_full_align_trunc.fasta[.gz]      (download_data.py)
-         --arb-dump: the SILVA 144 ARB database as text, made with ARB's tools (only for the gtdb step)
-Options: --steps, --replicates, --bootstrap, --max-sites, --min-sites, --seed, --accelerator, --devices,
-         --leaveout-runs, --arb-dump, --fasttree, --workers, --overwrite
-Flow:    distinct     the alignment p2v-bme searches: the 1,600 best-occupied columns (--max-sites), the sequences
-           |          with at least 1,200 valid sites there (--min-sites; the others are left out); one sequence
-           |          per group of identical ones (the paper's representative); every sequence's taxonomy
+Inputs:  data/datasets/silva144/SILVA_144_SSURef_tax_silva_full_align_trunc.fasta[.gz]
+                                                                                (download_data.py)
+         --arb-dump: the SILVA 144 ARB database as text, made with ARB's tools
+         (only for the gtdb step)
+Options: --steps, --replicates, --bootstrap, --max-sites, --min-sites, --seed, --accelerator,
+         --devices, --leaveout-runs, --arb-dump, --fasttree, --workers, --overwrite
+Flow:    distinct     the alignment p2v-bme searches: the 1,600 best-occupied columns (--max-sites),
+           |          the sequences with at least 1,200 valid sites there
+           |          (--min-sites; the others are left out);
+           |          one sequence per group of identical ones (the paper's representative);
+           |          every sequence's taxonomy
            v
-         tree         p2v-bme -s searched.fa -m GTR+GC --seed 1; reattach_left_out puts each sequence left out
-           |          next to its nearest searched sequence (tree.all.nwk)
+         tree         p2v-bme -s searched.fa -m GTR+GC --seed 1; reattach_left_out puts each
+           |          sequence left out next to its nearest searched sequence (tree.all.nwk)
            v
          replicates   p2v-bme -s searched.fa ... -b r-r      (one run per replicate; spread them
            |          with --replicates)
@@ -18,22 +22,26 @@ Flow:    distinct     the alignment p2v-bme searches: the 1,600 best-occupied co
          supports     p2v-bme -t tree.all.nwk --supports boot.nwk
            |
            v
-         records      the tree of the distinct sequences: support by split size, taxonomic F1 and organelles,
-           |          the domains in every bootstrap tree, the run records
+         records      the tree of the distinct sequences: support by split size, taxonomic F1 and
+           |          organelles, the domains in every bootstrap tree, the run records
            v
-         leaveout     repeat searches, and searches without groups of sequences, compared with the tree
+         leaveout     repeat searches, and searches without groups of sequences,
+           |          compared with the tree
            |
            v
-         gtdb         the sequences with a GTDB classification: their own trees (p2v-bme, FastTree with --fasttree)
-                      and the tree, scored against GTDB's ranks
+         gtdb         the sequences with a GTDB classification: their own trees
+                      (p2v-bme, FastTree with --fasttree) and the tree, scored against GTDB's ranks
 Outputs: data/results/silva/
            taxonomy.tsv, searched.fa, left_out.fa, distinct.fa, distinct.json
            tree.{nwk,json} (the searched sequences), tree.all.{nwk,json} (every sequence)
            boot/rep<r>.{boottrees,json}, boot.nwk, tree.boot.{support.nwk,json}
            runs.jsonl, silva144_dedup_tbe_summary.json, silva144_dedup_tbe_B100_quantiles.json,
-           silva144_real_biology_B100.json, domain_arrangements.json        (the paper's record names and fields)
-           leaveout/runs.json, leaveout/<run>/{tree.{nwk,json}, cmp.{support.nwk,json}, summary.json, branches.npz}
-           gtdb/{gtdb.fa, gtdb_labels.tsv, ours.{nwk,json}, ft_me.nwk, ft_ml.nwk}, gtdb_labelled_scores.json
+           silva144_real_biology_B100.json, domain_arrangements.json
+             (the paper's record names and fields)
+           leaveout/runs.json,
+           leaveout/<run>/{tree.{nwk,json}, cmp.{support.nwk,json}, summary.json, branches.npz}
+           gtdb/{gtdb.fa, gtdb_labels.tsv, ours.{nwk,json}, ft_me.nwk, ft_ml.nwk},
+           gtdb_labelled_scores.json
 
     pixi run -e paper python -m paper.run_silva --steps tree replicates --replicates 1-25
 """
@@ -148,7 +156,8 @@ for _c, _b in zip(b"ACGTUacgtu", b"ACGTTACGTT"):
 
 
 def fasta_records(path: Path) -> Iterator[tuple[bytes, bytes]]:
-    """Reads a FASTA file (plain or .gz) one record at a time: path -> (header without '>', sequence)."""
+    """Reads a FASTA file (plain or .gz) one record at a time:
+    path -> (header without '>', sequence)."""
     with gzip_open(path, "rb") if path.suffix == ".gz" else open(path, "rb") as fh:
         header, parts = None, []
         for line in fh:
@@ -171,8 +180,9 @@ def source(alignment: Path) -> Path:
 def dedup_labels(path: str) -> tuple[str, str]:
     """Reads a SILVA path as the paper's dedup does: path -> (phylum, genus).
 
-    Phylum: the domain and the third name (SILVA 144: domain, kingdom, phylum), or the second if there are two;
-    genus: the second-to-last name, or the nearest above it that is not "Incertae Sedis"; one name: that name for both.
+    Phylum: the domain and the third name (SILVA 144: domain, kingdom, phylum),
+    or the second if there are two; genus: the second-to-last name,
+    or the nearest above it that is not "Incertae Sedis"; one name: that name for both.
     """
     names = [x for x in path.split(";") if x]
     if not names:
@@ -187,7 +197,8 @@ def dedup_labels(path: str) -> tuple[str, str]:
 
 
 def majority(group: ndarray, label: ndarray) -> ndarray:
-    """Finds each group's most frequent label: (group and label id of each sequence) -> label per group.
+    """Finds each group's most frequent label:
+    (group and label id of each sequence) -> label per group.
 
     Ties go to the smaller id, the label met first in the file (as the paper's dedup).
     """
@@ -202,10 +213,12 @@ def majority(group: ndarray, label: ndarray) -> ndarray:
 
 
 def representatives(group: ndarray, phylum: ndarray, genus: ndarray) -> ndarray:
-    """Picks the sequence that stands for each group of identical ones, as the paper's dedup does: (group, phylum and
-    genus ids of each searched sequence, in file order) -> mask of the representatives.
+    """Picks the sequence that stands for each group of identical ones, as the paper's dedup does:
+    (group, phylum and genus ids of each searched sequence, in file order)
+    -> mask of the representatives.
 
-    The first sequence with the group's majority phylum and majority genus, else the first with its majority phylum.
+    The first sequence with the group's majority phylum and majority genus,
+    else the first with its majority phylum.
     """
     position = arange(group.size)
     major_phylum = phylum == majority(group, phylum)[group]
@@ -223,13 +236,16 @@ def representatives(group: ndarray, phylum: ndarray, genus: ndarray) -> ndarray:
 
 
 def distinct(alignment: Path, out: Path, max_sites: int, min_sites: int, overwrite: bool) -> None:
-    """Writes the alignment p2v-bme searches: alignment -> searched.fa, left_out.fa, distinct.fa, distinct.json,
-    taxonomy.tsv.
+    """Writes the alignment p2v-bme searches:
+    alignment -> searched.fa, left_out.fa, distinct.fa, distinct.json, taxonomy.tsv.
 
-    Columns: the max_sites with the most valid bases (ties: the earlier column), in order, with characters other than
-    A, C, G, T/U as '-' (missing). Sequences with fewer than min_sites valid sites there go to left_out.fa, the others
-    to searched.fa. distinct.fa: one of each group of identical searched sequences (the same bases and missing
-    sites), as the paper counts distinct sequences (p2v-bme searches two of each group), chosen by representatives.
+    Columns: the max_sites with the most valid bases (ties: the earlier column),
+    in order, with characters other than A, C, G, T/U as '-' (missing).
+    Sequences with fewer than min_sites valid sites there go to left_out.fa,
+    the others to searched.fa.
+    distinct.fa: one of each group of identical searched sequences
+    (the same bases and missing sites), as the paper counts distinct sequences
+    (p2v-bme searches two of each group), chosen by representatives.
     """
     if not overwrite and (out / "distinct.json").exists():
         return
@@ -302,9 +318,11 @@ def distinct(alignment: Path, out: Path, max_sites: int, min_sites: int, overwri
 
 
 def check_distinct(out: Path) -> dict:
-    """Checks that the distinct sequences are those p2v-bme searched: results -> distinct.json's record.
+    """Checks that the distinct sequences are those p2v-bme searched:
+    results -> distinct.json's record.
 
-    p2v-bme's report counts the sequences it searched and the identical ones it set aside; both must match.
+    p2v-bme's report counts the sequences it searched and the identical ones it set aside;
+    both must match.
     """
     d, report = (
         read_json(out / "distinct.json"),
@@ -318,10 +336,11 @@ def check_distinct(out: Path) -> dict:
 
 
 def reattach(out: Path, tool: str, overwrite: bool) -> None:
-    """Puts the sequences left out of the search back into its tree: results -> tree.all.nwk, tree.all.json.
+    """Puts the sequences left out of the search back into its tree:
+    results -> tree.all.nwk, tree.all.json.
 
-    Each joins its nearest searched sequence by zero-length branches (paper/tools/reattach_left_out.cpp, whose
-    counts go to tree.all.json).
+    Each joins its nearest searched sequence by zero-length branches
+    (paper/tools/reattach_left_out.cpp, whose counts go to tree.all.json).
     """
     if not overwrite and (out / "tree.all.json").exists():
         return
@@ -363,17 +382,20 @@ def write_subset(source: Path, keep: set[str], out: Path) -> None:
 
 
 def prune(tree: dict, keep: ndarray) -> dict:
-    """Restricts a tree to some of its leaves: (tree, keep mask over the leaves) -> the induced tree, same arrays.
+    """Restricts a tree to some of its leaves:
+    (tree, keep mask over the leaves) -> the induced tree, same arrays.
 
-    A branch of the induced tree that merges a chain of branches gets their summed length and their largest TBE and
-    exact support (none for leaves). Leaves keep their order; internal nodes keep their order, the root last.
+    A branch of the induced tree that merges a chain of branches gets their summed length and their
+    largest TBE and exact support (none for leaves).
+    Leaves keep their order; internal nodes keep their order, the root last.
     """
     parent, first, size = tree["parent"], tree["first"], tree["size"]
     cum = concatenate([[0], cumsum(keep)])
     m = int(cum[-1])
     before, below = cum[first], cum[first + size] - cum[first]
     alive = flatnonzero(below > 0)
-    # A chain of branches merged into one has one set of kept leaves: (kept before it, kept below it).
+    # A chain of branches merged into one has one set of kept leaves:
+    # (kept before it, kept below it).
     keys, group = unique(before[alive] * (m + 1) + below[alive], return_inverse=True)
     n_groups = keys.size
     top = full(n_groups, -1, int64)
@@ -413,10 +435,12 @@ def prune(tree: dict, keep: ndarray) -> dict:
 
 
 def branch_rows(tree: dict) -> dict[str, ndarray]:
-    """Lists the internal branches of the unrooted tree once each: tree -> {node, p, length, tbe, exact}.
+    """Lists the internal branches of the unrooted tree once each:
+    tree -> {node, p, length, tbe, exact}.
 
-    p: leaves on the smaller side; branches with p < 2 are not internal. When the root has two children, their
-    branches are one: it is listed once, with the larger supports of the two.
+    p: leaves on the smaller side; branches with p < 2 are not internal.
+    When the root has two children, their branches are one:
+    it is listed once, with the larger supports of the two.
     """
     n, parent, size = len(tree["names"]), tree["parent"], tree["size"]
     root = parent.size - 1
@@ -444,7 +468,8 @@ def branch_rows(tree: dict) -> dict[str, ndarray]:
 
 
 def distinct_tree(out: Path) -> dict:
-    """Reads the tree of the distinct sequences, with the bootstrap supports: results -> tree arrays."""
+    """Reads the tree of the distinct sequences, with the bootstrap supports:
+    results -> tree arrays."""
     full_tree = read_tree(out / "tree.boot.support.nwk")
     names = set(fasta_names(out / "distinct.fa"))
     return prune(full_tree, array([x in names for x in full_tree["names"]]))
@@ -454,7 +479,8 @@ def distinct_tree(out: Path) -> dict:
 
 
 def support_records(tree: dict, out: Path, n_all: int, n_boot: int, version: str) -> None:
-    """Writes the supports by split size: tree of the distinct sequences -> the summary and quantile records."""
+    """Writes the supports by split size:
+    tree of the distinct sequences -> the summary and quantile records."""
     b = branch_rows(tree)
     p, tbe, exact, length = b["p"], b["tbe"], b["exact"], b["length"]
     if isnan(tbe).any():
@@ -521,7 +547,8 @@ def support_records(tree: dict, out: Path, n_all: int, n_boot: int, version: str
 
 
 def best_split(tree: dict, leaves: ndarray, name: str) -> dict:
-    """Finds the branch whose split matches a set of leaves best, by F1: (tree, leaves) -> its record."""
+    """Finds the branch whose split matches a set of leaves best, by F1:
+    (tree, leaves) -> its record."""
     k, size, first, parent = (
         len(tree["names"]),
         tree["size"],
@@ -576,7 +603,8 @@ def counts(tree: dict, leaves: ndarray) -> ndarray:
 
 
 def inside(tree: dict, entry: dict, leaves: ndarray) -> int:
-    """Counts the given leaves on a taxon's side of its best split: (tree, its record, leaves) -> count."""
+    """Counts the given leaves on a taxon's side of its best split:
+    (tree, its record, leaves) -> count."""
     below = int(counts(tree, leaves)[entry["best_node"]])
     return int(leaves.size - below) if entry["is_complement"] else below
 
@@ -591,10 +619,12 @@ def groups_of(labels: list[str]) -> dict[str, ndarray]:
 
 
 def biology(tree: dict, taxonomy: dict[str, str], alpha: float) -> dict:
-    """Scores the tree against SILVA's taxonomy: (tree of the distinct sequences, taxonomy) -> the biology record.
+    """Scores the tree against SILVA's taxonomy:
+    (tree of the distinct sequences, taxonomy) -> the biology record.
 
-    For every domain and the TOP largest phyla and classes: the best-matching branch, its purity, recall, F1 and
-    support, and its ancestors; and where the organelle sequences filed under Bacteria are placed.
+    For every domain and the TOP largest phyla and classes:
+    the best-matching branch, its purity, recall, F1 and support, and its ancestors;
+    and where the organelle sequences filed under Bacteria are placed.
     """
     paths = [taxonomy[x].split(";") for x in tree["names"]]
 
@@ -641,12 +671,14 @@ def biology(tree: dict, taxonomy: dict[str, str], alpha: float) -> dict:
     return record
 
 
-# Domain arrangements: masks of each distinct sequence, set before the worker processes start (they inherit them)
+# Domain arrangements: masks of each distinct sequence,
+# set before the worker processes start (they inherit them)
 CODES: dict[str, int] = {}
 
 
 def domain_codes(taxonomy: dict[str, str], names: list[str]) -> dict[str, int]:
-    """Encodes each sequence's domain and archaeal kingdom as bits: (taxonomy, names) -> {name: bits of DOMAIN_BITS}."""
+    """Encodes each sequence's domain and archaeal kingdom as bits:
+    (taxonomy, names) -> {name: bits of DOMAIN_BITS}."""
     codes = {}
     for x in names:
         path = taxonomy[x]
@@ -661,7 +693,8 @@ def domain_codes(taxonomy: dict[str, str], names: list[str]) -> dict[str, int]:
 
 
 def nearest_branch(tree: dict, mask: ndarray) -> tuple[int, ndarray]:
-    """Finds the branch nearest to a set of leaves: (tree, leaf mask) -> (misplaced leaves, the leaves on its side)."""
+    """Finds the branch nearest to a set of leaves:
+    (tree, leaf mask) -> (misplaced leaves, the leaves on its side)."""
     k, first, size = len(tree["names"]), tree["first"], tree["size"]
     cum = r_[0, cumsum(mask)]
     total = int(mask.sum())
@@ -677,10 +710,12 @@ def nearest_branch(tree: dict, mask: ndarray) -> tuple[int, ndarray]:
 
 
 def domain_distances(tree: dict) -> dict[str, float]:
-    """Measures how the domains are arranged in one tree: tree of the distinct sequences -> distances as fractions.
+    """Measures how the domains are arranged in one tree:
+    tree of the distinct sequences -> distances as fractions.
 
-    archaea_alone: the Archaea's transfer distance to the nearest branch, per archaeon; eukaryota_with_<X>: that of
-    the eukaryotes' best side together with the archaea X, per archaeon of X outside that side.
+    archaea_alone: the Archaea's transfer distance to the nearest branch, per archaeon;
+    eukaryota_with_<X>: that of the eukaryotes' best side together with the archaea X,
+    per archaeon of X outside that side.
     """
     code = array([CODES[x] for x in tree["names"]])
     eukaryota = (code & 1) > 0
@@ -699,13 +734,15 @@ def domain_distances(tree: dict) -> dict[str, float]:
 
 
 def replicate_distances(path: Path) -> dict[str, float]:
-    """Measures the domains in one bootstrap tree: tree file -> domain_distances of its distinct sequences."""
+    """Measures the domains in one bootstrap tree:
+    tree file -> domain_distances of its distinct sequences."""
     tree = read_tree(path)
     return domain_distances(prune(tree, array([x in CODES for x in tree["names"]])))
 
 
 def domains(reference: dict, boot: list[Path], workers: int) -> dict:
-    """Records the domains' arrangement in the tree and each bootstrap tree: (tree, bootstrap trees) -> record."""
+    """Records the domains' arrangement in the tree and each bootstrap tree:
+    (tree, bootstrap trees) -> record."""
     with Pool(workers) as pool:
         bootstrap = pool.map(replicate_distances, boot)
     ref = domain_distances(reference)
@@ -740,7 +777,8 @@ def domains(reference: dict, boot: list[Path], workers: int) -> dict:
 
 
 def records(out: Path, n_boot: int, workers: int) -> None:
-    """Writes the records of the tree and its bootstrap: results -> runs.jsonl and the four records."""
+    """Writes the records of the tree and its bootstrap:
+    results -> runs.jsonl and the four records."""
     global CODES
     d = check_distinct(out)
     report = read_json(out / "tree.json")
@@ -770,8 +808,8 @@ def leaveout_runs(
 ) -> tuple[dict[str, ndarray], list[dict]]:
     """Lists the leave-out runs: (distinct sequences, taxonomy) -> (categories per sequence, runs).
 
-    Runs: three repeat searches on all sequences, then each group left out or kept alone, and each phylum of at
-    least BIG_PHYLUM sequences left out.
+    Runs: three repeat searches on all sequences, then each group left out or kept alone,
+    and each phylum of at least BIG_PHYLUM sequences left out.
     """
     k = len(names)
     phylum, org = zeros(k, int16), zeros(k, int8)
@@ -846,7 +884,8 @@ def leaveout_runs(
 
 
 def keep_mask(run_spec: dict, cats: dict[str, ndarray]) -> ndarray:
-    """Selects the sequences of a leave-out run: (run, categories) -> mask over the distinct sequences."""
+    """Selects the sequences of a leave-out run:
+    (run, categories) -> mask over the distinct sequences."""
     k = cats["phylum"].size
     if run_spec.get("all"):
         return full(k, True)
@@ -861,10 +900,11 @@ def keep_mask(run_spec: dict, cats: dict[str, ndarray]) -> ndarray:
 
 
 def leaveout_summary(name: str, n_leaves: int, b: dict[str, ndarray]) -> dict:
-    """Summarises a leave-out comparison: (run, branches) -> the share of the tree's branches found again.
+    """Summarises a leave-out comparison:
+    (run, branches) -> the share of the tree's branches found again.
 
-    b: per branch of the tree restricted to the run's sequences: p, sup (its bootstrap TBE), exact (the identical
-    split is in the new tree) and agree (transfer agreement with the new tree, in %).
+    b: per branch of the tree restricted to the run's sequences: p, sup (its bootstrap TBE), exact
+    (the identical split is in the new tree) and agree (transfer agreement with the new tree, in %).
     """
     p, sup, exact, agree = b["p"], b["sup"], b["exact"], b["agree"]
     out: dict = {
@@ -910,9 +950,10 @@ def leaveout(
 ) -> None:
     """Runs the leave-out series: (results, p2v-bme options) -> leaveout/<run>/summary.json per run.
 
-    Each run searches the distinct sequences it keeps (GTR+GC fitted to them; repeat searches: another seed), and
-    every branch of the tree, restricted to those sequences, is looked up in the new tree (p2v-bme --supports with the
-    new tree as the one replicate).
+    Each run searches the distinct sequences it keeps
+    (GTR+GC fitted to them; repeat searches: another seed), and every branch of the tree,
+    restricted to those sequences, is looked up in the new tree
+    (p2v-bme --supports with the new tree as the one replicate).
     """
     check_distinct(out)
     names = fasta_names(out / "distinct.fa")
@@ -986,7 +1027,8 @@ ARB_DATA = regex(r'^\t\t\tdata\t+(?::\d+\t)?"(.*)"')
 
 
 def gtdb_sequences(arb_dump: Path, names: set[str], out: Path) -> None:
-    """Extracts the distinct sequences with a GTDB classification: (ARB text dump, names) -> gtdb.fa, gtdb_labels.tsv.
+    """Extracts the distinct sequences with a GTDB classification:
+    (ARB text dump, names) -> gtdb.fa, gtdb_labels.tsv.
 
     Columns kept: those with at least GTDB_MIN_OCCUPANCY A/C/G/T among these sequences.
     """
@@ -1032,7 +1074,8 @@ def gtdb_sequences(arb_dump: Path, names: set[str], out: Path) -> None:
 
 
 def read_labels(path: Path) -> tuple[list[str], ndarray, list[ndarray], ndarray]:
-    """Reads the GTDB labels: path -> (names, taxon id per rank and sequence, taxon sizes, Archaea mask)."""
+    """Reads the GTDB labels: path
+    -> (names, taxon id per rank and sequence, taxon sizes, Archaea mask)."""
     lab = {}
     for line in Path(path).read_text(encoding="utf-8").splitlines():
         f = line.split("\t")
@@ -1052,7 +1095,8 @@ def read_labels(path: Path) -> tuple[list[str], ndarray, list[ndarray], ndarray]
 
 
 def intervals(tree: dict, index: dict[str, int]) -> tuple[ndarray, ndarray, ndarray]:
-    """Restricts a tree to the labelled sequences: (tree, label index) -> (their order, first and size of each split)."""
+    """Restricts a tree to the labelled sequences:
+    (tree, label index) -> (their order, first and size of each split)."""
     labelled = array([x in index for x in tree["names"]])
     cum = concatenate([[0], cumsum(labelled)])
     order = array([index[x] for x, k in zip(tree["names"], labelled) if k])
@@ -1076,7 +1120,8 @@ def score(
     sizes: list[ndarray],
     archaea: ndarray,
 ) -> dict:
-    """Scores one tree against GTDB: (its splits, labels) -> mean best F1 per rank and consistent branches."""
+    """Scores one tree against GTDB:
+    (its splits, labels) -> mean best F1 per rank and consistent branches."""
     n = order.size
     keep = (size >= 2) & (size <= n - 2)
     lo, size = lo[keep], size[keep]
@@ -1127,10 +1172,12 @@ def gtdb(
     fasttree: str | None,
     ow: bool,
 ) -> None:
-    """Scores the trees of the GTDB-classified sequences: results -> gtdb/ and gtdb_labelled_scores.json.
+    """Scores the trees of the GTDB-classified sequences:
+    results -> gtdb/ and gtdb_labelled_scores.json.
 
-    Trees: the tree of the distinct sequences restricted to them ("full"), p2v-bme on them alone ("ours"), and
-    FastTree's distance and likelihood trees ("ft_me", "ft_ml") when --fasttree is given or the files exist.
+    Trees: the tree of the distinct sequences restricted to them ("full"),
+    p2v-bme on them alone ("ours"), and FastTree's distance and likelihood trees ("ft_me", "ft_ml")
+    when --fasttree is given or the files exist.
     """
     g = out / "gtdb"
     if ow or not (g / "gtdb.fa").exists():

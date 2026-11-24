@@ -1,9 +1,9 @@
 """Fig. 3c: how finely the SARS-CoV-2 tree places genomes, by sampling month (Viridian genomes).
 
-For each genome, the smallest clade around it whose branch has at least 70% transfer support and half a
-substitution: the line is the monthly median of the genomes of that clade sampled within 15 days of the genome,
-with the interquartile range shaded; the dashed line counts all genomes sampled in those 31 days, so the axis counts
-genomes sampled in the same 31 days for both.
+For each genome, the smallest clade around it whose branch has at least 70% transfer support and
+half a substitution: the line is the monthly median of the genomes of that clade sampled within 15
+days of the genome, with the interquartile range shaded; the dashed line counts all genomes sampled
+in those 31 days, so the axis counts genomes sampled in the same 31 days for both.
 Dots take the colour of the month's most common variant; the strip above shows each variant's share.
 
 Inputs:  data/tables/viridian_resolution.tsv                            (make_tables.py)

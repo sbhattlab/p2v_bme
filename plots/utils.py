@@ -1,4 +1,5 @@
-"""Helpers several plot scripts share: reading figure data, saving figures, the panels of Figs 2a,b and S1-S3."""
+"""Helpers several plot scripts share:
+reading figure data, saving figures, the panels of Figs 2a,b and S1-S3."""
 
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from csv import DictReader
@@ -45,7 +46,8 @@ def parser(doc: str) -> ArgumentParser:
 
 
 def read_tsv(tables_dir: Path, name: str) -> list[dict[str, str]]:
-    """Reads a figure-data file: (folder, name) -> rows; stops if make_tables.py has not written it."""
+    """Reads a figure-data file: (folder, name) -> rows;
+    stops if make_tables.py has not written it."""
     path = tables_dir / f"{name}.tsv"
     if not path.exists():
         raise SystemExit(f"{path} is missing: run python -m paper.make_tables first")
@@ -54,8 +56,8 @@ def read_tsv(tables_dir: Path, name: str) -> list[dict[str, str]]:
 
 
 def save(fig: plt.Figure, img_dir: Path, name: str, **kwargs) -> None:
-    """Saves a figure once per format in its figure's folder, without timestamps: (figure, folder, name) ->
-    img_dir/<FIGURE_FOLDERS>/name.{pdf,svg}."""
+    """Saves a figure once per format in its figure's folder, without timestamps:
+    (figure, folder, name) -> img_dir/<FIGURE_FOLDERS>/name.{pdf,svg}."""
     figure = match(r"figS?\d+", name)
     if figure is None or figure[0] not in FIGURE_FOLDERS:
         raise SystemExit(f"{name}: no folder for this figure in FIGURE_FOLDERS (plots/_config.py)")
@@ -76,7 +78,8 @@ def save(fig: plt.Figure, img_dir: Path, name: str, **kwargs) -> None:
 
 
 def scaling_series(ax: plt.Axes, rows: list[dict[str, str]], field: str) -> None:
-    """Draws a field's mean and SD per size for every dataset of SCALING_SERIES: (axes, rows, field) -> None."""
+    """Draws a field's mean and SD per size for every dataset of SCALING_SERIES:
+    (axes, rows, field) -> None."""
     for dataset, label, colour, marker, linestyle, filled in SCALING_SERIES:
         group = sorted((r for r in rows if r["dataset"] == dataset), key=lambda r: int(r["n"]))
         if not group:
@@ -117,7 +120,8 @@ def scaling_axes(ax: plt.Axes) -> None:
 
 
 def scaling_data(tables_dir: Path) -> list[dict[str, str]]:
-    """Reads the data of Figs 2a,b: folder -> sample-and-place rows of scaling.tsv and random_tree.tsv."""
+    """Reads the data of Figs 2a,b:
+    folder -> sample-and-place rows of scaling.tsv and random_tree.tsv."""
     rows = read_tsv(tables_dir, "scaling") + read_tsv(tables_dir, "random_tree")
     rows = [r for r in rows if r["initialisation"] == "sample"]
     if len({(r["gpu_model"], r["gpu_count"]) for r in rows}) != 1:
@@ -150,7 +154,8 @@ MIB_PER_GIB = 1024.0
 
 
 def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: float) -> dict:
-    """Summarises one field per method and size: (rows, dataset, field) -> {(n, method): (mean, min, max)}."""
+    """Summarises one field per method and size:
+    (rows, dataset, field) -> {(n, method): (mean, min, max)}."""
     values: dict[tuple[int, str], list[float]] = {}
     for r in rows:
         if r["dataset"] == dataset and r["method"] in PLOTTED and r[field] != "":
@@ -159,7 +164,8 @@ def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: fl
 
 
 def method_bars(ax: plt.Axes, stats: dict, panel: str) -> None:
-    """Draws each method's bar at each size, from the panel floor to the mean, with the range as a whisker."""
+    """Draws each method's bar at each size, from the panel floor to the mean,
+    with the range as a whisker."""
     for (n, key), (mu, lo, hi) in stats.items():
         if lo <= FLOORS[panel] or hi >= TOPS[panel]:
             raise SystemExit(
