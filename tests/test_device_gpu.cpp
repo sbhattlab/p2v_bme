@@ -11,9 +11,8 @@
 #include <cuda_runtime.h>
 #include <gtest/gtest.h>
 
-#include <stdint.h>
-#include <string.h>
-
+#include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 

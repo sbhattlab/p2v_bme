@@ -28,9 +28,8 @@
 #ifndef P2VBME_EIGEN_DIST_HPP
 #define P2VBME_EIGEN_DIST_HPP
 
-#include <stdint.h>
-
 #include <cmath>
+#include <cstdint>
 
 #include "config.hpp"
 #include "core.hpp"

@@ -5,9 +5,9 @@
 #define P2VBME_TESTS_BME_TEST_HELPERS_HPP
 
 #include <math.h>
-#include <stdint.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <queue>
 #include <vector>
 

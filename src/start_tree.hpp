@@ -7,8 +7,7 @@
 #ifndef P2VBME_START_TREE_HPP
 #define P2VBME_START_TREE_HPP
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <vector>
 
 #include "device.hpp"

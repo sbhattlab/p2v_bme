@@ -5,9 +5,9 @@
 #include <gtest/gtest.h>
 
 #include <math.h>
-#include <stdint.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <utility>
 #include <vector>
 

@@ -7,8 +7,7 @@
 #ifndef P2VBME_BRANCH_LENGTHS_HPP
 #define P2VBME_BRANCH_LENGTHS_HPP
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <vector>
 
 #include "core.hpp"

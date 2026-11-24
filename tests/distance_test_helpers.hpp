@@ -3,8 +3,8 @@
 #ifndef P2VBME_TESTS_DISTANCE_TEST_HELPERS_HPP
 #define P2VBME_TESTS_DISTANCE_TEST_HELPERS_HPP
 
+#include <cstdint>
 #include <math.h>
-#include <stdint.h>
 
 #include "core.hpp"
 #include "distances.hpp"

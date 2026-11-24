@@ -9,9 +9,8 @@
 //   - run_minibatch_bme rethrows a window solve that throws on one of several host threads (a fake device).
 #include <gtest/gtest.h>
 
-#include <stdint.h>
-
 #include <algorithm>
+#include <cstdint>
 #include <numeric>
 #include <random>
 #include <set>

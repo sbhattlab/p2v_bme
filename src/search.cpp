@@ -14,10 +14,10 @@
 #include "search.hpp"
 
 #include <omp.h>
-#include <stdint.h>
-#include <stdlib.h>
 
 #include <algorithm>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <optional>

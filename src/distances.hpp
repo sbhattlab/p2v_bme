@@ -12,9 +12,8 @@
 #ifndef P2VBME_DISTANCES_HPP
 #define P2VBME_DISTANCES_HPP
 
-#include <stdint.h>
-
 #include <cmath>
+#include <cstdint>
 #include <string>
 
 #include "config.hpp"

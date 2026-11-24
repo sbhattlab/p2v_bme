@@ -11,8 +11,7 @@
 #ifndef P2VBME_DEVICE_HPP
 #define P2VBME_DEVICE_HPP
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>

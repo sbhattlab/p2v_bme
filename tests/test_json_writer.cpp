@@ -2,8 +2,8 @@
 #include <gtest/gtest.h>
 
 #include <math.h>
-#include <stdint.h>
 
+#include <cstdint>
 #include <limits>
 #include <stdexcept>
 #include <string>
