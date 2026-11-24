@@ -10,7 +10,7 @@ Options: --steps, --replicates, --repeats, --seed, --accelerator, --devices, --m
 Flow:    maple        MAPLE's tree with the genomes' names, and each genome's lineage and date
            |
            v
-         tree         p2v-bme -s ALIGNMENT -m JC69 --seed 1
+         tree         p2v-bme -s ALIGNMENT -m JC69 --no-dedup --seed 1   (every genome searched, as in the paper)
            |
            v
          replicates   p2v-bme ... -b r-r      (one run per replicate; spread them with --replicates)
@@ -820,11 +820,13 @@ def main() -> None:
     args = parser.parse_args()
     args.results_dir = args.results_dir / "viridian"
     out, exe, ow = args.results_dir, args.p2vbme, args.overwrite
+    # Without dedup, as the paper's runs: every genome is searched, also the third and later identical copies
     run = [
         "-s",
         str(args.alignment),
         "-m",
         "JC69",
+        "--no-dedup",
         "-a",
         args.accelerator,
         "-d",

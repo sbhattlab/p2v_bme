@@ -10,7 +10,8 @@ Options: --experiments, --sets, --sizes, --replicates, --caps, --round-limits, -
 Flow:    each experiment x set x size x run of the paper's design (dataset replicate r, seed s; see runs_of)
            |
            v
-         p2v-bme -s rep<r>.fa -m JC69 --seed s --report-full [+ the experiment's option]   (skipped if done)
+         p2v-bme -s rep<r>.fa -m JC69 --no-dedup --seed s --report-full [+ the experiment's option]
+           |      (skipped if done; --no-dedup: every sequence searched, as in the paper)
            |
            v
          RF to the true tree: p2v-bme -t <run>.nwk --supports rep<r>.true.nwk;
@@ -229,11 +230,13 @@ def infer(args: Namespace, r: Run) -> dict:
         raise FileNotFoundError(
             f"{alignment} is missing: run simulate_data.py or download_data.py first"
         )
+    # Without dedup, as the paper's runs: every sequence is searched, also the third and later identical copies
     options = [
         "-s",
         str(alignment),
         "-m",
         MODEL,
+        "--no-dedup",
         "--seed",
         str(r.seed),
         "--report-full",
