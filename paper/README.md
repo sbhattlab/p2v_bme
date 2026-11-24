@@ -51,11 +51,14 @@ read. `--sources` picks the datasets; `--sources silva144-arb` adds SILVA's ARB 
 - **Command:** `pixi run -e paper simulate_data`
 - **Requires:** `pixi run build` (`sim_jc69_fast`); `download_data --sources rnasim`
 - **Inputs:** `data/datasets/rnasim/aln_dna.fa.xz`, `true_topo.tree`
-- **Outputs:** `data/datasets/<set>/<n>/rep<r>.fa`, `rep<r>.true.nwk`, `rep<r>.random_start.nwk`
+- **Outputs:** `data/datasets/<set>/<n>/rep<r>.fa`, `rep<r>.true.nwk`, `rep<r>.random_start.nwk`; the same files in
+  `data/datasets/fastme/<set>/<n>/`
 
 The simulated sets of the scaling, comparison, sequence-length, representative, FastME and calibration tables, with the
 paper's generators and seeds: RNASim subsets (`rnasim`), JC69 sequences on their trees (`jc10k`, `jc1k`, `jc100k`,
-`jc1000k`) and on Yule trees (`yule10k`), from 1,000 to 10^7 sequences (`--sets`, `--sizes`, `--replicates`).
+`jc1000k`) and on Yule trees (`yule10k`), from 1,000 to 10^7 sequences (`--sets`, `--sizes`, `--replicates`). The FastME
+comparison's sets (`fastme`) are subsets, as the paper's: `jc10k` and `rnasim` of the 10^4-sequence sets, `jc1m` and
+`rna1m` of the 10^6-sequence sets.
 
 ## Benchmarks
 
@@ -84,14 +87,13 @@ imported unchanged instead (`--source`), in the same layout.
 
 ## FastME comparison
 
-- **Command:** `pixi run -e paper run_fastme --sets jc10k rnasim`
-- **Requires:** `pixi run build` (`p2v-bme`, `bme_scores`);
-  `simulate_data --sets jc10k rnasim --sizes 1000 2000 5000 10000` (2,000 is not among `simulate_data`'s default sizes)
-- **Inputs:** `data/datasets/{jc10k,rnasim}/<n>/rep<r>.fa`, `rep<r>.true.nwk`
+- **Command:** `pixi run -e paper run_fastme`
+- **Requires:** `pixi run build` (`p2v-bme`, `bme_scores`); `simulate_data --sets fastme`
+- **Inputs:** `data/datasets/fastme/<set>/<n>/rep<r>.fa`, `rep<r>.true.nwk`, `rep<r>.random_start.nwk`
 - **Outputs:** `data/results/fastme/<set>/<n>/rep<r>_*`, `rep<r>.case.json`; `data/results/fastme/cases.jsonl`
 
 p2v-bme and FastME on the same JC69 distance matrix, from their own and from the same random start trees, every tree
-rescored exactly. Without `--sets`, the script also runs the `jc1m` and `rna1m` subsets, which no script makes.
+rescored exactly.
 
 ## Bootstrap calibration
 

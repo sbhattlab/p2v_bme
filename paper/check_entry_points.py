@@ -5,10 +5,10 @@ Options: --work-dir, --keep
 Flow:    a 300-sequence alignment and its tree from make_test_fasta stand in for RNASim's
            |
            v
-         download_data --dry-run; simulate_data (60 sequences); run_benchmarks, run_calibration, run_fastme,
-         run_gtr_fit_recovery, run_baselines --run default on them; run_silva's steps up to the supports on the
-         alignment with five sequences cut short (left out by --min-sites); --help of run_viridian, whose input
-         (Viridian) has no tiny stand-in here
+         download_data --dry-run; simulate_data (60 sequences; FastME sets of 30, also from a 600-sequence expansion);
+         run_benchmarks, run_calibration, run_fastme, run_gtr_fit_recovery, run_baselines --run default on them;
+         run_silva's steps up to the supports on the alignment with five sequences cut short (left out by
+         --min-sites); --help of run_viridian, whose input (Viridian) has no tiny stand-in here
            |
            v
          make_tables, then each plot whose data the tiny runs make; --help of the others
@@ -27,6 +27,7 @@ from sys import executable
 from paper._config import DEFAULT_BUILD_DIR
 
 SIZE = "60"  # sequences of the tiny sets
+FASTME_SIZE = "30"  # tiny FastME sets: drawn from the tiny sets (as from 10^4) and their tenfold expansion (10^6)
 CUT, CUT_TO = 5, 100  # the SILVA stand-in: sequences cut short, and their sites left
 THREADS = "2"
 # plots drawn from the tiny runs' tables; the others need downloaded or larger data (only --help)
@@ -71,6 +72,8 @@ def main() -> None:
     step("paper.download_data", "--dry-run", "--datasets-dir", str(data))
     step("paper.simulate_data", "--sets", "rnasim", "jc10k", "yule10k", "--sizes", SIZE,
          "--replicates", "0", "1", "--datasets-dir", str(data))  # fmt: skip
+    step("paper.simulate_data", "--sets", "fastme", "--sizes", FASTME_SIZE, "--fastme-base", SIZE,
+         "--expansion-base", SIZE, "--replicates", "0", "--datasets-dir", str(data))  # fmt: skip
     step("paper.run_benchmarks", "--experiments", "scaling", "random_start", "representatives",
          "round_limit", "--sets", "rnasim", "jc10k", "yule10k", "--sizes", SIZE, "--replicates", "0", "1",
          "--caps", "16", "64", "--exact-max", "50", "--score-cap", "16", *cpu, *paths)  # fmt: skip
@@ -81,7 +84,7 @@ def main() -> None:
         "--sets",
         "rnasim",
         "--sizes",
-        SIZE,
+        FASTME_SIZE,
         "--replicates",
         "0",
         *cpu,
