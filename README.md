@@ -14,8 +14,8 @@ out.
 ### Prerequisites
 
 - Linux on x86-64 (other systems: issue [#14](https://github.com/sbhattlab/p2v_bme/issues/14))
-- a C and C++17 compiler with OpenMP (e.g. GCC) and CMake 3.24 or newer
-- [pixi](https://pixi.sh), which installs the other build dependencies:
+- a C and C++17 compiler with OpenMP (e.g. GCC)
+- [pixi](https://pixi.sh), which installs the other build dependencies (CMake included):
 
   ```bash
   curl -fsSL https://pixi.sh/install.sh | bash
