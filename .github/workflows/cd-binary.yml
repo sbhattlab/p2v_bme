@@ -8,9 +8,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    paths:
-      - .github/workflows/cd-binary.yml
   workflow_dispatch:
   release:
     types:
