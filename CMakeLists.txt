@@ -71,7 +71,7 @@ add_library(p2vbme_distances STATIC src/distances.cpp)
 target_include_directories(p2vbme_distances PUBLIC src)
 target_compile_options(p2vbme_distances PRIVATE -O3 -Wall -Wextra)
 
-# GTR+GC fit: the exchangeabilities and alpha from sampled sequence pairs (plain C++, OpenMP, no CUDA).
+# GTR and GTR+GC fits: the exchangeabilities (and alpha) from sampled sequence pairs (plain C++, OpenMP, no CUDA).
 # -ffp-contract=off: no fused multiply-adds (the default on ARM), so the fit gives the same bits on every CPU.
 add_library(p2vbme_gtr_fit STATIC src/gtr_fit.cpp)
 target_include_directories(p2vbme_gtr_fit PUBLIC src)

@@ -1,8 +1,8 @@
 /*
  * gtr_fit.cpp
  *
- * The GTR+GC fit (gtr_fit.hpp): in order, the model's ten cell probabilities, one pair's distance, the objective, BFGS,
- * Brent's method, the fit, and the pairs it uses.
+ * The GTR and GTR+GC fits (gtr_fit.hpp): in order, the model's ten cell probabilities, one pair's distance, the
+ * objective, BFGS, Brent's method, the fits, and the pairs they use.
  * The model, the pair's distance, the objective and BFGS keep the order of operations of the paper's code, and the
  * numerical constants below its values (no reason for them is recorded); the search over alpha is new (gtr_fit.hpp).
  */
@@ -15,6 +15,7 @@
 #include <cstring>
 #include <limits>
 #include <stdexcept>
+#include <string>
 
 #include "random.hpp"
 #include "timing.hpp"
@@ -28,7 +29,7 @@ namespace {
 // The ten cells i <= j of a symmetric 4 x 4 table, and the three non-trivial modes of the rate matrix.
 constexpr int N_CELLS = N_BASES * (N_BASES + 1) / 2;
 constexpr int N_MODES = N_BASES - 1;
-// The parameters theta: the five free log exchangeability ratios log(S_k / S_GT), then log alpha.
+// The parameters theta: the five free log exchangeability ratios log(S_k / S_GT), then log alpha (GTR: infinity).
 constexpr int N_FREE_RATES = N_GTR_RATES - 1;
 constexpr int N_PARAMS = N_FREE_RATES + 1;
 constexpr int LOG_ALPHA = N_FREE_RATES; // index of log alpha in theta
@@ -92,7 +93,8 @@ constexpr double GOLDEN_SECTION = 0.3819660112501051;
 
 // ---- The model's cell probabilities ----------------------------------------------------------------------
 
-// The model at one theta: F_c(d) = base[c] + sum_k w[c][k] m_k(d), m_k(d) = (1 - lam[k] d / alpha)^(-alpha).
+// The model at one theta: F_c(d) = base[c] + sum_k w[c][k] m_k(d), m_k(d) = (1 - lam[k] d / alpha)^(-alpha), or its
+// limit exp(lam[k] d) when alpha is infinite (GTR).
 struct CellModel {
     double lam[N_MODES], w[N_CELLS][N_MODES], base[N_CELLS], alpha;
 };
@@ -139,6 +141,7 @@ void jacobi4(double a[16], double eval[4], double v[16]) {
 }
 
 // Reads the parameters: theta -> (s, alpha), each clamped to its range and the exchangeabilities scaled to mean 1.
+// An infinite log alpha (GTR) stays infinite.
 void unpack(const double theta[N_PARAMS], double s[N_GTR_RATES], double *alpha) {
     double sum = 0.0;
     for (int k = 0; k < N_GTR_RATES; ++k) {
@@ -153,6 +156,10 @@ void unpack(const double theta[N_PARAMS], double s[N_GTR_RATES], double *alpha) 
     for (int k = 0; k < N_GTR_RATES; ++k)
         s[k] *= (double)N_GTR_RATES / sum;
     double la = theta[LOG_ALPHA];
+    if (std::isinf(la) && la > 0.0) {
+        *alpha = la;
+        return;
+    }
     if (la > GTR_FIT_LOG_ALPHA_MAX)
         la = GTR_FIT_LOG_ALPHA_MAX;
     if (la < GTR_FIT_LOG_ALPHA_MIN)
@@ -197,6 +204,12 @@ void build_model(const double theta[N_PARAMS], const double pi[N_BASES], CellMod
 void cells(const CellModel *md, double d, double f[N_CELLS], double f1[N_CELLS], double f2[N_CELLS]) {
     double m[N_MODES], m1[N_MODES], m2[N_MODES];
     for (int k = 0; k < N_MODES; ++k) {
+        if (std::isinf(md->alpha)) {
+            m[k] = std::exp(md->lam[k] * d);
+            m1[k] = md->lam[k] * m[k];
+            m2[k] = md->lam[k] * md->lam[k] * m[k];
+            continue;
+        }
         const double base = 1.0 - md->lam[k] * d / md->alpha;
         m[k] = std::pow(base, -md->alpha);
         m1[k] = md->lam[k] * m[k] / base;
@@ -278,7 +291,7 @@ struct Pairs {
     int threads = 1;
 };
 
-// Computes the penalised composite log-likelihood: (theta, pi, the first n pairs) -> objective.
+// Computes the penalised composite log-likelihood: (theta, pi, the first n pairs) -> objective (GTR: no penalty).
 // solve: re-optimise every distance (warm start from the current ones); otherwise they stay fixed.
 // The pairs' terms are added in index order, so the value does not depend on the number of threads.
 double objective(const double theta[N_PARAMS], const double pi[N_BASES], Pairs &pairs, int32_t n, bool solve) {
@@ -471,10 +484,15 @@ template <class G> double brent_max(G &&g, double lo, double x, double gx, doubl
 
 } // namespace
 
-// ---- The fit -----------------------------------------------------------------------------------------------
+// ---- The fits ----------------------------------------------------------------------------------------------
 
-GtrFit fit_gtr_gc_counts(const std::vector<PairCounts> &tables, int threads) {
+namespace {
+
+// Fits GTR or GTR+GC (model) to pair count tables: tables -> fit (fit_gtr_counts, fit_gtr_gc_counts).
+GtrFit fit_counts(const std::vector<PairCounts> &tables, Model model, int threads) {
     GtrFit out;
+    if (model == Model::GTR)
+        out.alpha = std::numeric_limits<double>::infinity();
     const int32_t n_tables = (int32_t)tables.size();
     Pairs pairs;
     pairs.threads = threads > 0 ? threads : omp_get_max_threads();
@@ -513,6 +531,17 @@ GtrFit fit_gtr_gc_counts(const std::vector<PairCounts> &tables, int threads) {
         pi[i] /= pi_sum;
         if (pi[i] < PI_MIN)
             pi[i] = PI_MIN;
+    }
+
+    // GTR: one search of the exchangeabilities, from equal rates.
+    if (model == Model::GTR) {
+        double theta[N_PARAMS] = {0.0, 0.0, 0.0, 0.0, 0.0, std::numeric_limits<double>::infinity()}, f;
+        out.converged = bfgs(theta, N_FREE_RATES, pi, pairs, n, MAX_ITERATIONS, &f, &out.n_iterations);
+        unpack(theta, out.rates, &out.alpha);
+        std::memcpy(out.base_freqs, pi, sizeof(pi));
+        out.log_lik = f;
+        out.n_pairs = n;
+        return out;
     }
 
     // The start.
@@ -592,6 +621,34 @@ GtrFit fit_gtr_gc_counts(const std::vector<PairCounts> &tables, int threads) {
     return out;
 }
 
+// Fits GTR or GTR+GC (model) to an alignment: (aln, n_pairs, seed) -> fit (fit_gtr, fit_gtr_gc).
+GtrFit fit_alignment(const Alignment &aln, Model model, int32_t n_pairs, uint64_t seed, int threads) {
+    if (n_pairs < 1)
+        throw std::invalid_argument(std::string(model_name(model)) + " fit: the number of pairs must be >= 1");
+    const double t0 = wall_sec();
+    const auto pairs = draw_fit_pairs(aln.n_taxa, n_pairs, seed);
+    const size_t row_words = (size_t)N_PLANES * aln.n_words;
+    std::vector<PairCounts> tables(pairs.size());
+    const int max_threads = threads > 0 ? threads : omp_get_max_threads();
+#pragma omp parallel for schedule(static) num_threads(threads_for(max_threads, (int64_t)pairs.size()))
+    for (int64_t m = 0; m < (int64_t)pairs.size(); ++m)
+        tables[m] = count_pair(&aln.packed[(size_t)pairs[m].first * row_words],
+                               &aln.packed[(size_t)pairs[m].second * row_words], aln.n_words);
+    GtrFit fit = fit_counts(tables, model, threads);
+    fit.time = wall_sec() - t0;
+    return fit;
+}
+
+} // namespace
+
+GtrFit fit_gtr_counts(const std::vector<PairCounts> &tables, int threads) {
+    return fit_counts(tables, Model::GTR, threads);
+}
+
+GtrFit fit_gtr_gc_counts(const std::vector<PairCounts> &tables, int threads) {
+    return fit_counts(tables, Model::GTR_GC, threads);
+}
+
 // ---- The pairs -----------------------------------------------------------------------------------------------
 
 std::vector<std::pair<int32_t, int32_t>> draw_fit_pairs(int32_t n_taxa, int32_t n_pairs, uint64_t seed) {
@@ -619,21 +676,12 @@ std::vector<std::pair<int32_t, int32_t>> draw_fit_pairs(int32_t n_taxa, int32_t 
     return pairs;
 }
 
+GtrFit fit_gtr(const Alignment &aln, int32_t n_pairs, uint64_t seed, int threads) {
+    return fit_alignment(aln, Model::GTR, n_pairs, seed, threads);
+}
+
 GtrFit fit_gtr_gc(const Alignment &aln, int32_t n_pairs, uint64_t seed, int threads) {
-    if (n_pairs < 1)
-        throw std::invalid_argument("GTR+GC fit: the number of pairs must be >= 1");
-    const double t0 = wall_sec();
-    const auto pairs = draw_fit_pairs(aln.n_taxa, n_pairs, seed);
-    const size_t row_words = (size_t)N_PLANES * aln.n_words;
-    std::vector<PairCounts> tables(pairs.size());
-    const int max_threads = threads > 0 ? threads : omp_get_max_threads();
-#pragma omp parallel for schedule(static) num_threads(threads_for(max_threads, (int64_t)pairs.size()))
-    for (int64_t m = 0; m < (int64_t)pairs.size(); ++m)
-        tables[m] = count_pair(&aln.packed[(size_t)pairs[m].first * row_words],
-                               &aln.packed[(size_t)pairs[m].second * row_words], aln.n_words);
-    GtrFit fit = fit_gtr_gc_counts(tables, threads);
-    fit.time = wall_sec() - t0;
-    return fit;
+    return fit_alignment(aln, Model::GTR_GC, n_pairs, seed, threads);
 }
 
 } // namespace p2vbme
