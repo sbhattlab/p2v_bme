@@ -50,7 +50,7 @@ APPLES2 = (
     "https://raw.githubusercontent.com/balabanmetin/apples2-data/5f8de20764899b9f95f5fda4fb5be867ed045211/"
     "singlegene/rnasim/variable-size/rnasim-source"
 )
-SILVA = "https://www.arb-silva.de/no_cache/download/archive/release_144"
+SILVA = "https://ftp.arb-silva.de/release_144"
 ZENODO = "https://zenodo.org/api/records"
 # source -> files: (folder below the source's, name, URL, bytes, MD5); MD5 None: from the deposit's .md5 file
 FILES = {
