@@ -46,57 +46,19 @@ Outputs: data/results/silva/
     pixi run -e paper python -m paper.run_silva --steps tree replicates --replicates 1-25
 """
 
+import gzip
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from collections.abc import Iterator
-from gzip import open as gzip_open
-from hashlib import blake2b
-from json import dumps
 from multiprocessing import Pool
 from pathlib import Path
-from re import compile as regex
-from re import match, search, sub
-from shutil import copyfile
-from subprocess import run
 
-from numpy import (
-    arange,
-    argmax,
-    argmin,
-    argsort,
-    array,
-    bincount,
-    concatenate,
-    count_nonzero,
-    cumsum,
-    empty,
-    flatnonzero,
-    fmax,
-    frombuffer,
-    full,
-    int8,
-    int16,
-    int64,
-    isin,
-    isnan,
-    lexsort,
-    logical_or,
-    maximum,
-    median,
-    minimum,
-    nan,
-    nan_to_num,
-    nanmean,
-    nansum,
-    ndarray,
-    percentile,
-    r_,
-    savez_compressed,
-    sort,
-    uint8,
-    unique,
-    where,
-    zeros,
-)
+import numpy as np
 
 from paper._config import (
     DEFAULT_DATASETS_DIR,
@@ -146,8 +108,8 @@ INCERTAE_SEDIS = "Incertae Sedis"  # SILVA's name for an unplaced rank
 MIN_TAXON = 5  # GTDB taxa with fewer labelled sequences are not scored
 # Columns of the GTDB-classified sequences kept: at least this share of A/C/G/T
 GTDB_MIN_OCCUPANCY = 0.10
-VALID = zeros(256, bool)  # what p2v-bme counts as a valid site
-CANONICAL = full(256, ord("-"), uint8)  # the base p2v-bme reads, '-' for a missing site
+VALID = np.zeros(256, bool)  # what p2v-bme counts as a valid site
+CANONICAL = np.full(256, ord("-"), np.uint8)  # the base p2v-bme reads, '-' for a missing site
 for _c, _b in zip(b"ACGTUacgtu", b"ACGTTACGTT"):
     VALID[_c], CANONICAL[_c] = True, _b
 
@@ -158,7 +120,7 @@ for _c, _b in zip(b"ACGTUacgtu", b"ACGTTACGTT"):
 def fasta_records(path: Path) -> Iterator[tuple[bytes, bytes]]:
     """Reads a FASTA file (plain or .gz) one record at a time:
     path -> (header without '>', sequence)."""
-    with gzip_open(path, "rb") if path.suffix == ".gz" else open(path, "rb") as fh:
+    with gzip.open(path, "rb") if path.suffix == ".gz" else open(path, "rb") as fh:
         header, parts = None, []
         for line in fh:
             if line.startswith(b">"):
@@ -196,23 +158,23 @@ def dedup_labels(path: str) -> tuple[str, str]:
     return phylum, genus
 
 
-def majority(group: ndarray, label: ndarray) -> ndarray:
+def majority(group: np.ndarray, label: np.ndarray) -> np.ndarray:
     """Finds each group's most frequent label:
     (group and label id of each sequence) -> label per group.
 
     Ties go to the smaller id, the label met first in the file (as the paper's dedup).
     """
     n_labels = int(label.max()) + 1
-    pairs, counts = unique(group * n_labels + label, return_counts=True)
+    pairs, counts = np.unique(group * n_labels + label, return_counts=True)
     g, x = pairs // n_labels, pairs % n_labels
-    order = lexsort((x, -counts, g))
-    first = r_[True, g[order][1:] != g[order][:-1]]
-    best = full(int(group.max()) + 1, -1, int64)
+    order = np.lexsort((x, -counts, g))
+    first = np.r_[True, g[order][1:] != g[order][:-1]]
+    best = np.full(int(group.max()) + 1, -1, np.int64)
     best[g[order][first]] = x[order][first]
     return best
 
 
-def representatives(group: ndarray, phylum: ndarray, genus: ndarray) -> ndarray:
+def representatives(group: np.ndarray, phylum: np.ndarray, genus: np.ndarray) -> np.ndarray:
     """Picks the sequence that stands for each group of identical ones, as the paper's dedup does:
     (group, phylum and genus ids of each searched sequence, in file order)
     -> mask of the representatives.
@@ -220,18 +182,18 @@ def representatives(group: ndarray, phylum: ndarray, genus: ndarray) -> ndarray:
     The first sequence with the group's majority phylum and majority genus,
     else the first with its majority phylum.
     """
-    position = arange(group.size)
+    position = np.arange(group.size)
     major_phylum = phylum == majority(group, phylum)[group]
     both = major_phylum & (genus == majority(group, genus)[group])
-    first = full(int(group.max()) + 1, group.size, int64)
-    minimum.at(first, group[major_phylum], position[major_phylum])
-    has_both = zeros(first.size, bool)
+    first = np.full(int(group.max()) + 1, group.size, np.int64)
+    np.minimum.at(first, group[major_phylum], position[major_phylum])
+    has_both = np.zeros(first.size, bool)
     has_both[group[both]] = True
     first[has_both] = group.size
-    minimum.at(first, group[both], position[both])
-    mask = zeros(group.size, bool)
+    np.minimum.at(first, group[both], position[both])
+    mask = np.zeros(group.size, bool)
     mask[first] = True
-    assert count_nonzero(mask) == first.size, "a group without a representative"
+    assert np.count_nonzero(mask) == first.size, "a group without a representative"
     return mask
 
 
@@ -265,14 +227,14 @@ def distinct(alignment: Path, out: Path, max_sites: int, min_sites: int, overwri
             tax.write(f"{name}\t{path.strip()}\n")
             for ids, label, x in zip(label_ids, labels, dedup_labels(path.strip())):
                 label.append(ids.setdefault(x, len(ids)))
-            valid = VALID[frombuffer(seq, uint8)]
-            counts = valid.astype(int64) if counts is None else counts + valid
+            valid = VALID[np.frombuffer(seq, np.uint8)]
+            counts = valid.astype(np.int64) if counts is None else counts + valid
     if counts is None:
         raise SystemExit(f"{alignment}: no sequences")
     n_columns = counts.size
-    columns = arange(n_columns)
+    columns = np.arange(n_columns)
     if 0 < max_sites < n_columns:
-        columns = sort(lexsort((arange(n_columns), -counts))[:max_sites])
+        columns = np.sort(np.lexsort((np.arange(n_columns), -counts))[:max_sites])
     groups: dict[bytes, int] = {}
     group_of, searched_index = [], []
     n_sequences = n_left_out = 0
@@ -280,24 +242,24 @@ def distinct(alignment: Path, out: Path, max_sites: int, min_sites: int, overwri
     with open(parts[0], "wb") as searched, open(parts[1], "wb") as left_out:
         for i, (header, seq) in enumerate(fasta_records(alignment)):
             n_sequences += 1
-            row = CANONICAL[frombuffer(seq, uint8)[columns]]
+            row = CANONICAL[np.frombuffer(seq, np.uint8)[columns]]
             record = b">" + header.split()[0] + b"\n" + row.tobytes() + b"\n"
-            if count_nonzero(row != ord("-")) < min_sites:
+            if np.count_nonzero(row != ord("-")) < min_sites:
                 n_left_out += 1
                 left_out.write(record)
                 continue
             searched.write(record)
-            key = blake2b(row.tobytes(), digest_size=16).digest()
+            key = hashlib.blake2b(row.tobytes(), digest_size=16).digest()
             group_of.append(groups.setdefault(key, len(groups)))
             searched_index.append(i)
-    group, index = array(group_of, int64), array(searched_index, int64)
-    phylum, genus = (array(x, int64)[index] for x in labels)
-    keep = representatives(group, phylum, genus) if group.size else zeros(0, bool)
+    group, index = np.array(group_of, np.int64), np.array(searched_index, np.int64)
+    phylum, genus = (np.array(x, np.int64)[index] for x in labels)
+    keep = representatives(group, phylum, genus) if group.size else np.zeros(0, bool)
     with open(parts[2], "wb") as fo:
         for k, (header, seq) in enumerate(fasta_records(parts[0])):
             if keep[k]:
                 fo.write(b">" + header + b"\n" + seq + b"\n")
-    sizes = bincount(group) if group.size else zeros(0, int64)
+    sizes = np.bincount(group) if group.size else np.zeros(0, np.int64)
     for part in parts:
         part.rename(part.with_suffix(""))
     write_json(
@@ -311,7 +273,7 @@ def distinct(alignment: Path, out: Path, max_sites: int, min_sites: int, overwri
             "searched": n_sequences - n_left_out,
             "distinct": len(groups),
             # p2v-bme keeps two of each group in the search and sets the others aside
-            "identical_set_aside": int(maximum(sizes - 2, 0).sum()),
+            "identical_set_aside": int(np.maximum(sizes - 2, 0).sum()),
             "columns_kept": columns.tolist(),
         },
     )
@@ -346,7 +308,7 @@ def reattach(out: Path, tool: str, overwrite: bool) -> None:
         return
     d = read_json(out / "distinct.json")
     if d["left_out"] == 0:
-        copyfile(out / "tree.nwk", out / "tree.all.nwk")
+        shutil.copyfile(out / "tree.nwk", out / "tree.all.nwk")
         write_json(
             out / "tree.all.json",
             {"searched": d["searched"], "left_out": 0, "no_shared_site": 0},
@@ -354,7 +316,7 @@ def reattach(out: Path, tool: str, overwrite: bool) -> None:
         return
     files = ("tree.nwk", "searched.fa", "left_out.fa", "tree.all.nwk")
     with open(out / "tree.all.json.part", "w") as fo:
-        run([tool, *(str(out / f) for f in files)], stdout=fo, check=True)
+        subprocess.run([tool, *(str(out / f) for f in files)], stdout=fo, check=True)
     (out / "tree.all.json.part").rename(out / "tree.all.json")
 
 
@@ -381,7 +343,7 @@ def write_subset(source: Path, keep: set[str], out: Path) -> None:
 # ---- Trees as arrays (paper.utils.read_tree) ----
 
 
-def prune(tree: dict, keep: ndarray) -> dict:
+def prune(tree: dict, keep: np.ndarray) -> dict:
     """Restricts a tree to some of its leaves:
     (tree, keep mask over the leaves) -> the induced tree, same arrays.
 
@@ -390,41 +352,41 @@ def prune(tree: dict, keep: ndarray) -> dict:
     Leaves keep their order; internal nodes keep their order, the root last.
     """
     parent, first, size = tree["parent"], tree["first"], tree["size"]
-    cum = concatenate([[0], cumsum(keep)])
+    cum = np.concatenate([[0], np.cumsum(keep)])
     m = int(cum[-1])
     before, below = cum[first], cum[first + size] - cum[first]
-    alive = flatnonzero(below > 0)
+    alive = np.flatnonzero(below > 0)
     # A chain of branches merged into one has one set of kept leaves:
     # (kept before it, kept below it).
-    keys, group = unique(before[alive] * (m + 1) + below[alive], return_inverse=True)
+    keys, group = np.unique(before[alive] * (m + 1) + below[alive], return_inverse=True)
     n_groups = keys.size
-    top = full(n_groups, -1, int64)
-    maximum.at(top, group, alive)
+    top = np.full(n_groups, -1, np.int64)
+    np.maximum.at(top, group, alive)
     g_before, g_below = keys // (m + 1), keys % (m + 1)
     leaf = g_below == 1
-    order = concatenate(
+    order = np.concatenate(
         [
-            flatnonzero(leaf)[argsort(g_before[leaf])],
-            flatnonzero(~leaf)[argsort(top[~leaf])],
+            np.flatnonzero(leaf)[np.argsort(g_before[leaf])],
+            np.flatnonzero(~leaf)[np.argsort(top[~leaf])],
         ]
     )
-    new_id = empty(n_groups, int64)
-    new_id[order] = arange(n_groups)
-    group_of = full(parent.size, -1, int64)
+    new_id = np.empty(n_groups, np.int64)
+    new_id[order] = np.arange(n_groups)
+    group_of = np.full(parent.size, -1, np.int64)
     group_of[alive] = group
     above = parent[top]
-    new_parent = where(above >= 0, new_id[group_of[above]], -1)
-    length = bincount(group, weights=nan_to_num(tree["length"][alive]), minlength=n_groups)
-    has_length = zeros(n_groups, bool)
-    logical_or.at(has_length, group, ~isnan(tree["length"][alive]))
-    length[~has_length | (g_below == m)] = nan
-    tbe, exact = full(n_groups, nan), full(n_groups, nan)
-    fmax.at(tbe, group, tree["tbe"][alive])
-    fmax.at(exact, group, tree["exact"][alive])
-    tbe[leaf], exact[leaf] = nan, nan
+    new_parent = np.where(above >= 0, new_id[group_of[above]], -1)
+    length = np.bincount(group, weights=np.nan_to_num(tree["length"][alive]), minlength=n_groups)
+    has_length = np.zeros(n_groups, bool)
+    np.logical_or.at(has_length, group, ~np.isnan(tree["length"][alive]))
+    length[~has_length | (g_below == m)] = np.nan
+    tbe, exact = np.full(n_groups, np.nan), np.full(n_groups, np.nan)
+    np.fmax.at(tbe, group, tree["tbe"][alive])
+    np.fmax.at(exact, group, tree["exact"][alive])
+    tbe[leaf], exact[leaf] = np.nan, np.nan
     names = tree["names"]
     return {
-        "names": [names[i] for i in flatnonzero(keep)],
+        "names": [names[i] for i in np.flatnonzero(keep)],
         "parent": new_parent[order],
         "first": g_before[order],
         "size": g_below[order],
@@ -434,7 +396,7 @@ def prune(tree: dict, keep: ndarray) -> dict:
     }
 
 
-def branch_rows(tree: dict) -> dict[str, ndarray]:
+def branch_rows(tree: dict) -> dict[str, np.ndarray]:
     """Lists the internal branches of the unrooted tree once each:
     tree -> {node, p, length, tbe, exact}.
 
@@ -444,19 +406,19 @@ def branch_rows(tree: dict) -> dict[str, ndarray]:
     """
     n, parent, size = len(tree["names"]), tree["parent"], tree["size"]
     root = parent.size - 1
-    node = arange(n, root)
-    p = minimum(size[node], n - size[node])
+    node = np.arange(n, root)
+    p = np.minimum(size[node], n - size[node])
     tbe, exact, length = (
         tree["tbe"][node].copy(),
         tree["exact"][node].copy(),
         tree["length"][node].copy(),
     )
     keep = p >= 2
-    children = flatnonzero(parent == root)
+    children = np.flatnonzero(parent == root)
     if children.size == 2 and (children >= n).all():
         a, b = children - n
-        tbe[a], exact[a] = fmax(tbe[a], tbe[b]), fmax(exact[a], exact[b])
-        length[a] = nansum([length[a], length[b]])
+        tbe[a], exact[a] = np.fmax(tbe[a], tbe[b]), np.fmax(exact[a], exact[b])
+        length[a] = np.nansum([length[a], length[b]])
         keep[b] = False
     return {
         "node": node[keep],
@@ -472,7 +434,7 @@ def distinct_tree(out: Path) -> dict:
     results -> tree arrays."""
     full_tree = read_tree(out / "tree.boot.support.nwk")
     names = set(fasta_names(out / "distinct.fa"))
-    return prune(full_tree, array([x in names for x in full_tree["names"]]))
+    return prune(full_tree, np.array([x in names for x in full_tree["names"]]))
 
 
 # ---- Records ----
@@ -483,9 +445,9 @@ def support_records(tree: dict, out: Path, n_all: int, n_boot: int, version: str
     tree of the distinct sequences -> the summary and quantile records."""
     b = branch_rows(tree)
     p, tbe, exact, length = b["p"], b["tbe"], b["exact"], b["length"]
-    if isnan(tbe).any():
+    if np.isnan(tbe).any():
         raise SystemExit(
-            f"{int(isnan(tbe).sum())} branches of the distinct sequences' tree have no support"
+            f"{int(np.isnan(tbe).sum())} branches of the distinct sequences' tree have no support"
         )
     k = len(tree["names"])
     summary_bins, quantile_bins = [], []
@@ -494,7 +456,7 @@ def support_records(tree: dict, out: Path, n_all: int, n_boot: int, version: str
         x = tbe[m]
         if not m.any():
             continue
-        q10, q25, q50, q75, q90 = percentile(x, [10, 25, 50, 75, 90])
+        q10, q25, q50, q75, q90 = np.percentile(x, [10, 25, 50, 75, 90])
         summary_bins.append(
             {
                 "bin": name,
@@ -504,7 +466,7 @@ def support_records(tree: dict, out: Path, n_all: int, n_boot: int, version: str
                 "mean_tbe_pct": float(x.mean()),
                 "median_tbe_pct": float(q50),
                 "mean_exact_fbp_pct": float(exact[m].mean()),
-                "mean_branch_length": float(nanmean(length[m])),
+                "mean_branch_length": float(np.nanmean(length[m])),
             }
         )
         positive = length[m][length[m] > 0]
@@ -520,7 +482,7 @@ def support_records(tree: dict, out: Path, n_all: int, n_boot: int, version: str
             "q10_tbe_pct": float(q10),
             "q90_tbe_pct": float(q90),
             "mean_exact_fbp_pct": float(exact[m].mean()),
-            "mean_pos_branch_length": float(positive.mean()) if positive.size else nan,
+            "mean_pos_branch_length": float(positive.mean()) if positive.size else np.nan,
         }
         for c in (70, 80, 90):
             rec[f"n_ge{c}"] = int((x >= c).sum())
@@ -546,7 +508,7 @@ def support_records(tree: dict, out: Path, n_all: int, n_boot: int, version: str
     )
 
 
-def best_split(tree: dict, leaves: ndarray, name: str) -> dict:
+def best_split(tree: dict, leaves: np.ndarray, name: str) -> dict:
     """Finds the branch whose split matches a set of leaves best, by F1:
     (tree, leaves) -> its record."""
     k, size, first, parent = (
@@ -561,7 +523,7 @@ def best_split(tree: dict, leaves: ndarray, name: str) -> dict:
     size = size[:root]
     f1_clade = 2.0 * below / (size + total)
     f1_comp = 2.0 * (total - below) / ((k - size) + total)
-    u, v = int(argmax(f1_clade)), int(argmax(f1_comp))
+    u, v = int(np.argmax(f1_clade)), int(np.argmax(f1_comp))
     comp = bool(f1_comp[v] > f1_clade[u])
     node = v if comp else u
     tp = int(total - below[node]) if comp else int(below[node])
@@ -570,8 +532,8 @@ def best_split(tree: dict, leaves: ndarray, name: str) -> dict:
     while chain[-1] != root:
         chain.append(int(parent[chain[-1]]))
 
-    def val(arr: ndarray, x: int) -> float:
-        return 0.0 if x == root or isnan(arr[x]) else float(arr[x])
+    def val(arr: np.ndarray, x: int) -> float:
+        return 0.0 if x == root or np.isnan(arr[x]) else float(arr[x])
 
     return {
         "name": name,
@@ -594,28 +556,30 @@ def best_split(tree: dict, leaves: ndarray, name: str) -> dict:
     }
 
 
-def counts(tree: dict, leaves: ndarray) -> ndarray:
+def counts(tree: dict, leaves: np.ndarray) -> np.ndarray:
     """Counts the given leaves below every node: (tree, leaf ids) -> one count per node."""
-    mark = zeros(len(tree["names"]) + 1, int64)
+    mark = np.zeros(len(tree["names"]) + 1, np.int64)
     mark[leaves + 1] = 1
-    cum = cumsum(mark)
+    cum = np.cumsum(mark)
     return cum[tree["first"] + tree["size"]] - cum[tree["first"]]
 
 
-def inside(tree: dict, entry: dict, leaves: ndarray) -> int:
+def inside(tree: dict, entry: dict, leaves: np.ndarray) -> int:
     """Counts the given leaves on a taxon's side of its best split:
     (tree, its record, leaves) -> count."""
     below = int(counts(tree, leaves)[entry["best_node"]])
     return int(leaves.size - below) if entry["is_complement"] else below
 
 
-def groups_of(labels: list[str]) -> dict[str, ndarray]:
+def groups_of(labels: list[str]) -> dict[str, np.ndarray]:
     """Groups leaves by label, largest group first: labels -> {label: leaf ids}."""
-    arr = array(labels)
-    names, inverse, count = unique(arr, return_inverse=True, return_counts=True)
-    order = argsort(inverse, kind="stable")
-    bounds = concatenate([[0], cumsum(count)])
-    return {str(names[i]): order[bounds[i] : bounds[i + 1]] for i in argsort(-count, kind="stable")}
+    arr = np.array(labels)
+    names, inverse, count = np.unique(arr, return_inverse=True, return_counts=True)
+    order = np.argsort(inverse, kind="stable")
+    bounds = np.concatenate([[0], np.cumsum(count)])
+    return {
+        str(names[i]): order[bounds[i] : bounds[i + 1]] for i in np.argsort(-count, kind="stable")
+    }
 
 
 def biology(tree: dict, taxonomy: dict[str, str], alpha: float) -> dict:
@@ -638,18 +602,18 @@ def biology(tree: dict, taxonomy: dict[str, str], alpha: float) -> dict:
     record = {
         "K_unique": len(paths),
         "root_node": root,
-        "total_tree_length": round(float(nansum(tree["length"][:root])), 2),
+        "total_tree_length": round(float(np.nansum(tree["length"][:root])), 2),
         "gamma_alpha": alpha,
         "domains": [best_split(tree, v, n) for n, v in domains.items()],
         "phyla": [best_split(tree, v, n) for n, v in list(phyla.items())[:TOP]],
         "classes": [best_split(tree, v, n) for n, v in list(classes.items())[:TOP]],
     }
-    is_bac = array([p[0] == "Bacteria" for p in paths])
-    chl = flatnonzero(is_bac & array(["Chloroplast" in p for p in paths]))
-    mit = flatnonzero(is_bac & array(["Mitochondria" in p for p in paths]))
-    organelle = zeros(len(paths), bool)
+    is_bac = np.array([p[0] == "Bacteria" for p in paths])
+    chl = np.flatnonzero(is_bac & np.array(["Chloroplast" in p for p in paths]))
+    mit = np.flatnonzero(is_bac & np.array(["Mitochondria" in p for p in paths]))
+    organelle = np.zeros(len(paths), bool)
     organelle[chl] = organelle[mit] = True
-    other = flatnonzero(is_bac & ~organelle)
+    other = np.flatnonzero(is_bac & ~organelle)
     euk = next(e for e in record["domains"] if e["name"] == "Eukaryota")
     plant = next(e for e in record["phyla"] if e["name"] == "Eukaryota;Chloroplastida")
     record["eukaryota_clade_breakdown"] = {
@@ -661,7 +625,7 @@ def biology(tree: dict, taxonomy: dict[str, str], alpha: float) -> dict:
         "bacteria_mitochondria_in_clade": inside(tree, euk, mit),
         "bacteria_mitochondria_total": int(mit.size),
         "other_bacteria_in_clade": inside(tree, euk, other),
-        "archaea_in_clade": inside(tree, euk, domains.get("Archaea", array([], int64))),
+        "archaea_in_clade": inside(tree, euk, domains.get("Archaea", np.array([], np.int64))),
         "chloroplastida_node_id": plant["best_node"],
         "chloroplastida_clade_size": plant["clade_size"],
         "bacteria_chloroplast_in_chloroplastida": inside(tree, plant, chl),
@@ -692,17 +656,17 @@ def domain_codes(taxonomy: dict[str, str], names: list[str]) -> dict[str, int]:
     return codes
 
 
-def nearest_branch(tree: dict, mask: ndarray) -> tuple[int, ndarray]:
+def nearest_branch(tree: dict, mask: np.ndarray) -> tuple[int, np.ndarray]:
     """Finds the branch nearest to a set of leaves:
     (tree, leaf mask) -> (misplaced leaves, the leaves on its side)."""
     k, first, size = len(tree["names"]), tree["first"], tree["size"]
-    cum = r_[0, cumsum(mask)]
+    cum = np.r_[0, np.cumsum(mask)]
     total = int(mask.sum())
     below = cum[first + size] - cum[first]
     as_clade = (total - below) + (size - below)  # missed members plus strangers inside
     as_rest = below + ((k - size) - (total - below))  # the same for the other side of the branch
-    node = int(argmin(minimum(as_clade, as_rest)))
-    side = zeros(k, bool)
+    node = int(np.argmin(np.minimum(as_clade, as_rest)))
+    side = np.zeros(k, bool)
     side[first[node] : first[node] + size[node]] = True
     return int(min(as_clade[node], as_rest[node])), (
         side if as_clade[node] <= as_rest[node] else ~side
@@ -717,7 +681,7 @@ def domain_distances(tree: dict) -> dict[str, float]:
     eukaryota_with_<X>: that of the eukaryotes' best side together with the archaea X,
     per archaeon of X outside that side.
     """
-    code = array([CODES[x] for x in tree["names"]])
+    code = np.array([CODES[x] for x in tree["names"]])
     eukaryota = (code & 1) > 0
     groups = {name: (code & (1 << (2 + i))) > 0 for i, name in enumerate(KINGDOMS)}
     groups = groups | {
@@ -737,7 +701,7 @@ def replicate_distances(path: Path) -> dict[str, float]:
     """Measures the domains in one bootstrap tree:
     tree file -> domain_distances of its distinct sequences."""
     tree = read_tree(path)
-    return domain_distances(prune(tree, array([x in CODES for x in tree["names"]])))
+    return domain_distances(prune(tree, np.array([x in CODES for x in tree["names"]])))
 
 
 def domains(reference: dict, boot: list[Path], workers: int) -> dict:
@@ -758,7 +722,7 @@ def domains(reference: dict, boot: list[Path], workers: int) -> dict:
                 "of_those_eukaryota_with_asgard_tack": with_asgard_tack,
             }
         )
-    code = array(list(CODES.values()))
+    code = np.array(list(CODES.values()))
     sizes = {"Eukaryota": int((code & 1).sum())}
     sizes |= {name: int(((code >> (2 + i)) & 1).sum()) for i, name in enumerate(KINGDOMS)}
     sizes["Asgard+TACK"] = int(
@@ -789,13 +753,13 @@ def records(out: Path, n_boot: int, workers: int) -> None:
         )
     support_records(tree, out, d["sequences"], n_boot, report["version"])
     taxonomy = read_taxonomy(out)
-    alpha = report["substitution_model"].get("alpha", nan)
+    alpha = report["substitution_model"].get("alpha", np.nan)
     write_json(out / "silva144_real_biology_B100.json", biology(tree, taxonomy, alpha))
     CODES = domain_codes(taxonomy, tree["names"])
     boot = [out / f"boot/rep{r:03d}.boottrees" for r in range(1, n_boot + 1)]
     write_json(out / "domain_arrangements.json", domains(tree, boot, workers))
-    lines = [dumps({"run": "rep000"} | report)]
-    lines += [dumps({"run": p.stem} | read_json(p.with_suffix(".json"))) for p in boot]
+    lines = [json.dumps({"run": "rep000"} | report)]
+    lines += [json.dumps({"run": p.stem} | read_json(p.with_suffix(".json"))) for p in boot]
     (out / "runs.jsonl").write_text("\n".join(lines) + "\n")
     print(f"records: {len(tree['names'])} distinct sequences, {n_boot} bootstrap trees")
 
@@ -805,16 +769,16 @@ def records(out: Path, n_boot: int, workers: int) -> None:
 
 def leaveout_runs(
     names: list[str], taxonomy: dict[str, str]
-) -> tuple[dict[str, ndarray], list[dict]]:
+) -> tuple[dict[str, np.ndarray], list[dict]]:
     """Lists the leave-out runs: (distinct sequences, taxonomy) -> (categories per sequence, runs).
 
     Runs: three repeat searches on all sequences, then each group left out or kept alone,
     and each phylum of at least BIG_PHYLUM sequences left out.
     """
     k = len(names)
-    phylum, org = zeros(k, int16), zeros(k, int8)
-    wgs, length = zeros(k, int8), zeros(k, int8)
-    organelle, cpr, dpann = zeros(k, bool), zeros(k, bool), zeros(k, bool)
+    phylum, org = np.zeros(k, np.int16), np.zeros(k, np.int8)
+    wgs, length = np.zeros(k, np.int8), np.zeros(k, np.int8)
+    organelle, cpr, dpann = np.zeros(k, bool), np.zeros(k, bool), np.zeros(k, bool)
     ids: dict[str, int] = {}
     for i, name in enumerate(names):
         p = taxonomy[name]
@@ -825,7 +789,7 @@ def leaveout_runs(
             org[i] = 0
         elif o.startswith("uncultured") or "unidentified" in o or "environmental" in o:
             org[i] = 1
-        elif search(
+        elif re.search(
             r"\bsp\.|\bbacterium\b|\barchaeon\b|candidatus|\bclone\b|endosymbiont|symbiont",
             o,
         ):
@@ -833,13 +797,13 @@ def leaveout_runs(
         else:
             org[i] = 3
         accession, start, stop = (name.split(".") + ["0", "0"])[:3]
-        m = match(r"^([A-Z]+)\d+$", accession)
+        m = re.match(r"^([A-Z]+)\d+$", accession)
         wgs[i] = 1 if (m and len(m.group(1)) >= 4) else 0
         span = int(stop) - int(start) + 1
         length[i] = 0 if span < 1400 else 1 if span < 1600 else 2
         organelle[i] = f[0] == "Bacteria" and ("Chloroplast" in p or "Mitochondria" in p)
         cpr[i] = "Minisyncoccota" in p
-        dpann[i] = f[0] == "Archaea" and bool(search(DPANN_NAMES, p))
+        dpann[i] = f[0] == "Archaea" and bool(re.search(DPANN_NAMES, p))
     cats = {
         "phylum": phylum,
         "org": org,
@@ -868,10 +832,10 @@ def leaveout_runs(
         {"name": "drop_len_1400_1599", "drop": ["length", 1]},
         {"name": "drop_len_1600plus", "drop": ["length", 2]},
     ]
-    count = bincount(phylum)
+    count = np.bincount(phylum)
     label = {v: key for key, v in ids.items()}
-    for x in (int(x) for x in argsort(-count, kind="stable") if count[x] >= BIG_PHYLUM):
-        tag = sub(r"[^A-Za-z0-9]+", "_", label[x].split(";", 1)[1]).strip("_")
+    for x in (int(x) for x in np.argsort(-count, kind="stable") if count[x] >= BIG_PHYLUM):
+        tag = re.sub(r"[^A-Za-z0-9]+", "_", label[x].split(";", 1)[1]).strip("_")
         runs.append(
             {
                 "name": f"drop_phylum_{tag}",
@@ -883,23 +847,23 @@ def leaveout_runs(
     return cats, runs
 
 
-def keep_mask(run_spec: dict, cats: dict[str, ndarray]) -> ndarray:
+def keep_mask(run_spec: dict, cats: dict[str, np.ndarray]) -> np.ndarray:
     """Selects the sequences of a leave-out run:
     (run, categories) -> mask over the distinct sequences."""
     k = cats["phylum"].size
     if run_spec.get("all"):
-        return full(k, True)
+        return np.full(k, True)
     if "drop" in run_spec:
         return cats[run_spec["drop"][0]] != run_spec["drop"][1]
     if "only" in run_spec:
         return cats[run_spec["only"][0]] == run_spec["only"][1]
-    keep = full(k, True)
+    keep = np.full(k, True)
     for f, v in run_spec["drop_any"]:
         keep &= cats[f] != v
     return keep
 
 
-def leaveout_summary(name: str, n_leaves: int, b: dict[str, ndarray]) -> dict:
+def leaveout_summary(name: str, n_leaves: int, b: dict[str, np.ndarray]) -> dict:
     """Summarises a leave-out comparison:
     (run, branches) -> the share of the tree's branches found again.
 
@@ -932,8 +896,8 @@ def leaveout_summary(name: str, n_leaves: int, b: dict[str, ndarray]) -> dict:
                 "n": int(m.sum()),
                 "identical_pct": float(100 * exact[m].mean()),
                 "mean_agreement": float(agree[m].mean()),
-                "median_agreement": float(median(agree[m])),
-                "p05_agreement": float(percentile(agree[m], 5)),
+                "median_agreement": float(np.median(agree[m])),
+                "p05_agreement": float(np.percentile(agree[m], 5)),
                 "below95": int((agree[m] < 95).sum()),
                 "below90": int((agree[m] < 90).sum()),
             }
@@ -995,18 +959,18 @@ def leaveout(
         compared = read_tree(d / "cmp.support.nwk")
         if compared["names"] != reference["names"] or (compared["size"] != reference["size"]).any():
             raise SystemExit(f"{d}/cmp.support.nwk is not the tree of tree.boot.support.nwk")
-        mask = array([x in subset for x in reference["names"]])
+        mask = np.array([x in subset for x in reference["names"]])
         ref_b = branch_rows(prune(reference, mask))
         cmp_b = branch_rows(prune(compared, mask))
         branch = {
             "p": ref_b["p"],
-            "sup": nan_to_num(ref_b["tbe"]),
+            "sup": np.nan_to_num(ref_b["tbe"]),
             "exact": cmp_b["exact"] == 100,
             "agree": cmp_b["tbe"],
         }
         branch["delta"] = (1 - branch["agree"] / 100) * (branch["p"] - 1)
         write_json(d / "summary.json", leaveout_summary(spec["name"], len(subset), branch))
-        savez_compressed(
+        np.savez_compressed(
             d / "branches.npz",
             p=branch["p"].astype("int32"),
             support=branch["sup"].astype("float32"),
@@ -1020,10 +984,10 @@ def leaveout(
 
 # ---- GTDB ----
 
-ARB_FIELD = regex(
+ARB_FIELD = re.compile(
     r'^\t\t(name|acc|start|stop|tax_gtdb|tax_slv|tax_ltp)\t+(?::\d+\t)?(?:%i (\d+)|"(.*)")'
 )
-ARB_DATA = regex(r'^\t\t\tdata\t+(?::\d+\t)?"(.*)"')
+ARB_DATA = re.compile(r'^\t\t\tdata\t+(?::\d+\t)?"(.*)"')
 
 
 def gtdb_sequences(arb_dump: Path, names: set[str], out: Path) -> None:
@@ -1062,9 +1026,9 @@ def gtdb_sequences(arb_dump: Path, names: set[str], out: Path) -> None:
     flush()
     if not rows:
         raise SystemExit(f"{arb_dump}: no GTDB-classified sequence of the tree")
-    a = frombuffer(b"".join(seqs), dtype=uint8).reshape(len(seqs), -1)
-    acgt = isin(a, frombuffer(b"ACGT", dtype=uint8))
-    columns = flatnonzero(acgt.mean(axis=0) >= GTDB_MIN_OCCUPANCY)
+    a = np.frombuffer(b"".join(seqs), dtype=np.uint8).reshape(len(seqs), -1)
+    acgt = np.isin(a, np.frombuffer(b"ACGT", dtype=np.uint8))
+    columns = np.flatnonzero(acgt.mean(axis=0) >= GTDB_MIN_OCCUPANCY)
     out.mkdir(parents=True, exist_ok=True)
     with open(out / "gtdb.fa", "w") as fa, open(out / "gtdb_labels.tsv", "w") as tl:
         for (name, arb_name, g, slv, ltp), row in zip(rows, a[:, columns]):
@@ -1073,7 +1037,7 @@ def gtdb_sequences(arb_dump: Path, names: set[str], out: Path) -> None:
     print(f"GTDB: {len(rows)} sequences of the tree, {columns.size} columns")
 
 
-def read_labels(path: Path) -> tuple[list[str], ndarray, list[ndarray], ndarray]:
+def read_labels(path: Path) -> tuple[list[str], np.ndarray, list[np.ndarray], np.ndarray]:
     """Reads the GTDB labels: path
     -> (names, taxon id per rank and sequence, taxon sizes, Archaea mask)."""
     lab = {}
@@ -1081,7 +1045,7 @@ def read_labels(path: Path) -> tuple[list[str], ndarray, list[ndarray], ndarray]
         f = line.split("\t")
         lab[f[0]] = [x for x in f[3].split(";") if x]
     names = sorted(lab)
-    tax = zeros((len(RANKS), len(names)), dtype=int64)
+    tax = np.zeros((len(RANKS), len(names)), dtype=np.int64)
     for r in range(len(RANKS)):
         ids: dict[str, int] = {}
         for i, x in enumerate(names):
@@ -1089,36 +1053,36 @@ def read_labels(path: Path) -> tuple[list[str], ndarray, list[ndarray], ndarray]
             # an empty rank (for example "g__") is a taxon of its own
             key = ";".join(p[: r + 1]) if len(p) > r and len(p[r]) > 3 else f"?{i}"
             tax[r, i] = ids.setdefault(key, len(ids))
-    sizes = [bincount(tax[r]) for r in range(len(RANKS))]
-    archaea = array([lab[x][0] == "d__Archaea" for x in names])
+    sizes = [np.bincount(tax[r]) for r in range(len(RANKS))]
+    archaea = np.array([lab[x][0] == "d__Archaea" for x in names])
     return names, tax, sizes, archaea
 
 
-def intervals(tree: dict, index: dict[str, int]) -> tuple[ndarray, ndarray, ndarray]:
+def intervals(tree: dict, index: dict[str, int]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Restricts a tree to the labelled sequences:
     (tree, label index) -> (their order, first and size of each split)."""
-    labelled = array([x in index for x in tree["names"]])
-    cum = concatenate([[0], cumsum(labelled)])
-    order = array([index[x] for x, k in zip(tree["names"], labelled) if k])
+    labelled = np.array([x in index for x in tree["names"]])
+    cum = np.concatenate([[0], np.cumsum(labelled)])
+    order = np.array([index[x] for x, k in zip(tree["names"], labelled) if k])
     n = len(tree["names"])
     lo, size = (
         cum[tree["first"][n:]],
         cum[tree["first"][n:] + tree["size"][n:]] - cum[tree["first"][n:]],
     )
     keep = size >= 2
-    _, first = unique(
+    _, first = np.unique(
         lo[keep] * (order.size + 1) + size[keep], return_index=True
     )  # several nodes, one split
     return order, lo[keep][first], size[keep][first]
 
 
 def score(
-    order: ndarray,
-    lo: ndarray,
-    size: ndarray,
-    tax: ndarray,
-    sizes: list[ndarray],
-    archaea: ndarray,
+    order: np.ndarray,
+    lo: np.ndarray,
+    size: np.ndarray,
+    tax: np.ndarray,
+    sizes: list[np.ndarray],
+    archaea: np.ndarray,
 ) -> dict:
     """Scores one tree against GTDB:
     (its splits, labels) -> mean best F1 per rank and consistent branches."""
@@ -1129,35 +1093,37 @@ def score(
     res: dict = {"splits": int(lo.size)}
     for r in range(1, 6):
         best = []
-        for taxon in flatnonzero(sizes[r] >= MIN_TAXON):
-            cum = r_[0, cumsum(t[r] == taxon)]
+        for taxon in np.flatnonzero(sizes[r] >= MIN_TAXON):
+            cum = np.r_[0, np.cumsum(t[r] == taxon)]
             a = sizes[r][taxon]
             ins = cum[lo + size] - cum[lo]
-            best.append(float(maximum(2 * ins / (size + a), 2 * (a - ins) / (n - size + a)).max()))
-        best_f1 = array(best)
+            best.append(
+                float(np.maximum(2 * ins / (size + a), 2 * (a - ins) / (n - size + a)).max())
+            )
+        best_f1 = np.array(best)
         res[RANKS[r]] = {
             "taxa": int(best_f1.size),
-            "mean_f1": float(best_f1.mean()) if best_f1.size else nan,
-            "median_f1": float(median(best_f1)) if best_f1.size else nan,
-            "exact_pct": float(100 * (best_f1 == 1).mean()) if best_f1.size else nan,
+            "mean_f1": float(best_f1.mean()) if best_f1.size else np.nan,
+            "median_f1": float(np.median(best_f1)) if best_f1.size else np.nan,
+            "exact_pct": float(100 * (best_f1 == 1).mean()) if best_f1.size else np.nan,
         }
-    ca = r_[0, cumsum(archaea[order])]
+    ca = np.r_[0, np.cumsum(archaea[order])]
     na = int(archaea.sum())
-    pos = arange(n)
-    ok = zeros(lo.size, dtype=bool)
+    pos = np.arange(n)
+    ok = np.zeros(lo.size, dtype=bool)
     for j in range(lo.size):
         a_in = ca[lo[j] + size[j]] - ca[lo[j]]
         inner = 2 * a_in < na or (
             2 * a_in == na and 2 * size[j] <= n
         )  # clades read with the root between domains
-        sl = pos[lo[j] : lo[j] + size[j]] if inner else r_[pos[: lo[j]], pos[lo[j] + size[j] :]]
+        sl = pos[lo[j] : lo[j] + size[j]] if inner else np.r_[pos[: lo[j]], pos[lo[j] + size[j] :]]
         r = len(RANKS) - 1
         while r >= 0 and t[r, sl].min() != t[r, sl].max():
             r -= 1
         if r == len(RANKS) - 1:
             ok[j] = True
             continue
-        u, c = unique(t[r + 1, sl], return_counts=True)
+        u, c = np.unique(t[r + 1, sl], return_counts=True)
         ok[j] = bool((c == sizes[r + 1][u]).all())
     res["branches_consistent_pct"] = float(100 * ok.mean())
     return res
@@ -1196,7 +1162,7 @@ def gtdb(
         for tag, options in (("ft_me", ["-nt", "-noml"]), ("ft_ml", ["-nt", "-gtr"])):
             if ow or not (g / f"{tag}.nwk").exists():
                 with open(g / f"{tag}.nwk", "w") as fo:
-                    run([fasttree, *options, str(g / "gtdb.fa")], stdout=fo, check=True)
+                    subprocess.run([fasttree, *options, str(g / "gtdb.fa")], stdout=fo, check=True)
     names, tax, sizes, archaea = read_labels(g / "gtdb_labels.tsv")
     index = {x: i for i, x in enumerate(names)}
     full_tree = distinct_tree(out)
@@ -1210,7 +1176,7 @@ def gtdb(
         {
             "n_sequences": len(names),
             "min_taxon": MIN_TAXON,
-            "full_tree_length": round(float(nansum(full_tree["length"][:root])), 2),
+            "full_tree_length": round(float(np.nansum(full_tree["length"][:root])), 2),
             "trees": trees,
         },
     )
