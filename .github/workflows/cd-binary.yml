@@ -49,7 +49,8 @@ jobs:
             echo "the release tag $TAG is not v$version (CMakeLists.txt)"
             exit 1
           fi
-          name=p2v-bme-$version-linux-x86_64
+          # No version in the name, so that releases/latest/download/<name>.tar.gz always gets the latest (README.md)
+          name=p2v-bme-linux-x86_64
           mkdir "$name"
           cp build-release/p2v-bme LICENSE README.md "$name"/
           tar czf "$name.tar.gz" "$name"

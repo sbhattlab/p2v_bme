@@ -13,12 +13,12 @@ out.
 
 ### Prebuilt binary
 
-Each [release](https://github.com/sbhattlab/p2v_bme/releases) has a Linux binary with its SHA-256 checksum:
+Each [release](https://github.com/sbhattlab/p2v_bme/releases) has a Linux binary with its SHA-256 checksum. The latest:
 
 ```bash
-curl -fsSLO https://github.com/sbhattlab/p2v_bme/releases/download/v0.1.0/p2v-bme-0.1.0-linux-x86_64.tar.gz
-tar xzf p2v-bme-0.1.0-linux-x86_64.tar.gz
-p2v-bme-0.1.0-linux-x86_64/p2v-bme --version
+curl -fsSLO https://github.com/sbhattlab/p2v_bme/releases/latest/download/p2v-bme-linux-x86_64.tar.gz
+tar xzf p2v-bme-linux-x86_64.tar.gz
+p2v-bme-linux-x86_64/p2v-bme --version
 ```
 
 | Needs  |                                                                                                                                                 |
