@@ -7,7 +7,7 @@ Options: --steps, --replicates, --bootstrap, --max-sites, --min-sites, --seed, -
          --leaveout-runs, --arb-dump, --fasttree, --workers, --overwrite
 Flow:    distinct     the alignment p2v-bme searches: the 1,600 best-occupied columns (--max-sites), the sequences
            |          with at least 1,200 valid sites there (--min-sites; the others are left out); one sequence
-           |          per group of identical ones; every sequence's taxonomy
+           |          per group of identical ones (the paper's representative); every sequence's taxonomy
            v
          tree         p2v-bme -s searched.fa -m GTR+GC --seed 1; reattach_left_out puts each sequence left out
            |          next to its nearest searched sequence (tree.all.nwk)
@@ -135,6 +135,8 @@ BIG_PHYLUM = 10000
 SUPPORT_BINS = ((0, 10), (10, 30), (30, 50), (50, 70), (70, 90), (90, 95), (95, 99))
 SUPPORT_BINS += ((99, 100.01),)
 RANKS = ("domain", "phylum", "class", "order", "family", "genus", "species")
+UNCLASSIFIED = "Unclassified"  # the paper's dedup label of a sequence without a path
+INCERTAE_SEDIS = "Incertae Sedis"  # SILVA's name for an unplaced rank
 MIN_TAXON = 5  # GTDB taxa with fewer labelled sequences are not scored
 # Columns of the GTDB-classified sequences kept: at least this share of A/C/G/T
 GTDB_MIN_OCCUPANCY = 0.10
@@ -168,6 +170,60 @@ def source(alignment: Path) -> Path:
     return gz if not alignment.exists() and gz.exists() else alignment
 
 
+def dedup_labels(path: str) -> tuple[str, str]:
+    """Reads a SILVA path as the paper's dedup does: path -> (phylum, genus).
+
+    Phylum: the domain and the third name (SILVA 144: domain, kingdom, phylum), or the second if there are two;
+    genus: the second-to-last name, or the nearest above it that is not "Incertae Sedis"; one name: that name for both.
+    """
+    names = [x for x in path.split(";") if x]
+    if not names:
+        return UNCLASSIFIED, UNCLASSIFIED
+    if len(names) == 1:
+        return names[0], names[0]
+    phylum = f"{names[0]};{names[2] if len(names) >= 3 else names[1]}"
+    genus = names[-2]
+    if genus == INCERTAE_SEDIS and len(names) >= 3:
+        genus = next((x for x in reversed(names[:-1]) if x != INCERTAE_SEDIS), genus)
+    return phylum, genus
+
+
+def majority(group: ndarray, label: ndarray) -> ndarray:
+    """Finds each group's most frequent label: (group and label id of each sequence) -> label per group.
+
+    Ties go to the smaller id, the label met first in the file (as the paper's dedup).
+    """
+    n_labels = int(label.max()) + 1
+    pairs, counts = unique(group * n_labels + label, return_counts=True)
+    g, x = pairs // n_labels, pairs % n_labels
+    order = lexsort((x, -counts, g))
+    first = r_[True, g[order][1:] != g[order][:-1]]
+    best = full(int(group.max()) + 1, -1, int64)
+    best[g[order][first]] = x[order][first]
+    return best
+
+
+def representatives(group: ndarray, phylum: ndarray, genus: ndarray) -> ndarray:
+    """Picks the sequence that stands for each group of identical ones, as the paper's dedup does: (group, phylum and
+    genus ids of each searched sequence, in file order) -> mask of the representatives.
+
+    The first sequence with the group's majority phylum and majority genus, else the first with its majority phylum.
+    """
+    position = arange(group.size)
+    major_phylum = phylum == majority(group, phylum)[group]
+    both = major_phylum & (genus == majority(group, genus)[group])
+    first = full(int(group.max()) + 1, group.size, int64)
+    minimum.at(first, group[major_phylum], position[major_phylum])
+    has_both = zeros(first.size, bool)
+    has_both[group[both]] = True
+    first[has_both] = group.size
+    minimum.at(first, group[both], position[both])
+    mask = zeros(group.size, bool)
+    mask[first] = True
+    assert count_nonzero(mask) == first.size, "a group without a representative"
+    return mask
+
+
 def distinct(
     alignment: Path, out: Path, max_sites: int, min_sites: int, overwrite: bool
 ) -> None:
@@ -176,18 +232,22 @@ def distinct(
 
     Columns: the max_sites with the most valid bases (ties: the earlier column), in order, with characters other than
     A, C, G, T/U as '-' (missing). Sequences with fewer than min_sites valid sites there go to left_out.fa, the others
-    to searched.fa. distinct.fa: the first of each group of identical searched sequences (the same bases and missing
-    sites), as the paper counts distinct sequences (p2v-bme searches two of each group).
+    to searched.fa. distinct.fa: one of each group of identical searched sequences (the same bases and missing
+    sites), as the paper counts distinct sequences (p2v-bme searches two of each group), chosen by representatives.
     """
     if not overwrite and (out / "distinct.json").exists():
         return
     alignment = source(alignment)
     out.mkdir(parents=True, exist_ok=True)
     counts = None
+    label_ids: tuple[dict[str, int], dict[str, int]] = ({}, {})
+    labels: tuple[list[int], list[int]] = ([], [])
     with open(out / "taxonomy.tsv", "w", encoding="utf-8") as tax:
         for header, seq in fasta_records(alignment):
             name, _, path = header.decode().partition(" ")
             tax.write(f"{name}\t{path.strip()}\n")
+            for ids, label, x in zip(label_ids, labels, dedup_labels(path.strip())):
+                label.append(ids.setdefault(x, len(ids)))
             valid = VALID[frombuffer(seq, uint8)]
             counts = valid.astype(int64) if counts is None else counts + valid
     if counts is None:
@@ -197,14 +257,11 @@ def distinct(
     if 0 < max_sites < n_columns:
         columns = sort(lexsort((arange(n_columns), -counts))[:max_sites])
     groups: dict[bytes, int] = {}
+    group_of, searched_index = [], []
     n_sequences = n_left_out = 0
     parts = [out / f"{name}.fa.part" for name in ("searched", "left_out", "distinct")]
-    with (
-        open(parts[0], "wb") as searched,
-        open(parts[1], "wb") as left_out,
-        open(parts[2], "wb") as fo,
-    ):
-        for header, seq in fasta_records(alignment):
+    with open(parts[0], "wb") as searched, open(parts[1], "wb") as left_out:
+        for i, (header, seq) in enumerate(fasta_records(alignment)):
             n_sequences += 1
             row = CANONICAL[frombuffer(seq, uint8)[columns]]
             record = b">" + header.split()[0] + b"\n" + row.tobytes() + b"\n"
@@ -214,9 +271,16 @@ def distinct(
                 continue
             searched.write(record)
             key = blake2b(row.tobytes(), digest_size=16).digest()
-            groups[key] = groups.get(key, 0) + 1
-            if groups[key] == 1:
-                fo.write(record)
+            group_of.append(groups.setdefault(key, len(groups)))
+            searched_index.append(i)
+    group, index = array(group_of, int64), array(searched_index, int64)
+    phylum, genus = (array(x, int64)[index] for x in labels)
+    keep = representatives(group, phylum, genus) if group.size else zeros(0, bool)
+    with open(parts[2], "wb") as fo:
+        for k, (header, seq) in enumerate(fasta_records(parts[0])):
+            if keep[k]:
+                fo.write(b">" + header + b"\n" + seq + b"\n")
+    sizes = bincount(group) if group.size else zeros(0, int64)
     for part in parts:
         part.rename(part.with_suffix(""))
     write_json(
@@ -230,7 +294,7 @@ def distinct(
             "searched": n_sequences - n_left_out,
             "distinct": len(groups),
             # p2v-bme keeps two of each group in the search and sets the others aside
-            "identical_set_aside": sum(max(0, c - 2) for c in groups.values()),
+            "identical_set_aside": int(maximum(sizes - 2, 0).sum()),
             "columns_kept": columns.tolist(),
         },
     )
