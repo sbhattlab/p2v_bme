@@ -6,6 +6,7 @@
 | `<prefix>.json`        | every run                       | the run report                |
 | `<prefix>.support.nwk` | `-b B`, `--supports`            | the tree with branch supports |
 | `<prefix>.boottrees`   | `-b`                            | the bootstrap trees           |
+| `<prefix>.log`         | every run                       | what the run prints           |
 
 The default prefix is the alignment's path (with `--supports`, the tree's). Existing files are overwritten. Progress
 goes to stdout, warnings and errors to stderr; the exit status is 0 on success, 1 on an error and 2 on a usage error.
@@ -49,3 +50,9 @@ files, the numbers of trees and leaves, and the mean TBE and exact supports.
 per clade, so it is an estimate that depends on the tree's rooting. On `examples/jc69_1k`, five runs that found the same
 topology reported 110.1847 to 110.1893 (4e-5 relative), against an exact length of 111.487 (1.2% higher): small
 differences between reported lengths do not rank trees.
+
+## Log (`<prefix>.log`)
+
+Progress, warnings and errors as printed, in order; the progress also with `-q`. The log is opened first, so an
+unwritable prefix fails at once. A failed run leaves only its log, which ends with the error; the other outputs are
+written when the run ends (`.boottrees`: from the first replicate).

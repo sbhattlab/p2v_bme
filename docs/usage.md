@@ -25,7 +25,7 @@ decompress them first.
 | `-d, --devices`             | `auto`         | GPU: `auto` (the first), `N` (the first N) or a list (`0,2`; `1,` for GPU 1 only); CPU: `auto` (all cores but one, or `OMP_NUM_THREADS`) or `N` threads |
 | `-b, --bootstrap B\|A-B`    | `0`            | `B` bootstrap replicates after the tree; `A-B`: replicates A to B only, without the tree                                                                |
 | `--seed N`                  | `1`            | seed of the start tree, the GTR+GC fit and the bootstrap                                                                                                |
-| `-q, --quiet`               |                | no progress output                                                                                                                                      |
+| `-q, --quiet`               |                | no progress on stdout (it still goes to `<prefix>.log`)                                                                                                 |
 | `-v, --version`             |                | print the version                                                                                                                                       |
 | `-h, --help` / `--help-all` |                | print the core / all options                                                                                                                            |
 

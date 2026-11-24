@@ -28,7 +28,8 @@ Options: --sources, --datasets-dir, --dry-run, --overwrite
 Flow:    each source
            |
            v
-         each file: kept if its size and MD5 match, else fetched with curl to <file>.part, checked, renamed
+         each file: kept if its size and MD5 match, else fetched with curl to <file>.part, checked, renamed (a .part
+         that fails the check is deleted)
            |
            v
          zips: the members the scripts read, extracted and checked against the zip's CRC
@@ -201,7 +202,8 @@ def fetch(url: str, path: Path, size: int, digest: str | None, overwrite: bool) 
         check=True,
     )
     if part.stat().st_size != size or file_md5(part) != digest:
-        raise SystemExit(f"{part}: size or MD5 differs from the deposit")
+        part.unlink()  # else curl would resume onto it next time
+        raise SystemExit(f"{part}: size or MD5 differs from the deposit; deleted it")
     part.replace(path)
     return digest
 

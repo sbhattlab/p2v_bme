@@ -45,13 +45,13 @@ def write_json(path: Path, data: dict) -> None:
 def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> dict:
     """Runs p2v-bme unless its report exists: (args, prefix) -> the report <prefix>.json.
 
-    args are p2v-bme's options without -p; the run writes <prefix>.nwk and <prefix>.json, and for a search (-s) this
-    function writes <prefix>.host.json: the CPU threads the run had (OMP_NUM_THREADS, else the cores it may use), which
-    the tables state for GPU runs.
-    A failed run leaves an empty report (p2v-bme checks its outputs are writable first): it runs again.
+    args are p2v-bme's options without -p; the run writes <prefix>.nwk, <prefix>.json and <prefix>.log, and for a search
+    (-s) this function writes <prefix>.host.json: the CPU threads the run had (OMP_NUM_THREADS, else the cores it may
+    use), which the tables state for GPU runs.
+    A failed run leaves no report (only its log): it runs again.
     """
     report = Path(f"{prefix}.json")
-    if overwrite or not report.exists() or report.stat().st_size == 0:
+    if overwrite or not report.exists():
         report.parent.mkdir(parents=True, exist_ok=True)
         run([p2vbme, *args, "-p", str(prefix), "-q"], check=True)
         if "-s" in args:

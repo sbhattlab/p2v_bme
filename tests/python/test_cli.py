@@ -1,7 +1,7 @@
 """
 End-to-end tests of the p2v-bme command.
 Each test runs the binary and checks its exit code, what it prints and the files it writes (<prefix>.nwk,
-<prefix>.json): help and version, errors, and runs on simulated alignments.
+<prefix>.json, <prefix>.log): help and version, errors, and runs on simulated alignments.
 The library has its own tests (gtest); these check what only the command does.
 
 ctest runs them in two parts, cli (-m "not gpu") and cli_gpu (-m gpu), with the paths of the binaries in P2VBME_BIN
@@ -119,6 +119,25 @@ def test_quiet_keeps_warnings(data, tmp_path):
         f"p2v-bme: warning: {warning}\n",
     )
     assert report(tmp_path / "out")["warnings"] == [warning]
+
+
+def test_log(data, tmp_path):
+    """
+    <prefix>.log gets what the run prints, stdout and stderr in the order written: the warning after the search, before
+    the last line.
+    With -q it gets the same (times aside), though stdout gets nothing.
+    """
+    args = ["-s", data / "small.fa", "-m", "JC69", "-a", "cpu", "-p", tmp_path / "out"]
+    p = run(*args)
+    assert p.returncode == 0, p.stderr
+    log = (tmp_path / "out.log").read_text()
+    *progress, last = p.stdout.splitlines(keepends=True)
+    assert p.stderr.startswith("p2v-bme: warning:")
+    assert log == "".join(progress) + p.stderr + last
+    q = run(*args, "-q")
+    assert (q.returncode, q.stdout, q.stderr) == (0, "", p.stderr)
+    times = re.compile(r" *[0-9]+\.[0-9]+")
+    assert times.sub("#", (tmp_path / "out.log").read_text()) == times.sub("#", log)
 
 
 def test_options_reach_the_run(data, tmp_path):
@@ -526,6 +545,34 @@ ERRORS = {
         1,
         "p2v-bme: error: cannot open {tmp}/missing.fa",
     ),
+    "missing input with -b": (
+        [
+            "-s",
+            "{tmp}/missing.fa",
+            "-p",
+            "{tmp}/out",
+            "-m",
+            "JC69",
+            "-a",
+            "cpu",
+            "-b",
+            "2",
+        ],
+        1,
+        "p2v-bme: error: cannot open {tmp}/missing.fa",
+    ),
+    "supports of a missing tree": (
+        [
+            "-t",
+            "{tmp}/missing.nwk",
+            "--supports",
+            "{data}/input_true.nwk",
+            "-p",
+            "{tmp}/out",
+        ],
+        1,
+        "p2v-bme: error: cannot open {tmp}/missing.nwk",
+    ),
     "unwritable output": (
         [
             "-s",
@@ -538,17 +585,24 @@ ERRORS = {
             "cpu",
         ],
         1,
-        "p2v-bme: error: cannot write /nonexistent_dir/x.nwk",
+        "p2v-bme: error: cannot write /nonexistent_dir/x.log",
     ),
 }
 
 
 @pytest.mark.parametrize("args, returncode, message", ERRORS.values(), ids=list(ERRORS))
 def test_errors(data, tmp_path, args, returncode, message):
-    """An error: nothing on stdout, one line on stderr and a non-zero exit code."""
+    """
+    An error: nothing on stdout, one line on stderr and a non-zero exit code.
+    No outputs but the log, if the error comes after the arguments are read; it ends with the error.
+    """
     p = run(*(a.format(data=data, tmp=tmp_path) for a in args))
     assert (p.returncode, p.stdout, p.stderr) == (
         returncode,
         "",
         message.format(data=data, tmp=tmp_path) + "\n",
     )
+    left = [path.name for path in tmp_path.iterdir()]
+    assert left in ([], ["out.log"])
+    if left:
+        assert (tmp_path / "out.log").read_text().endswith(p.stderr)

@@ -79,8 +79,8 @@ build/p2v-bme -s examples/jc69_1k.fa -m JC69 -p jc69_1k -a gpu    # on the GPU
 build/p2v-bme -s examples/jc69_1k.fa -m JC69 -p jc69_1k -a cpu    # on the CPU
 ```
 
-Each writes `jc69_1k.nwk`, the tree, and `jc69_1k.json`, the report of the run. Without `-a`, p2v-bme uses the GPU if it
-finds one, else the CPU. With 10 bootstrap replicates:
+Each writes `jc69_1k.nwk`, the tree, `jc69_1k.json`, the report of the run, and `jc69_1k.log`, what it printed. Without
+`-a`, p2v-bme uses the GPU if it finds one, else the CPU. With 10 bootstrap replicates:
 
 ```bash
 build/p2v-bme -s examples/jc69_1k.fa -m JC69 -p jc69_1k_b10 -b 10
@@ -104,7 +104,7 @@ p2v-bme -s ALIGNMENT -m MODEL [options]
 | `-d, --devices`        | GPUs (`2`: the first two; `0,2`) or CPU threads                                                                |
 | `-b, --bootstrap B`    | B bootstrap replicates, and the supports of the tree's branches                                                |
 | `--seed N`             | the seed of the run (default 1)                                                                                |
-| `-q, --quiet`          | no progress output                                                                                             |
+| `-q, --quiet`          | no progress on stdout (it still goes to `<prefix>.log`)                                                        |
 
 `p2v-bme --help` lists these options and `p2v-bme --help-all` all of them. The [documentation](docs/README.md) describes
 each option ([docs/usage.md](docs/usage.md)), the models ([docs/models.md](docs/models.md)) and the outputs
