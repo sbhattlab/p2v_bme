@@ -53,7 +53,10 @@ def main() -> None:
     plt.style.use(STYLE)
     rows = months_at_threshold(read_tsv(args.tables_dir, "viridian_resolution"))
     months = [r["month"] for r in rows]
-    column = lambda name: np.array([float(r[name]) for r in rows])  # noqa: E731
+
+    def column(name: str) -> np.ndarray:
+        return np.array([float(r[name]) for r in rows])
+
     fig = plt.figure(figsize=(10.2, 3.9))
     strip = fig.add_axes((0.15, 0.87, 0.835, 0.07))
     ax = fig.add_axes((0.15, 0.2, 0.835, 0.65), sharex=strip)

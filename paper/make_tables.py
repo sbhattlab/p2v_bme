@@ -1189,12 +1189,12 @@ def table_silva_clades(results: Path) -> dict[str, list[dict] | str]:
                 }
             )
             nodes = e["ancestor_nodes"]
-            for step in range(len(nodes)):
+            for step, node in enumerate(nodes):
                 paths.append(
                     {
                         "name": e["name"],
                         "step": step,
-                        "node": nodes[step],
+                        "node": node,
                         "parent": nodes[step + 1] if step + 1 < len(nodes) else "",
                         "branch_length": e["ancestor_bl"][step],
                         "tbe_pct": e["ancestor_tbe"][step],
@@ -1473,7 +1473,10 @@ def table_gtr_fit(results: Path) -> dict[str, list[dict] | str]:
         "True $\\alpha$ & Sites & Median $p$ & $\\hat\\alpha$, median (range) & Rate error \\\\",
         "\\midrule",
     ]
-    show = lambda x: f"{x:.2f}" if x < 100 else "$>$100"  # noqa: E731
+
+    def show(x: float) -> str:
+        return f"{x:.2f}" if x < 100 else "$>$100"
+
     keys = sorted({(float(r["alpha_true"]), float(r["sites"]), float(r["target_p"])) for r in rows})
     for alpha, sites, p in keys:
         sub = [

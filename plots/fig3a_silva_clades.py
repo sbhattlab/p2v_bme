@@ -237,10 +237,10 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
             va="center",
             ha="right",
         )
-        bar, width = columns["bar"], columns["bar_width"]
+        bar_x, width = columns["bar"], columns["bar_width"]
         ax.add_patch(
             Rectangle(
-                (bar, y - 0.22),
+                (bar_x, y - 0.22),
                 width,
                 0.44,
                 facecolor="#edf2f7",
@@ -250,7 +250,7 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
         )
         ax.add_patch(
             Rectangle(
-                (bar, y - 0.22),
+                (bar_x, y - 0.22),
                 width * node["tbe"] / 100.0,
                 0.44,
                 facecolor=colour,
@@ -260,7 +260,7 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
             )
         )
         ax.text(
-            bar + width + 0.014,
+            bar_x + width + 0.014,
             y,
             f"{node['tbe']:.1f}%",
             color="#1a202c",

@@ -142,7 +142,7 @@ def parse_newick(text: str) -> tuple[list[list[int]], list[str], list[float]]:
     curr, i, n = 0, 0, len(text)
     while i < n:
         ch = text[i]
-        if ch == "(" or ch == ",":
+        if ch in ("(", ","):
             if ch == ",":
                 curr = parent[curr]
             children.append([])

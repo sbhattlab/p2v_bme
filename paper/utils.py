@@ -168,7 +168,7 @@ def read_tree(path: Path) -> dict:
         return np.where(ok, n + found, -1)
 
     parent = np.concatenate([enclosing(depth[leaf_at], leaf_at), enclosing(level - 1, closes)])
-    leaves = [(name, value) for name, value in re.findall(r"[(,]([^(),:;]+)(?::([^,();]*))?", text)]
+    leaves = re.findall(r"[(,]([^(),:;]+)(?::([^,();]*))?", text)
     if len(leaves) != n:
         raise ValueError(f"{path}: {len(leaves)} leaf names for {n} leaves")
     length = np.concatenate([np.full(n, np.nan), np.full(closes.size, np.nan)])

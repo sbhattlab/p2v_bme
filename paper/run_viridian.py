@@ -506,7 +506,7 @@ def resolution(
     starts = np.searchsorted(day[by_day], np.arange(day.max() + 2))
     for d in range(day.max() + 1):
         asked = by_day[starts[d] : starts[d + 1]]
-        if not len(asked):
+        if asked.size == 0:
             continue
         near = (day >= max(d - HALF_WINDOW_DAYS, 0)) & (day <= d + HALF_WINDOW_DAYS)
         prefix = np.concatenate([[0], np.cumsum(near)])

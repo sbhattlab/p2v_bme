@@ -79,8 +79,14 @@ from paper.utils import (
 
 ALIGNMENT = f"{DEFAULT_DATASETS_DIR}/silva144/SILVA_144_SSURef_tax_silva_full_align_trunc.fasta"
 STEPS = ("distinct", "tree", "replicates", "supports", "records", "leaveout", "gtdb")
-SIZE_BINS = (("2", 2, 2), ("3-10", 3, 10), ("11-100", 11, 100), ("101-1k", 101, 1000))
-SIZE_BINS += (("1k-10k", 1001, 10000), (">10k", 10001, 2000000000))
+SIZE_BINS = (
+    ("2", 2, 2),
+    ("3-10", 3, 10),
+    ("11-100", 11, 100),
+    ("101-1k", 101, 1000),
+    ("1k-10k", 1001, 10000),
+    (">10k", 10001, 2000000000),
+)
 TOP = 30  # largest phyla and classes in the biology summary
 # Domain arrangements: share of misplaced sequences with which a group still counts as one
 TOLERANCES = (0.01, 0.02, 0.05)
@@ -100,8 +106,7 @@ ORGANISMS = ("metagenome", "uncultured", "unnamed_isolate", "named_species")
 MIN_SEQUENCES = 4  # the fewest p2v-bme searches
 # Leave-out runs: one per phylum of at least this many distinct sequences
 BIG_PHYLUM = 10000
-SUPPORT_BINS = ((0, 10), (10, 30), (30, 50), (50, 70), (70, 90), (90, 95), (95, 99))
-SUPPORT_BINS += ((99, 100.01),)
+SUPPORT_BINS = ((0, 10), (10, 30), (30, 50), (50, 70), (70, 90), (90, 95), (95, 99), (99, 100.01))
 RANKS = ("domain", "phylum", "class", "order", "family", "genus", "species")
 UNCLASSIFIED = "Unclassified"  # the paper's dedup label of a sequence without a path
 INCERTAE_SEDIS = "Incertae Sedis"  # SILVA's name for an unplaced rank
