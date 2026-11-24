@@ -39,22 +39,13 @@ Outputs: data/results/calibration/<set>/<n>/ref.{nwk,json}, boot<r>.{boottrees,j
     pixi run -e paper python -m paper.run_calibration --sets rnasim_100000 --steps boot --replicates 1-16
 """
 
-from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
-from json import dumps
-from pathlib import Path
-from re import findall
+import json
+import re
 
-from numpy import (
-    array_equal,
-    column_stack,
-    inf,
-    isnan,
-    loadtxt,
-    ndarray,
-    rint,
-    savetxt,
-    unique,
-)
+from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
+from pathlib import Path
+
+import numpy as np
 
 from paper._config import DEFAULT_DATASETS_DIR, DEFAULT_RESULTS_DIR, P2VBME
 from paper.utils import (
@@ -103,10 +94,10 @@ SIZE_BINS = [
 ]
 # Pandemic branches by their estimated length (30,000 sites: one substitution = 3.3e-5)
 REGIMES = {
-    "zero_snp": ("Zero-mutation / near-zero (bl < 1.5e-5, ~0 SNPs)", -inf, 1.5e-5),
+    "zero_snp": ("Zero-mutation / near-zero (bl < 1.5e-5, ~0 SNPs)", -np.inf, 1.5e-5),
     "one_snp": ("Single-mutation (~1 SNP, 1.5e-5 <= bl < 5e-5)", 1.5e-5, 5e-5),
-    "ge2_snp": (">=2 mutations (bl >= 5e-5)", 5e-5, inf),
-    "all_mutated": ("All mutated branches (>=1 SNP, bl >= 1.5e-5)", 1.5e-5, inf),
+    "ge2_snp": (">=2 mutations (bl >= 5e-5)", 5e-5, np.inf),
+    "all_mutated": ("All mutated branches (>=1 SNP, bl >= 1.5e-5)", 1.5e-5, np.inf),
 }
 RANDOM_TREE_SIZE_BINS = (
     (2, 10),
@@ -222,7 +213,7 @@ def binary_tree(tree: Path, out: Path) -> Path:
     """
     if out.exists():
         return out
-    tokens = findall(r"\(|\)|,|;|[^(),;]+", tree.read_text())
+    tokens = re.findall(r"\(|\)|,|;|[^(),;]+", tree.read_text())
     opens: list[int] = []  # output position of each open "("
     commas: list[list[int]] = []  # output positions of the commas between its children
     changed = False
@@ -252,7 +243,7 @@ def gather(trees: list[Path], out: Path, overwrite: bool) -> None:
         out.write_text("".join(t.read_text().strip() + "\n" for t in trees))
 
 
-def compared_to(sup: dict[str, ndarray], against: Path, name: str) -> dict[str, ndarray]:
+def compared_to(sup: dict[str, np.ndarray], against: Path, name: str) -> dict[str, np.ndarray]:
     """Compares the reference's branches with another tree:
     (supports' branches, file against it, name) -> columns.
 
@@ -261,14 +252,14 @@ def compared_to(sup: dict[str, ndarray], against: Path, name: str) -> dict[str, 
     the transfer index to it (the paper's columns; "true" gives delta_true, correct, true_transfer).
     """
     _, other = branch_table(against)
-    assert array_equal(sup["size"], other["size"]), f"{against} is not on the reference tree"
-    assert not isnan(
+    assert np.array_equal(sup["size"], other["size"]), f"{against} is not on the reference tree"
+    assert not np.isnan(
         other["exact"]
     ).any(), f"{against}: a branch of the reference is not on the other tree's leaves"
     transfer = other["tbe"] / 100.0
     correct = "correct" if name == "true" else f"{name}_correct"
     return {
-        f"delta_{name}": rint((1.0 - transfer) * (sup["p"] - 1)).astype(int),
+        f"delta_{name}": np.rint((1.0 - transfer) * (sup["p"] - 1)).astype(int),
         correct: (other["exact"] == 100.0).astype(int),
         f"{name}_transfer": transfer,
     }
@@ -323,9 +314,9 @@ def score(args: Namespace, tag: str) -> None:
             columns.update(compared_to(sup, folder / f"ref.vs_{k}.support.nwk", k))
             header += [f"delta_{k}", f"{k}_correct", f"{k}_transfer"]
             formats += ["%d", "%d", "%.6f"]
-        assert not isnan(columns["exact"]).any(), f"{support_nwk}: a branch without support"
-        table = column_stack([columns[c] for c in header])
-        savetxt(
+        assert not np.isnan(columns["exact"]).any(), f"{support_nwk}: a branch without support"
+        table = np.column_stack([columns[c] for c in header])
+        np.savetxt(
             out,
             table,
             fmt=formats,
@@ -336,14 +327,14 @@ def score(args: Namespace, tag: str) -> None:
         print(f"{tag}: wrote {out}")
 
 
-def read_branches(path: Path) -> dict[str, ndarray]:
+def read_branches(path: Path) -> dict[str, np.ndarray]:
     """Reads a per-branch table: path -> its columns."""
     header = path.open().readline().strip().split("\t")
-    data = loadtxt(path, delimiter="\t", skiprows=1, ndmin=2)
+    data = np.loadtxt(path, delimiter="\t", skiprows=1, ndmin=2)
     return {name: data[:, i] for i, name in enumerate(header)}
 
 
-def by_size(d: dict[str, ndarray]) -> dict:
+def by_size(d: dict[str, np.ndarray]) -> dict:
     """Averages the supports per clade-size bin of the smaller side p: branches -> bins."""
     out: dict[str, list] = dict(
         labels=[],
@@ -412,9 +403,9 @@ def maple_summary(args: Namespace) -> None:
     if not all(p.exists() for p in paths):
         return
     boot, seed = (read_branches(p) for p in paths)
-    assert array_equal(boot["node"], seed["node"])
+    assert np.array_equal(boot["node"], seed["node"])
 
-    def stats(m: ndarray) -> dict:
+    def stats(m: np.ndarray) -> dict:
         return dict(
             branches=int(m.sum()),
             share_pct=pct(m),
@@ -465,7 +456,7 @@ def random_tree_summary(args: Namespace, tag: str) -> None:
     if not all(p.exists() for p in paths):
         return
     boot, seed = (read_branches(p) for p in paths)
-    assert array_equal(boot["node"], seed["node"])
+    assert np.array_equal(boot["node"], seed["node"])
     ok, exact, p, again = boot["correct"] == 1, boot["exact"], boot["p"], seed["exact"]
     high = exact >= HIGH_SUPPORT
     sizes = []
@@ -530,7 +521,7 @@ def write_summary(args: Namespace, name: str, summary: dict) -> None:
     (name, summary) -> data/results/calibration/<name>."""
     out = args.results_dir / "calibration" / name
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(dumps(summary, indent=2) + "\n")
+    out.write_text(json.dumps(summary, indent=2) + "\n")
     print(f"wrote {out}")
 
 

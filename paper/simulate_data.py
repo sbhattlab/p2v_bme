@@ -51,34 +51,15 @@ Outputs: data/datasets/<set>/<n>/rep<r>.fa              leaves T0 ... T<n-1>, on
     pixi run -e paper python -m paper.simulate_data --sets rnasim jc10k --sizes 1000 5000
 """
 
+import lzma
+import subprocess
+
 from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
-from lzma import open as open_xz
 from pathlib import Path
 from random import Random
-from subprocess import run
 from tempfile import TemporaryDirectory
 
-from numpy import (
-    arange,
-    array,
-    cumsum,
-    empty,
-    float32,
-    float64,
-    frombuffer,
-    full,
-    int32,
-    int64,
-    ndarray,
-    packbits,
-    repeat,
-    sort,
-    uint8,
-    uint64,
-    unpackbits,
-    zeros,
-)
-from numpy.random import Generator, default_rng
+import numpy as np
 
 from paper._config import DEFAULT_DATASETS_DIR, SIM_JC69
 
@@ -146,7 +127,7 @@ EXPANSION_CHUNK = {
     100: 1000,
 }  # base sequences per chunk of the random stream, by expansion factor
 UNPACK_ROWS = 10000  # sequences unpacked to text at a time
-BASES = frombuffer(b"ACGT", dtype=uint8)
+BASES = np.frombuffer(b"ACGT", dtype=np.uint8)
 GAP = ord("-")
 
 
@@ -247,7 +228,7 @@ def rooted_arrays(
     root: int,
     leaf_id: dict[str, int],
     scale: float,
-) -> tuple[ndarray, ndarray, ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Numbers a tree as the paper's bundles:
     (tree, leaf ids) -> (c1, c2, branch length / scale) per node.
 
@@ -261,7 +242,7 @@ def rooted_arrays(
         order.append(u)
         stack.extend(children[u])
     c1_list, c2_list = [], []
-    blen = zeros(2 * n - 1, dtype=float32)
+    blen = np.zeros(2 * n - 1, dtype=np.float32)
     mapped: dict[int, int] = {}
     for u in reversed(order):
         if not children[u]:
@@ -280,19 +261,19 @@ def rooted_arrays(
         mapped[u] = curr
     if len(c1_list) != n - 1:
         raise ValueError(f"expected {n - 1} internal nodes, got {len(c1_list)}")
-    c1 = zeros(2 * n - 1, dtype=int32)
-    c2 = zeros(2 * n - 1, dtype=int32)
+    c1 = np.zeros(2 * n - 1, dtype=np.int32)
+    c2 = np.zeros(2 * n - 1, dtype=np.int32)
     c1[n:] = c1_list
     c2[n:] = c2_list
     return c1, c2, blen
 
 
-def uniform_random_tree(n: int, seed: int) -> tuple[ndarray, ndarray]:
+def uniform_random_tree(n: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
     """Draws the comparison programs' random start tree:
     (n, seed) -> (c1, c2), as the paper's bundles."""
-    rng = default_rng(seed)
-    v = rng.integers(0, arange(1, n, dtype=int64), dtype=int32).tolist()
-    perm = rng.permutation(n).astype(int32)
+    rng = np.random.default_rng(seed)
+    v = rng.integers(0, np.arange(1, n, dtype=np.int64), dtype=np.int32).tolist()
+    perm = rng.permutation(n).astype(np.int32)
     uf = list(range(n))
     c1_int, c2_int = [0] * (n - 1), [0] * (n - 1)
     for k in range(n - 1):
@@ -300,8 +281,8 @@ def uniform_random_tree(n: int, seed: int) -> tuple[ndarray, ndarray]:
         c1_int[k] = uf[i + 1]
         c2_int[k] = uf[v[i]]
         uf[v[i]] = n + k
-    c1 = zeros(2 * n - 1, dtype=int32)
-    c2 = zeros(2 * n - 1, dtype=int32)
+    c1 = np.zeros(2 * n - 1, dtype=np.int32)
+    c2 = np.zeros(2 * n - 1, dtype=np.int32)
     c1[n:] = c1_int
     c2[n:] = c2_int
     for c in (c1, c2):
@@ -314,23 +295,23 @@ def uniform_random_tree(n: int, seed: int) -> tuple[ndarray, ndarray]:
 def yule_birth_rate() -> float:
     """Computes the Yule trees' birth rate:
     () -> the rate at which 10^6 lineages have expected height 0.2."""
-    j = arange(YULE_ANCHOR_N, 1, -1, dtype=float64)
+    j = np.arange(YULE_ANCHOR_N, 1, -1, dtype=np.float64)
     return float((1.0 / j).sum() / YULE_ANCHOR_HEIGHT)
 
 
-def yule_tree(n: int, rep: int) -> tuple[ndarray, ndarray, ndarray]:
+def yule_tree(n: int, rep: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Draws a Yule tree: (n, replicate) -> (c1, c2, branch length),
     internal nodes in order of creation.
 
     Going back in time, two of the j lineages alive join after an exponential time of
     rate j x birth rate.
     """
-    rng = default_rng(YULE_SEED + rep)
-    j = arange(n, 1, -1, dtype=float64)
-    h_join = cumsum(rng.exponential(1.0 / (j * yule_birth_rate())))
-    c1 = full(2 * n - 1, -1, int32)
-    c2 = full(2 * n - 1, -1, int32)
-    height = zeros(2 * n - 1)
+    rng = np.random.default_rng(YULE_SEED + rep)
+    j = np.arange(n, 1, -1, dtype=np.float64)
+    h_join = np.cumsum(rng.exponential(1.0 / (j * yule_birth_rate())))
+    c1 = np.full(2 * n - 1, -1, np.int32)
+    c2 = np.full(2 * n - 1, -1, np.int32)
+    height = np.zeros(2 * n - 1)
     height[n:] = h_join
     alive = list(range(n))
     picks = rng.random((n - 1, 2))
@@ -344,15 +325,15 @@ def yule_tree(n: int, rep: int) -> tuple[ndarray, ndarray, ndarray]:
         c1[n + k] = x
         c2[n + k] = alive[b]
         alive[b] = n + k
-    parent = zeros(2 * n - 1, int64)
-    parent[c1[n:]] = arange(n, 2 * n - 1)
-    parent[c2[n:]] = arange(n, 2 * n - 1)
-    blen = zeros(2 * n - 1, float32)
-    blen[: 2 * n - 2] = (height[parent[: 2 * n - 2]] - height[: 2 * n - 2]).astype(float32)
+    parent = np.zeros(2 * n - 1, np.int64)
+    parent[c1[n:]] = np.arange(n, 2 * n - 1)
+    parent[c2[n:]] = np.arange(n, 2 * n - 1)
+    blen = np.zeros(2 * n - 1, np.float32)
+    blen[: 2 * n - 2] = (height[parent[: 2 * n - 2]] - height[: 2 * n - 2]).astype(np.float32)
     return c1, c2, blen
 
 
-def expand_tree(c1: ndarray, c2: ndarray, n_base: int) -> tuple[ndarray, ndarray]:
+def expand_tree(c1: np.ndarray, c2: np.ndarray, n_base: int) -> tuple[np.ndarray, np.ndarray]:
     """Replaces each leaf by the ten-leaf clade:
     (c1, c2) on n_base leaves -> (c1, c2) on 10 n_base leaves.
 
@@ -360,9 +341,9 @@ def expand_tree(c1: ndarray, c2: ndarray, n_base: int) -> tuple[ndarray, ndarray
     the clade's internal nodes come first, then the old internal nodes in order.
     """
     n = n_base * CLADE
-    out1 = zeros(2 * n - 1, dtype=int32)
-    out2 = zeros(2 * n - 1, dtype=int32)
-    x = arange(n_base, dtype=int32)
+    out1 = np.zeros(2 * n - 1, dtype=np.int32)
+    out2 = np.zeros(2 * n - 1, dtype=np.int32)
+    x = np.arange(n_base, dtype=np.int32)
     leaf = [CLADE * x + j for j in range(CLADE)]
     m = [n + (CLADE - 1) * x + j for j in range(CLADE - 1)]
     pairs = [
@@ -376,23 +357,23 @@ def expand_tree(c1: ndarray, c2: ndarray, n_base: int) -> tuple[ndarray, ndarray
     for k, (a, b) in enumerate(pairs):
         out1[m[k]] = a
         out2[m[k]] = b
-    map_node = empty(2 * n_base - 1, dtype=int32)
+    map_node = np.empty(2 * n_base - 1, dtype=np.int32)
     map_node[:n_base] = m[8]
-    map_node[n_base:] = n + (CLADE - 1) * n_base + arange(n_base - 1, dtype=int32)
+    map_node[n_base:] = n + (CLADE - 1) * n_base + np.arange(n_base - 1, dtype=np.int32)
     backbone = slice(n + (CLADE - 1) * n_base, 2 * n - 1)
     out1[backbone] = map_node[c1[n_base:]]
     out2[backbone] = map_node[c2[n_base:]]
     return out1, out2
 
 
-def newick(c1: ndarray, c2: ndarray, names: list[str], lengths: ndarray | None) -> str:
+def newick(c1: np.ndarray, c2: np.ndarray, names: list[str], lengths: np.ndarray | None) -> str:
     """Writes a rooted tree as unrooted Newick: (c1, c2, names, length per node or None) -> text.
 
     The root's two branches become one, on the child that stays (its length plus the other's).
     """
     n = len(names)
     left, right = c1.tolist(), c2.tolist()
-    blen = None if lengths is None else lengths.astype(float64).tolist()
+    blen = None if lengths is None else lengths.astype(np.float64).tolist()
     a, b = left[2 * n - 2], right[2 * n - 2]
     if b >= n:
         top, kept, gone = [a, left[b], right[b]], a, b
@@ -424,24 +405,24 @@ def newick(c1: ndarray, c2: ndarray, names: list[str], lengths: ndarray | None) 
     return "".join(parts)
 
 
-def write_tree(path: Path, c1: ndarray, c2: ndarray, lengths: ndarray | None) -> None:
+def write_tree(path: Path, c1: np.ndarray, c2: np.ndarray, lengths: np.ndarray | None) -> None:
     """Writes a tree on leaves T0..T<n-1> as unrooted Newick: (path, c1, c2, lengths) -> None."""
     n = (len(c1) + 1) // 2
     path.write_text(newick(c1, c2, [f"T{i}" for i in range(n)], lengths))
 
 
-def write_random_start(path: Path, c1: ndarray, c2: ndarray) -> None:
+def write_random_start(path: Path, c1: np.ndarray, c2: np.ndarray) -> None:
     """Writes a random start tree as the paper's runs gave it to the comparison programs:
     every branch 0.05."""
     n, root = (len(c1) + 1) // 2, len(c1) - 1
-    lengths = full(len(c1), START_LENGTH)
+    lengths = np.full(len(c1), START_LENGTH)
     gone = c2[root] if c2[root] >= n else c1[root]
     if gone >= n:
         lengths[gone] = 0.0  # the root's two branches are written as one of 0.05
     write_tree(path, c1, c2, lengths)
 
 
-def write_rooted_tree(path: Path, c1: ndarray, c2: ndarray) -> None:
+def write_rooted_tree(path: Path, c1: np.ndarray, c2: np.ndarray) -> None:
     """Writes a tree on leaves T0..T<n-1> as rooted Newick without lengths: (path, c1, c2) -> None.
 
     From the root 2n - 2, children in c1, c2 order, as the paper's FastME comparison gave its random
@@ -461,33 +442,35 @@ def write_rooted_tree(path: Path, c1: ndarray, c2: ndarray) -> None:
 # ---- Sequences -----------------------------------------------------------------------------------
 
 
-def pack(seqs: ndarray, words: int) -> ndarray:
+def pack(seqs: np.ndarray, words: int) -> np.ndarray:
     """Packs sequences into the paper's bit planes: (rows x sites) ASCII -> rows x 5 x words uint64.
 
     Planes A, C, G, T (or U), valid; site j is bit j % 64 of word j // 64.
     """
     rows, sites = seqs.shape
-    planes = zeros((rows, 5, words * 64), dtype=bool)
+    planes = np.zeros((rows, 5, words * 64), dtype=bool)
     upper = seqs & 0xDF  # ASCII upper case
     for k, base in enumerate(b"ACGT"):
         planes[:, k, :sites] = upper == base
     planes[:, 3, :sites] |= upper == ord("U")
     planes[:, 4, :sites] = planes[:, :4, :sites].any(axis=1)
-    return packbits(planes, axis=2, bitorder="little").view("<u8")
+    return np.packbits(planes, axis=2, bitorder="little").view("<u8")
 
 
-def unpack(planes: ndarray, sites: int) -> ndarray:
+def unpack(planes: np.ndarray, sites: int) -> np.ndarray:
     """Unpacks bit planes: rows x 5 x words uint64
     -> rows x sites ASCII, '-' where no base is set."""
-    bits = unpackbits(planes.view(uint8).reshape(planes.shape[0], 5, -1), axis=2, bitorder="little")
+    bits = np.unpackbits(
+        planes.view(np.uint8).reshape(planes.shape[0], 5, -1), axis=2, bitorder="little"
+    )
     bits = bits[:, :, :sites].astype(bool)
-    out = full((planes.shape[0], sites), GAP, dtype=uint8)
+    out = np.full((planes.shape[0], sites), GAP, dtype=np.uint8)
     for k in range(4):
         out[bits[:, k]] = BASES[k]
     return out
 
 
-def write_fasta_rows(handle, seqs: ndarray, first: int) -> None:
+def write_fasta_rows(handle, seqs: np.ndarray, first: int) -> None:
     """Appends sequences to an open FASTA file:
     (handle, rows x sites ASCII, number of the first) -> None."""
     for i, row in enumerate(seqs):
@@ -502,7 +485,7 @@ def read_fasta(path: Path) -> tuple[list[str], list[str]]:
     names: list[str] = []
     seqs: list[str] = []
     chunks: list[str] = []
-    opener = open_xz if path.suffix == ".xz" else open
+    opener = lzma.open if path.suffix == ".xz" else open
     with opener(path, "rt") as handle:
         for line in handle:
             if line.startswith(">"):
@@ -517,7 +500,7 @@ def read_fasta(path: Path) -> tuple[list[str], list[str]]:
     return names, seqs
 
 
-def mutate_level(rng: Generator, parent: ndarray, words: int) -> ndarray:
+def mutate_level(rng: np.random.Generator, parent: np.ndarray, words: int) -> np.ndarray:
     """Makes ten children of each sequence:
     rows x 5 x words planes -> 10 rows x 5 x words, children of a row together.
 
@@ -526,15 +509,15 @@ def mutate_level(rng: Generator, parent: ndarray, words: int) -> ndarray:
     """
     rows = parent.shape[0]
     valid = parent[:, 4, :]
-    level = repeat(parent[:, None, :, :], CLADE, axis=1)
+    level = np.repeat(parent[:, None, :, :], CLADE, axis=1)
     word_range = 1 << 64
     for group in CLADE_GROUPS:
-        mut = rng.integers(0, word_range, size=(rows, words), dtype=uint64)
+        mut = rng.integers(0, word_range, size=(rows, words), dtype=np.uint64)
         for _ in range(MUTATION_ANDS):
-            mut &= rng.integers(0, word_range, size=(rows, words), dtype=uint64)
+            mut &= rng.integers(0, word_range, size=(rows, words), dtype=np.uint64)
         mut &= valid
-        b0 = rng.integers(0, word_range, size=(rows, words), dtype=uint64)
-        b1 = rng.integers(0, word_range, size=(rows, words), dtype=uint64)
+        b0 = rng.integers(0, word_range, size=(rows, words), dtype=np.uint64)
+        b1 = rng.integers(0, word_range, size=(rows, words), dtype=np.uint64)
         new = [~b0 & ~b1 & mut, b0 & ~b1 & mut, ~b0 & b1 & mut, b0 & b1 & mut]
         keep = ~mut
         for j in group:
@@ -545,9 +528,9 @@ def mutate_level(rng: Generator, parent: ndarray, words: int) -> ndarray:
 
 def simulate_jc(
     sim_jc69: str,
-    c1: ndarray,
-    c2: ndarray,
-    blen: ndarray,
+    c1: np.ndarray,
+    c2: np.ndarray,
+    blen: np.ndarray,
     sites: int,
     seed: int,
     fasta: Path,
@@ -562,12 +545,12 @@ def simulate_jc(
     with TemporaryDirectory(dir=fasta.parent) as tmp:
         tree_bin = Path(tmp) / "tree.bin"
         with tree_bin.open("wb") as handle:
-            array([n], dtype="<i4").tofile(handle)
+            np.array([n], dtype="<i4").tofile(handle)
             c1.astype("<i4").tofile(handle)
             c2.astype("<i4").tofile(handle)
             blen.astype("<f4").tofile(handle)
         words = (sites + 63) // 64
-        run(
+        subprocess.run(
             [
                 sim_jc69,
                 "--sim",
@@ -596,7 +579,9 @@ class Rnasim:
         self.leaves: list[str] = []
         self.seqs: dict[str, str] = {}
 
-    def subset(self, n: int, rep: int, scale: float) -> tuple[ndarray, ndarray, ndarray, list[str]]:
+    def subset(
+        self, n: int, rep: int, scale: float
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
         """Draws a replicate's leaves:
         (n, replicate, scale) -> (c1, c2, lengths / scale, RNASim names of T0...)."""
         if self.tree is None:
@@ -609,15 +594,15 @@ class Rnasim:
         )
         return c1, c2, blen, chosen
 
-    def sequences(self, names: list[str]) -> ndarray:
+    def sequences(self, names: list[str]) -> np.ndarray:
         """Looks up RNASim's sequences: names -> rows x sites ASCII, in the order given."""
         if not self.seqs:
             plain = self.folder / "aln_dna.fa"
             self.seqs = dict(
                 zip(*read_fasta(plain if plain.exists() else self.folder / "aln_dna.fa.xz"))
             )
-        return frombuffer(
-            "".join(self.seqs[nm] for nm in names).encode("ascii"), dtype=uint8
+        return np.frombuffer(
+            "".join(self.seqs[nm] for nm in names).encode("ascii"), dtype=np.uint8
         ).reshape(len(names), -1)
 
 
@@ -644,7 +629,7 @@ def make_dataset(name: str, n: int, rep: int, out: Path, rnasim: Rnasim, args: N
             make_dataset(name, args.expansion_base, 0, base.parent, rnasim, args)
         c1, c2, _, _ = rnasim.subset(args.expansion_base, 0, JC_SCALE)
         base_seqs = read_fasta(base)[1]
-        text = frombuffer("".join(base_seqs).encode("ascii"), dtype=uint8).reshape(
+        text = np.frombuffer("".join(base_seqs).encode("ascii"), dtype=np.uint8).reshape(
             len(base_seqs), -1
         )
         sites = text.shape[1]
@@ -653,7 +638,7 @@ def make_dataset(name: str, n: int, rep: int, out: Path, rnasim: Rnasim, args: N
         for _ in range(1 if factor == CLADE else 2):
             c1, c2 = expand_tree(c1, c2, (len(c1) + 1) // 2)
         write_tree(out / f"rep{rep}.true.nwk", c1, c2, None)
-        rng = default_rng(EXPANSION_SEED)
+        rng = np.random.default_rng(EXPANSION_SEED)
         chunk = EXPANSION_CHUNK[factor]
         with fasta.open("wb") as handle:
             for s0 in range(0, planes.shape[0], chunk):
@@ -703,7 +688,7 @@ def make_fastme_set(
     if names != [f"T{i}" for i in range(len(names))]:
         raise ValueError(f"{base / f'rep{rep}.fa'}: the names are not T0..T<N-1> in order")
     seed = rep + FASTME_SEED_STEP
-    chosen = sort(default_rng(seed).choice(len(seqs), n, replace=False))
+    chosen = np.sort(np.random.default_rng(seed).choice(len(seqs), n, replace=False))
     out.mkdir(parents=True, exist_ok=True)
     with (out / f"rep{rep}.fa").open("w") as handle:
         handle.writelines(f">T{k}\n{seqs[i]}\n" for k, i in enumerate(chosen))
@@ -737,7 +722,9 @@ def make_fastme_subsets(
     if not (source / "rep0.random_start.nwk").exists():
         make_dataset(source_set, size, 0, source, rnasim, args)
     chosen = {
-        (n, k): sort(default_rng(FASTME_1M_SEED_STEP * n + k).choice(size, n, replace=False))
+        (n, k): np.sort(
+            np.random.default_rng(FASTME_1M_SEED_STEP * n + k).choice(size, n, replace=False)
+        )
         for n, k in todo
     }
     takers: dict[int, list[tuple[int, int]]] = {}  # sequence -> the subsets with it
