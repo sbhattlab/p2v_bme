@@ -148,8 +148,6 @@ CommandLine parse_command_line(int argc, char **argv) {
          cxxopts::value(opt.sample_size), "N");
     cli.add_options("Branch lengths and output")
         ("no-branch-lengths", "do not estimate BME branch lengths")
-        ("bl-representative-cap", "representatives kept per subtree for branch lengths (1-256)",
-         cxxopts::value(opt.bl_representative_cap), "N")
         ("no-neg-as-zero", "write negative branch lengths as they are (default: as 0)")
         ("report-full", "add the details to <prefix>.json: input, settings as used, devices, time per stage, "
          "memory, gain of each round");
