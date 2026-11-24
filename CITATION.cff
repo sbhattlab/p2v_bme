@@ -1,0 +1,16 @@
+cff-version: "1.2.0"
+message: If you use this software, please cite it as below.
+title: Phylo2VecME
+version: 0.1.0
+license: LGPL-3.0-only
+repository-code: "https://github.com/sbhattlab/p2v_bme"
+authors:
+- family-names: Scheidwasser
+  given-names: Neil
+  orcid: "https://orcid.org/0000-0001-9922-0289"
+- family-names: Bhatt
+  given-names: Samir
+  orcid: "https://orcid.org/0000-0002-0891-4611"
+- family-names: Penn
+  given-names: Matthew J.
+  orcid: "https://orcid.org/0000-0001-8682-5393"

@@ -12,12 +12,11 @@ shape alpha = 0.5. Median p-distance: over 4,000 random pairs of sequences, on t
 
 ## How they were made
 
-With `make_test_fasta` (`tests/make_test_fasta.cpp`, built with p2v-bme), from the repository root after
-`pixi run build`:
+With `make_test_fasta` (`tests/make_test_fasta.cpp`, built with p2v-bme), from the repository root:
 
 ```bash
-build/make_test_fasta examples/jc69_1k 1000 1500 1
-build/make_test_fasta examples/gtr_1k 1000 5000 2 --rates 1,4,1,1,4,1 --freqs 0.30,0.20,0.27,0.23 --alpha 0.5
+pixi run make_test_fasta examples/jc69_1k 1000 1500 1
+pixi run make_test_fasta examples/gtr_1k 1000 5000 2 --rates 1,4,1,1,4,1 --freqs 0.30,0.20,0.27,0.23 --alpha 0.5
 ```
 
 - Tree (seed: the last positional argument): pairs of subtrees joined uniformly at random (Yule-Harding topologies),
