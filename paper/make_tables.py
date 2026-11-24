@@ -34,6 +34,8 @@ Outputs: data/tables/<table>.tex for scaling, maple, bootstrap, baseline_10k, si
     pixi run -e paper python -m paper.make_tables --tables scaling maple --overwrite
 """
 
+# pylint: disable=redefined-outer-name
+
 import json
 import re
 import statistics

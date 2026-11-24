@@ -10,11 +10,12 @@ from pathlib import Path
 
 import matplotlib
 
+# The backend is set before pyplot is imported, hence the imports below it
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt  # pylint: disable=wrong-import-position
 
-from matplotlib.patches import Patch  # noqa: E402
-from matplotlib.ticker import (  # noqa: E402
+from matplotlib.patches import Patch  # pylint: disable=wrong-import-position
+from matplotlib.ticker import (  # pylint: disable=wrong-import-position
     FixedLocator,
     FuncFormatter,
     LogFormatterMathtext,
@@ -22,7 +23,7 @@ from matplotlib.ticker import (  # noqa: E402
     NullFormatter,
 )
 
-from plots._config import (  # noqa: E402
+from plots._config import (  # pylint: disable=wrong-import-position
     DEFAULT_IMG_DIR,
     DEFAULT_TABLES_DIR,
     FIGURE_FOLDERS,

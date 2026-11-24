@@ -10,6 +10,8 @@ Outputs: img/fig2/figS4_seqlen_effect.{pdf,svg}
     pixi run -e paper python -m plots.figS4_seqlen_effect
 """
 
+# pylint: disable=invalid-name  # figS<N>: the paper's numbering of its supplementary figures
+
 import statistics
 
 import matplotlib.pyplot as plt

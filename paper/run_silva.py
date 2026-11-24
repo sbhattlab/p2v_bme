@@ -46,6 +46,8 @@ Outputs: data/results/silva/
     pixi run -e paper python -m paper.run_silva --steps tree replicates --replicates 1-25
 """
 
+# pylint: disable=redefined-outer-name
+
 import gzip
 import hashlib
 import json

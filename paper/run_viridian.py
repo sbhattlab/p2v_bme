@@ -433,7 +433,7 @@ def smallest_supported_clade(
     near = np.full(total, -1, np.int64)  # lowest supported node at or above a node, off the chain
     for node in range(total - 1, n - 1, -1):  # parents before children
         above = parent[node]
-        if depth[node] < 0 and above >= 0:
+        if depth[node] < 0 and above >= 0:  # pylint: disable=chained-comparison
             depth[node] = depth[above]
         inherited = near[above] if above >= 0 else -1
         near[node] = node if (supported[node - n] and not on_chain[node]) else inherited

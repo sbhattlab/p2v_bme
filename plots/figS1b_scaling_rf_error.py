@@ -13,6 +13,8 @@ Outputs: img/fig2/figS1b_scaling_rf_error.{pdf,svg}, figS2b_..., figS3b_...
     pixi run -e paper python -m plots.figS1b_scaling_rf_error
 """
 
+# pylint: disable=invalid-name  # figS<N>: the paper's numbering of its supplementary figures
+
 import matplotlib.pyplot as plt
 
 from plots._config import SCALING_FIGURES, STYLE

@@ -13,6 +13,8 @@ Outputs: img/fig2/figS1a_scaling_time.{pdf,svg}, figS2a_..., figS3a_...
     pixi run -e paper python -m plots.figS1a_scaling_time
 """
 
+# pylint: disable=invalid-name  # figS<N>: the paper's numbering of its supplementary figures
+
 import matplotlib.pyplot as plt
 
 from plots._config import SCALING_FIGURES, STYLE

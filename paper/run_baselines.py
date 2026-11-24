@@ -210,7 +210,10 @@ def timed(cmd: list[str], env: dict | None = None, stdout: Path | None = None) -
     command -> {time, cpu_time_sec, peak_ram_mb} (wall s, CPU s, MiB)."""
     t0 = time.perf_counter()
     with open(stdout, "w") if stdout else nullcontext(subprocess.DEVNULL) as sink:
-        proc = subprocess.Popen(cmd, env=env, stdout=sink, stderr=subprocess.DEVNULL)
+        # wait4 reaps the process to read its resource use, so no with block
+        proc = subprocess.Popen(  # pylint: disable=consider-using-with
+            cmd, env=env, stdout=sink, stderr=subprocess.DEVNULL
+        )
         _, status, usage = os.wait4(proc.pid, 0)
     wall = time.perf_counter() - t0
     if status != 0:

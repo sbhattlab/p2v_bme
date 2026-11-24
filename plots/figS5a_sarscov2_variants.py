@@ -10,6 +10,8 @@ Outputs: img/fig3/figS5a_sarscov2_variants.{pdf,svg}
     pixi run -e paper python -m plots.figS5a_sarscov2_variants
 """
 
+# pylint: disable=invalid-name  # figS<N>: the paper's numbering of its supplementary figures
+
 import matplotlib.pyplot as plt
 
 from plots._config import OURS_COLOUR, STYLE

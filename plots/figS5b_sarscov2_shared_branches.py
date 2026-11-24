@@ -10,6 +10,8 @@ Outputs: img/fig3/figS5b_sarscov2_shared_branches.{pdf,svg}
     pixi run -e paper python -m plots.figS5b_sarscov2_shared_branches
 """
 
+# pylint: disable=invalid-name  # figS<N>: the paper's numbering of its supplementary figures
+
 import matplotlib.pyplot as plt
 
 from plots._config import MAPLE_COLOUR, OURS_COLOUR, STYLE

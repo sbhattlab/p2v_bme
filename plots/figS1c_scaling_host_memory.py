@@ -13,6 +13,8 @@ Outputs: img/fig2/figS1c_scaling_host_memory.{pdf,svg}, figS2c_..., figS3c_...
     pixi run -e paper python -m plots.figS1c_scaling_host_memory
 """
 
+# pylint: disable=invalid-name  # figS<N>: the paper's numbering of its supplementary figures
+
 import matplotlib.pyplot as plt
 
 from plots._config import SCALING_FIGURES, STYLE
