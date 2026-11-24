@@ -10,13 +10,13 @@ Besides the build prerequisites ([README](../README.md#prerequisites)):
 
 ## Environments and tasks
 
-[pixi](https://pixi.sh) manages two environments (`pixi.toml`); the C and C++ compilers, CMake and the CUDA toolkit come
-from the system.
+[pixi](https://pixi.sh) manages two environments (`pixi.toml`); the C and C++ compilers and the CUDA toolkit come from
+the system.
 
-| Environment | What for                                                                                            | Tasks                                                                         |
-| ----------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `default`   | building and testing p2v-bme: cxxopts, GoogleTest, Google Benchmark, Python, pytest, pre-commit, ty | `build`, `test`, `test-asan`, `test-python`, `make_test_fasta`                |
-| `paper`     | the paper's scripts and plots: NumPy, pandas, Matplotlib, FastME, FastTree, VeryFastTree            | `check-paper` and one task per script ([paper/README.md](../paper/README.md)) |
+| Environment | What for                                                                                                   | Tasks                                                                         |
+| ----------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `default`   | building and testing p2v-bme: CMake, cxxopts, GoogleTest, Google Benchmark, Python, pytest, pre-commit, ty | `build`, `test`, `test-asan`, `test-python`, `make_test_fasta`                |
+| `paper`     | the paper's scripts and plots: NumPy, pandas, Matplotlib, FastME, FastTree, VeryFastTree                   | `check-paper` and one task per script ([paper/README.md](../paper/README.md)) |
 
 | Task                            | Runs                                                                                                                                  |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
