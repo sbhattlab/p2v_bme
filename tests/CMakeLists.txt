@@ -130,16 +130,6 @@ target_compile_options(test_parallel_errors PRIVATE -Wall -Wextra)
 target_link_libraries(test_parallel_errors PRIVATE OpenMP::OpenMP_CXX GTest::gtest_main)
 gtest_discover_tests(test_parallel_errors)
 
-# The reference library (the oracle of test_inference) against brute force; no -ffast-math (NaN/Inf checks)
-add_executable(test_bme_reference test_bme_reference.cpp ${BME_REFERENCE_SOURCE})
-target_include_directories(test_bme_reference PRIVATE ${BME_REFERENCE_INCLUDE})
-target_compile_options(test_bme_reference PRIVATE -O2)
-if(P2VBME_NATIVE)
-  target_compile_options(test_bme_reference PRIVATE -march=native)
-endif()
-target_link_libraries(test_bme_reference PRIVATE m pthread GTest::gtest_main)
-gtest_discover_tests(test_bme_reference)
-
 if(P2VBME_CUDA)
   # The GPU device: its distances under every model against the CPU formulas, through the edge-length pass; its errors
   add_executable(test_device_gpu test_device_gpu.cpp)

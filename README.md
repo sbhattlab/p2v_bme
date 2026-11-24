@@ -66,8 +66,7 @@ To put `p2v-bme` on your `PATH`, install it, e.g. into `~/.local/bin`:
 pixi run cmake --install build --prefix ~/.local
 ```
 
-The other presets and options (e.g. `P2VBME_NATIVE`, which only affects the tests' reference library) are in
-[docs/development.md](docs/development.md).
+The other presets and options are in [docs/development.md](docs/development.md).
 
 ## Quick start
 
