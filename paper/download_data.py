@@ -11,8 +11,11 @@ Sources (licence; what to cite, DOIs as in the dataset check of the paper):
                CC BY-SA 4.0; cite Westram et al. 2011, doi:10.1002/9781118010518.ch46, and GTDB). Dumping the labels
                needs ARB, which is not in the pixi environments. Fetched only when named in --sources (7.2 GB, read
                only by run_silva's gtdb step).
-  cmaple       CMAPLE's benchmark record (Zenodo 10.5281/zenodo.11180100, CC BY 4.0; Ly-Trong et al. 2024,
-               doi:10.1093/molbev/msae134); the nine simulated pandemic sets are extracted from its zip.
+  cmaple       CMAPLE's supplementary data, version 1.0.0 (Zenodo 10.5281/zenodo.11003148, CC BY 4.0; Ly-Trong et
+               al. 2024, doi:10.1093/molbev/msae134); later versions lack the simulated sets. The nine simulated
+               pandemic sets are extracted from its zip (Validation/cmaple_vs_maple/simulated): alignments made by
+               CMAPLE's authors with AliSim on random Yule-Harding trees (30,000 sites, GTR+F+G+I, mean branch length
+               5e-5, 1e-4 or 1.5e-4), their true trees, and CMAPLE's and MAPLE's trees and run logs.
   viridian     Viridian's 2M SARS-CoV-2 genomes processed with MAPLE (Zenodo 10.5281/zenodo.12733488 and
                10.5281/zenodo.15546527, CC BY 4.0; De Maio et al. 2025, doi:10.1038/s41586-025-09567-x); the
                files run_viridian reads: the alignment, extracted from its zip, and MAPLE's tree with each genome's
@@ -108,9 +111,10 @@ FILES = {
         )
     ],
 }
-CMAPLE_RECORD = 11180100
-CMAPLE_BYTES = 447443155  # the record's one zip
-# The nine simulated pandemic sets: alignment, true tree, CMAPLE's and MAPLE's trees, by size and branch-length scale
+CMAPLE_RECORD = 11003148  # version 1.0.0; later versions lack the simulated sets
+CMAPLE_BYTES = 1660813065  # the record's one zip
+# The nine simulated pandemic sets: alignment, true tree, CMAPLE's and MAPLE's trees and their run logs, by size and
+# branch-length scale
 CMAPLE_SIZES = ("100K", "200K", "500K")
 CMAPLE_SCALES = ("0.00005", "0.0001", "0.00015")
 CMAPLE_MEMBERS = [
@@ -122,6 +126,8 @@ CMAPLE_MEMBERS = [
         f"tree_{size}_{scale}.nwk",
         f"aln_{size}_{scale}.maple.treefile",
         f"aln_{size}_{scale}_wo_ref_tree.tree",
+        f"CMaple_{size}_{scale}.log",
+        f"Maple_{size}_{scale}.log",
     )
 ]
 VIRIDIAN_MEMBERS = (".maple",)  # members extracted from the Viridian zips, by suffix
