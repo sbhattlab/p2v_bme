@@ -25,15 +25,22 @@ FIGURE_FOLDERS: Final = {
 
 # One entry per method, used identically in every figure:
 # key, legend label, colour, marker, filled, line style.
-# Hue encodes the family: vermilion = Phylo2VecME,
-# purple = DIPPER, blues = ML searches, greys = ME searches.
+# Colour-blind safe: Okabe and Ito's colours plus two greys; each method has its own marker too.
+# Vermilion = Phylo2VecME, greys = ME searches, blues = ML searches, reddish purple = DIPPER,
+# bluish green = MAPLE, black = CMAPLE.
+# METHODS: the methods of Figs S1-S4, in drawing order.
+# PANDEMIC_METHODS: the other programs of Figs 2c,d and S5b.
 METHODS: Final = [
     ("FastTree-ME", "FastTree-ME", "#8A8A8A", "s", True, "-"),
     ("VFT-ME", "VeryFastTree-ME", "#4D4D4D", "^", True, "-"),
     ("FastTree-ML", "FastTree-ML", "#56B4E9", "v", True, "-"),
     ("VFT-ML", "VeryFastTree-ML", "#0072B2", "D", True, "-"),
-    ("DIPPER", "DIPPER", "#8856A7", "X", True, "-"),
+    ("DIPPER", "DIPPER", "#CC79A7", "X", True, "-"),
     ("P2V", "Phylo2VecME", "#D55E00", "o", True, "-"),
+]
+PANDEMIC_METHODS: Final = [
+    ("MAPLE", "MAPLE", "#009E73", "P", True, "--"),
+    ("CMAPLE", "CMAPLE", "#000000", "h", True, "-."),
 ]
 
 
@@ -48,28 +55,22 @@ class Method(TypedDict):
 
 
 SPEC: Final = {
-    m[0]: Method(label=m[1], color=m[2], marker=m[3], filled=m[4], ls=m[5]) for m in METHODS
+    m[0]: Method(label=m[1], color=m[2], marker=m[3], filled=m[4], ls=m[5])
+    for m in [*METHODS, *PANDEMIC_METHODS]
 }
 
 # The datasets of the scaling figures (S1-S3) and their figure numbers
 SCALING_FIGURES: Final = {"rnasim": "figS1", "jc10k": "figS2", "yule10k": "figS3"}
 
 # Fig. 2a,b: dataset in the data, legend label, colour, marker, line style, filled marker.
-# The random-tree series is drawn last, dashed and with squares,
+# Every series is Phylo2VecME, so all take its colour and differ by line style and marker fill.
+# The random-tree series is drawn last, dash-dotted and with squares,
 # so that it stays visible where it runs along the other JC series.
 SCALING_SERIES: Final = [
-    ("JC", "JC (PASTA)", "#0072B2", "o", "-", True),
-    ("RNASim", "RNASim (PASTA)", "#D55E00", "o", "-", True),
-    ("JC random tree", "JC random tree", "#6A3D9A", "s", "--", True),
+    ("JC", "JC (PASTA)", SPEC["P2V"]["color"], "o", "-", True),
+    ("RNASim", "RNASim (PASTA)", SPEC["P2V"]["color"], "o", "--", False),
+    ("JC random tree", "JC random tree", SPEC["P2V"]["color"], "s", "-.", True),
 ]
 
-# Fig. 2c,d: the pandemic programs
-PANDEMIC: Final = [
-    ("MAPLE", "#CC79A7", "o", "--"),
-    ("CMAPLE", "#333333", "s", "-."),
-    ("Phylo2VecME", "#009E73", "D", "-"),
-]
-
-# SARS-CoV-2 figures: the colours of the two programs
-OURS_COLOUR: Final = "#D55E00"
-MAPLE_COLOUR: Final = "#CC79A7"
+# Fig. 2c,d: the pandemic programs, as named in maple.tsv, and their key in SPEC
+PANDEMIC: Final = [("MAPLE", "MAPLE"), ("CMAPLE", "CMAPLE"), ("Phylo2VecME", "P2V")]

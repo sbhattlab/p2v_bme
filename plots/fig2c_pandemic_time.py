@@ -15,7 +15,7 @@ import numpy as np
 
 from matplotlib.ticker import LogLocator, NullLocator
 
-from plots._config import PANDEMIC, STYLE
+from plots._config import PANDEMIC, SPEC, STYLE
 from plots.utils import parser, read_tsv, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
@@ -29,7 +29,8 @@ def main() -> None:
     rows = read_tsv(args.tables_dir, "maple")
     fig, ax = plt.subplots(figsize=FIGSIZE)
     fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.86)
-    for method, colour, marker, style in PANDEMIC:
+    for method, key in PANDEMIC:
+        spec = SPEC[key]
         means, los, his = [], [], []
         for n in SIZES:
             values = [
@@ -42,10 +43,10 @@ def main() -> None:
             SIZES,
             means,
             yerr=[los, his],
-            color=colour,
-            marker=marker,
+            color=spec["color"],
+            marker=spec["marker"],
             markersize=3.6,
-            linestyle=style,
+            linestyle=spec["ls"],
             linewidth=1.1,
             elinewidth=0.75,
             capsize=2,

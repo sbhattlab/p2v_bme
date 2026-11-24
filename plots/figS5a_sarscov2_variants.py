@@ -14,7 +14,7 @@ Outputs: img/fig3/figS5a_sarscov2_variants.{pdf,svg,png}
 
 import matplotlib.pyplot as plt
 
-from plots._config import OURS_COLOUR, STYLE
+from plots._config import SPEC, STYLE
 from plots.utils import parser, read_tsv, save
 
 FIGSIZE = (84 / 25.4, 66 / 25.4)  # panel a of the 150 mm wide figure
@@ -38,7 +38,7 @@ def main() -> None:
             marker="o",
             markersize=4.4,
             markerfacecolor="white",
-            markeredgecolor=OURS_COLOUR,
+            markeredgecolor=SPEC["P2V"]["color"],
             markeredgewidth=1.1,
             linestyle="none",
             zorder=3,
@@ -48,7 +48,7 @@ def main() -> None:
             y,
             marker="o",
             markersize=4.4,
-            color=OURS_COLOUR,
+            color=SPEC["P2V"]["color"],
             linestyle="none",
             zorder=4,
         )
@@ -72,7 +72,7 @@ def main() -> None:
         plt.Line2D(
             [],
             [],
-            color=OURS_COLOUR,
+            color=SPEC["P2V"]["color"],
             marker="o",
             markersize=4.6,
             linestyle="none",
@@ -81,7 +81,7 @@ def main() -> None:
         plt.Line2D(
             [],
             [],
-            color=OURS_COLOUR,
+            color=SPEC["P2V"]["color"],
             marker="o",
             markersize=4.6,
             linestyle="none",

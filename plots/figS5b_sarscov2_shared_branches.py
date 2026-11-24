@@ -14,7 +14,7 @@ Outputs: img/fig3/figS5b_sarscov2_shared_branches.{pdf,svg,png}
 
 import matplotlib.pyplot as plt
 
-from plots._config import MAPLE_COLOUR, OURS_COLOUR, STYLE
+from plots._config import SPEC, STYLE
 from plots.utils import parser, read_tsv, save
 
 FIGSIZE = (66 / 25.4, 66 / 25.4)  # panel b of the 150 mm wide figure
@@ -44,8 +44,8 @@ def main() -> None:
     fig.subplots_adjust(left=0.2, right=0.97, top=0.84, bottom=0.17)
     x = range(len(BINS))
     for field, label, colour, marker in (
-        ("ours_in_maple_pct", "Ours, in MAPLE's tree", OURS_COLOUR, "o"),
-        ("maple_in_ours_pct", "MAPLE's, in ours", MAPLE_COLOUR, "D"),
+        ("ours_in_maple_pct", "Ours, in MAPLE's tree", SPEC["P2V"]["color"], SPEC["P2V"]["marker"]),
+        ("maple_in_ours_pct", "MAPLE's, in ours", SPEC["MAPLE"]["color"], SPEC["MAPLE"]["marker"]),
     ):
         ax.plot(
             x,

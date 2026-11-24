@@ -12,7 +12,7 @@ Outputs: img/fig2/fig2d_pandemic_rf_error.{pdf,svg,png}
 
 import matplotlib.pyplot as plt
 
-from plots._config import PANDEMIC, STYLE
+from plots._config import PANDEMIC, SPEC, STYLE
 from plots.utils import parser, read_tsv, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
@@ -27,24 +27,26 @@ def main() -> None:
         paired.setdefault((int(r["n"]), float(r["mean_branch_length"])), {})[r["method"]] = float(
             r["rf_pct"]
         )
-    colours = {method: colour for method, colour, _marker, _style in PANDEMIC}
+    spec = {method: SPEC[key] for method, key in PANDEMIC}
     fig, ax = plt.subplots(figsize=FIGSIZE)
     fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.86)
     gap = 0.0
-    for method, marker in (("MAPLE", "o"), ("CMAPLE", "x")):
+    # MAPLE as larger open markers, CMAPLE as smaller filled ones on top:
+    # both stay visible where they overlap
+    for method in ("MAPLE", "CMAPLE"):
         x = [g[method] for g in paired.values()]
         y = [g["Phylo2VecME"] for g in paired.values()]
         gap = max([gap, *(abs(a - b) for a, b in zip(x, y))])
-        if marker == "o":
+        if method == "MAPLE":
             ax.scatter(
                 x,
                 y,
                 label=method,
-                marker=marker,
+                marker=spec[method]["marker"],
                 s=26,
                 linewidths=0.85,
                 facecolors="none",
-                edgecolors=colours[method],
+                edgecolors=spec[method]["color"],
                 zorder=3,
             )
         else:
@@ -52,10 +54,10 @@ def main() -> None:
                 x,
                 y,
                 label=method,
-                marker=marker,
+                marker=spec[method]["marker"],
                 s=16,
                 linewidths=0.85,
-                color=colours[method],
+                color=spec[method]["color"],
                 zorder=4,
             )
     ax.plot([0, LIMIT], [0, LIMIT], color="#AAAAAA", linewidth=0.8, linestyle="--", zorder=1)
