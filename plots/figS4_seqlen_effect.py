@@ -52,7 +52,7 @@ def main() -> None:
     rows.sort(key=lambda r: -r[2][0])  # worst at the bottom of the reading order -> best on top
 
     fig, ax = plt.subplots(figsize=(3.6, 2.9))
-    fig.subplots_adjust(left=0.35, right=0.94, bottom=0.19, top=0.95)
+    fig.subplots_adjust(left=0.35, right=0.94, bottom=0.19, top=0.88)
     for y, (key, (m1, lo1, hi1), (m2, lo2, hi2)) in enumerate(rows):
         s = SPEC[key]
         ours = key == OURS  # Phylo2VecME drawn stronger; the markers are the data, so none is faded
@@ -118,9 +118,13 @@ def main() -> None:
                 label="10,000 sites",
             ),
         ],
-        loc="upper right",
+        # above the axes, in one row: inside, it covered the best row's markers
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.0),
+        ncol=2,
         handletextpad=0.3,
-        borderaxespad=0.2,
+        columnspacing=1.5,
+        borderaxespad=0.3,
     )
     save(fig, args.img_dir, "figS4_seqlen_effect")
 
