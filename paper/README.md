@@ -10,10 +10,11 @@ pixi install -e paper
 pixi run -e paper check-paper
 ```
 
-`check-paper` runs every script and plot on tiny simulated inputs, on the CPU, in about a minute (CI runs it). The full
-runs take hours to days on GPUs. Every script skips the runs whose outputs exist (`--overwrite` reruns them), so it can
-be stopped and started again, and its options split the work (`--sets`, `--sizes`, `--replicates`, `--steps`, ...). Each
-task passes its arguments to the script, and each script's `--help` lists its options, inputs and outputs:
+`check-paper` runs every script on tiny simulated inputs, on the CPU, in about a minute (CI runs it); the plots, whose
+tables need the full runs, only with `--help`. The full runs take hours to days on GPUs. Every script skips the runs
+whose outputs exist (`--overwrite` reruns them), so it can be stopped and started again, and its options split the work
+(`--sets`, `--sizes`, `--replicates`, `--steps`, ...). Each task passes its arguments to the script, and each script's
+`--help` lists its options, inputs and outputs:
 
 ```bash
 pixi run -e paper run_benchmarks --help
