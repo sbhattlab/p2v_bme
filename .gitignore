@@ -24,6 +24,8 @@ CLAUDE.md
 paper/latex/
 # Local working copy of the manuscript
 manuscript/
+# Downloaded papers (local reading)
+papers/
 
 # Large benchmark data & logs (also outside data/)
 data_*/
