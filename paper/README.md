@@ -169,10 +169,10 @@ Every table of the paper (`--tables`; default: all). A table whose results are m
 | `fig3a_silva_clades`              | 3a: the SILVA 144 tree reduced to the domains and major clades | `silva_clades.tsv`, `silva_clade_paths.tsv` |
 | `fig3b_silva_support`             | 3b: SILVA 144 branches by support class and split size         | `silva_support.tsv`                         |
 | `fig3c_sarscov2_resolution`       | 3c: resolution of the SARS-CoV-2 tree by sampling month        | `viridian_resolution.tsv`                   |
-| `figS1_scaling`                   | S1-S3: time, RF error, host and GPU memory of every method     | `scaling_methods.tsv`                       |
+| `figS1_3_scaling`                 | S1-S3: time, RF error, host and GPU memory of every method     | `scaling_methods.tsv`                       |
 | `figS4_seqlen_effect`             | S4: RF error on 1,000 and 10,000 sites                         | `scaling_methods.tsv`                       |
 | `figS5a_sarscov2_variants`        | S5a: supports of the named SARS-CoV-2 variants                 | `viridian_variants.tsv`                     |
 | `figS5b_sarscov2_shared_branches` | S5b: branches shared by our tree and MAPLE's                   | `viridian_substitutions.tsv`                |
 
-`figS1_scaling` writes one figure per dataset (S1: RNASim, S2: JC10k, S3: random-tree JC), e.g.
+`figS1_3_scaling` writes one figure per dataset (S1: RNASim, S2: JC10k, S3: random-tree JC), e.g.
 `img/fig2/figS2_scaling.pdf`.

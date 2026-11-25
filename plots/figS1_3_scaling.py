@@ -10,7 +10,7 @@ Flow:    each dataset (rnasim -> S1, jc10k -> S2, yule10k -> S3)
          the sizes (log-log axes): the mean at each size; the whisker spans the replicates
 Outputs: img/fig2/figS1_scaling.{pdf,svg,png}, figS2_scaling..., figS3_scaling...
 
-    pixi run -e paper python -m plots.figS1_scaling
+    pixi run -e paper python -m plots.figS1_3_scaling
 """
 
 # pylint: disable=invalid-name  # figS<N>: the paper's numbering of its supplementary figures
