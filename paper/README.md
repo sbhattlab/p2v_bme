@@ -149,7 +149,7 @@ bootstrap; `--replicates A-B`), `repeats` (repeat searches), `supports`, `record
 - **Outputs:** `data/tables/tableS<N>_<name>.md` (one Markdown table per supplementary table) and
   `data/tables/<name>.tsv` (the figures' data)
 
-Every table of the paper (`--tables`; default: all). A table whose results are missing is skipped, with a note.
+Every table of the paper (`--tables`; default: all).
 
 ## Figures
 
