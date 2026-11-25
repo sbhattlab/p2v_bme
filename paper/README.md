@@ -173,6 +173,7 @@ Every table of the paper (`--tables`; default: all). A table whose results are m
 | `fig3e_sarscov2_resolution`       | 3e: resolution of the SARS-CoV-2 tree by sampling month        | `viridian_resolution.tsv`                   |
 | `fig4a_silva_clades`              | 4a: the SILVA 144 tree reduced to the domains and major clades | `silva_clades.tsv`, `silva_clade_paths.tsv` |
 | `fig4b_silva_support`             | 4b: SILVA 144 branches by support class and split size         | `silva_support.tsv`                         |
+| `fig4c_gtdb_recovery`             | 4c: mean F1 of the GTDB taxa by rank, four trees               | `silva_gtdb.tsv`                            |
 | `figS1_3_scaling`                 | S1-S3: time, RF error, host and GPU memory of every method     | `scaling_methods.tsv`                       |
 | `figS5b_sarscov2_shared_branches` | S5b: branches shared by our tree and MAPLE's                   | `viridian_substitutions.tsv`                |
 
