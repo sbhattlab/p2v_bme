@@ -1,11 +1,11 @@
 # Usage
 
 ```text
-p2v-bme -s ALIGNMENT -m MODEL [options]       infer a tree
-p2v-bme -t TREE --supports FILE [-p PREFIX]   supports of TREE's branches over the trees in FILE
+vecme -s ALIGNMENT -m MODEL [options]       infer a tree
+vecme -t TREE --supports FILE [-p PREFIX]   supports of TREE's branches over the trees in FILE
 ```
 
-The options are grouped as in `p2v-bme --help-all`; the files they write are in [outputs.md](outputs.md).
+The options are grouped as in `vecme --help-all`; the files they write are in [outputs.md](outputs.md).
 
 ## Input
 
@@ -88,11 +88,11 @@ bootstrap can be split into jobs (below).
 ### Devices
 
 ```bash
-p2v-bme -s aln.fa -m JC69 -a gpu            # the first GPU
-p2v-bme -s aln.fa -m JC69 -a gpu -d 2       # the first two GPUs
-p2v-bme -s aln.fa -m JC69 -a gpu -d 0,2     # GPUs 0 and 2
-p2v-bme -s aln.fa -m JC69 -a gpu -d 1,      # GPU 1 only
-p2v-bme -s aln.fa -m JC69 -a cpu -d 16      # 16 CPU threads
+vecme -s aln.fa -m JC69 -a gpu            # the first GPU
+vecme -s aln.fa -m JC69 -a gpu -d 2       # the first two GPUs
+vecme -s aln.fa -m JC69 -a gpu -d 0,2     # GPUs 0 and 2
+vecme -s aln.fa -m JC69 -a gpu -d 1,      # GPU 1 only
+vecme -s aln.fa -m JC69 -a cpu -d 16      # 16 CPU threads
 ```
 
 GPU numbers count the GPUs visible to CUDA (`CUDA_VISIBLE_DEVICES`).
@@ -102,13 +102,13 @@ GPU numbers count the GPUs visible to CUDA (`CUDA_VISIBLE_DEVICES`).
 `-b 100` as four jobs, then the supports over their 100 trees:
 
 ```bash
-p2v-bme -s aln.fa -m GTR+GC -p tree             # tree.nwk
-p2v-bme -s aln.fa -m GTR+GC -b 1-25 -p boot1    # boot1.boottrees
-p2v-bme -s aln.fa -m GTR+GC -b 26-50 -p boot2
-p2v-bme -s aln.fa -m GTR+GC -b 51-75 -p boot3
-p2v-bme -s aln.fa -m GTR+GC -b 76-100 -p boot4
+vecme -s aln.fa -m GTR+GC -p tree             # tree.nwk
+vecme -s aln.fa -m GTR+GC -b 1-25 -p boot1    # boot1.boottrees
+vecme -s aln.fa -m GTR+GC -b 26-50 -p boot2
+vecme -s aln.fa -m GTR+GC -b 51-75 -p boot3
+vecme -s aln.fa -m GTR+GC -b 76-100 -p boot4
 cat boot1.boottrees boot2.boottrees boot3.boottrees boot4.boottrees > boot.nwk
-p2v-bme -t tree.nwk --supports boot.nwk -p tree_b100    # tree_b100.support.nwk
+vecme -t tree.nwk --supports boot.nwk -p tree_b100    # tree_b100.support.nwk
 ```
 
 Each job needs the same options and `--seed` as the tree.
@@ -116,11 +116,11 @@ Each job needs the same options and `--seed` as the tree.
 ### Supports from repeat searches
 
 ```bash
-p2v-bme -s aln.fa -m JC69 -p seed1
-p2v-bme -s aln.fa -m JC69 --seed 2 -p seed2
-p2v-bme -s aln.fa -m JC69 --seed 3 -p seed3
+vecme -s aln.fa -m JC69 -p seed1
+vecme -s aln.fa -m JC69 --seed 2 -p seed2
+vecme -s aln.fa -m JC69 --seed 3 -p seed3
 cat seed2.nwk seed3.nwk > repeats.nwk
-p2v-bme -t seed1.nwk --supports repeats.nwk -p seed1_repeats    # seed1_repeats.support.nwk
+vecme -t seed1.nwk --supports repeats.nwk -p seed1_repeats    # seed1_repeats.support.nwk
 ```
 
-`--supports` takes any trees on the same leaves, e.g. a true tree ([examples](../examples/README.md#running-p2v-bme)).
+`--supports` takes any trees on the same leaves, e.g. a true tree ([examples](../examples/README.md#running-vecme)).

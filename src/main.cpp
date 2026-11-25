@@ -1,7 +1,7 @@
 /*
  * main.cpp
  *
- * p2v-bme: a balanced minimum evolution tree from an aligned DNA alignment (Phylo2Vec minibatch search). Writes
+ * vecme: a balanced minimum evolution tree from an aligned DNA alignment (Phylo2Vec minibatch search). Writes
  * the unrooted tree to <prefix>.nwk and the run report to <prefix>.json. The run, step by step: the arguments
  * (cli), the devices (device), the alignment (io), before inference (processing), inference, after inference,
  * the tree (newick) and the report.
@@ -170,7 +170,7 @@ void supports_of_saved_trees(vecme::Report &run) {
     supports.mean_exact = counter->mean_exact();
     run.time_total = omp_get_wtime() - t0;
     vecme::write_supports_report(run.prefix + ".json", run, supports);
-    std::cout << "p2v-bme: supports of " << N << " leaves' branches over " << n_replicates << " trees (on their "
+    std::cout << "vecme: supports of " << N << " leaves' branches over " << n_replicates << " trees (on their "
               << supports.n_leaves_supported << " leaves): mean TBE " << std::fixed << std::setprecision(2)
               << supports.mean_tbe << ", mean exact " << supports.mean_exact << "; wrote " << run.prefix
               << ".support.nwk, " << run.prefix << ".json" << std::endl;
@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
                 (opt.precision == vecme::Precision::Double ? std::string("double precision") : vecme::no_gpu_reason()) +
                 ": running on the CPU";
             run.warnings.push_back(note);
-            std::cerr << "p2v-bme: warning: " << note << '\n';
+            std::cerr << "vecme: warning: " << note << '\n';
         }
         parse_devices_option(args.devices, on_gpu, opt);
 
@@ -231,7 +231,7 @@ int main(int argc, char **argv) {
         run.time_read = omp_get_wtime() - t_read;
         run.n_taxa = aln.n_taxa;
         run.n_sites = aln.n_sites;
-        std::cout << "p2v-bme: read " << aln.n_taxa << " sequences x " << aln.n_sites << " sites in " << std::fixed
+        std::cout << "vecme: read " << aln.n_taxa << " sequences x " << aln.n_sites << " sites in " << std::fixed
                   << std::setprecision(2) << run.time_read << " s" << std::endl;
 
         // Data: if identical sequences, two of each group stay in the search, the rest are put back after it.
@@ -258,9 +258,9 @@ int main(int argc, char **argv) {
                        " iterations)";
             if (!note.empty()) {
                 run.warnings.push_back(note);
-                std::cerr << "p2v-bme: warning: " << note << '\n';
+                std::cerr << "vecme: warning: " << note << '\n';
             }
-            std::cout << "p2v-bme: " << name << " fit on " << fit.n_pairs << " pairs in " << std::setprecision(2)
+            std::cout << "vecme: " << name << " fit on " << fit.n_pairs << " pairs in " << std::setprecision(2)
                       << fit.time << " s: ";
             if (gamma)
                 std::cout << "alpha " << std::setprecision(4) << opt.substitution_model.alpha << ", ";
@@ -271,7 +271,7 @@ int main(int argc, char **argv) {
         }
         run.n_identical_removed = dd.n_removed();
         if (dd.n_removed() > 0)
-            std::cout << "p2v-bme: " << dd.n_removed()
+            std::cout << "vecme: " << dd.n_removed()
                       << " identical sequences set aside (two of each group kept): " << aln.n_taxa << " left"
                       << std::endl;
 
@@ -297,7 +297,7 @@ int main(int argc, char **argv) {
 
         const vecme::LogCallback log = [](const std::string &line) { std::cout << line << std::endl; };
         const vecme::LogCallback boot_log = [](const std::string &line) {
-            std::cout << "p2v-bme: " << line << std::endl;
+            std::cout << "vecme: " << line << std::endl;
         };
         // Bootstrap: each replicate's tree, on the sequences searched, as one line of <prefix>.boottrees.
         // The file is emptied when the first replicate is saved, so a run that fails before leaves no empty file.
@@ -340,7 +340,7 @@ int main(int argc, char **argv) {
             run.tree_init = "random";
         for (const std::string &w : res.warnings) {
             run.warnings.push_back(w);
-            std::cerr << "p2v-bme: warning: " << w << '\n';
+            std::cerr << "vecme: warning: " << w << '\n';
         }
         // Bootstrap: replicates of the searched alignment's columns, each searched as the main tree with the model's
         // parameters as fitted, and the supports of the main tree's branches over them
@@ -370,17 +370,17 @@ int main(int argc, char **argv) {
         // Output: write the report
         vecme::write_report(run.prefix + ".json", run, opt, res);
         if (with_tree)
-            std::cout << "p2v-bme: " << run.tree_init << " start, " << res.rounds_run << " rounds, BME length "
+            std::cout << "vecme: " << run.tree_init << " start, " << res.rounds_run << " rounds, BME length "
                       << std::fixed << std::setprecision(6) << res.bme_length << "; " << std::setprecision(2)
                       << run.time_total << " s in total; wrote " << run.prefix << ".nwk, "
                       << (with_supports ? run.prefix + ".support.nwk, " + boottrees + ", " : "") << run.prefix
                       << ".json" << std::endl;
         else
-            std::cout << "p2v-bme: bootstrap replicates " << run.bootstrap << ", " << res.rounds_run << " rounds; "
+            std::cout << "vecme: bootstrap replicates " << run.bootstrap << ", " << res.rounds_run << " rounds; "
                       << std::fixed << std::setprecision(2) << run.time_total << " s in total; wrote " << boottrees
                       << ", " << run.prefix << ".json" << std::endl;
     } catch (const std::exception &e) {
-        std::cerr << "p2v-bme: error: " << e.what() << '\n';
+        std::cerr << "vecme: error: " << e.what() << '\n';
         return 1;
     }
     return 0;

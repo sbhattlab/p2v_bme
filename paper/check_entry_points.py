@@ -1,7 +1,7 @@
 """Runs every paper script and plot on tiny simulated inputs, on the CPU, as CI does
 (a check, not a result).
 
-Inputs:  build/p2v-bme, build/make_test_fasta and the paper's tools (cmake --preset default)
+Inputs:  build/vecme, build/make_test_fasta and the paper's tools (cmake --preset default)
 Options: --work-dir, --keep
 Flow:    a 300-sequence alignment and its tree from make_test_fasta stand in for RNASim's
            |

@@ -3,7 +3,7 @@
  *
  * BME lengths of given trees, scored independently of the search.
  * Exact (the FastME comparison, the benchmarks up to 10^4 sequences): the distance matrix of an alignment computed as
- * p2v-bme's search computes it (the model's pair distance in single precision, as on the GPU), optionally written as
+ * vecme's search computes it (the model's pair distance in single precision, as on the GPU), optionally written as
  * a square PHYLIP matrix for FastME, and the balanced minimum evolution length of each tree from the full matrix in
  * double precision.
  * With --cap K (the sweep of the cap on representatives, 10^5 and 10^6 sequences): the paper's evaluator, which keeps
@@ -51,7 +51,7 @@ using vecme::VALID_PLANE;
 
 constexpr float EVALUATOR_P_MAX = 0.74f; // the evaluator's cap on a pair's mismatch proportion
 
-// Computes the distance matrix as p2v-bme's search does: (aln, model) -> N x N floats, row major.
+// Computes the distance matrix as vecme's search does: (aln, model) -> N x N floats, row major.
 std::vector<float> distance_matrix(const Alignment &aln, vecme::SubstitutionModel model) {
     if (model.model == vecme::Model::GTR_GC)
         throw std::runtime_error("GTR+GC needs the fitted rates and alpha; not supported here");

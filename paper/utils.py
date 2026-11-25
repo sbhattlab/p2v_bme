@@ -1,4 +1,4 @@
-"""Helpers several scripts share: running p2v-bme, reading its outputs, comparing trees."""
+"""Helpers several scripts share: running vecme, reading its outputs, comparing trees."""
 
 import json
 import os
@@ -27,20 +27,20 @@ def write_json(path: Path, data: dict) -> None:
 
 
 def parse_common_args(doc: str, devices: bool = True) -> ArgumentParser:
-    """Builds the command line the p2v-bme scripts share:
+    """Builds the command line the vecme scripts share:
     docstring -> parser with --results-dir, --vecme, --overwrite, and --accelerator, --devices."""
     parser = ArgumentParser(description=doc, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
     parser.add_argument("--vecme", default=VECME)
     parser.add_argument("--overwrite", action="store_true", help="redo what exists")
     if devices:
-        parser.add_argument("--accelerator", default="auto", help="p2v-bme -a (default: auto)")
-        parser.add_argument("--devices", default="auto", help="p2v-bme -d (default: auto)")
+        parser.add_argument("--accelerator", default="auto", help="vecme -a (default: auto)")
+        parser.add_argument("--devices", default="auto", help="vecme -d (default: auto)")
     return parser
 
 
 def search_options(args: Namespace, alignment: Path, model: str, dedup: bool = False) -> list[str]:
-    """Starts the options of a p2v-bme search:
+    """Starts the options of a vecme search:
     (args, alignment, model) -> [-s alignment, -m model, --no-dedup, -a, -d].
 
     Without dedup, as the paper's runs except SILVA's:
@@ -61,14 +61,14 @@ def search_options(args: Namespace, alignment: Path, model: str, dedup: bool = F
 
 
 def run_vecme(vecme: str, args: list[str], prefix: Path, overwrite: bool) -> dict:
-    """Runs p2v-bme unless its report exists: (args, prefix) -> the report <prefix>.json.
+    """Runs vecme unless its report exists: (args, prefix) -> the report <prefix>.json.
 
-    args are p2v-bme's options without -p;
+    args are vecme's options without -p;
     the run writes <prefix>.nwk, <prefix>.json and <prefix>.log,
     and for a search (-s) this function writes <prefix>.host.json: the CPU threads the run had
     (OMP_NUM_THREADS, else the cores it may use), which the tables state for GPU runs.
     A failed run leaves no report (only its log): it runs again.
-    The report decides: p2v-bme gets --overwrite,
+    The report decides: vecme gets --overwrite,
     so the other outputs of a run without a report do not stop it.
     """
     report = Path(f"{prefix}.json")
@@ -250,7 +250,7 @@ def with_edge_lengths(tree: Path, edge: float, out: Path) -> Path:
 
 
 def concatenate_trees(paths: list[Path], out: Path, overwrite: bool) -> Path:
-    """Writes trees one per line into one file, for p2v-bme --supports: (tree files, out) -> out."""
+    """Writes trees one per line into one file, for vecme --supports: (tree files, out) -> out."""
     if overwrite or not out.exists():
         missing = [p for p in paths if not p.exists()]
         if missing:

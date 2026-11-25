@@ -426,7 +426,7 @@ def write_rooted_tree(path: Path, c1: np.ndarray, c2: np.ndarray) -> None:
     """Writes a tree on leaves T0..T<n-1> as rooted Newick without lengths: (path, c1, c2) -> None.
 
     From the root 2n - 2, children in c1, c2 order, as the paper's FastME comparison gave its random
-    start to both programs: p2v-bme's search depends on how its start tree is rooted.
+    start to both programs: vecme's search depends on how its start tree is rooted.
     Internal nodes must be in post-order (children first), as uniform_random_tree draws them.
     """
     n = (len(c1) + 1) // 2

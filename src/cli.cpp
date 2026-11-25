@@ -1,7 +1,7 @@
 /*
  * cli.cpp
  *
- * The command line of p2v-bme, via cxxopts.
+ * The command line of vecme, via cxxopts.
  *
  * Note: most options follow IQ-TREE names where the tools overlap
  *       Device and precision options follow lightning names.
@@ -100,9 +100,9 @@ void parse_bootstrap_option(vecme::Report &run) {
 CommandLine parse_command_line(int argc, char **argv) {
     CommandLine result;
     vecme::Settings &opt = result.settings; // the numeric options are parsed into it; not given: its defaults
-    cxxopts::Options cli("p2v-bme", "Balanced minimum evolution tree from an aligned DNA alignment (FASTA), by the "
-                                    "Phylo2Vec minibatch search.\nWrites <prefix>.nwk (unrooted tree), "
-                                    "<prefix>.json (run report) and <prefix>.log (what it prints).\n");
+    cxxopts::Options cli("vecme", "Balanced minimum evolution tree from an aligned DNA alignment (FASTA), by the "
+                                  "Phylo2Vec minibatch search.\nWrites <prefix>.nwk (unrooted tree), "
+                                  "<prefix>.json (run report) and <prefix>.log (what it prints).\n");
     cli.custom_help("-s ALIGNMENT -m MODEL [options]");
     // clang-format off
     cli.add_options()
@@ -179,14 +179,14 @@ CommandLine parse_command_line(int argc, char **argv) {
         return done(0);
     }
     if (args.count("version")) {
-        std::cout << "p2v-bme " << vecme::version_string() << '\n';
+        std::cout << "vecme " << vecme::version_string() << '\n';
         return done(0);
     }
     if (!args.unmatched().empty())
         throw std::runtime_error("unexpected argument '" + args.unmatched()[0] + "' (see --help)");
     if (args.count("supports")) { // trees only: no alignment, no search
         if (!args.count("tree") || args.count("alignment") || args.count("model") || args.count("bootstrap")) {
-            std::cerr << "p2v-bme: --supports needs -t TREE, and no -s, -m or -b (see --help-all)\n";
+            std::cerr << "vecme: --supports needs -t TREE, and no -s, -m or -b (see --help-all)\n";
             return done(2);
         }
         vecme::Report &run = result.report;
@@ -201,7 +201,7 @@ CommandLine parse_command_line(int argc, char **argv) {
         return result;
     }
     if (!args.count("alignment") || !args.count("model")) {
-        std::cerr << "p2v-bme: -s ALIGNMENT and -m MODEL are required (see --help)\n";
+        std::cerr << "vecme: -s ALIGNMENT and -m MODEL are required (see --help)\n";
         return done(2);
     }
     result.quiet = args.count("quiet") > 0;

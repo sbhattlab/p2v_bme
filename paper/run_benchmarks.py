@@ -1,4 +1,4 @@
-"""Benchmarks of p2v-bme on simulated alignments
+"""Benchmarks of vecme on simulated alignments
 (tables scaling, random_tree, baseline_10k, seqlen, maple, representative_sensitivity;
 figures scaling-rnasim, scaling-jc10k, scaling-random-tree, seqlen-effect, method_benchmarks;
 the round-limit runs of the supplement).
@@ -13,11 +13,11 @@ Flow:    each experiment x set x size x run of the paper's design
          (dataset replicate r, seed s; see runs_of)
            |
            v
-         p2v-bme -s rep<r>.fa -m JC69 --no-dedup --seed s --report-full [+ the experiment's option]
+         vecme -s rep<r>.fa -m JC69 --no-dedup --seed s --report-full [+ the experiment's option]
            |      (skipped if done; --no-dedup: every sequence searched, as in the paper)
            |
            v
-         RF to the true tree: p2v-bme -t <run>.nwk --supports rep<r>.true.nwk;
+         RF to the true tree: vecme -t <run>.nwk --supports rep<r>.true.nwk;
          10^6 and 10^7 expanded sequences: also the backbone splits; pandemic sets: eval_cmaple_rf
            |
            v
@@ -99,7 +99,7 @@ DESIGN = {
 
 
 class Run(NamedTuple):
-    """One p2v-bme run: experiment, set, size, dataset replicate, seed, name, extra options."""
+    """One vecme run: experiment, set, size, dataset replicate, seed, name, extra options."""
 
     experiment: str
     set: str
@@ -218,7 +218,7 @@ def prefix_of(args: Namespace, r: Run) -> Path:
 
 
 def infer(args: Namespace, r: Run) -> dict:
-    """Runs p2v-bme on a run's alignment unless its report exists: run -> the report."""
+    """Runs vecme on a run's alignment unless its report exists: run -> the report."""
     alignment, _ = dataset_files(args, r)
     if not alignment.exists():
         raise FileNotFoundError(

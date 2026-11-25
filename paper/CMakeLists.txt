@@ -1,4 +1,4 @@
-# Compiled tools of the paper's scripts (VECME_BUILD_PAPER_TOOLS), built into build/ next to p2v-bme
+# Compiled tools of the paper's scripts (VECME_BUILD_PAPER_TOOLS), built into build/ next to vecme
 
 # JC69 sequences along a tree (simulate_data.py)
 add_executable(sim_jc69_fast tools/sim_jc69_fast.c)

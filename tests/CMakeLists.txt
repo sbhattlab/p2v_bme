@@ -138,13 +138,13 @@ if(VECME_CUDA)
   gtest_discover_tests(test_device_gpu PROPERTIES ${GPU_TEST_PROPERTIES} DISCOVERY_TIMEOUT 60)
 endif()
 
-# The command line: tests/python/test_cli.py (pytest) runs p2v-bme and checks its exit code, output and files.
+# The command line: tests/python/test_cli.py (pytest) runs vecme and checks its exit code, output and files.
 # ctest runs it as cli (CPU tests) and, in CUDA builds, cli_gpu (GPU tests).
 add_executable(make_test_fasta make_test_fasta.cpp)
 target_link_libraries(make_test_fasta PRIVATE vecme_io vecme_simulations)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(CLI_PYTEST ${Python3_EXECUTABLE} -m pytest -p no:cacheprovider -v ${CMAKE_CURRENT_SOURCE_DIR}/python/test_cli.py)
-set(CLI_PYTEST_ENV VECME_BIN=$<TARGET_FILE:p2v-bme> VECME_MAKE_TEST_FASTA=$<TARGET_FILE:make_test_fasta>)
+set(CLI_PYTEST_ENV VECME_BIN=$<TARGET_FILE:vecme> VECME_MAKE_TEST_FASTA=$<TARGET_FILE:make_test_fasta>)
 add_test(NAME cli COMMAND ${CLI_PYTEST} -m "not gpu")
 set_tests_properties(cli PROPERTIES ENVIRONMENT "${CLI_PYTEST_ENV}")
 if(VECME_CUDA)

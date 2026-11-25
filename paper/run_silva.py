@@ -7,20 +7,20 @@ Inputs:  data/datasets/silva144/SILVA_144_SSURef_tax_silva_full_align_trunc.fast
          (only for the gtdb step)
 Options: --steps, --replicates, --bootstrap, --max-sites, --min-sites, --rank-first, --seed,
          --accelerator, --devices, --leaveout-runs, --arb-dump, --fasttree, --workers, --overwrite
-Flow:    distinct     the alignment p2v-bme searches: the 1,600 columns most occupied in the
+Flow:    distinct     the alignment vecme searches: the 1,600 columns most occupied in the
            |          first 50,000 sequences (--max-sites, --rank-first),
            |          the sequences with at least 1,200 valid sites there
            |          (--min-sites; the others are left out);
            |          one sequence per group of identical ones (the paper's representative);
            |          every sequence's taxonomy
            v
-         tree         p2v-bme -s searched.fa -m GTR+GC --seed 1; reattach_left_out puts each
+         tree         vecme -s searched.fa -m GTR+GC --seed 1; reattach_left_out puts each
            |          sequence left out next to its nearest searched sequence (tree.all.nwk)
            v
-         replicates   p2v-bme -s searched.fa ... -b r-r      (one run per replicate; spread them
+         replicates   vecme -s searched.fa ... -b r-r      (one run per replicate; spread them
            |          with --replicates)
            v
-         supports     p2v-bme -t tree.all.nwk --supports boot.nwk
+         supports     vecme -t tree.all.nwk --supports boot.nwk
            |
            v
          records      the tree of the distinct sequences: support by split size, taxonomic F1 and
@@ -31,7 +31,7 @@ Flow:    distinct     the alignment p2v-bme searches: the 1,600 columns most occ
            |
            v
          gtdb         the sequences with a GTDB classification: their own trees
-                      (p2v-bme, FastTree with --fasttree) and the tree, scored against GTDB's ranks
+                      (vecme, FastTree with --fasttree) and the tree, scored against GTDB's ranks
 Outputs: data/results/silva/
            taxonomy.tsv, searched.fa, left_out.fa, distinct.fa, distinct.json
            tree.{nwk,json} (the searched sequences), tree.all.{nwk,json} (every sequence)
@@ -102,7 +102,7 @@ DPANN_NAMES = (
     "Huberarchae|Undinarchae"
 )
 ORGANISMS = ("metagenome", "uncultured", "unnamed_isolate", "named_species")
-MIN_SEQUENCES = 4  # the fewest p2v-bme searches
+MIN_SEQUENCES = 4  # the fewest vecme searches
 # Leave-out runs: one per phylum of at least this many distinct sequences
 BIG_PHYLUM = 10000
 SUPPORT_BINS = ((0, 10), (10, 30), (30, 50), (50, 70), (70, 90), (90, 95), (95, 99), (99, 100.01))
@@ -112,14 +112,14 @@ INCERTAE_SEDIS = "Incertae Sedis"  # SILVA's name for an unplaced rank
 MIN_TAXON = 5  # GTDB taxa with fewer labelled sequences are not scored
 # Columns of the GTDB-classified sequences kept: at least this share of A/C/G/T
 GTDB_MIN_OCCUPANCY = 0.10
-CANONICAL = np.full(256, ord("-"), np.uint8)  # the base p2v-bme reads, '-' for a missing site
+CANONICAL = np.full(256, ord("-"), np.uint8)  # the base vecme reads, '-' for a missing site
 for _c, _b in zip(b"ACGTUacgtu", b"ACGTTACGTT"):
     CANONICAL[_c] = _b
 OCCUPIED = np.ones(256, bool)  # what the paper's column ranking counts: all but '-', '.', ' '
 OCCUPIED[list(b"-. ")] = False
 
 
-# ---- The alignment p2v-bme searches ----
+# ---- The alignment vecme searches ----
 
 
 def fasta_records(path: Path) -> Iterator[tuple[bytes, bytes]]:
@@ -205,7 +205,7 @@ def representatives(group: np.ndarray, phylum: np.ndarray, genus: np.ndarray) ->
 def distinct(
     alignment: Path, out: Path, max_sites: int, min_sites: int, rank_first: int, overwrite: bool
 ) -> None:
-    """Writes the alignment p2v-bme searches:
+    """Writes the alignment vecme searches:
     alignment -> searched.fa, left_out.fa, distinct.fa, distinct.json, taxonomy.tsv.
 
     Columns: the max_sites with the most characters other than '-', '.' and ' '
@@ -215,7 +215,7 @@ def distinct(
     the others to searched.fa.
     distinct.fa: one of each group of identical searched sequences
     (the same bases and missing sites), as the paper counts distinct sequences
-    (p2v-bme searches two of each group), chosen by representatives.
+    (vecme searches two of each group), chosen by representatives.
     """
     if not overwrite and (out / "distinct.json").exists():
         return
@@ -282,7 +282,7 @@ def distinct(
             "left_out": n_left_out,
             "searched": n_sequences - n_left_out,
             "distinct": len(groups),
-            # p2v-bme keeps two of each group in the search and sets the others aside
+            # vecme keeps two of each group in the search and sets the others aside
             "identical_set_aside": int(np.maximum(sizes - 2, 0).sum()),
             "columns_kept": columns.tolist(),
         },
@@ -290,10 +290,10 @@ def distinct(
 
 
 def check_distinct(out: Path) -> dict:
-    """Checks that the distinct sequences are those p2v-bme searched:
+    """Checks that the distinct sequences are those vecme searched:
     results -> distinct.json's record.
 
-    p2v-bme's report counts the sequences it searched and the identical ones it set aside;
+    vecme's report counts the sequences it searched and the identical ones it set aside;
     both must match.
     """
     d, report = (
@@ -303,7 +303,7 @@ def check_distinct(out: Path) -> dict:
     ours = (d["searched"], d["identical_set_aside"])
     theirs = (report["sequences"], report["identical_set_aside"])
     if ours != theirs:
-        raise SystemExit(f"distinct.json (searched, set aside) {ours} != p2v-bme's {theirs}")
+        raise SystemExit(f"distinct.json (searched, set aside) {ours} != vecme's {theirs}")
     return d
 
 
@@ -922,7 +922,7 @@ def leaveout(
     Each run searches the distinct sequences it keeps
     (GTR+GC fitted to them; repeat searches: another seed), and every branch of the tree,
     restricted to those sequences, is looked up in the new tree
-    (p2v-bme --supports with the new tree as the one replicate).
+    (vecme --supports with the new tree as the one replicate).
     """
     check_distinct(out)
     names = fasta_names(out / "distinct.fa")
@@ -1147,7 +1147,7 @@ def gtdb(
     results -> gtdb/ and gtdb_labelled_scores.json.
 
     Trees: the tree of the distinct sequences restricted to them ("full"),
-    p2v-bme on them alone ("ours"), and FastTree's distance and likelihood trees ("ft_me", "ft_ml")
+    vecme on them alone ("ours"), and FastTree's distance and likelihood trees ("ft_me", "ft_ml")
     when --fasttree is given or the files exist.
     """
     g = out / "gtdb"

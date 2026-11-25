@@ -1,6 +1,6 @@
 # Examples
 
-Two simulated alignments with their true trees, to try p2v-bme and to see what it recovers.
+Two simulated alignments with their true trees, to try vecme and to see what it recovers.
 
 | Files                            | Sequences x sites | Model          | Median p-distance |
 | -------------------------------- | ----------------- | -------------- | ----------------- |
@@ -12,7 +12,7 @@ shape alpha = 0.5. Median p-distance: over 4,000 random pairs of sequences, on t
 
 ## How they were made
 
-With `make_test_fasta` (`tests/make_test_fasta.cpp`, built with p2v-bme), from the repository root:
+With `make_test_fasta` (`tests/make_test_fasta.cpp`, built with vecme), from the repository root:
 
 ```bash
 pixi run make_test_fasta examples/jc69_1k 1000 1500 1
@@ -26,12 +26,12 @@ pixi run make_test_fasta examples/gtr_1k 1000 5000 2 --rates 1,4,1,1,4,1 --freqs
 - Sequences t0 ... t999. For the command-line tests, t3 has an `N` at site 6 and t4 gaps at sites 11-14.
 - The tool also writes `*_dups.fa` and `*.maple`, inputs of the command-line tests; they are not kept here.
 
-## Running p2v-bme
+## Running vecme
 
 ```bash
-p2v-bme -s examples/jc69_1k.fa -m JC69 -p jc69_1k
-p2v-bme -s examples/gtr_1k.fa -m GTR+GC -p gtr_1k
-p2v-bme -s examples/jc69_1k.fa -m JC69 -b 10 -p jc69_1k_b10
+vecme -s examples/jc69_1k.fa -m JC69 -p jc69_1k
+vecme -s examples/gtr_1k.fa -m GTR+GC -p gtr_1k
+vecme -s examples/jc69_1k.fa -m JC69 -b 10 -p jc69_1k_b10
 ```
 
 Without `-p`, the outputs go next to the alignment (`examples/jc69_1k.fa.nwk`, ...).
@@ -41,12 +41,12 @@ To compare a tree with the true one, give it to `--supports` as the only replica
 %:
 
 ```bash
-p2v-bme -t examples/jc69_1k_true.nwk --supports jc69_1k.nwk -p jc69_1k_vs_true
+vecme -t examples/jc69_1k_true.nwk --supports jc69_1k.nwk -p jc69_1k_vs_true
 ```
 
 ## Results
 
-p2v-bme 0.1.0 (67365ef), default options (`--seed 1`).
+vecme 0.1.0 (67365ef), default options (`--seed 1`).
 
 |                                              | `jc69_1k`     | `gtr_1k`                                 |
 | -------------------------------------------- | ------------- | ---------------------------------------- |

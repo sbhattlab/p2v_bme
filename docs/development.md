@@ -13,14 +13,14 @@ Besides the build prerequisites ([README](../README.md#prerequisites)):
 [pixi](https://pixi.sh) manages two environments (`pixi.toml`); the C and C++ compilers and the CUDA toolkit come from
 the system.
 
-| Environment | What for                                                                                                   | Tasks                                                                                     |
-| ----------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `default`   | building and testing p2v-bme: CMake, cxxopts, GoogleTest, Google Benchmark, Python, pytest, pre-commit, ty | `build`, `test`, `test-asan`, `test-python`, `make_test_fasta`                            |
-| `paper`     | the paper's scripts and plots: NumPy, pandas, Matplotlib, FastME, FastTree, VeryFastTree                   | `check-paper`, one task per script and per figure ([paper/README.md](../paper/README.md)) |
+| Environment | What for                                                                                                 | Tasks                                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `default`   | building and testing vecme: CMake, cxxopts, GoogleTest, Google Benchmark, Python, pytest, pre-commit, ty | `build`, `test`, `test-asan`, `test-python`, `make_test_fasta`                            |
+| `paper`     | the paper's scripts and plots: NumPy, pandas, Matplotlib, FastME, FastTree, VeryFastTree                 | `check-paper`, one task per script and per figure ([paper/README.md](../paper/README.md)) |
 
 | Task                            | Runs                                                                                                                                  |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `pixi run build`                | `cmake --preset default` and `cmake --build --preset default -j 8`: `build/p2v-bme`, the tests and the paper's tools                  |
+| `pixi run build`                | `cmake --preset default` and `cmake --build --preset default -j 8`: `build/vecme`, the tests and the paper's tools                    |
 | `pixi run test`                 | `build`, then `ctest --preset default` (8 tests at a time)                                                                            |
 | `pixi run test-asan`            | the CPU tests under AddressSanitizer and UndefinedBehaviorSanitizer, in `build-asan/`                                                 |
 | `pixi run test-python`          | `build`, then the Python tests (`tests/python`, pytest); extra arguments go to pytest, e.g. `-m "not gpu"`                            |
@@ -32,12 +32,12 @@ the system.
 Four configure presets (`CMakePresets.json`), each with a build preset of the same name, and a test preset for all but
 `release`:
 
-| Preset    | Folder           | Build                                                                                                          |
-| --------- | ---------------- | -------------------------------------------------------------------------------------------------------------- |
-| `default` | `build/`         | the package, the tests and the paper's tools; the GPU code if CUDA is found                                    |
-| `ci`      | `build-ci/`      | CPU only, warnings as errors, as in CI                                                                         |
-| `asan`    | `build-asan/`    | CPU only, with AddressSanitizer and UndefinedBehaviorSanitizer                                                 |
-| `release` | `build-release/` | p2v-bme alone, as the prebuilt binary: GPU code for compute capability 7.5 to 12.0 and PTX, runtimes linked in |
+| Preset    | Folder           | Build                                                                                                        |
+| --------- | ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| `default` | `build/`         | the package, the tests and the paper's tools; the GPU code if CUDA is found                                  |
+| `ci`      | `build-ci/`      | CPU only, warnings as errors, as in CI                                                                       |
+| `asan`    | `build-asan/`    | CPU only, with AddressSanitizer and UndefinedBehaviorSanitizer                                               |
+| `release` | `build-release/` | vecme alone, as the prebuilt binary: GPU code for compute capability 7.5 to 12.0 and PTX, runtimes linked in |
 
 ```bash
 pixi run cmake --preset ci
@@ -53,7 +53,7 @@ Options, set at configure time (`-D<option>=<value>`); later builds in the same 
 | `CMAKE_CUDA_ARCHITECTURES` | `native`                | the GPUs to compile for: those of the build machine, or e.g. `90` (H100) |
 | `VECME_BUILD_PAPER_TOOLS`  | `ON` in the presets     | build the paper's tools (`paper/tools`) into `build/`                    |
 | `BUILD_TESTING`            | `ON`                    | build the tests                                                          |
-| `VECME_STATIC_RUNTIME`     | `OFF` (`release`: `ON`) | link the CUDA runtime, libstdc++, libgcc and libgomp into p2v-bme        |
+| `VECME_STATIC_RUNTIME`     | `OFF` (`release`: `ON`) | link the CUDA runtime, libstdc++, libgcc and libgomp into vecme          |
 
 The version is set in `project()` of `CMakeLists.txt`; `pixi.toml` and `CITATION.cff` repeat it, so a release changes
 all three.

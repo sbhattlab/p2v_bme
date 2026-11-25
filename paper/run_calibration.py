@@ -11,13 +11,13 @@ Flow:    each calibration set
          (RNASim 10^5 and 10^6, random tree 10^6, pandemic 10^5; random tree 10^7 on request)
            |
            v
-         ref      p2v-bme -s <alignment> -m JC69 --no-dedup --seed 1 --report-full
-         boot     p2v-bme ... --seed 1 -b r-r                r = 1..64, one run each (--replicates)
-         seed     p2v-bme ... --seed s --no-branch-lengths   s = 2..9: the search's noise alone
+         ref      vecme -s <alignment> -m JC69 --no-dedup --seed 1 --report-full
+         boot     vecme ... --seed 1 -b r-r                r = 1..64, one run each (--replicates)
+         seed     vecme ... --seed s --no-branch-lengths   s = 2..9: the search's noise alone
            |      (each run skipped if its report exists;
            |      --no-dedup: every tree on every sequence, as in the paper)
            v
-         score    p2v-bme -t ref.nwk --supports
+         score    vecme -t ref.nwk --supports
            |      {boot.nwk, seed.nwk, the true tree; pandemic: CMAPLE's, MAPLE's tree}
            |      (once every tree of the set exists;
            |      multifurcations of the other trees resolved as the paper did)
@@ -159,7 +159,7 @@ def folder_of(args: Namespace, tag: str) -> Path:
 
 
 def run_names(args: Namespace) -> dict[str, list[tuple[str, list[str]]]]:
-    """Lists the runs of a calibration set by step: args -> {step: [(name, p2v-bme options)]}."""
+    """Lists the runs of a calibration set by step: args -> {step: [(name, vecme options)]}."""
     seed = ["--seed", str(REFERENCE_SEED)]
     return {
         "ref": [("ref", [*seed, "--report-full"])],
@@ -350,7 +350,7 @@ def by_size(d: dict[str, np.ndarray]) -> dict:
 
 
 def version_of(args: Namespace, tag: str) -> str:
-    """Gives the p2v-bme version of a calibration's reference run: tag -> version."""
+    """Gives the vecme version of a calibration's reference run: tag -> version."""
     return read_json(folder_of(args, tag) / "ref.json")["version"]
 
 

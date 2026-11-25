@@ -23,7 +23,7 @@ jobs:
           # ty checks the paper's scripts and the plots against the paper environment's packages (ty.toml)
           environments: default paper
       - run: pixi run ty check
-      # Builds p2v-bme (CPU only: no CUDA on the runner), then runs the command-line tests
+      # Builds vecme (CPU only: no CUDA on the runner), then runs the command-line tests
       - run: pixi run test-python -m "not gpu"
       # Every paper script and plot on tiny inputs
       - run: pixi run -e paper check-paper

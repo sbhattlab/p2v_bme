@@ -1,5 +1,5 @@
 """
-End-to-end tests of the p2v-bme command.
+End-to-end tests of the vecme command.
 Each test runs the binary and checks its exit code, what it prints and the files it writes (<prefix>.nwk,
 <prefix>.json, <prefix>.log): help and version, errors, and runs on simulated alignments.
 The library has its own tests (gtest); these check what only the command does.
@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 BUILD = Path(__file__).resolve().parents[2] / "build"
-VECME = os.environ.get("VECME_BIN", str(BUILD / "p2v-bme"))
+VECME = os.environ.get("VECME_BIN", str(BUILD / "vecme"))
 MAKE_TEST_FASTA = os.environ.get("VECME_MAKE_TEST_FASTA", str(BUILD / "make_test_fasta"))
 
 # Top-level keys of the report, in order (--report-full adds "details")
@@ -54,7 +54,7 @@ def data(tmp_path_factory):
 
 
 def run(*args):
-    """Runs p2v-bme with these arguments; returns the finished process (returncode, stdout, stderr)."""
+    """Runs vecme with these arguments; returns the finished process (returncode, stdout, stderr)."""
     return subprocess.run([VECME, *map(str, args)], capture_output=True, text=True, check=False)
 
 
@@ -76,9 +76,9 @@ def test_default_run(data, tmp_path, accelerator):
     # auto: the GPU when one is visible (falling back to the CPU would print a warning)
     assert p.stderr == ""
     lines = p.stdout.splitlines()
-    assert lines[0].startswith("p2v-bme: read 300 sequences x 600 sites")
+    assert lines[0].startswith("vecme: read 300 sequences x 600 sites")
     assert any(line.startswith("[DIAG]") for line in lines)  # progress of the search
-    assert lines[-1].startswith("p2v-bme: sample start,") and "BME length" in lines[-1]
+    assert lines[-1].startswith("vecme: sample start,") and "BME length" in lines[-1]
     assert leaf_names(tmp_path / "out.nwk") == NAMES
     r = report(tmp_path / "out")
     assert list(r) == SUMMARY_KEYS
@@ -100,7 +100,7 @@ def test_quiet_keeps_warnings(data, tmp_path):
     assert (p.returncode, p.stdout, p.stderr) == (
         0,
         "",
-        f"p2v-bme: warning: {warning}\n",
+        f"vecme: warning: {warning}\n",
     )
     assert report(tmp_path / "out")["warnings"] == [warning]
 
@@ -116,7 +116,7 @@ def test_log(data, tmp_path):
     assert p.returncode == 0, p.stderr
     log = (tmp_path / "out.log").read_text()
     *progress, last = p.stdout.splitlines(keepends=True)
-    assert p.stderr.startswith("p2v-bme: warning:")
+    assert p.stderr.startswith("vecme: warning:")
     assert log == "".join(progress) + p.stderr + last
     q = run(*args, "-q", "--overwrite")
     assert (q.returncode, q.stdout, q.stderr) == (0, "", p.stderr)
@@ -140,7 +140,7 @@ def test_previous_run(data, tmp_path):
     assert (p.returncode, p.stdout, p.stderr) == (
         1,
         "",
-        f"p2v-bme: error: {out}.nwk {message}",
+        f"vecme: error: {out}.nwk {message}",
     )
     assert {f.name: f.read_bytes() for f in tmp_path.iterdir()} == before
     assert run(*args, "--seed", "2", "--overwrite").returncode == 0
@@ -148,7 +148,7 @@ def test_previous_run(data, tmp_path):
     # --supports writes <prefix>.support.nwk (new here) and <prefix>.json
     supports = ["-t", f"{out}.nwk", "--supports", data / "input_true.nwk", "-p", out]
     p = run(*supports)
-    assert (p.returncode, p.stderr) == (1, f"p2v-bme: error: {out}.json {message}")
+    assert (p.returncode, p.stderr) == (1, f"vecme: error: {out}.json {message}")
     assert run(*supports, "--overwrite").returncode == 0
     assert "supports" in report(out)
 
@@ -182,7 +182,7 @@ def test_options_reach_the_run(data, tmp_path):
     )
     assert p.returncode == 0, p.stderr
     # double precision without --accelerator: the CPU, with a warning
-    assert p.stderr == "p2v-bme: warning: double precision: running on the CPU\n"
+    assert p.stderr == "vecme: warning: double precision: running on the CPU\n"
     r = report(tmp_path / "out")
     expected = {
         "start_tree": "sample",
@@ -216,7 +216,7 @@ def test_gtr_gc_fit(data, tmp_path):
     p = run("-s", data / "input.fa", "-m", "GTR+GC", "-a", "cpu", "-p", tmp_path / "out")
     assert (p.returncode, p.stderr) == (0, "")
     assert any(
-        line.startswith("p2v-bme: GTR+GC fit on 44850 pairs in ") for line in p.stdout.splitlines()
+        line.startswith("vecme: GTR+GC fit on 44850 pairs in ") for line in p.stdout.splitlines()
     )
     m = report(tmp_path / "out")["substitution_model"]
     assert list(m) == ["name", "rates", "alpha", "fit"]
@@ -236,7 +236,7 @@ def test_gtr_fit(data, tmp_path):
     p = run("-s", data / "input.fa", "-m", "GTR", "-a", "cpu", "-p", tmp_path / "out")
     assert (p.returncode, p.stderr) == (0, "")
     assert any(
-        line.startswith("p2v-bme: GTR fit on 44850 pairs in ")
+        line.startswith("vecme: GTR fit on 44850 pairs in ")
         and ": rates (AC, AG, AT, CG, CT, GT) " in line
         for line in p.stdout.splitlines()
     )
@@ -266,7 +266,7 @@ def test_random_start_without_branch_lengths(data, tmp_path):
         *("-t", "random", "--no-branch-lengths"),
     )
     assert p.returncode == 0, p.stderr
-    assert p.stdout.splitlines()[-1].startswith("p2v-bme: random start,")
+    assert p.stdout.splitlines()[-1].startswith("vecme: random start,")
     assert leaf_names(tmp_path / "out.nwk") == NAMES
     r = report(tmp_path / "out")
     assert r["bme_length"] is None
@@ -327,7 +327,7 @@ def test_duplicates_are_put_back(data, tmp_path, dedup):
     )
     assert p.returncode == 0, p.stderr
     # t1's group of 4 keeps 2, t2's group of 3 keeps 2
-    assert ("p2v-bme: 3 identical sequences set aside" in p.stdout) == dedup
+    assert ("vecme: 3 identical sequences set aside" in p.stdout) == dedup
     assert leaf_names(tmp_path / "out.nwk") == NAMES_DUPS
     assert report(tmp_path / "out")["details"]["input"]["identical_set_aside"] == (
         3 if dedup else 0
@@ -353,7 +353,7 @@ def test_bootstrap(data, tmp_path):
         "--report-full",
     )
     assert (p.returncode, p.stderr) == (0, "")
-    assert "p2v-bme: bootstrap replicate 3/3:" in p.stdout
+    assert "vecme: bootstrap replicate 3/3:" in p.stdout
     r = report(tmp_path / "out")
     assert list(r) == SUMMARY_KEYS[:7] + ["bootstrap"] + SUMMARY_KEYS[7:] + ["details"]
     b = r["bootstrap"]
@@ -440,7 +440,7 @@ def test_maple_gives_the_fasta_tree(data, tmp_path):
 def test_help():
     p = run("--help")
     assert (p.returncode, p.stderr) == (0, "")
-    assert "Usage:\n  p2v-bme -s ALIGNMENT -m MODEL [options]\n" in p.stdout
+    assert "Usage:\n  vecme -s ALIGNMENT -m MODEL [options]\n" in p.stdout
     assert p.stdout.endswith("All options: --help-all\n")
 
 
@@ -464,7 +464,7 @@ def test_version(flag):
     """The version, then the git revision of a development build in brackets."""
     p = run(flag)
     assert (p.returncode, p.stderr) == (0, "")
-    assert re.fullmatch(r"p2v-bme 0\.1\.0( \(.+\))?\n", p.stdout), p.stdout
+    assert re.fullmatch(r"vecme 0\.1\.0( \(.+\))?\n", p.stdout), p.stdout
 
 
 # The errors of the command: its arguments ({data}, {tmp}: the input and output folders), the exit code and the line
@@ -475,84 +475,84 @@ ERRORS = {
     "missing -m": (
         [*INPUT],
         2,
-        "p2v-bme: -s ALIGNMENT and -m MODEL are required (see --help)",
+        "vecme: -s ALIGNMENT and -m MODEL are required (see --help)",
     ),
     "extra argument": (
         [*INPUT, "-m", "JC69", "extra"],
         1,
-        "p2v-bme: error: unexpected argument 'extra' (see --help)",
+        "vecme: error: unexpected argument 'extra' (see --help)",
     ),
     "unknown model": (
         [*INPUT, "-m", "XYZ"],
         1,
-        "p2v-bme: error: unknown value for model: 'XYZ' (JC69, K80, F81, F84, TN93, LogDet, GTR or GTR+GC)",
+        "vecme: error: unknown value for model: 'XYZ' (JC69, K80, F81, F84, TN93, LogDet, GTR or GTR+GC)",
     ),
     "GTR+G": (
         [*INPUT, "-m", "GTR+G"],
         1,
-        "p2v-bme: error: model 'GTR+G': continuous gamma is written +GC (e.g. GTR+GC); +G is not used",
+        "vecme: error: model 'GTR+G': continuous gamma is written +GC (e.g. GTR+GC); +G is not used",
     ),
     "unknown accelerator": (
         [*INPUT, "-m", "JC69", "-a", "tpu"],
         1,
-        "p2v-bme: error: unknown value for accelerator: 'tpu' (cpu, gpu or auto)",
+        "vecme: error: unknown value for accelerator: 'tpu' (cpu, gpu or auto)",
     ),
     "unknown precision": (
         [*INPUT, "-m", "JC69", "--precision", "quad"],
         1,
-        "p2v-bme: error: unknown value for precision: 'quad' (single or double)",
+        "vecme: error: unknown value for precision: 'quad' (single or double)",
     ),
     # the two GPU errors come before any GPU is used, so they need none
     "GPU listed twice": (
         [*INPUT, "-m", "JC69", "-a", "gpu", "-d", "0,0"],
         1,
-        "p2v-bme: error: GPU 0 is listed twice",
+        "vecme: error: GPU 0 is listed twice",
     ),
     "GPU in double precision": (
         [*INPUT, "-m", "JC69", "-a", "gpu", "--precision", "double"],
         1,
-        "p2v-bme: error: the GPU computes in single precision; double precision runs on the CPU (--accelerator cpu)",
+        "vecme: error: the GPU computes in single precision; double precision runs on the CPU (--accelerator cpu)",
     ),
     "negative bootstrap": (
         [*INPUT, "-m", "JC69", "-b", "-1"],
         1,
-        "p2v-bme: error: -b takes B or A-B (replicates A to B), e.g. -b 100 or -b 26-50, not '-1'",
+        "vecme: error: -b takes B or A-B (replicates A to B), e.g. -b 100 or -b 26-50, not '-1'",
     ),
     "bootstrap range backwards": (
         [*INPUT, "-m", "JC69", "-b", "3-2"],
         1,
-        "p2v-bme: error: -b A-B needs 1 <= A <= B, not '3-2'",
+        "vecme: error: -b A-B needs 1 <= A <= B, not '3-2'",
     ),
     "bootstrap range from 0": (
         [*INPUT, "-m", "JC69", "-b", "0-2"],
         1,
-        "p2v-bme: error: -b A-B needs 1 <= A <= B, not '0-2'",
+        "vecme: error: -b A-B needs 1 <= A <= B, not '0-2'",
     ),
     "supports without a tree": (
         ["--supports", "{tmp}/reps.nwk"],
         2,
-        "p2v-bme: --supports needs -t TREE, and no -s, -m or -b (see --help-all)",
+        "vecme: --supports needs -t TREE, and no -s, -m or -b (see --help-all)",
     ),
     "supports with an alignment": (
         [*INPUT, "-t", "{tmp}/t.nwk", "--supports", "{tmp}/reps.nwk"],
         2,
-        "p2v-bme: --supports needs -t TREE, and no -s, -m or -b (see --help-all)",
+        "vecme: --supports needs -t TREE, and no -s, -m or -b (see --help-all)",
     ),
     # checked by the GTR+GC fit and by infer(), after the read: -q and the CPU keep stdout and stderr to the error
     "no GTR+GC fit pairs": (
         [*INPUT, "-m", "GTR+GC", "-a", "cpu", "-q", "--gtr-fit-pairs", "0"],
         1,
-        "p2v-bme: error: GTR+GC fit: the number of pairs must be >= 1",
+        "vecme: error: GTR+GC fit: the number of pairs must be >= 1",
     ),
     "negative time limit": (
         [*INPUT, "-m", "JC69", "-a", "cpu", "-q", "--time-limit", "-5"],
         1,
-        "p2v-bme: error: time limit must be >= 0 (0 = none)",
+        "vecme: error: time limit must be >= 0 (0 = none)",
     ),
     "missing input": (
         ["-s", "{tmp}/missing.fa", "-p", "{tmp}/out", "-m", "JC69", "-a", "cpu"],
         1,
-        "p2v-bme: error: cannot open {tmp}/missing.fa",
+        "vecme: error: cannot open {tmp}/missing.fa",
     ),
     "missing input with -b": (
         [
@@ -568,7 +568,7 @@ ERRORS = {
             "2",
         ],
         1,
-        "p2v-bme: error: cannot open {tmp}/missing.fa",
+        "vecme: error: cannot open {tmp}/missing.fa",
     ),
     "supports of a missing tree": (
         [
@@ -580,7 +580,7 @@ ERRORS = {
             "{tmp}/out",
         ],
         1,
-        "p2v-bme: error: cannot open {tmp}/missing.nwk",
+        "vecme: error: cannot open {tmp}/missing.nwk",
     ),
     "unwritable output": (
         [
@@ -594,7 +594,7 @@ ERRORS = {
             "cpu",
         ],
         1,
-        "p2v-bme: error: cannot write /nonexistent_dir/x.log",
+        "vecme: error: cannot write /nonexistent_dir/x.log",
     ),
 }
 

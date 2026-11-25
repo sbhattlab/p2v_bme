@@ -19,9 +19,9 @@ else()
   set(VECME_CUDA_FOUND OFF)
 endif()
 option(VECME_CUDA "Build the GPU code (needs the CUDA toolkit)" ${VECME_CUDA_FOUND})
-# The prebuilt binary (the release preset): the CUDA runtime, libstdc++, libgcc and libgomp linked into p2v-bme, so that
+# The prebuilt binary (the release preset): the CUDA runtime, libstdc++, libgcc and libgomp linked into vecme, so that
 # it needs only glibc and, for the GPU, an NVIDIA driver.
-option(VECME_STATIC_RUNTIME "Link the CUDA and C++ runtimes into p2v-bme" OFF)
+option(VECME_STATIC_RUNTIME "Link the CUDA and C++ runtimes into vecme" OFF)
 if(VECME_CUDA)
   if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
     set(CMAKE_CUDA_ARCHITECTURES native)
@@ -36,7 +36,7 @@ endif()
 if(VECME_STATIC_RUNTIME)
   execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libgomp.a OUTPUT_VARIABLE VECME_LIBGOMP
                   OUTPUT_STRIP_TRAILING_WHITESPACE)
-  set(OpenMP_gomp_LIBRARY ${VECME_LIBGOMP} CACHE FILEPATH "libgomp, linked into p2v-bme" FORCE)
+  set(OpenMP_gomp_LIBRARY ${VECME_LIBGOMP} CACHE FILEPATH "libgomp, linked into vecme" FORCE)
 endif()
 find_package(OpenMP REQUIRED COMPONENTS C CXX)
 
@@ -133,13 +133,13 @@ target_compile_options(vecme_cli PRIVATE -O3)
 target_link_libraries(vecme_cli PUBLIC vecme_lib PRIVATE cxxopts::cxxopts)
 
 # Command-line tool (GPU and CPU, or CPU only without CUDA)
-add_executable(p2v-bme src/main.cpp)
-target_compile_options(p2v-bme PRIVATE -O3)
-target_link_libraries(p2v-bme PRIVATE vecme_cli vecme_lib vecme_io vecme_processing OpenMP::OpenMP_CXX)
+add_executable(vecme src/main.cpp)
+target_compile_options(vecme PRIVATE -O3)
+target_link_libraries(vecme PRIVATE vecme_cli vecme_lib vecme_io vecme_processing OpenMP::OpenMP_CXX)
 if(VECME_STATIC_RUNTIME)
-  target_link_options(p2v-bme PRIVATE -static-libstdc++ -static-libgcc)
+  target_link_options(vecme PRIVATE -static-libstdc++ -static-libgcc)
 endif()
-install(TARGETS p2v-bme)
+install(TARGETS vecme)
 
 # ---- the paper's tools ----------------------------------------------------------------------------------
 option(VECME_BUILD_PAPER_TOOLS "Build the compiled tools of the paper's scripts (paper/tools)" OFF)

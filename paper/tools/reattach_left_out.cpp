@@ -6,11 +6,11 @@
  * Nearest: the smallest p-distance (mismatches / valid sites shared), which orders pairs as the Jukes-Cantor distance
  * does; sequences that share no valid site with it are not candidates.
  * Ties go to the earlier searched sequence, and a sequence that shares no valid site with any goes next to the first.
- * Identical copies beyond two are not compared (as p2v-bme's dedup): their distances equal their first copy's.
+ * Identical copies beyond two are not compared (as vecme's dedup): their distances equal their first copy's.
  *
  *   reattach_left_out TREE.nwk SEARCHED.fa LEFT_OUT.fa OUT.nwk
  *
- * TREE: p2v-bme's tree of SEARCHED (the same leaf names), with branch lengths; LEFT_OUT: the sequences left out, on
+ * TREE: vecme's tree of SEARCHED (the same leaf names), with branch lengths; LEFT_OUT: the sequences left out, on
  * the same columns.
  * Prints one JSON line: {"searched": S, "left_out": L, "no_shared_site": the left-out sequences without a candidate}.
  */

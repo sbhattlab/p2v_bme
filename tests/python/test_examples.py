@@ -1,9 +1,9 @@
 """
-End-to-end runs on the example alignments (examples/README.md): p2v-bme on the CPU recovers each true tree and, on
+End-to-end runs on the example alignments (examples/README.md): vecme on the CPU recovers each true tree and, on
 gtr_1k, the GTR+GC parameters, within loose bounds.
 
 CI runs them with the other tests in tests/python (pixi run test-python -m "not gpu"); ctest does not.
-By hand, after a build (the binary defaults to build/p2v-bme):
+By hand, after a build (the binary defaults to build/vecme):
     pytest tests/python/test_examples.py
 """
 
@@ -18,7 +18,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "examples"
-VECME = os.environ.get("VECME_BIN", str(ROOT / "build" / "p2v-bme"))
+VECME = os.environ.get("VECME_BIN", str(ROOT / "build" / "vecme"))
 
 # Loose bounds; the README's runs gave 100 and 99.9, alpha 0.416 and a rate error of 0.084 (--seed 1 to 5: the same
 # mean_exact, alpha 0.414-0.416, rate error 0.084-0.086)
@@ -31,7 +31,7 @@ TRUE_RATES = [1.0, 4.0, 1.0, 1.0, 4.0, 1.0]  # AC, AG, AT, CG, CT, GT
 
 
 def run(*args):
-    """Runs p2v-bme on the CPU with these arguments; raises if it fails."""
+    """Runs vecme on the CPU with these arguments; raises if it fails."""
     subprocess.run([VECME, *map(str, args), "-a", "cpu", "-q"], check=True)
 
 
@@ -56,7 +56,7 @@ def test_example(tmp_path, name, model):
     if model == "GTR+GC":
         fit = report(tmp_path / name)["substitution_model"]
         assert abs(fit["alpha"] / TRUE_ALPHA - 1) <= MAX_ALPHA_RELATIVE_ERROR
-        # p2v-bme reports the rates scaled to mean 1
+        # vecme reports the rates scaled to mean 1
         mean_rate = sum(TRUE_RATES) / len(TRUE_RATES)
         log_errors = [math.log(r * mean_rate / t) for r, t in zip(fit["rates"], TRUE_RATES)]
         assert math.sqrt(sum(e * e for e in log_errors) / len(log_errors)) <= MAX_RATE_RMS_LOG_ERROR

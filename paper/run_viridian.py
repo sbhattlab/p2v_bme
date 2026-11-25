@@ -12,16 +12,16 @@ Options: --steps, --replicates, --repeats, --seed, --accelerator, --devices, --m
 Flow:    maple        MAPLE's tree with the genomes' names, and each genome's lineage and date
            |
            v
-         tree         p2v-bme -s ALIGNMENT -m JC69 --no-dedup --seed 1
+         tree         vecme -s ALIGNMENT -m JC69 --no-dedup --seed 1
            |          (every genome searched, as in the paper)
            v
-         replicates   p2v-bme ... -b r-r      (one run per replicate; spread them with --replicates)
+         replicates   vecme ... -b r-r      (one run per replicate; spread them with --replicates)
            |
            v
-         repeats      p2v-bme ... --seed s, s = 2..9
+         repeats      vecme ... --seed s, s = 2..9
            |          (repeat searches on the unchanged alignment)
            v
-         supports     p2v-bme -t TREE --supports FILE: our tree and MAPLE's over the bootstrap
+         supports     vecme -t TREE --supports FILE: our tree and MAPLE's over the bootstrap
            |          trees, the repeat searches and each other
            v
          records      agreement and support by branch length,
@@ -257,7 +257,7 @@ def maple_tree(jsonl_zip: Path, alignment: Path, out: Path, overwrite: bool) -> 
     )
 
 
-# ---- p2v-bme runs ----
+# ---- vecme runs ----
 
 
 def search_time(report: dict) -> float:

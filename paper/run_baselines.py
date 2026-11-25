@@ -1,7 +1,7 @@
 """Comparison programs: FastTree, VeryFastTree, FastME, DIPPER, MAPLE and CMAPLE
 (tables comparators, baseline_10k, maple; the comparator series of the scaling figures).
 
-They do not depend on p2v-bme, so their recorded runs can be reused:
+They do not depend on vecme, so their recorded runs can be reused:
 --source copies the paper's records unchanged into data/results/baselines/, with their provenance.
 --run shows how they were made and makes them again,
 in the same layout, family by family (one of the two is needed):
@@ -94,7 +94,7 @@ GRIDS = {
 }
 REPLICATES = 5  # up to 100,000 sequences; one above
 THREADS = 64  # CPU programs, as recorded
-DIPPER_THREADS = 12  # DIPPER: the CPU threads of every p2v-bme run of the paper
+DIPPER_THREADS = 12  # DIPPER: the CPU threads of every vecme run of the paper
 FAMILIES = ("default", "random_start", "dipper", "maple")
 DEFAULT_METHODS = ("FastTree-ML", "VeryFastTree-ML", "FastTree-ME", "VeryFastTree-ME")
 JC69_SETS_PREFIXES = ("jc", "yule")  # simulated under JC69: -nocat
@@ -349,7 +349,7 @@ def run_random_start(args, out: Path, tag: str, n: int, rep: int) -> None:
     work = out / "random_start" / f"{tag}_rep{rep}_{n}"
     work.mkdir(parents=True, exist_ok=True)
     sites = alignment_sites(fasta)
-    # The random start: p2v-bme's random tree (no search), every edge 0.05 long
+    # The random start: vecme's random tree (no search), every edge 0.05 long
     start_args = [
         "-s",
         str(fasta),

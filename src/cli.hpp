@@ -1,7 +1,7 @@
 /*
  * cli.hpp
  *
- * The command line of p2v-bme: the arguments as Settings and the Report's command-line part; --help, --help-all and
+ * The command line of vecme: the arguments as Settings and the Report's command-line part; --help, --help-all and
  * --version.
  */
 #ifndef VECME_CLI_HPP

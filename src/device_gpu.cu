@@ -1830,10 +1830,10 @@ void check_kernel_image(int gpu) {
         cudaGetLastError();
         cudaDeviceProp prop;
         CUDA_CHECK(cudaGetDeviceProperties(&prop, gpu));
-        throw std::runtime_error("this p2v-bme has no GPU code for GPU " + std::to_string(gpu) + " (" + prop.name +
+        throw std::runtime_error("this vecme has no GPU code for GPU " + std::to_string(gpu) + " (" + prop.name +
                                  ", compute capability " + std::to_string(prop.major) + "." +
                                  std::to_string(prop.minor) +
-                                 "); build p2v-bme from source, or run on the CPU (--accelerator cpu)");
+                                 "); build vecme from source, or run on the CPU (--accelerator cpu)");
     }
     if (err != cudaSuccess)
         cuda_fail(err, "cudaFuncGetAttributes", __LINE__);
@@ -2056,7 +2056,7 @@ std::string no_gpu_reason() {
     if (driver == 0)
         return "no NVIDIA driver found";
     if (err == cudaErrorInsufficientDriver)
-        return "the NVIDIA driver (CUDA " + cuda_version(driver) + ") is too old for this p2v-bme (CUDA " +
+        return "the NVIDIA driver (CUDA " + cuda_version(driver) + ") is too old for this vecme (CUDA " +
                cuda_version(runtime) + ")";
     if (err == cudaSuccess || err == cudaErrorNoDevice)
         return "no GPU found";
