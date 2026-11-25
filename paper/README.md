@@ -168,6 +168,7 @@ Every table of the paper (`--tables`; default: all). A table whose results are m
 | `fig2d_seqlen_effect`             | 2d: RF error on 1,000 and 10,000 sites                         | `scaling_methods.tsv`                       |
 | `fig3a_pandemic_time`             | 3a: time of VecME, MAPLE and CMAPLE, pandemic sets             | `maple.tsv`                                 |
 | `fig3b_pandemic_rf_error`         | 3b: RF error of the three programs by branch length, pandemic  | `maple.tsv`                                 |
+| `fig3c_bootstrap_calibration`     | 3c: branches in the true tree by bootstrap support             | `calibration.tsv`                           |
 | `fig3d_sarscov2_variants`         | 3d: supports of the named SARS-CoV-2 variants                  | `viridian_variants.tsv`                     |
 | `fig3e_sarscov2_resolution`       | 3e: resolution of the SARS-CoV-2 tree by sampling month        | `viridian_resolution.tsv`                   |
 | `fig4a_silva_clades`              | 4a: the SILVA 144 tree reduced to the domains and major clades | `silva_clades.tsv`, `silva_clade_paths.tsv` |
