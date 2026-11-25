@@ -47,6 +47,10 @@ data_*/
 !examples/gtr_1k.fa
 !examples/gtr_1k_true.nwk
 
+# Comparison programs installed by scripts/install_baselines.sh
+extern/maple/
+extern/dipper/
+
 # pixi environments
 .pixi/*
 !.pixi/config.toml
