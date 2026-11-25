@@ -13,7 +13,7 @@
 #include "parallel_errors.hpp"
 #include "random.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 Tree build_random_tree(int32_t n_leaves, uint64_t seed) {
     Tree tree;
@@ -23,14 +23,14 @@ Tree build_random_tree(int32_t n_leaves, uint64_t seed) {
     for (int32_t i = 0; i < n_leaves; ++i) {
         uf[i] = i;
     }
-    p2vbme::shuffle(uf.begin(), uf.end(), st); // random leaf labels
+    vecme::shuffle(uf.begin(), uf.end(), st); // random leaf labels
     tree.c1.assign(2 * n_leaves - 1, 0);
     tree.c2.assign(2 * n_leaves - 1, 0);
     for (int32_t k = 0; k < n_leaves - 1; ++k) {
         int32_t i = (n_leaves - 2) - k;
         int32_t m = n_leaves + k;
         // Draw an ordered phylo2vec entry, decoded into c1/c2.
-        int32_t x = (int32_t)p2vbme::uniform_below(st, (uint64_t)(i + 1)); // v_i ~ U{0..i}
+        int32_t x = (int32_t)vecme::uniform_below(st, (uint64_t)(i + 1)); // v_i ~ U{0..i}
         tree.c1[m] = uf[i + 1];
         tree.c2[m] = uf[x];
         uf[x] = m;
@@ -43,14 +43,14 @@ Tree build_sample_and_place_tree(int32_t n_leaves, int32_t &n0_leaves, uint64_t 
     const int n_devices = (int)devices.size();
     // clamp the sample size to [START_SAMPLE_MIN, n_leaves / 2]
     n0_leaves = n0_leaves > n_leaves / 2 ? n_leaves / 2 : n0_leaves;
-    n0_leaves = n0_leaves < p2vbme::START_SAMPLE_MIN ? p2vbme::START_SAMPLE_MIN : n0_leaves;
+    n0_leaves = n0_leaves < vecme::START_SAMPLE_MIN ? vecme::START_SAMPLE_MIN : n0_leaves;
 
     // 1. pick n0_leaves sequences at random (partial Fisher-Yates)
     uint64_t st = seed;
     std::vector<int32_t> order(n_leaves);
     for (int32_t i = 0; i < n_leaves; ++i)
         order[i] = i;
-    p2vbme::partial_shuffle(order.begin(), order.end(), n0_leaves, st);
+    vecme::partial_shuffle(order.begin(), order.end(), n0_leaves, st);
     // the sampled sequences, in random order: samp[j] is leaf j of t0
     std::vector<int32_t> samp(order.begin(), order.begin() + n0_leaves);
     // the other sequences (the queries of step 4), sorted
@@ -63,15 +63,15 @@ Tree build_sample_and_place_tree(int32_t n_leaves, int32_t &n0_leaves, uint64_t 
     for (int d = 0; d < n_devices; ++d)
         devices[d]->push_subset(samp);
     Tree t0;
-    if (n0_leaves > p2vbme::START_RANDOM_TREE_MAX) {
-        int32_t n0_inner = std::max(p2vbme::START_RANDOM_TREE_MAX, n0_leaves / p2vbme::START_SAMPLE_DIVISOR);
+    if (n0_leaves > vecme::START_RANDOM_TREE_MAX) {
+        int32_t n0_inner = std::max(vecme::START_RANDOM_TREE_MAX, n0_leaves / vecme::START_SAMPLE_DIVISOR);
         // an independent seed per level (an XOR alone would return to the top-level seed two levels down)
-        const uint64_t inner_seed = p2vbme::derive_seed(seed, p2vbme::SALT_START_TREE_LEVEL);
+        const uint64_t inner_seed = vecme::derive_seed(seed, vecme::SALT_START_TREE_LEVEL);
         t0 = build_sample_and_place_tree(n0_leaves, n0_inner, inner_seed, devices, settings, level + 1);
     } else {
         // independent stream: seed the random subsample tree with a splitmix64 output, not with a value that
         // splitmix64's own state sequence (step SPLITMIX64_GAMMA) can reach
-        t0 = build_random_tree(n0_leaves, p2vbme::derive_seed(seed, p2vbme::SALT_START_TREE_RANDOM));
+        t0 = build_random_tree(n0_leaves, vecme::derive_seed(seed, vecme::SALT_START_TREE_RANDOM));
     }
     // 3. optimise t0 with the same solver and settings (rounds, stop rule) as the main run
     run_minibatch_bme(t0, devices, settings, level + 1);
@@ -128,7 +128,7 @@ Tree build_sample_and_place_tree(int32_t n_leaves, int32_t &n0_leaves, uint64_t 
     std::vector<int32_t> q;
     for (int32_t j = 0; j < n0_leaves; ++j) {
         int32_t lo = bucket_off[j], hi = bucket_off[j + 1];
-        p2vbme::shuffle(bucket_mem.begin() + lo, bucket_mem.begin() + hi, st);
+        vecme::shuffle(bucket_mem.begin() + lo, bucket_mem.begin() + hi, st);
         q.clear();
         q.push_back(samp[j]);
         for (int32_t a = lo; a < hi; ++a)
@@ -180,4 +180,4 @@ Tree build_sample_and_place_tree(int32_t n_leaves, int32_t &n0_leaves, uint64_t 
     return tree;
 }
 
-} // namespace p2vbme
+} // namespace vecme

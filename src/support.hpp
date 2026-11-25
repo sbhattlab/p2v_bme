@@ -21,8 +21,8 @@
  *   Truszkowski, J., Gascuel, O. & Swenson, K. M. (2019). Rapidly computing the phylogenetic transfer index. bioRxiv
  *     (preprint). doi:10.1101/743948
  */
-#ifndef P2VBME_SUPPORT_HPP
-#define P2VBME_SUPPORT_HPP
+#ifndef VECME_SUPPORT_HPP
+#define VECME_SUPPORT_HPP
 
 #include <cstdint>
 #include <memory>
@@ -31,7 +31,7 @@
 
 #include "core.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // The support of a node without a branch to support: a leaf, the root, or a split with fewer than 2 leaves on a side.
 constexpr double NO_SUPPORT = -1.0;
@@ -67,6 +67,6 @@ class SupportCounter {
 // Formats a support in percent as the paper's code writes it: at most 2 decimals, no trailing zeros ("97.33", "100").
 std::string format_support(double percent);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_SUPPORT_HPP
+#endif // VECME_SUPPORT_HPP

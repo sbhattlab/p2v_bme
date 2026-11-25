@@ -3,12 +3,12 @@
  *
  * Phylo2Vec encoding and decoding of rooted trees with ordered vectors (v[i] <= i, phylo2vec's ordered trees).
  */
-#ifndef P2VBME_PHYLO2VEC_HPP
-#define P2VBME_PHYLO2VEC_HPP
+#ifndef VECME_PHYLO2VEC_HPP
+#define VECME_PHYLO2VEC_HPP
 
 #include <cstdint>
 
-namespace p2vbme {
+namespace vecme {
 
 // ---- Phylo2Vec encoding and decoding of rooted trees (leaves 0..n-1, internal nodes n..2n-2, root 2n-2) ----
 
@@ -30,6 +30,6 @@ void queue_shuffle_rooted(const int32_t *c1_r, const int32_t *c2_r, int32_t n_le
 // side).
 void to_skeleton(const int64_t *v, int32_t n_leaves, int32_t *c1_out, int32_t *c2_out);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_PHYLO2VEC_HPP
+#endif // VECME_PHYLO2VEC_HPP

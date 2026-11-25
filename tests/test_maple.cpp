@@ -18,7 +18,7 @@ TEST(Maple, SameAlignmentAsFasta) {
                    ">s2 descr\nn 5 3\n"
                    ">s3\nT 1\n- 7\nr 10\nt 8\n\n"
                    ">s4\n");
-    const p2vbme::Alignment a = p2vbme::read_fasta(fa), b = p2vbme::read_alignment(mp);
+    const vecme::Alignment a = vecme::read_fasta(fa), b = vecme::read_alignment(mp);
     EXPECT_EQ(b.n_taxa, 4);
     EXPECT_EQ(b.n_sites, 10);
     EXPECT_EQ(b.names, a.names);
@@ -28,17 +28,17 @@ TEST(Maple, SameAlignmentAsFasta) {
 TEST(Maple, RejectsBadInput) {
     const std::string p = temp_path("bad.maple");
     write_file(p, "A 3\n");
-    EXPECT_THROW(p2vbme::read_maple(p), std::runtime_error); // no reference
+    EXPECT_THROW(vecme::read_maple(p), std::runtime_error); // no reference
     write_file(p, ">ref\nACGT\n>s\nA 5\n");
-    EXPECT_THROW(p2vbme::read_maple(p), std::runtime_error); // outside the reference
+    EXPECT_THROW(vecme::read_maple(p), std::runtime_error); // outside the reference
     write_file(p, ">ref\nACGT\n>s\nn 3 3\n");
-    EXPECT_THROW(p2vbme::read_maple(p), std::runtime_error); // runs past the end
+    EXPECT_THROW(vecme::read_maple(p), std::runtime_error); // runs past the end
     write_file(p, ">ref\nACGT\n>s\nn 2 9223372036854775807\n");
-    EXPECT_THROW(p2vbme::read_maple(p), std::runtime_error); // a length that would overflow
+    EXPECT_THROW(vecme::read_maple(p), std::runtime_error); // a length that would overflow
     write_file(p, ">ref\nACGT\n>s\nA x\n");
-    EXPECT_THROW(p2vbme::read_maple(p), std::runtime_error); // not a position
+    EXPECT_THROW(vecme::read_maple(p), std::runtime_error); // not a position
     write_file(p, ">ref\nACGT\n>s\n>s\n");
-    EXPECT_THROW(p2vbme::read_maple(p), std::runtime_error); // duplicate name
+    EXPECT_THROW(vecme::read_maple(p), std::runtime_error); // duplicate name
     write_file(p, ">ref\nACGT\n");
-    EXPECT_THROW(p2vbme::read_maple(p), std::runtime_error); // no sequences
+    EXPECT_THROW(vecme::read_maple(p), std::runtime_error); // no sequences
 }

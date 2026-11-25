@@ -6,15 +6,15 @@
  * (std::to_chars, independent of the locale), NaN and infinities as null, 64-bit integers exactly.
  * Indented by two spaces per level.
  */
-#ifndef P2VBME_JSON_WRITER_HPP
-#define P2VBME_JSON_WRITER_HPP
+#ifndef VECME_JSON_WRITER_HPP
+#define VECME_JSON_WRITER_HPP
 
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
 
-namespace p2vbme {
+namespace vecme {
 
 class JsonWriter {
   public:
@@ -92,6 +92,6 @@ class JsonWriter {
     bool pending_key_ = false;
 };
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_JSON_WRITER_HPP
+#endif // VECME_JSON_WRITER_HPP

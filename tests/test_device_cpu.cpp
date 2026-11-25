@@ -16,7 +16,7 @@
 #include "search.hpp"
 #include "simulations.hpp"
 
-using namespace p2vbme;
+using namespace vecme;
 
 // The move scores: for each pruned subtree (row) of a skeleton, the best regraft and its score equal the smallest
 // exact BME change over every regraft the recursion covers (each move applied and the tree scored anew).

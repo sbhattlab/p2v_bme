@@ -16,7 +16,7 @@
 #include "processing.hpp"
 #include "random.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -211,4 +211,4 @@ void restore_copies(Tree &tree, const Deduplication &dd, std::vector<int32_t> *n
     }
 }
 
-} // namespace p2vbme
+} // namespace vecme

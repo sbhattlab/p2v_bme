@@ -4,8 +4,8 @@ Each test runs the binary and checks its exit code, what it prints and the files
 <prefix>.json, <prefix>.log): help and version, errors, and runs on simulated alignments.
 The library has its own tests (gtest); these check what only the command does.
 
-ctest runs them in two parts, cli (-m "not gpu") and cli_gpu (-m gpu), with the paths of the binaries in P2VBME_BIN
-and P2VBME_MAKE_TEST_FASTA.
+ctest runs them in two parts, cli (-m "not gpu") and cli_gpu (-m gpu), with the paths of the binaries in VECME_BIN
+and VECME_MAKE_TEST_FASTA.
 By hand, after a build (the binaries default to build/):
     pytest tests/python/test_cli.py -m "not gpu"
 """
@@ -20,8 +20,8 @@ from pathlib import Path
 import pytest
 
 BUILD = Path(__file__).resolve().parents[2] / "build"
-P2V_BME = os.environ.get("P2VBME_BIN", str(BUILD / "p2v-bme"))
-MAKE_TEST_FASTA = os.environ.get("P2VBME_MAKE_TEST_FASTA", str(BUILD / "make_test_fasta"))
+VECME = os.environ.get("VECME_BIN", str(BUILD / "p2v-bme"))
+MAKE_TEST_FASTA = os.environ.get("VECME_MAKE_TEST_FASTA", str(BUILD / "make_test_fasta"))
 
 # Top-level keys of the report, in order (--report-full adds "details")
 SUMMARY_KEYS = [
@@ -55,7 +55,7 @@ def data(tmp_path_factory):
 
 def run(*args):
     """Runs p2v-bme with these arguments; returns the finished process (returncode, stdout, stderr)."""
-    return subprocess.run([P2V_BME, *map(str, args)], capture_output=True, text=True, check=False)
+    return subprocess.run([VECME, *map(str, args)], capture_output=True, text=True, check=False)
 
 
 def leaf_names(path):

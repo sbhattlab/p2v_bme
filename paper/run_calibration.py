@@ -6,7 +6,7 @@ Inputs:  data/datasets/<set>/<n>/rep0.fa, rep0.true.nwk                         
          and the CMAPLE and MAPLE trees
          aln_100K_0.0001.maple.treefile, aln_100K_0.0001_wo_ref_tree.tree     (download_data.py)
 Options: --sets, --steps, --replicates, --bootstrap, --repeats, --accelerator, --devices,
-         --datasets-dir, --cmaple-dir, --results-dir, --p2vbme, --overwrite
+         --datasets-dir, --cmaple-dir, --results-dir, --vecme, --overwrite
 Flow:    each calibration set
          (RNASim 10^5 and 10^6, random tree 10^6, pandemic 10^5; random tree 10^7 on request)
            |
@@ -55,7 +55,7 @@ from paper.utils import (
     parse_common_args,
     pct,
     read_json,
-    run_p2vbme,
+    run_vecme,
     search_options,
     span,
     supports,
@@ -186,8 +186,8 @@ def infer(args: Namespace, tag: str) -> None:
             continue
         for name, options in runs:
             print(f"{tag} {name}", flush=True)
-            run_p2vbme(
-                args.p2vbme,
+            run_vecme(
+                args.vecme,
                 [*common, *options],
                 folder_of(args, tag) / name,
                 args.overwrite,
@@ -274,18 +274,18 @@ def score(args: Namespace, tag: str) -> None:
     gather(seed_trees, folder / "seed.nwk", args.overwrite)
     for kind in ("boot", "seed"):
         supports(
-            args.p2vbme,
+            args.vecme,
             reference,
             folder / f"{kind}.nwk",
             folder / f"ref.{kind}",
             args.overwrite,
         )
     true_tree = binary_tree(files["true"], folder / "true.binary.nwk")
-    compare_to_truth(args.p2vbme, reference, true_tree, args.overwrite)
+    compare_to_truth(args.vecme, reference, true_tree, args.overwrite)
     others = [k for k in ("cmaple", "maple") if k in files]
     for k in others:
         other = binary_tree(files[k], folder / f"{k}.binary.nwk")
-        supports(args.p2vbme, reference, other, folder / f"ref.vs_{k}", args.overwrite)
+        supports(args.vecme, reference, other, folder / f"ref.vs_{k}", args.overwrite)
     for kind in ("boot", "seed"):
         out = folder / f"{tag}_{kind}_branches.tsv"
         if out.exists() and not args.overwrite:

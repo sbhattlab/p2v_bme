@@ -5,8 +5,8 @@
  * each window a skeleton of K <= 1,500 pieces summarised by weighted representative leaves and solved by a Device.
  * Also the Phylo2Vec encoding helpers the windows and the devices share. Internal to the package.
  */
-#ifndef P2VBME_SEARCH_HPP
-#define P2VBME_SEARCH_HPP
+#ifndef VECME_SEARCH_HPP
+#define VECME_SEARCH_HPP
 
 #include <cstdint>
 #include <functional>
@@ -18,7 +18,7 @@
 #include "device.hpp"
 #include "stop_reason.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // Progress of a search, reported through SearchSettings::on_event (the core keeps no diagnostic state and prints
 // nothing).
@@ -41,15 +41,15 @@ struct SearchEvent {
 // published configuration), filled by infer() from Settings.
 struct SearchSettings {
     // rounds before the final cleanup pass; 0 = no search (the tree is left as it is)
-    int32_t rounds = p2vbme::DEFAULT_MAX_ROUNDS;
+    int32_t rounds = vecme::DEFAULT_MAX_ROUNDS;
     // stop once a round (>= 1) improves L by <= stop_tol x (total improvement so far).
     // 0 = only when a round changes nothing.
     // Rounds >= 1 are a deterministic function of the tree, so that stop is lossless (the same tree as running all
     // rounds).
-    double stop_tol = p2vbme::DEFAULT_TOL;
-    double deadline = 0.0;                        // absolute wall_sec(): no new round after it; 0 = none
-    double time_cap = p2vbme::DEFAULT_TIME_LIMIT; // the time limit behind the deadline, for reporting only
-    int32_t representative_cap = p2vbme::DEFAULT_REPRESENTATIVE_CAP; // representatives kept per clade
+    double stop_tol = vecme::DEFAULT_TOL;
+    double deadline = 0.0;                       // absolute wall_sec(): no new round after it; 0 = none
+    double time_cap = vecme::DEFAULT_TIME_LIMIT; // the time limit behind the deadline, for reporting only
+    int32_t representative_cap = vecme::DEFAULT_REPRESENTATIVE_CAP; // representatives kept per clade
     // progress of every search (main and start tree), for printing and diagnostics; empty = none
     std::function<void(const SearchEvent &)> on_event;
 };
@@ -170,6 +170,6 @@ void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t
 double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &settings, int32_t level = 0,
                          SearchStats *stats = nullptr);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_SEARCH_HPP
+#endif // VECME_SEARCH_HPP

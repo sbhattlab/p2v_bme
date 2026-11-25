@@ -10,14 +10,14 @@
  *   Ly-Trong, N., Bielow, C., De Maio, N. & Minh, B. Q. (2024). CMAPLE: efficient phylogenetic inference in the
  *     pandemic era. Molecular Biology and Evolution 41(7), msae134. doi:10.1093/molbev/msae134
  */
-#ifndef P2VBME_MAPLE_HPP
-#define P2VBME_MAPLE_HPP
+#ifndef VECME_MAPLE_HPP
+#define VECME_MAPLE_HPP
 
 #include <string>
 
 #include "core.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // Reads a .maple alignment (MAPLE / CMAPLE).
 // First: the reference sequence first ('>' header and sequence lines
@@ -27,6 +27,6 @@ namespace p2vbme {
 // The reference itself is not a sequence of the alignment.
 Alignment read_maple(const std::string &path);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_MAPLE_HPP
+#endif // VECME_MAPLE_HPP

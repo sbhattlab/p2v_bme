@@ -69,7 +69,7 @@ from paper.utils import (
     parse_common_args,
     read_json,
     read_tree,
-    run_p2vbme,
+    run_vecme,
     search_options,
     span,
     supports,
@@ -954,7 +954,7 @@ def leaveout(
             str(spec.get("seed", seed)),
             "--report-full",
         ]
-        run_p2vbme(exe, options, d / "tree", overwrite)
+        run_vecme(exe, options, d / "tree", overwrite)
         if not spec.get("all"):
             fasta.unlink()
         supports(exe, out / "tree.all.nwk", d / "tree.nwk", d / "cmp", overwrite)
@@ -1157,7 +1157,7 @@ def gtdb(
                 "the gtdb step needs --arb-dump (SILVA 144's ARB database as text, from ARB's tools)"
             )
         gtdb_sequences(arb_dump, set(fasta_names(out / "distinct.fa")), g)
-    run_p2vbme(
+    run_vecme(
         exe,
         [
             *search_options(args, g / "gtdb.fa", "GTR+GC", dedup=True),
@@ -1260,7 +1260,7 @@ def main() -> None:
     )
     args = parser.parse_args()
     args.results_dir = args.results_dir / "silva"
-    out, exe, ow = args.results_dir, args.p2vbme, args.overwrite
+    out, exe, ow = args.results_dir, args.vecme, args.overwrite
     run_args = [
         *search_options(args, out / "searched.fa", "GTR+GC", dedup=True),
         "--seed",
@@ -1271,11 +1271,11 @@ def main() -> None:
         if step == "distinct":
             distinct(args.alignment, out, args.max_sites, args.min_sites, args.rank_first, ow)
         elif step == "tree":
-            run_p2vbme(exe, run_args, out / "tree", ow)
+            run_vecme(exe, run_args, out / "tree", ow)
             reattach(out, args.reattach_left_out, ow)
         elif step == "replicates":
             for r in span(args.replicates or f"1-{args.bootstrap}"):
-                run_p2vbme(
+                run_vecme(
                     exe,
                     [*run_args, "-b", f"{r}-{r}"],
                     out / f"boot/rep{r:03d}",

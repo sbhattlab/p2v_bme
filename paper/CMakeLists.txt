@@ -1,4 +1,4 @@
-# Compiled tools of the paper's scripts (P2VBME_BUILD_PAPER_TOOLS), built into build/ next to p2v-bme
+# Compiled tools of the paper's scripts (VECME_BUILD_PAPER_TOOLS), built into build/ next to p2v-bme
 
 # JC69 sequences along a tree (simulate_data.py)
 add_executable(sim_jc69_fast tools/sim_jc69_fast.c)
@@ -13,9 +13,9 @@ target_compile_options(eval_cmaple_rf PRIVATE -O3)
 # run_benchmarks.py)
 add_executable(bme_scores tools/bme_scores.cpp)
 target_compile_options(bme_scores PRIVATE -O3 -Wall -Wextra)
-target_link_libraries(bme_scores PRIVATE p2vbme_io p2vbme_distances OpenMP::OpenMP_CXX)
+target_link_libraries(bme_scores PRIVATE vecme_io vecme_distances OpenMP::OpenMP_CXX)
 
 # The sequences left out of the SILVA search put back next to their nearest searched sequence (run_silva.py)
 add_executable(reattach_left_out tools/reattach_left_out.cpp)
 target_compile_options(reattach_left_out PRIVATE -O3 -Wall -Wextra)
-target_link_libraries(reattach_left_out PRIVATE p2vbme_io p2vbme_processing OpenMP::OpenMP_CXX)
+target_link_libraries(reattach_left_out PRIVATE vecme_io vecme_processing OpenMP::OpenMP_CXX)

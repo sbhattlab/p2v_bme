@@ -20,7 +20,7 @@
 #include "eigen_dist.hpp"
 #include "random.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -271,4 +271,4 @@ Alignment simulate_alignment(const Tree &tree, int32_t n_sites, const Simulation
     return aln;
 }
 
-} // namespace p2vbme
+} // namespace vecme

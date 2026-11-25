@@ -10,8 +10,8 @@
  *   Pauplin, Y. (2000). Direct Calculation of a Tree Length Using a Distance Matrix. Journal of Molecular Evolution
  *     51, 41-47. doi:10.1007/s002390010065
  */
-#ifndef P2VBME_BRANCH_LENGTHS_HPP
-#define P2VBME_BRANCH_LENGTHS_HPP
+#ifndef VECME_BRANCH_LENGTHS_HPP
+#define VECME_BRANCH_LENGTHS_HPP
 
 #include <cstdint>
 #include <vector>
@@ -19,7 +19,7 @@
 #include "core.hpp"
 #include "device.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // Computes the BME branch lengths of the rooted tree: tree -> branch_lengths; returns their sum.
 // branch_lengths[u]: the length of the edge above node u, for u = 0..2N-3.
@@ -35,6 +35,6 @@ double compute_bme_branch_lengths(const Tree &tree, Devices &devices, std::vecto
                                   double *representatives_sec_out = nullptr, double *kernel_sec_out = nullptr,
                                   bool double_precision = false);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_BRANCH_LENGTHS_HPP
+#endif // VECME_BRANCH_LENGTHS_HPP

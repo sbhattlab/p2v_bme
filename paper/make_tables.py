@@ -137,7 +137,7 @@ def threads_of(report: Path, details: dict) -> int | str:
     (report, its details) -> the count ('' if not recorded).
 
     CPU runs: their workers ("CPU: 16 threads" in the report);
-    GPU runs: the host threads that run_p2vbme recorded in <prefix>.host.json.
+    GPU runs: the host threads that run_vecme recorded in <prefix>.host.json.
     """
     workers = [d for d in details["devices"] if d.startswith("CPU: ")]
     if workers:

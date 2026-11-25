@@ -7,7 +7,7 @@ Inputs:  data/datasets/<set>/<n>/rep<r>.fa, rep<r>.true.nwk                     
          data/datasets/cmaple/simulated/aln_<size>_<scale>.maple, tree_<size>_<scale>.nwk
                                                                                 (download_data.py)
 Options: --experiments, --sets, --sizes, --replicates, --caps, --round-limits, --accelerator,
-         --devices, --exact-max, --score-cap, --datasets-dir, --cmaple-dir, --results-dir, --p2vbme,
+         --devices, --exact-max, --score-cap, --datasets-dir, --cmaple-dir, --results-dir, --vecme,
          --bme-scores, --eval-cmaple-rf, --overwrite
 Flow:    each experiment x set x size x run of the paper's design
          (dataset replicate r, seed s; see runs_of)
@@ -54,7 +54,7 @@ from paper.utils import (
     compare_to_truth,
     parse_common_args,
     read_json,
-    run_p2vbme,
+    run_vecme,
     search_options,
     supports,
     write_json,
@@ -231,7 +231,7 @@ def infer(args: Namespace, r: Run) -> dict:
         "--report-full",
         *r.options,
     ]
-    return run_p2vbme(args.p2vbme, options, prefix_of(args, r), args.overwrite)
+    return run_vecme(args.vecme, options, prefix_of(args, r), args.overwrite)
 
 
 def backbone_errors(args: Namespace, prefix: Path, true_tree: Path, n: int) -> dict:
@@ -248,7 +248,7 @@ def backbone_errors(args: Namespace, prefix: Path, true_tree: Path, n: int) -> d
     if out.exists() and not args.overwrite:
         return read_json(out)
     compared = Path(f"{prefix}.true_vs")
-    supports(args.p2vbme, true_tree, Path(f"{prefix}.nwk"), compared, args.overwrite)
+    supports(args.vecme, true_tree, Path(f"{prefix}.nwk"), compared, args.overwrite)
     _, branches = branch_table(Path(f"{compared}.support.nwk"))
     backbone = branches["p"] > n // BACKBONE_N
     missing = int((branches["exact"][backbone] < 100.0).sum())
@@ -291,7 +291,7 @@ def compare(args: Namespace, r: Run, report: dict) -> None:
     if r.experiment == "pandemic":
         eval_pandemic(args, prefix, true_tree, report["details"]["input"]["sites"])
         return
-    compare_to_truth(args.p2vbme, Path(f"{prefix}.nwk"), true_tree, args.overwrite)
+    compare_to_truth(args.vecme, Path(f"{prefix}.nwk"), true_tree, args.overwrite)
     if r.set in EXPANDED_SETS and r.n >= EXPANDED_FROM:
         backbone_errors(args, prefix, true_tree, r.n)
 
@@ -351,7 +351,7 @@ def rf_between(args: Namespace, prefix: Path, other: Path, label: str) -> float:
     """
     compared = Path(f"{prefix}.{label}")
     report = supports(
-        args.p2vbme,
+        args.vecme,
         Path(f"{prefix}.nwk"),
         Path(f"{other}.nwk"),
         compared,
@@ -427,7 +427,7 @@ def seqlen_records(args: Namespace, runs: list[Run]) -> None:
             [tree, true_tree],
             [Path(f"{prefix}.score.json"), true_score],
         )
-        rf = compare_to_truth(args.p2vbme, tree, true_tree, args.overwrite)["rf_pct"]
+        rf = compare_to_truth(args.vecme, tree, true_tree, args.overwrite)["rf_pct"]
         record = {"tag": r.set, "rep": r.rep, "L_true": truth, "L_ours": ours}
         record.update(ours_minus_true_ppm=1e6 * (ours - truth) / truth, rf_ours_pct=rf)
         lines.append(json.dumps(record))

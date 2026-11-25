@@ -41,7 +41,7 @@ jobs:
       - name: Package
         id: package
         run: |
-          version=$(sed -n 's/^project(p2vbme VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          version=$(sed -n 's/^project(vecme VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
           if [ "$EVENT" = release ] && [ "$TAG" != "v$version" ]; then
             echo "the release tag $TAG is not v$version (CMakeLists.txt)"
             exit 1
@@ -82,7 +82,7 @@ jobs:
       - name: Test
         run: pixi run python -m pytest tests/python/test_examples.py -m "not gpu" -v
         env:
-          P2VBME_BIN: ${{ needs.build.outputs.name }}/p2v-bme
+          VECME_BIN: ${{ needs.build.outputs.name }}/p2v-bme
 
   release:
     name: Attach to the release

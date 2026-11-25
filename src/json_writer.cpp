@@ -16,7 +16,7 @@
 #include <cstddef>
 #include <stdexcept>
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -225,4 +225,4 @@ void JsonWriter::write_string(std::string_view s) {
     out_ += '"';
 }
 
-} // namespace p2vbme
+} // namespace vecme

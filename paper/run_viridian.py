@@ -54,7 +54,7 @@ from paper.utils import (
     pct,
     read_json,
     read_tree,
-    run_p2vbme,
+    run_vecme,
     search_options,
     span,
     supports,
@@ -771,7 +771,7 @@ def main() -> None:
     )
     args = parser.parse_args()
     args.results_dir = args.results_dir / "viridian"
-    out, exe, ow = args.results_dir, args.p2vbme, args.overwrite
+    out, exe, ow = args.results_dir, args.vecme, args.overwrite
     run = [*search_options(args, args.alignment, "JC69"), "--report-full"]
     boots = [out / f"boot/rep{r:03d}.boottrees" for r in range(1, args.bootstrap + 1)]
     repeats = [out / f"repeat/seed{s}.nwk" for s in span(args.repeats)]
@@ -779,14 +779,14 @@ def main() -> None:
         if step == "maple":
             maple_tree(args.maple_jsonl, args.alignment, out, ow)
         elif step == "tree":
-            run_p2vbme(exe, [*run, "--seed", str(args.seed)], out / "tree", ow)
+            run_vecme(exe, [*run, "--seed", str(args.seed)], out / "tree", ow)
         elif step == "replicates":
             for r in span(args.replicates or f"1-{args.bootstrap}"):
                 rep = ["--seed", str(args.seed), "-b", f"{r}-{r}"]
-                run_p2vbme(exe, [*run, *rep], out / f"boot/rep{r:03d}", ow)
+                run_vecme(exe, [*run, *rep], out / f"boot/rep{r:03d}", ow)
         elif step == "repeats":
             for s in span(args.repeats):
-                run_p2vbme(exe, [*run, "--seed", str(s)], out / f"repeat/seed{s}", ow)
+                run_vecme(exe, [*run, "--seed", str(s)], out / f"repeat/seed{s}", ow)
         elif step == "supports":
             boot = concatenate_trees(boots, out / "boot.nwk", ow)
             rep = concatenate_trees(repeats, out / "repeats.nwk", ow)

@@ -49,11 +49,11 @@ Options, set at configure time (`-D<option>=<value>`); later builds in the same 
 
 | Option                     | Default                 | Meaning                                                                  |
 | -------------------------- | ----------------------- | ------------------------------------------------------------------------ |
-| `P2VBME_CUDA`              | `ON` if CUDA is found   | build the GPU code                                                       |
+| `VECME_CUDA`               | `ON` if CUDA is found   | build the GPU code                                                       |
 | `CMAKE_CUDA_ARCHITECTURES` | `native`                | the GPUs to compile for: those of the build machine, or e.g. `90` (H100) |
-| `P2VBME_BUILD_PAPER_TOOLS` | `ON` in the presets     | build the paper's tools (`paper/tools`) into `build/`                    |
+| `VECME_BUILD_PAPER_TOOLS`  | `ON` in the presets     | build the paper's tools (`paper/tools`) into `build/`                    |
 | `BUILD_TESTING`            | `ON`                    | build the tests                                                          |
-| `P2VBME_STATIC_RUNTIME`    | `OFF` (`release`: `ON`) | link the CUDA runtime, libstdc++, libgcc and libgomp into p2v-bme        |
+| `VECME_STATIC_RUNTIME`     | `OFF` (`release`: `ON`) | link the CUDA runtime, libstdc++, libgcc and libgomp into p2v-bme        |
 
 The version is set in `project()` of `CMakeLists.txt`; `pixi.toml` and `CITATION.cff` repeat it, so a release changes
 all three.

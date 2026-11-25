@@ -8,8 +8,8 @@
  * A Device holds what its steps read: the alignment (the GPU copies it, the CPU reads the caller's in place), the
  * start tree's subsamples and a workspace.
  */
-#ifndef P2VBME_DEVICE_HPP
-#define P2VBME_DEVICE_HPP
+#ifndef VECME_DEVICE_HPP
+#define VECME_DEVICE_HPP
 
 #include <cstdint>
 #include <memory>
@@ -20,7 +20,7 @@
 #include "config.hpp"
 #include "distances.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 class WindowKernels; // the window solve's arithmetic (search.hpp)
 
@@ -124,6 +124,6 @@ Accelerator resolve_accelerator(Accelerator accelerator, Precision precision);
 // Throws std::logic_error if the accelerator is Auto.
 Devices select_devices(Accelerator accelerator, Precision precision, const std::vector<int> &gpu_ids, int32_t threads);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_DEVICE_HPP
+#endif // VECME_DEVICE_HPP

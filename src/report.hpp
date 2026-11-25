@@ -14,8 +14,8 @@
  * With -b A-B (replicates alone) the fields of the search sum over the replicates (rounds_run, the start tree and
  * search times; stop_reason is the last replicate's), and bme_length is null.
  */
-#ifndef P2VBME_REPORT_HPP
-#define P2VBME_REPORT_HPP
+#ifndef VECME_REPORT_HPP
+#define VECME_REPORT_HPP
 
 #include <cstdint>
 #include <string>
@@ -24,7 +24,7 @@
 #include "gtr_fit.hpp"
 #include "inference.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // The run around infer(), for <prefix>.json (which adds Settings and Result): what the command line gave
 // (parse_command_line) and what the run recorded.
@@ -79,6 +79,6 @@ struct SupportsReport {
 // "n_replicates", "leaves", "leaves_supported", "mean_tbe", "mean_exact"}, "time"}.
 void write_supports_report(const std::string &path, const Report &run, const SupportsReport &supports);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_REPORT_HPP
+#endif // VECME_REPORT_HPP

@@ -35,7 +35,7 @@
             cuda_fail(err_, #call, __LINE__);                                                                          \
     } while (0)
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -1291,7 +1291,7 @@ __global__ void __launch_bounds__(256)
                 if (si >= n_s)
                     continue;
                 float p = (valid[a][b] > 0) ? (float)(valid[a][b] - match[a][b]) / (float)valid[a][b]
-                                            : p2vbme::NN_P_NO_OVERLAP;
+                                            : vecme::NN_P_NO_OVERLAP;
                 unsigned long long key = ((unsigned long long)__float_as_uint(p) << 32) | (unsigned int)si;
                 if (key < kbest)
                     kbest = key;
@@ -2078,4 +2078,4 @@ Devices make_devices(const std::vector<int> &gpu_ids) {
     return devices;
 }
 
-} // namespace p2vbme
+} // namespace vecme

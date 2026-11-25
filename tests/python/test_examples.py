@@ -18,7 +18,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "examples"
-P2V_BME = os.environ.get("P2VBME_BIN", str(ROOT / "build" / "p2v-bme"))
+VECME = os.environ.get("VECME_BIN", str(ROOT / "build" / "p2v-bme"))
 
 # Loose bounds; the README's runs gave 100 and 99.9, alpha 0.416 and a rate error of 0.084 (--seed 1 to 5: the same
 # mean_exact, alpha 0.414-0.416, rate error 0.084-0.086)
@@ -32,7 +32,7 @@ TRUE_RATES = [1.0, 4.0, 1.0, 1.0, 4.0, 1.0]  # AC, AG, AT, CG, CT, GT
 
 def run(*args):
     """Runs p2v-bme on the CPU with these arguments; raises if it fails."""
-    subprocess.run([P2V_BME, *map(str, args), "-a", "cpu", "-q"], check=True)
+    subprocess.run([VECME, *map(str, args), "-a", "cpu", "-q"], check=True)
 
 
 def report(prefix):

@@ -56,7 +56,7 @@ from paper._config import BME_SCORES, DEFAULT_DATASETS_DIR, FASTME
 from paper.utils import (
     parse_common_args,
     read_json,
-    run_p2vbme,
+    run_vecme,
     search_options,
     supports,
     with_edge_lengths,
@@ -119,7 +119,7 @@ def run_fastme(fastme: str, phylip: Path, args: list[str], out: Path) -> float:
 def fastme_to_convergence(
     fastme: str,
     tool: str,
-    p2vbme: str,
+    vecme: str,
     fasta: Path,
     phylip: Path,
     start: Path | None,
@@ -157,7 +157,7 @@ def fastme_to_convergence(
         passes.append({"tree": str(out), "wall_s": wall, "L": length})
         if current is not None:
             vs_input = Path(f"{prefix}_pass{len(passes) - 1}.vs_input")
-            rf = rf_pct(p2vbme, Path(current), out, vs_input, overwrite)
+            rf = rf_pct(vecme, Path(current), out, vs_input, overwrite)
             if rf < SAME_TOPOLOGY_RF:
                 break
         current = out
@@ -173,10 +173,10 @@ def fastme_to_convergence(
     return record
 
 
-def rf_pct(p2vbme: str, tree: Path, other: Path, prefix: Path, overwrite: bool) -> float:
+def rf_pct(vecme: str, tree: Path, other: Path, prefix: Path, overwrite: bool) -> float:
     """Computes the normalised RF distance of two binary trees in %:
     (tree, other) -> 100 - mean exact support."""
-    return 100.0 - supports(p2vbme, tree, other, prefix, overwrite)["supports"]["mean_exact"]
+    return 100.0 - supports(vecme, tree, other, prefix, overwrite)["supports"]["mean_exact"]
 
 
 def solver_entry(report: dict) -> dict:
@@ -212,7 +212,7 @@ def score_case(
     def ours(arm: str, start: Path | None) -> tuple[Path, dict]:
         """Runs p2v-bme for one arm: (arm, start tree) -> (tree, report)."""
         prefix = folder / f"{name}_seed{seed}_{arm}"
-        report = run_p2vbme(args.p2vbme, [*p2v, *(["-t", str(start)] if start else [])], prefix, ow)
+        report = run_vecme(args.vecme, [*p2v, *(["-t", str(start)] if start else [])], prefix, ow)
         return Path(f"{prefix}.nwk"), report
 
     def fastme(start: Path | None, moves: list[str], label: str) -> dict:
@@ -220,7 +220,7 @@ def score_case(
         return fastme_to_convergence(
             args.fastme,
             args.bme_scores,
-            args.p2vbme,
+            args.vecme,
             fasta,
             phylip,
             start,
@@ -231,7 +231,7 @@ def score_case(
 
     def rf(tree: Path, other: Path, label: str) -> float:
         """RF between two of the case's trees in %."""
-        return rf_pct(args.p2vbme, tree, other, folder / f"{Path(tree).stem}.vs_{label}", ow)
+        return rf_pct(args.vecme, tree, other, folder / f"{Path(tree).stem}.vs_{label}", ow)
 
     record: dict = {
         "tag": fasta.parent.parent.name,

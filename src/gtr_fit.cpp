@@ -21,7 +21,7 @@
 #include "threads.hpp"
 #include "timing.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -680,4 +680,4 @@ GtrFit fit_gtr_gc(const Alignment &aln, int32_t n_pairs, uint64_t seed, int thre
     return fit_alignment(aln, Model::GTR_GC, n_pairs, seed, threads);
 }
 
-} // namespace p2vbme
+} // namespace vecme

@@ -25,7 +25,7 @@
 
 #include "parallel_errors.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -336,4 +336,4 @@ double compute_bme_branch_lengths(const Tree &tree, Devices &devices, std::vecto
     return total_bme_len;
 }
 
-} // namespace p2vbme
+} // namespace vecme

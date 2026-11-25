@@ -55,14 +55,14 @@ int main(int argc, char **argv) {
         fprintf(stderr, "make_test_fasta: N must be >= %d and SITES >= %d\n", MIN_TAXA, MIN_SITES);
         return 2;
     }
-    p2vbme::SimulationModel model;
+    vecme::SimulationModel model;
     for (int i = N_POSITIONAL_ARGS; i < argc; i += 2) {
         const std::string option = argv[i];
         bool ok = false;
         if (option == "--rates")
-            ok = parse_numbers(argv[i + 1], model.rates, p2vbme::N_GTR_RATES);
+            ok = parse_numbers(argv[i + 1], model.rates, vecme::N_GTR_RATES);
         else if (option == "--freqs")
-            ok = parse_numbers(argv[i + 1], model.freqs, p2vbme::N_BASES);
+            ok = parse_numbers(argv[i + 1], model.freqs, vecme::N_BASES);
         else if (option == "--alpha")
             ok = parse_numbers(argv[i + 1], &model.alpha, 1);
         if (!ok) {
@@ -70,21 +70,21 @@ int main(int argc, char **argv) {
             return 2;
         }
     }
-    const p2vbme::Tree tree = p2vbme::random_tree(n, 0.01, 0.1, seed);
-    p2vbme::Alignment aln;
+    const vecme::Tree tree = vecme::random_tree(n, 0.01, 0.1, seed);
+    vecme::Alignment aln;
     try {
-        aln = p2vbme::simulate_alignment(tree, sites, model, seed + 1);
+        aln = vecme::simulate_alignment(tree, sites, model, seed + 1);
     } catch (const std::invalid_argument &e) {
         fprintf(stderr, "make_test_fasta: %s\n", e.what());
         return 2;
     }
-    const char bases[p2vbme::N_BASES] = {'A', 'C', 'G', 'T'};
+    const char bases[vecme::N_BASES] = {'A', 'C', 'G', 'T'};
     std::vector<std::string> seqs(n, std::string(sites, '-'));
     for (int32_t i = 0; i < n; ++i) {
-        const uint64_t *row = &aln.packed[(size_t)i * p2vbme::N_PLANES * aln.n_words];
+        const uint64_t *row = &aln.packed[(size_t)i * vecme::N_PLANES * aln.n_words];
         for (int32_t s = 0; s < sites; ++s)
-            for (int b = 0; b < p2vbme::N_BASES; ++b)
-                if ((row[(size_t)b * aln.n_words + s / p2vbme::WORD_BITS] >> (s % p2vbme::WORD_BITS)) & 1ULL)
+            for (int b = 0; b < vecme::N_BASES; ++b)
+                if ((row[(size_t)b * aln.n_words + s / vecme::WORD_BITS] >> (s % vecme::WORD_BITS)) & 1ULL)
                     seqs[i][s] = bases[b];
     }
     seqs[3][5] = 'N'; /* a few missing sites, so the .maple file has runs of n and - */
@@ -127,6 +127,6 @@ int main(int argc, char **argv) {
     if (fclose(f) != 0)
         return 1;
 
-    p2vbme::write_newick_unrooted(out + "_true.nwk", aln.names, tree);
+    vecme::write_newick_unrooted(out + "_true.nwk", aln.names, tree);
     return 0;
 }

@@ -10,13 +10,13 @@
  * NO_OVERLAP_DISTANCE and MAX_DISTANCE like every model (it had 1.5 and a cap at p = 0.74), so NN_P_NO_OVERLAP
  * 0.6485 -> 0.6979.
  */
-#ifndef P2VBME_CONFIG_HPP
-#define P2VBME_CONFIG_HPP
+#ifndef VECME_CONFIG_HPP
+#define VECME_CONFIG_HPP
 
 #include <cstdint>
 #include <limits>
 
-namespace p2vbme {
+namespace vecme {
 
 // ---- Defaults of the user settings ------------------------------------------------------------------
 
@@ -128,6 +128,6 @@ constexpr int32_t START_RANDOM_TREE_MAX = 1000;
 // Written out because std::exp is not constexpr; test_config checks it against NO_OVERLAP_DISTANCE.
 constexpr float NN_P_NO_OVERLAP = 0.6979f;
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_CONFIG_HPP
+#endif // VECME_CONFIG_HPP

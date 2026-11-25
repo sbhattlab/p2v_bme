@@ -7,7 +7,7 @@
 #include "accelerator.hpp"
 #include "device.hpp"
 
-using namespace p2vbme;
+using namespace vecme;
 
 // A negative thread count, and the GPU in double precision (refused before any GPU is touched).
 TEST(Device, SelectDevicesRefusesBadSettings) {

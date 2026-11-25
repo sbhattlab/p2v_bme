@@ -33,8 +33,8 @@
  *     Phylogenetic Distances: Revisiting the Eigenvalue Approach. Bulletin of Mathematical Biology 87, 32.
  *     doi:10.1007/s11538-024-01403-z
  */
-#ifndef P2VBME_EIGEN_DIST_HPP
-#define P2VBME_EIGEN_DIST_HPP
+#ifndef VECME_EIGEN_DIST_HPP
+#define VECME_EIGEN_DIST_HPP
 
 #include <cmath>
 #include <cstdint>
@@ -43,7 +43,7 @@
 #include "core.hpp"
 #include "host_device.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // The pseudocount added to each of the 16 counts, and the largest singular value (the smallest is LOG_ARG_MIN,
 // config.hpp).
@@ -298,6 +298,6 @@ P2V_HD inline T eigen_distance(const uint32_t c[N_BASES * N_BASES], const T s_ra
     return d_ab;
 }
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_EIGEN_DIST_HPP
+#endif // VECME_EIGEN_DIST_HPP

@@ -75,7 +75,7 @@ int32_t parse_cpu_threads(const std::string &d) {
 
 // Reads -b into the report: B (replicates 1..B after the tree; 0 = none) or A-B (replicates A..B alone).
 // Throws std::runtime_error for anything else, or A-B without 1 <= A <= B.
-void parse_bootstrap_option(p2vbme::Report &run) {
+void parse_bootstrap_option(vecme::Report &run) {
     const std::string &b = run.bootstrap;
     auto number = [&](const std::string &s) -> int32_t {
         if (s.empty() || s.size() > 9 || s.find_first_not_of("0123456789") != std::string::npos)
@@ -99,7 +99,7 @@ void parse_bootstrap_option(p2vbme::Report &run) {
 
 CommandLine parse_command_line(int argc, char **argv) {
     CommandLine result;
-    p2vbme::Settings &opt = result.settings; // the numeric options are parsed into it; not given: its defaults
+    vecme::Settings &opt = result.settings; // the numeric options are parsed into it; not given: its defaults
     cxxopts::Options cli("p2v-bme", "Balanced minimum evolution tree from an aligned DNA alignment (FASTA), by the "
                                     "Phylo2Vec minibatch search.\nWrites <prefix>.nwk (unrooted tree), "
                                     "<prefix>.json (run report) and <prefix>.log (what it prints).\n");
@@ -179,7 +179,7 @@ CommandLine parse_command_line(int argc, char **argv) {
         return done(0);
     }
     if (args.count("version")) {
-        std::cout << "p2v-bme " << p2vbme::version_string() << '\n';
+        std::cout << "p2v-bme " << vecme::version_string() << '\n';
         return done(0);
     }
     if (!args.unmatched().empty())
@@ -189,7 +189,7 @@ CommandLine parse_command_line(int argc, char **argv) {
             std::cerr << "p2v-bme: --supports needs -t TREE, and no -s, -m or -b (see --help-all)\n";
             return done(2);
         }
-        p2vbme::Report &run = result.report;
+        vecme::Report &run = result.report;
         for (int a = 0; a < argc; ++a)
             run.command_line.push_back(argv[a]);
         result.quiet = args.count("quiet") > 0;
@@ -206,19 +206,19 @@ CommandLine parse_command_line(int argc, char **argv) {
     }
     result.quiet = args.count("quiet") > 0;
     result.overwrite = args.count("overwrite") > 0;
-    p2vbme::Report &run = result.report;
+    vecme::Report &run = result.report;
     for (int a = 0; a < argc; ++a)
         run.command_line.push_back(argv[a]);
     run.input_path = args["alignment"].as<std::string>();
     const std::string model_name = args["model"].as<std::string>();
-    const p2vbme::Model model = p2vbme::parse_model(model_name);
+    const vecme::Model model = vecme::parse_model(model_name);
     run.prefix = args.count("prefix") ? args["prefix"].as<std::string>() : run.input_path;
     run.neg_as_zero = !args.count("no-neg-as-zero");
 
     opt.substitution_model.model = model;
     opt.branch_lengths = !args.count("no-branch-lengths");
-    opt.accelerator = p2vbme::parse_accelerator(args["accelerator"].as<std::string>());
-    opt.precision = p2vbme::parse_precision(args["precision"].as<std::string>());
+    opt.accelerator = vecme::parse_accelerator(args["accelerator"].as<std::string>());
+    opt.precision = vecme::parse_precision(args["precision"].as<std::string>());
     result.devices = args["devices"].as<std::string>();
     run.tree_init = args["tree"].as<std::string>();
     run.dedup = !args.count("no-dedup");
@@ -227,7 +227,7 @@ CommandLine parse_command_line(int argc, char **argv) {
     return result;
 }
 
-void parse_devices_option(const std::string &devices, bool on_gpu, p2vbme::Settings &opt) {
+void parse_devices_option(const std::string &devices, bool on_gpu, vecme::Settings &opt) {
     if (on_gpu)
         opt.devices = parse_gpu_devices(devices);
     else

@@ -29,10 +29,10 @@
 
 namespace {
 
-using p2vbme::Alignment;
-using p2vbme::N_BASES;
-using p2vbme::N_PLANES;
-using p2vbme::VALID_PLANE;
+using vecme::Alignment;
+using vecme::N_BASES;
+using vecme::N_PLANES;
+using vecme::VALID_PLANE;
 
 // Finds each query's nearest sequence of the alignment: (aln, queries on the same columns) -> one row of aln per
 // query, or -1 when no row shares a valid site with it.
@@ -73,9 +73,9 @@ int main(int argc, char **argv) {
         if (argc != 5)
             throw std::runtime_error("usage: reattach_left_out TREE.nwk SEARCHED.fa LEFT_OUT.fa OUT.nwk");
         std::vector<std::string> names; // the tree's leaves, in its order; then the sequences left out
-        const p2vbme::Tree tree = p2vbme::read_newick_with_names(argv[1], names);
-        Alignment searched = p2vbme::read_alignment(argv[2]);
-        const Alignment left_out = p2vbme::read_alignment(argv[3]);
+        const vecme::Tree tree = vecme::read_newick_with_names(argv[1], names);
+        Alignment searched = vecme::read_alignment(argv[2]);
+        const Alignment left_out = vecme::read_alignment(argv[3]);
         if (left_out.n_sites != searched.n_sites)
             throw std::runtime_error("the sequences left out are not on the searched sequences' columns");
         const int32_t S = (int32_t)names.size();
@@ -88,12 +88,12 @@ int main(int argc, char **argv) {
             if (!leaf.count(x))
                 throw std::runtime_error(x + " is not a leaf of the tree");
 
-        p2vbme::Deduplication copies; // the candidates: identical copies beyond two set aside
-        p2vbme::deduplicate(searched, copies);
+        vecme::Deduplication copies; // the candidates: identical copies beyond two set aside
+        vecme::deduplicate(searched, copies);
         const std::vector<int32_t> nearest = nearest_sequences(searched, left_out);
 
         // Each sequence left out as a copy of its nearest sequence's leaf
-        p2vbme::Deduplication join;
+        vecme::Deduplication join;
         join.kept.resize(S);
         std::iota(join.kept.begin(), join.kept.end(), 0);
         join.copy_of.assign(S, -1);
@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
             join.copy_of.push_back(leaf.at(searched.names[nearest[i] < 0 ? 0 : nearest[i]]));
             names.push_back(left_out.names[i]);
         }
-        p2vbme::write_newick_unrooted(argv[4], names, p2vbme::reattach(tree, join));
+        vecme::write_newick_unrooted(argv[4], names, vecme::reattach(tree, join));
         std::printf("{\"searched\": %d, \"left_out\": %d, \"no_shared_site\": %d}\n", S, left_out.n_taxa,
                     no_shared_site);
     } catch (const std::exception &e) {

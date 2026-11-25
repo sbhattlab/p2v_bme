@@ -10,20 +10,20 @@
 namespace {
 
 std::vector<int> gpus(const std::string &devices) {
-    p2vbme::Settings settings;
+    vecme::Settings settings;
     parse_devices_option(devices, true, settings);
     return settings.devices;
 }
 
 int32_t threads(const std::string &devices) {
-    p2vbme::Settings settings;
+    vecme::Settings settings;
     parse_devices_option(devices, false, settings);
     return settings.threads;
 }
 
 // The message of the error for `devices`, or "" if it is accepted.
 std::string error(const std::string &devices, bool on_gpu) {
-    p2vbme::Settings settings;
+    vecme::Settings settings;
     try {
         parse_devices_option(devices, on_gpu, settings);
     } catch (const std::runtime_error &e) {

@@ -3,8 +3,8 @@
  *
  * Newick trees: start trees in, unrooted trees out.
  */
-#ifndef P2VBME_NEWICK_HPP
-#define P2VBME_NEWICK_HPP
+#ifndef VECME_NEWICK_HPP
+#define VECME_NEWICK_HPP
 
 #include <cstdint>
 #include <functional>
@@ -13,7 +13,7 @@
 
 #include "core.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // Reads a binary Newick tree whose leaf names are exactly the alignment's names; a trifurcation at the root (unrooted
 // tree) is accepted.
@@ -51,6 +51,6 @@ void write_newick_unrooted(const std::string &path, const std::vector<std::strin
 // Throws std::runtime_error.
 void append_newick_unrooted(const std::string &path, const std::vector<std::string> &names, const Tree &tree);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_NEWICK_HPP
+#endif // VECME_NEWICK_HPP

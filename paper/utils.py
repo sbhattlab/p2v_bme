@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from paper._config import DEFAULT_RESULTS_DIR, P2VBME
+from paper._config import DEFAULT_RESULTS_DIR, VECME
 
 
 def read_json(path: Path) -> dict:
@@ -28,10 +28,10 @@ def write_json(path: Path, data: dict) -> None:
 
 def parse_common_args(doc: str, devices: bool = True) -> ArgumentParser:
     """Builds the command line the p2v-bme scripts share:
-    docstring -> parser with --results-dir, --p2vbme, --overwrite, and --accelerator, --devices."""
+    docstring -> parser with --results-dir, --vecme, --overwrite, and --accelerator, --devices."""
     parser = ArgumentParser(description=doc, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
-    parser.add_argument("--p2vbme", default=P2VBME)
+    parser.add_argument("--vecme", default=VECME)
     parser.add_argument("--overwrite", action="store_true", help="redo what exists")
     if devices:
         parser.add_argument("--accelerator", default="auto", help="p2v-bme -a (default: auto)")
@@ -60,7 +60,7 @@ def search_options(args: Namespace, alignment: Path, model: str, dedup: bool = F
     ]
 
 
-def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> dict:
+def run_vecme(vecme: str, args: list[str], prefix: Path, overwrite: bool) -> dict:
     """Runs p2v-bme unless its report exists: (args, prefix) -> the report <prefix>.json.
 
     args are p2v-bme's options without -p;
@@ -74,7 +74,7 @@ def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> d
     report = Path(f"{prefix}.json")
     if overwrite or not report.exists():
         report.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run([p2vbme, *args, "-p", str(prefix), "-q", "--overwrite"], check=True)
+        subprocess.run([vecme, *args, "-p", str(prefix), "-q", "--overwrite"], check=True)
         if "-s" in args:
             threads = os.environ.get("OMP_NUM_THREADS")
             host = {"cpu_threads": int(threads) if threads else len(os.sched_getaffinity(0))}
@@ -82,17 +82,17 @@ def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> d
     return read_json(report)
 
 
-def supports(p2vbme: str, tree: Path, replicates: Path, prefix: Path, overwrite: bool) -> dict:
+def supports(vecme: str, tree: Path, replicates: Path, prefix: Path, overwrite: bool) -> dict:
     """Computes the supports of a tree's branches over replicate trees:
     (tree, replicates, prefix) -> report.
 
     Writes <prefix>.support.nwk (labels "TBE/exact" in %) and <prefix>.json;
     skipped if the report exists.
     """
-    return run_p2vbme(p2vbme, ["-t", str(tree), "--supports", str(replicates)], prefix, overwrite)
+    return run_vecme(vecme, ["-t", str(tree), "--supports", str(replicates)], prefix, overwrite)
 
 
-def compare_to_truth(p2vbme: str, tree: Path, true_tree: Path, overwrite: bool) -> dict:
+def compare_to_truth(vecme: str, tree: Path, true_tree: Path, overwrite: bool) -> dict:
     """Compares a tree with the true tree: (tree, true tree) -> {rf_pct, mean_tbe, mean_exact}.
 
     Writes <tree without .nwk>.vs_true.{support.nwk,json}.
@@ -100,7 +100,7 @@ def compare_to_truth(p2vbme: str, tree: Path, true_tree: Path, overwrite: bool) 
     1 - mean exact support.
     """
     prefix = Path(str(tree).removesuffix(".nwk") + ".vs_true")
-    s = supports(p2vbme, tree, true_tree, prefix, overwrite)["supports"]
+    s = supports(vecme, tree, true_tree, prefix, overwrite)["supports"]
     return {
         "rf_pct": 100.0 - s["mean_exact"],
         "mean_tbe": s["mean_tbe"],

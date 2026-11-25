@@ -144,10 +144,10 @@ def write_fasta(seqs: np.ndarray, path: Path) -> None:
 # ---- p2v-bme's fit -------------------------------------------------------------------------------
 
 
-def fit(p2vbme: str, fasta: Path, prefix: Path, pairs: int, threads: int) -> dict:
+def fit(vecme: str, fasta: Path, prefix: Path, pairs: int, threads: int) -> dict:
     """Fits GTR+GC with p2v-bme, no search: (alignment, prefix) -> its report <prefix>.json."""
     cmd = [
-        p2vbme,
+        vecme,
         "-s",
         str(fasta),
         "-m",
@@ -215,7 +215,7 @@ def main() -> None:
                             simulate(args.sequences, sites, alpha, p, np.random.default_rng(seed)),
                             fasta,
                         )
-                        fit(args.p2vbme, fasta, prefix, args.pairs, args.threads)
+                        fit(args.vecme, fasta, prefix, args.pairs, args.threads)
                         if not args.keep_fasta:
                             fasta.unlink()
                     report = read_json(report_path)

@@ -10,7 +10,7 @@ DEFAULT_RESULTS_DIR: Final = f"{DEFAULT_DATA_DIR}/results"  # raw results of the
 DEFAULT_TABLES_DIR: Final = f"{DEFAULT_DATA_DIR}/tables"
 
 DEFAULT_BUILD_DIR: Final = "build"  # cmake --preset default
-P2VBME: Final = f"{DEFAULT_BUILD_DIR}/p2v-bme"
+VECME: Final = f"{DEFAULT_BUILD_DIR}/p2v-bme"
 # paper/tools/bme_scores.cpp: exact BME lengths
 BME_SCORES: Final = f"{DEFAULT_BUILD_DIR}/bme_scores"
 # paper/tools/eval_cmaple_rf.cpp: pandemic-set RF

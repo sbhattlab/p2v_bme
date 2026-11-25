@@ -13,7 +13,7 @@
 
 namespace {
 
-using p2vbme::JsonWriter;
+using vecme::JsonWriter;
 
 // s written as a JSON string value
 std::string written(const std::string &s) {

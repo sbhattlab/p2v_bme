@@ -1,7 +1,7 @@
 // Helpers shared by the tests of the distance formulas (test_distances, test_eigen_dist): the expected pair counts
 // of a model at distance t, written here without the code under test, and the models and distances they use.
-#ifndef P2VBME_TESTS_DISTANCE_TEST_HELPERS_HPP
-#define P2VBME_TESTS_DISTANCE_TEST_HELPERS_HPP
+#ifndef VECME_TESTS_DISTANCE_TEST_HELPERS_HPP
+#define VECME_TESTS_DISTANCE_TEST_HELPERS_HPP
 
 #include <cmath>
 #include <cstdint>
@@ -12,7 +12,7 @@
 
 namespace {
 
-using namespace p2vbme;
+using namespace vecme;
 
 /* Expected counts of L sites at distance t under a model without rate variation: n_ij = round(L pi_i P_ij(t)). */
 inline PairCounts expected_counts(const SimulationModel &m, double t, double L = 1e9) {
@@ -159,4 +159,4 @@ const double TIMES[] = {0.02, 0.1, 0.4, 1.0};
 
 } // namespace
 
-#endif // P2VBME_TESTS_DISTANCE_TEST_HELPERS_HPP
+#endif // VECME_TESTS_DISTANCE_TEST_HELPERS_HPP

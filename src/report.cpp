@@ -18,7 +18,7 @@
 #include "json_writer.hpp"
 #include "version.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -224,4 +224,4 @@ void write_supports_report(const std::string &path, const Report &run, const Sup
         throw std::runtime_error("cannot write " + path);
 }
 
-} // namespace p2vbme
+} // namespace vecme

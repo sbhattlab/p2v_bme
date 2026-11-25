@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <string>
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -42,4 +42,4 @@ void pack_sequence(const std::string &seq, int32_t n_words, uint64_t *out) {
     }
 }
 
-} // namespace p2vbme
+} // namespace vecme

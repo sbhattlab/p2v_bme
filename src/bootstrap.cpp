@@ -13,7 +13,7 @@
 #include "support.hpp"
 #include "timing.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 uint64_t replicate_seed(uint64_t seed, int32_t replicate) {
     return derive_seed(derive_seed(seed, SALT_BOOTSTRAP), (uint64_t)replicate);
@@ -132,4 +132,4 @@ std::vector<std::string> support_labels(const BootstrapResult &boot, const std::
     return labels;
 }
 
-} // namespace p2vbme
+} // namespace vecme

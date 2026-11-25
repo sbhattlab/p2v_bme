@@ -11,7 +11,7 @@
 #include "distances.hpp"
 #include "simulations.hpp"
 
-using namespace p2vbme;
+using namespace vecme;
 
 namespace {
 

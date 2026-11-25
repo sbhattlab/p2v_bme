@@ -27,7 +27,7 @@
 
 namespace {
 
-using namespace p2vbme;
+using namespace vecme;
 
 const Model MODELS[] = {Model::JC69, Model::K80,    Model::F81, Model::F84,
                         Model::TN93, Model::LogDet, Model::GTR, Model::GTR_GC};

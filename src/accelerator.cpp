@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace p2vbme {
+namespace vecme {
 
 Accelerator parse_accelerator(const std::string &name) {
     if (name == "auto")
@@ -41,4 +41,4 @@ Precision parse_precision(const std::string &name) {
 
 const char *precision_name(Precision precision) { return precision == Precision::Double ? "double" : "single"; }
 
-} // namespace p2vbme
+} // namespace vecme

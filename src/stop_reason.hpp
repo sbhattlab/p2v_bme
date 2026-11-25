@@ -3,10 +3,10 @@
  *
  * Why the rounds of a search ended (SearchStats, Result), with its text form (the report).
  */
-#ifndef P2VBME_STOP_REASON_HPP
-#define P2VBME_STOP_REASON_HPP
+#ifndef VECME_STOP_REASON_HPP
+#define VECME_STOP_REASON_HPP
 
-namespace p2vbme {
+namespace vecme {
 
 enum class StopReason {
     MaxRounds, // all the planned rounds ran
@@ -29,6 +29,6 @@ inline const char *stop_reason_name(StopReason reason) {
     }
 }
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_STOP_REASON_HPP
+#endif // VECME_STOP_REASON_HPP

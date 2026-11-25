@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(p2vbme VERSION 0.1.0 LANGUAGES C CXX)
+project(vecme VERSION 0.1.0 LANGUAGES C CXX)
 
 # Flags are set per target (-O3, OpenMP); no build type is set, so no -DNDEBUG or
 # other flags are added. Everything is built into the top of the build folder (build/<program>), where the
@@ -14,15 +14,15 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 include(CheckLanguage)
 check_language(CUDA)
 if(CMAKE_CUDA_COMPILER)
-  set(P2VBME_CUDA_FOUND ON)
+  set(VECME_CUDA_FOUND ON)
 else()
-  set(P2VBME_CUDA_FOUND OFF)
+  set(VECME_CUDA_FOUND OFF)
 endif()
-option(P2VBME_CUDA "Build the GPU code (needs the CUDA toolkit)" ${P2VBME_CUDA_FOUND})
+option(VECME_CUDA "Build the GPU code (needs the CUDA toolkit)" ${VECME_CUDA_FOUND})
 # The prebuilt binary (the release preset): the CUDA runtime, libstdc++, libgcc and libgomp linked into p2v-bme, so that
 # it needs only glibc and, for the GPU, an NVIDIA driver.
-option(P2VBME_STATIC_RUNTIME "Link the CUDA and C++ runtimes into p2v-bme" OFF)
-if(P2VBME_CUDA)
+option(VECME_STATIC_RUNTIME "Link the CUDA and C++ runtimes into p2v-bme" OFF)
+if(VECME_CUDA)
   if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
     set(CMAKE_CUDA_ARCHITECTURES native)
   endif()
@@ -33,10 +33,10 @@ if(P2VBME_CUDA)
 endif()
 
 # The prebuilt binary links libgomp in too: its static archive in place of the shared library.
-if(P2VBME_STATIC_RUNTIME)
-  execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libgomp.a OUTPUT_VARIABLE P2VBME_LIBGOMP
+if(VECME_STATIC_RUNTIME)
+  execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libgomp.a OUTPUT_VARIABLE VECME_LIBGOMP
                   OUTPUT_STRIP_TRAILING_WHITESPACE)
-  set(OpenMP_gomp_LIBRARY ${P2VBME_LIBGOMP} CACHE FILEPATH "libgomp, linked into p2v-bme" FORCE)
+  set(OpenMP_gomp_LIBRARY ${VECME_LIBGOMP} CACHE FILEPATH "libgomp, linked into p2v-bme" FORCE)
 endif()
 find_package(OpenMP REQUIRED COMPONENTS C CXX)
 
@@ -44,78 +44,78 @@ find_package(OpenMP REQUIRED COMPONENTS C CXX)
 execute_process(
   COMMAND git describe --always --dirty
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  OUTPUT_VARIABLE P2VBME_GIT
+  OUTPUT_VARIABLE VECME_GIT
   OUTPUT_STRIP_TRAILING_WHITESPACE
   ERROR_QUIET)
 
 # ---- package ---------------------------------------------------------------------------------------
 # Core types: the alignment and the tree, and the packing of a sequence (plain C++, no CUDA)
-add_library(p2vbme_core STATIC src/core.cpp)
-target_include_directories(p2vbme_core PUBLIC src)
-target_compile_options(p2vbme_core PRIVATE -O3)
+add_library(vecme_core STATIC src/core.cpp)
+target_include_directories(vecme_core PUBLIC src)
+target_compile_options(vecme_core PRIVATE -O3)
 
 # I/O: FASTA, .maple, Newick (plain C++, no CUDA)
-add_library(p2vbme_io STATIC src/fasta.cpp src/maple.cpp src/newick.cpp src/io.cpp)
-target_include_directories(p2vbme_io PUBLIC src)
-target_compile_options(p2vbme_io PRIVATE -O3)
-target_link_libraries(p2vbme_io PUBLIC p2vbme_core)
+add_library(vecme_io STATIC src/fasta.cpp src/maple.cpp src/newick.cpp src/io.cpp)
+target_include_directories(vecme_io PUBLIC src)
+target_compile_options(vecme_io PRIVATE -O3)
+target_link_libraries(vecme_io PUBLIC vecme_core)
 
 # Sequence simulation along a tree (tests, pipeline tools)
-add_library(p2vbme_simulations STATIC src/simulations.cpp)
-target_include_directories(p2vbme_simulations PUBLIC src)
-target_compile_options(p2vbme_simulations PRIVATE -O3 -Wall -Wextra)
-target_link_libraries(p2vbme_simulations PUBLIC p2vbme_core)
+add_library(vecme_simulations STATIC src/simulations.cpp)
+target_include_directories(vecme_simulations PUBLIC src)
+target_compile_options(vecme_simulations PRIVATE -O3 -Wall -Wextra)
+target_link_libraries(vecme_simulations PUBLIC vecme_core)
 
 # Distance models: names, pair counts; the per-pair formulas are inline in the headers (plain C++, no CUDA)
-add_library(p2vbme_distances STATIC src/distances.cpp)
-target_include_directories(p2vbme_distances PUBLIC src)
-target_compile_options(p2vbme_distances PRIVATE -O3 -Wall -Wextra)
+add_library(vecme_distances STATIC src/distances.cpp)
+target_include_directories(vecme_distances PUBLIC src)
+target_compile_options(vecme_distances PRIVATE -O3 -Wall -Wextra)
 
 # GTR and GTR+GC fits: the exchangeabilities (and alpha) from sampled sequence pairs (plain C++, OpenMP, no CUDA).
 # -ffp-contract=off: no fused multiply-adds (the default on ARM), so the fit gives the same bits on every CPU.
-add_library(p2vbme_gtr_fit STATIC src/gtr_fit.cpp)
-target_include_directories(p2vbme_gtr_fit PUBLIC src)
-target_compile_options(p2vbme_gtr_fit PRIVATE -O3 -Wall -Wextra -ffp-contract=off)
-target_link_libraries(p2vbme_gtr_fit PUBLIC p2vbme_core p2vbme_distances PRIVATE OpenMP::OpenMP_CXX)
+add_library(vecme_gtr_fit STATIC src/gtr_fit.cpp)
+target_include_directories(vecme_gtr_fit PUBLIC src)
+target_compile_options(vecme_gtr_fit PRIVATE -O3 -Wall -Wextra -ffp-contract=off)
+target_link_libraries(vecme_gtr_fit PUBLIC vecme_core vecme_distances PRIVATE OpenMP::OpenMP_CXX)
 
 # Before and after inference: base frequencies, the GTR or GTR+GC fit, identical sequences, the start tree (plain C++,
 # no CUDA)
-add_library(p2vbme_processing STATIC src/processing.cpp)
-target_include_directories(p2vbme_processing PUBLIC src)
-target_compile_options(p2vbme_processing PRIVATE -O3)
-target_link_libraries(p2vbme_processing PUBLIC p2vbme_core p2vbme_distances p2vbme_gtr_fit)
+add_library(vecme_processing STATIC src/processing.cpp)
+target_include_directories(vecme_processing PUBLIC src)
+target_compile_options(vecme_processing PRIVATE -O3)
+target_link_libraries(vecme_processing PUBLIC vecme_core vecme_distances vecme_gtr_fit)
 
 # Bootstrap supports of a tree's branches: TBE and exact (plain C++, no CUDA)
-add_library(p2vbme_support STATIC src/support.cpp)
-target_include_directories(p2vbme_support PUBLIC src)
-target_compile_options(p2vbme_support PRIVATE -O3 -Wall -Wextra)
-target_link_libraries(p2vbme_support PUBLIC p2vbme_core)
+add_library(vecme_support STATIC src/support.cpp)
+target_include_directories(vecme_support PUBLIC src)
+target_compile_options(vecme_support PRIVATE -O3 -Wall -Wextra)
+target_link_libraries(vecme_support PUBLIC vecme_core)
 
 # JSON writer for the run report (plain C++, no CUDA)
-add_library(p2vbme_json STATIC src/json_writer.cpp)
-target_include_directories(p2vbme_json PUBLIC src)
-target_compile_options(p2vbme_json PRIVATE -O3 -Wall -Wextra)
+add_library(vecme_json STATIC src/json_writer.cpp)
+target_include_directories(vecme_json PUBLIC src)
+target_compile_options(vecme_json PRIVATE -O3 -Wall -Wextra)
 
 find_package(cxxopts CONFIG REQUIRED)
 
 # The method: infer(), start tree, search, branch lengths (host), the bootstrap, the CPU device and, with CUDA, the GPU
 # device (all CUDA code is in device_gpu.cu)
-add_library(p2vbme STATIC src/inference.cpp src/start_tree.cpp src/search.cpp src/phylo2vec.cpp src/branch_lengths.cpp
+add_library(vecme_lib STATIC src/inference.cpp src/start_tree.cpp src/search.cpp src/phylo2vec.cpp src/branch_lengths.cpp
             src/report.cpp src/version.cpp src/accelerator.cpp src/device.cpp src/device_cpu.cpp src/bootstrap.cpp)
 set_source_files_properties(src/version.cpp PROPERTIES COMPILE_DEFINITIONS
-                            "P2VBME_VERSION=\"${PROJECT_VERSION}\";P2VBME_GIT=\"${P2VBME_GIT}\"")
-target_include_directories(p2vbme PUBLIC src)
-target_compile_options(p2vbme PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-O3 -Xcompiler=-fopenmp>
+                            "VECME_VERSION=\"${PROJECT_VERSION}\";VECME_GIT=\"${VECME_GIT}\"")
+target_include_directories(vecme_lib PUBLIC src)
+target_compile_options(vecme_lib PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-O3 -Xcompiler=-fopenmp>
                                       $<$<COMPILE_LANGUAGE:CXX>:-O3>)
-target_link_libraries(p2vbme PUBLIC p2vbme_core p2vbme_distances p2vbme_support OpenMP::OpenMP_CXX)
-target_link_libraries(p2vbme PRIVATE p2vbme_json)
-if(P2VBME_CUDA)
-  target_sources(p2vbme PRIVATE src/device_gpu.cu)
-  target_compile_definitions(p2vbme PRIVATE P2VBME_WITH_CUDA)
-  if(P2VBME_STATIC_RUNTIME)
-    target_link_libraries(p2vbme PUBLIC CUDA::cudart_static)
+target_link_libraries(vecme_lib PUBLIC vecme_core vecme_distances vecme_support OpenMP::OpenMP_CXX)
+target_link_libraries(vecme_lib PRIVATE vecme_json)
+if(VECME_CUDA)
+  target_sources(vecme_lib PRIVATE src/device_gpu.cu)
+  target_compile_definitions(vecme_lib PRIVATE VECME_WITH_CUDA)
+  if(VECME_STATIC_RUNTIME)
+    target_link_libraries(vecme_lib PUBLIC CUDA::cudart_static)
   else()
-    target_link_libraries(p2vbme PUBLIC CUDA::cudart)
+    target_link_libraries(vecme_lib PUBLIC CUDA::cudart)
   endif()
 endif()
 
@@ -123,27 +123,27 @@ endif()
 # popcnt instruction (every x86-64 CPU since about 2008) instead of a libgcc call: CPU runs 1.3x (JC69) to 2.5x (TN93)
 # faster on 10,000 x 1,000 sites, same trees.
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-  target_compile_options(p2vbme_distances PRIVATE -mpopcnt)
-  target_compile_options(p2vbme PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-mpopcnt>)
+  target_compile_options(vecme_distances PRIVATE -mpopcnt)
+  target_compile_options(vecme_lib PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-mpopcnt>)
 endif()
 
 # The command line (cxxopts): the arguments into Settings and the Report's command-line part
-add_library(p2vbme_cli STATIC src/cli.cpp)
-target_compile_options(p2vbme_cli PRIVATE -O3)
-target_link_libraries(p2vbme_cli PUBLIC p2vbme PRIVATE cxxopts::cxxopts)
+add_library(vecme_cli STATIC src/cli.cpp)
+target_compile_options(vecme_cli PRIVATE -O3)
+target_link_libraries(vecme_cli PUBLIC vecme_lib PRIVATE cxxopts::cxxopts)
 
 # Command-line tool (GPU and CPU, or CPU only without CUDA)
 add_executable(p2v-bme src/main.cpp)
 target_compile_options(p2v-bme PRIVATE -O3)
-target_link_libraries(p2v-bme PRIVATE p2vbme_cli p2vbme p2vbme_io p2vbme_processing OpenMP::OpenMP_CXX)
-if(P2VBME_STATIC_RUNTIME)
+target_link_libraries(p2v-bme PRIVATE vecme_cli vecme_lib vecme_io vecme_processing OpenMP::OpenMP_CXX)
+if(VECME_STATIC_RUNTIME)
   target_link_options(p2v-bme PRIVATE -static-libstdc++ -static-libgcc)
 endif()
 install(TARGETS p2v-bme)
 
 # ---- the paper's tools ----------------------------------------------------------------------------------
-option(P2VBME_BUILD_PAPER_TOOLS "Build the compiled tools of the paper's scripts (paper/tools)" OFF)
-if(P2VBME_BUILD_PAPER_TOOLS)
+option(VECME_BUILD_PAPER_TOOLS "Build the compiled tools of the paper's scripts (paper/tools)" OFF)
+if(VECME_BUILD_PAPER_TOOLS)
   add_subdirectory(paper)
 endif()
 

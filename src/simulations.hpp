@@ -4,14 +4,14 @@
  * Sequences along a tree under GTR with continuous gamma rate variation (+GC), JC69 as a special case, and
  * random trees to simulate on. Used by the tests; not part of the p2v-bme command.
  */
-#ifndef P2VBME_SIMULATIONS_HPP
-#define P2VBME_SIMULATIONS_HPP
+#ifndef VECME_SIMULATIONS_HPP
+#define VECME_SIMULATIONS_HPP
 
 #include <cstdint>
 
 #include "core.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // GTR rates (AC, AG, AT, CG, CT, GT) and base frequencies (A, C, G, T); the rate matrix is normalised to one expected
 // substitution per unit time.
@@ -37,6 +37,6 @@ Tree random_tree(int32_t n, double min_length, double max_length, uint64_t seed)
 // Names are t0 ... t{N-1}; no gaps.
 Alignment simulate_alignment(const Tree &tree, int32_t n_sites, const SimulationModel &model, uint64_t seed);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_SIMULATIONS_HPP
+#endif // VECME_SIMULATIONS_HPP

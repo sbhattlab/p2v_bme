@@ -60,7 +60,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 from paper._config import DEFAULT_DATASETS_DIR, EVAL_CMAPLE_RF, FASTME, FASTTREE, VERYFASTTREE
-from paper.utils import parse_common_args, read_json, run_p2vbme, with_edge_lengths, write_json
+from paper.utils import parse_common_args, read_json, run_vecme, with_edge_lengths, write_json
 
 # The recorded files the tables and figures read (paths below the source's RECORDS_ROOT),
 # and the folder of data/results/baselines/ each goes to (the same as --run writes)
@@ -361,8 +361,8 @@ def run_random_start(args, out: Path, tag: str, n: int, rep: int) -> None:
         "0",
         "--no-branch-lengths",
     ]
-    run_p2vbme(
-        args.p2vbme,
+    run_vecme(
+        args.vecme,
         [*start_args, "--seed", str(rep + 1), "-a", "cpu"],
         work / "start",
         args.overwrite,

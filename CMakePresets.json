@@ -8,7 +8,7 @@
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "$env{CONDA_PREFIX}",
-        "P2VBME_BUILD_PAPER_TOOLS": "ON"
+        "VECME_BUILD_PAPER_TOOLS": "ON"
       }
     },
     {
@@ -17,7 +17,7 @@
       "displayName": "CPU only (no CUDA), warnings as errors, as in CI",
       "binaryDir": "${sourceDir}/build-ci",
       "cacheVariables": {
-        "P2VBME_CUDA": "OFF",
+        "VECME_CUDA": "OFF",
         "CMAKE_C_FLAGS": "-Werror",
         "CMAKE_CXX_FLAGS": "-Werror"
       }
@@ -29,8 +29,8 @@
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
         "CMAKE_CUDA_ARCHITECTURES": "75-real;80-real;86-real;89-real;90-real;100-real;120",
-        "P2VBME_STATIC_RUNTIME": "ON",
-        "P2VBME_BUILD_PAPER_TOOLS": "OFF",
+        "VECME_STATIC_RUNTIME": "ON",
+        "VECME_BUILD_PAPER_TOOLS": "OFF",
         "BUILD_TESTING": "OFF"
       }
     },
@@ -40,7 +40,7 @@
       "displayName": "CPU only, AddressSanitizer and UndefinedBehaviorSanitizer",
       "binaryDir": "${sourceDir}/build-asan",
       "cacheVariables": {
-        "P2VBME_CUDA": "OFF",
+        "VECME_CUDA": "OFF",
         "CMAKE_C_FLAGS": "-g -fsanitize=address,undefined -fno-omit-frame-pointer",
         "CMAKE_CXX_FLAGS": "-g -fsanitize=address,undefined -fno-omit-frame-pointer",
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",

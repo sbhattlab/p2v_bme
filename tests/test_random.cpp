@@ -21,7 +21,7 @@ std::vector<int32_t> iota_vec(int32_t n) {
 }
 
 // The state after `draws` calls of splitmix64 from `state`: each call adds SPLITMIX64_GAMMA
-uint64_t advanced(uint64_t state, uint64_t draws) { return state + draws * p2vbme::SPLITMIX64_GAMMA; }
+uint64_t advanced(uint64_t state, uint64_t draws) { return state + draws * vecme::SPLITMIX64_GAMMA; }
 
 // Every one of n_outcomes outcomes was seen, each within 4 standard errors of trials / n_outcomes
 void expect_uniform(const std::map<std::vector<int32_t>, int> &count, int n_outcomes, int trials) {
@@ -36,11 +36,11 @@ void expect_uniform(const std::map<std::vector<int32_t>, int> &count, int n_outc
 // Outputs from states 0 and 1 equal Vigna's splitmix.c (also computed independently in Python)
 TEST(Splitmix64, ReferenceValues) {
     uint64_t s = 0;
-    EXPECT_EQ(p2vbme::splitmix64(s), 0xE220A8397B1DCDAFULL);
-    EXPECT_EQ(p2vbme::splitmix64(s), 0x6E789E6AA1B965F4ULL);
-    EXPECT_EQ(p2vbme::splitmix64(s), 0x06C45D188009454FULL);
+    EXPECT_EQ(vecme::splitmix64(s), 0xE220A8397B1DCDAFULL);
+    EXPECT_EQ(vecme::splitmix64(s), 0x6E789E6AA1B965F4ULL);
+    EXPECT_EQ(vecme::splitmix64(s), 0x06C45D188009454FULL);
     s = 1;
-    EXPECT_EQ(p2vbme::splitmix64(s), 0x910A2DEC89025CC1ULL);
+    EXPECT_EQ(vecme::splitmix64(s), 0x910A2DEC89025CC1ULL);
 }
 
 // ---- uniform_below ----
@@ -49,8 +49,8 @@ TEST(Splitmix64, ReferenceValues) {
 TEST(UniformBelow, IsTheOutputModuloN) {
     uint64_t a = 42, b = 42;
     for (uint64_t n : {1ULL, 2ULL, 7ULL, 1000ULL, 1ULL << 40}) {
-        const uint64_t x = p2vbme::uniform_below(a, n);
-        EXPECT_EQ(x, p2vbme::splitmix64(b) % n);
+        const uint64_t x = vecme::uniform_below(a, n);
+        EXPECT_EQ(x, vecme::splitmix64(b) % n);
         EXPECT_LT(x, n);
     }
 }
@@ -62,7 +62,7 @@ TEST(Shuffle, IsAPermutation) {
     for (uint64_t seed : {1ULL, 20261105ULL, 0xDEADBEEFULL}) {
         std::vector<int32_t> v = iota_vec(1000);
         uint64_t s = seed;
-        p2vbme::shuffle(v.begin(), v.end(), s);
+        vecme::shuffle(v.begin(), v.end(), s);
         std::sort(v.begin(), v.end());
         EXPECT_EQ(v, iota_vec(1000));
     }
@@ -75,7 +75,7 @@ TEST(Shuffle, AllOrdersEquallyLikely) {
     uint64_t s = 11;
     for (int t = 0; t < trials; ++t) {
         std::vector<int32_t> v = iota_vec(3);
-        p2vbme::shuffle(v.begin(), v.end(), s);
+        vecme::shuffle(v.begin(), v.end(), s);
         ++count[v];
     }
     expect_uniform(count, 6, trials);
@@ -85,7 +85,7 @@ TEST(Shuffle, AllOrdersEquallyLikely) {
 TEST(Shuffle, TakesNMinusOneDraws) {
     std::vector<int32_t> v = iota_vec(1000);
     uint64_t s = 7;
-    p2vbme::shuffle(v.begin(), v.end(), s);
+    vecme::shuffle(v.begin(), v.end(), s);
     EXPECT_EQ(s, advanced(7, 999));
 }
 
@@ -93,7 +93,7 @@ TEST(Shuffle, TakesNMinusOneDraws) {
 TEST(Shuffle, SubrangeOnly) {
     std::vector<int32_t> v = iota_vec(50);
     uint64_t s = 7;
-    p2vbme::shuffle(v.begin() + 10, v.begin() + 37, s);
+    vecme::shuffle(v.begin() + 10, v.begin() + 37, s);
     for (int32_t i = 0; i < 10; ++i)
         EXPECT_EQ(v[i], i);
     for (int32_t i = 37; i < 50; ++i)
@@ -107,8 +107,8 @@ TEST(Shuffle, SubrangeOnly) {
 TEST(Shuffle, EmptyAndOneElement) {
     uint64_t s = 3;
     std::vector<int32_t> empty, one = {7};
-    p2vbme::shuffle(empty.begin(), empty.end(), s);
-    p2vbme::shuffle(one.begin(), one.end(), s);
+    vecme::shuffle(empty.begin(), empty.end(), s);
+    vecme::shuffle(one.begin(), one.end(), s);
     EXPECT_EQ(one[0], 7);
     EXPECT_EQ(s, 3u);
 }
@@ -119,7 +119,7 @@ TEST(Shuffle, EmptyAndOneElement) {
 TEST(PartialShuffle, IsAPermutationAfterKDraws) {
     std::vector<int32_t> v = iota_vec(5000);
     uint64_t s = 7;
-    p2vbme::partial_shuffle(v.begin(), v.end(), 500, s);
+    vecme::partial_shuffle(v.begin(), v.end(), 500, s);
     EXPECT_EQ(s, advanced(7, 500));
     std::sort(v.begin(), v.end());
     EXPECT_EQ(v, iota_vec(5000));
@@ -133,7 +133,7 @@ TEST(PartialShuffle, AllOrderedSubsetsEquallyLikely) {
     uint64_t s = 11;
     for (int t = 0; t < trials; ++t) {
         std::vector<int32_t> v = iota_vec(4);
-        p2vbme::partial_shuffle(v.begin(), v.end(), 2, s);
+        vecme::partial_shuffle(v.begin(), v.end(), 2, s);
         ++count[{v[0], v[1]}];
     }
     expect_uniform(count, 12, trials);
@@ -143,13 +143,13 @@ TEST(PartialShuffle, AllOrderedSubsetsEquallyLikely) {
 TEST(PartialShuffle, AllOrNone) {
     uint64_t s = 3;
     std::vector<int32_t> v = iota_vec(10);
-    p2vbme::partial_shuffle(v.begin(), v.end(), 10, s);
+    vecme::partial_shuffle(v.begin(), v.end(), 10, s);
     std::sort(v.begin(), v.end());
     EXPECT_EQ(v, iota_vec(10));
 
     const uint64_t before = s;
     std::vector<int32_t> w = iota_vec(10);
-    p2vbme::partial_shuffle(w.begin(), w.end(), 0, s);
+    vecme::partial_shuffle(w.begin(), w.end(), 0, s);
     EXPECT_EQ(w, iota_vec(10));
     EXPECT_EQ(s, before);
 }
@@ -159,17 +159,17 @@ TEST(PartialShuffle, AllOrNone) {
 // One splitmix64 output from seed XOR salt, for both salts
 TEST(DeriveSeed, IsSplitmix64OfSeedXorSalt) {
     for (uint64_t seed : {1ULL, 20261105ULL}) {
-        for (uint64_t salt : {p2vbme::SALT_START_TREE_LEVEL, p2vbme::SALT_START_TREE_RANDOM}) {
+        for (uint64_t salt : {vecme::SALT_START_TREE_LEVEL, vecme::SALT_START_TREE_RANDOM}) {
             uint64_t s = seed ^ salt;
-            EXPECT_EQ(p2vbme::derive_seed(seed, salt), p2vbme::splitmix64(s));
+            EXPECT_EQ(vecme::derive_seed(seed, salt), vecme::splitmix64(s));
         }
     }
 }
 
 // Two levels down with the same salt does not return to the parent seed, as a plain XOR would
 TEST(DeriveSeed, TwoLevelsDownIsNotTheParentSeed) {
-    const uint64_t s1 = p2vbme::derive_seed(5, p2vbme::SALT_START_TREE_LEVEL);
-    EXPECT_NE(p2vbme::derive_seed(s1, p2vbme::SALT_START_TREE_LEVEL), 5u);
+    const uint64_t s1 = vecme::derive_seed(5, vecme::SALT_START_TREE_LEVEL);
+    EXPECT_NE(vecme::derive_seed(s1, vecme::SALT_START_TREE_LEVEL), 5u);
 }
 
 } // namespace
