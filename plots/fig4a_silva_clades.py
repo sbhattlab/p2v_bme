@@ -1,5 +1,5 @@
 """Fig. 4a: the SILVA 144 tree reduced to the three domains and 20 major clades,
-with counts, F1 and support.
+with the transfer support of every branch written on the tree.
 
 Inputs:  data/tables/silva_clades.tsv, silva_clade_paths.tsv            (make_tables.py)
 Options: --tables-dir, --img-dir
@@ -10,8 +10,8 @@ Flow:    the paths from each selected clade's best node to the root
          Archaea and Eukaryota
            |
            v
-         one row per clade: triangle, name, unique sequences,
-         best F1, transfer support (TBE) of its stem; backbone nodes with TBE >= 75% marked
+         one row per clade: triangle, name, unique sequences; each branch's transfer support (TBE) at its
+         end; one colour per domain
 Outputs: img/fig4/fig4a_silva_clades.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig4a_silva_clades
@@ -21,19 +21,19 @@ import math
 
 import matplotlib.pyplot as plt
 
-from matplotlib.patches import Polygon, Rectangle
+from matplotlib.patches import Polygon
 
 from plots._config import STYLE
 from plots.utils import parser, read_tsv, save
 
 COLOURS = {"Archaea": "#6a4c93", "Eukaryota": "#c85a32", "Bacteria": "#1f6f8b"}
-TBE_MARKS = (
-    (95.0, "#1b7837", "≥ 95%"),
-    (85.0, "#2b6cb0", "85–95%"),
-    (75.0, "#d99b26", "75–85%"),
-)
-# The legend under the tree, in x units: the first class's marker, and the step between classes
-LEGEND_FIRST, LEGEND_STEP = 0.86, 0.58
+BRANCH, TEXT = "#4a5568", "#1a202c"
+SUPPORT_SIZE = 7  # points: the numbers on the branches, smaller than the labels
+STRETCH = 1.7  # widens the tree, so that the numbers on the dense backbone do not collide
+NAME_GAP, COUNT_X = (
+    0.02,
+    1.45,
+)  # x of the clade names and of the right edge of the counts, past the triangles
 SELECTED_CLADES = [
     ("Archaea;Halobacteriota", "Halobacteriota"),
     ("Archaea;Thermoproteota", "Thermoproteota"),
@@ -169,7 +169,11 @@ def induced_tree(clades: dict, paths: dict) -> dict:
 def place(node: dict, x0: float, counter: list[int]) -> float:
     """Sets the x (square-root branch lengths) and y (row) of every node:
     -> the largest x below the node."""
-    step = 0.0 if node["node"] == -1 else 0.016 + 0.36 * math.sqrt(max(0.0, node["length"]))
+    step = (
+        0.0
+        if node["node"] == -1
+        else STRETCH * (0.016 + 0.36 * math.sqrt(max(0.0, node["length"])))
+    )
     node["x0"], node["x"] = x0, x0 + step
     if node["leaf"]:
         node["y"] = len(SELECTED_CLADES) - 1 - counter[0]
@@ -180,25 +184,29 @@ def place(node: dict, x0: float, counter: list[int]) -> float:
     return right
 
 
-def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
+def support(ax: plt.Axes, x: float, y: float, tbe: float) -> None:
+    """Writes a branch's transfer support at its end, just above it: (axes, x, y, TBE in %) -> None."""
+    ax.text(
+        x - 0.006,
+        y + 0.15,
+        f"{tbe:.0f}",
+        fontsize=SUPPORT_SIZE,
+        color="#2d3748",
+        ha="right",
+        va="bottom",
+    )
+
+
+def draw(ax: plt.Axes, node: dict, tips: float, label: bool = True) -> None:
     """Draws a node, its row if it is a selected clade, and its subtree:
-    (axes, node, column x) -> None."""
+    (axes, node, x of the triangles' bases, whether to number the node's branch) -> None."""
     x0, x1, y = node["x0"], node["x"], node["y"]
-    tips = columns["tips"]
     if node["node"] != -1:
-        ax.plot([x0, x1], [y, y], color="#2d3748", lw=1.35, solid_capstyle="round", zorder=2)
+        ax.plot([x0, x1], [y, y], color=BRANCH, lw=1.2, solid_capstyle="round", zorder=2)
     if node["leaf"]:
         colour = domain_colour(node["key"])
         if x1 < tips - 0.010:
-            ax.plot(
-                [x1, tips - 0.008],
-                [y, y],
-                color=colour,
-                lw=0.75,
-                ls=":",
-                alpha=0.75,
-                zorder=1,
-            )
+            ax.plot([x1, tips - 0.008], [y, y], color=colour, lw=0.75, ls=":", alpha=0.75, zorder=1)
         h = 0.22 + 0.05 * (math.log10(max(1000, node["leaves"])) - 4.0)
         ax.add_patch(
             Polygon(
@@ -211,90 +219,19 @@ def draw(ax: plt.Axes, node: dict, columns: dict) -> None:
                 zorder=3,
             )
         )
-        ax.text(
-            columns["name"],
-            y,
-            node["label"],
-            color="#1a202c",
-            fontweight="bold" if node["leaves"] >= 200000 else "normal",
-            va="center",
-            ha="left",
-        )
-        ax.text(
-            columns["k"],
-            y,
-            f"{node['leaves']:,}",
-            color="#2d3748",
-            va="center",
-            ha="right",
-        )
-        f1 = node["f1"]
-        f1_colour = "#1b7837" if f1 >= 0.95 else ("#d95f02" if f1 >= 0.85 else "#7570b3")
-        ax.text(
-            columns["f1"],
-            y,
-            f"{f1:.3f}",
-            color=f1_colour,
-            fontweight="bold",
-            va="center",
-            ha="right",
-        )
-        bar_x, width = columns["bar"], columns["bar_width"]
-        ax.add_patch(
-            Rectangle(
-                (bar_x, y - 0.22),
-                width,
-                0.44,
-                facecolor="#edf2f7",
-                edgecolor="none",
-                zorder=1,
-            )
-        )
-        ax.add_patch(
-            Rectangle(
-                (bar_x, y - 0.22),
-                width * node["tbe"] / 100.0,
-                0.44,
-                facecolor=colour,
-                edgecolor="none",
-                alpha=0.85,
-                zorder=2,
-            )
-        )
-        ax.text(
-            bar_x + width + 0.014,
-            y,
-            f"{node['tbe']:.1f}%",
-            color="#1a202c",
-            fontweight="bold",
-            va="center",
-            ha="left",
-        )
+        if label:
+            support(ax, x1, y, node["tbe"])
+        ax.text(tips + NAME_GAP, y, node["label"], color=TEXT, va="center", ha="left")
+        ax.text(tips + COUNT_X, y, f"{node['leaves']:,}", color=TEXT, va="center", ha="right")
         return
     ys = [c["y"] for c in node["children"]]
-    ax.plot(
-        [x1, x1],
-        [min(ys), max(ys)],
-        color="#2d3748",
-        lw=1.35,
-        solid_capstyle="round",
-        zorder=2,
-    )
-    if node["node"] != -1:
-        for threshold, colour, _label in TBE_MARKS:
-            if node["tbe"] >= threshold:
-                ax.scatter(
-                    [x1],
-                    [y],
-                    s=20,
-                    facecolor=colour,
-                    edgecolor="white",
-                    lw=0.6,
-                    zorder=4,
-                )
-                break
-    for c in node["children"]:
-        draw(ax, c, columns)
+    ax.plot([x1, x1], [min(ys), max(ys)], color=BRANCH, lw=1.2, solid_capstyle="round", zorder=2)
+    # a node with one child continues its branch: the branch is numbered once, at its end
+    if node["node"] != -1 and label and len(node["children"]) > 1:
+        support(ax, x1, y, node["tbe"])
+    # the root splits one branch in two halves: it is numbered once
+    for i, c in enumerate(node["children"]):
+        draw(ax, c, tips, label=not (node["node"] == -1 and i == 1))
 
 
 def main() -> None:
@@ -303,29 +240,15 @@ def main() -> None:
     clades, paths = read_clades(args.tables_dir)
     tree = induced_tree(clades, paths)
     tips = place(tree, 0.0, [0]) + 0.025
-    columns = {
-        "tips": tips,
-        "name": tips + 0.015,
-        "k": tips + 1.625,
-        "f1": tips + 1.935,
-        "bar": tips + 1.990,
-        "bar_width": 0.145,
-    }
 
     fig = plt.figure(figsize=(4.5, 4.6))
-    ax = fig.add_axes((0.02, 0.02, 0.96, 0.93))
+    ax = fig.add_axes((0.02, 0.02, 0.96, 0.95))
     for spine in ax.spines.values():
         spine.set_visible(False)
     ax.set_xticks([])
     ax.set_yticks([])
     for name, (low, high) in DOMAIN_TAGS.items():
-        ax.axhspan(
-            *DOMAIN_BANDS[name],
-            color=COLOURS[name],
-            alpha=0.045 if name == "Bacteria" else 0.06,
-            zorder=0,
-        )
-        mid, c = 0.5 * (low + high), clades[name]
+        ax.axhspan(*DOMAIN_BANDS[name], color=COLOURS[name], alpha=0.05, zorder=0)
         ax.plot(
             [-0.030, -0.030],
             [low + 0.15, high - 0.15],
@@ -335,45 +258,18 @@ def main() -> None:
         )
         ax.text(
             -0.046,
-            mid,
-            f"{name}\n{int(c['unique_leaves']):,}\nTBE {float(c['tbe_pct']):.0f}%",
+            0.5 * (low + high),
+            f"{name}\n{int(clades[name]['unique_leaves']):,}",
             color=COLOURS[name],
             fontweight="bold",
             ha="right",
             va="center",
             linespacing=1.15,
         )
-    draw(ax, tree, columns)
-    header = 19.82
-    for x, text, ha in (
-        (columns["name"], "Clade", "left"),
-        (columns["k"], "Sequences", "right"),
-        (columns["f1"], "F1", "right"),
-        (columns["bar"], "TBE (%)", "left"),
-    ):
-        ax.text(
-            x,
-            header,
-            text,
-            fontweight="bold",
-            color="#1a202c",
-            ha=ha,
-            va="bottom",
-        )
-    ax.plot(
-        [0.0, columns["bar"] + columns["bar_width"] + 0.35],
-        [19.62, 19.62],
-        color="#cbd5e0",
-        lw=0.8,
-    )
-    # one label, then a marker and its range per class
-    ax.text(0.0, -1.05, "Backbone TBE", va="center", color="#2d3748")
-    for i, (_threshold, colour, label) in enumerate(TBE_MARKS):
-        x = LEGEND_FIRST + LEGEND_STEP * i
-        ax.scatter([x], [-1.05], s=24, facecolor=colour, edgecolor="white", lw=0.6, clip_on=False)
-        ax.text(x + 0.035, -1.05, label, va="center", color="#2d3748")
-    ax.set_xlim(-0.56, columns["bar"] + columns["bar_width"] + 0.36)
-    ax.set_ylim(-1.35, 20.45)
+    draw(ax, tree, tips)
+    ax.text(tips + COUNT_X, 19.82, "Sequences", color=TEXT, ha="right", va="bottom")
+    ax.set_xlim(-0.56, tips + COUNT_X + 0.04)
+    ax.set_ylim(-0.75, 20.45)
     save(fig, args.img_dir, "fig4a_silva_clades")
 
 
