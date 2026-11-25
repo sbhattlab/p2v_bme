@@ -1,4 +1,4 @@
-"""Fig. 3a: the SILVA 144 tree reduced to the three domains and 20 major clades,
+"""Fig. 4a: the SILVA 144 tree reduced to the three domains and 20 major clades,
 with counts, F1 and support.
 
 Inputs:  data/tables/silva_clades.tsv, silva_clade_paths.tsv            (make_tables.py)
@@ -12,9 +12,9 @@ Flow:    the paths from each selected clade's best node to the root
            v
          one row per clade: triangle, name, unique sequences,
          best F1, transfer support (TBE) of its stem; backbone nodes with TBE >= 75% marked
-Outputs: img/fig3/fig3a_silva_clades.{pdf,svg,png}
+Outputs: img/fig4/fig4a_silva_clades.{pdf,svg,png}
 
-    pixi run -e paper python -m plots.fig3a_silva_clades
+    pixi run -e paper python -m plots.fig4a_silva_clades
 """
 
 import math
@@ -374,7 +374,7 @@ def main() -> None:
         ax.text(x + 0.035, -1.05, label, va="center", color="#2d3748")
     ax.set_xlim(-0.56, columns["bar"] + columns["bar_width"] + 0.36)
     ax.set_ylim(-1.35, 20.45)
-    save(fig, args.img_dir, "fig3a_silva_clades")
+    save(fig, args.img_dir, "fig4a_silva_clades")
 
 
 if __name__ == "__main__":

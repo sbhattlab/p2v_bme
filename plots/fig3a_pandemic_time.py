@@ -1,11 +1,11 @@
-"""Fig. 2c: running time of VecME, MAPLE and CMAPLE on the simulated pandemic alignments.
+"""Fig. 3a: running time of VecME, MAPLE and CMAPLE on the simulated pandemic alignments.
 
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    per program and size: mean over the three branch-length scales, the bar spans their range
-Outputs: img/fig2/fig2c_pandemic_time.{pdf,svg,png}
+Outputs: img/fig3/fig3a_pandemic_time.{pdf,svg,png}
 
-    pixi run -e paper python -m plots.fig2c_pandemic_time
+    pixi run -e paper python -m plots.fig3a_pandemic_time
 """
 
 import statistics
@@ -67,7 +67,7 @@ def main() -> None:
     ax.grid(axis="y", which="major", color="#E5E5E5", linewidth=0.5)
     ax.set_axisbelow(True)
     ax.legend(loc="upper left", frameon=False, handlelength=1.5)
-    save(fig, args.img_dir, "fig2c_pandemic_time")
+    save(fig, args.img_dir, "fig3a_pandemic_time")
 
 
 if __name__ == "__main__":

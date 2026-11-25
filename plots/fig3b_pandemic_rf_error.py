@@ -1,13 +1,13 @@
-"""Fig. 2d: RF error of VecME, MAPLE and CMAPLE on the simulated pandemic alignments,
-by mean branch length in substitutions per branch (as Fig. 2c draws their times).
+"""Fig. 3b: RF error of VecME, MAPLE and CMAPLE on the simulated pandemic alignments,
+by mean branch length in substitutions per branch (as Fig. 3a draws their times).
 
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    per program and branch-length scale: the mean over the three sizes, the whisker spans them;
          the programs side by side at each scale, as their errors nearly coincide
-Outputs: img/fig2/fig2d_pandemic_rf_error.{pdf,svg,png}
+Outputs: img/fig3/fig3b_pandemic_rf_error.{pdf,svg,png}
 
-    pixi run -e paper python -m plots.fig2d_pandemic_rf_error
+    pixi run -e paper python -m plots.fig3b_pandemic_rf_error
 """
 
 import statistics
@@ -20,7 +20,7 @@ from plots.utils import OURS, method_style, parser, read_tsv, save
 FIGSIZE = (52 / 25.4, 62 / 25.4)
 SITES = 30000  # every pandemic alignment: x = mean branch length x SITES = substitutions per branch
 DODGE = {"MAPLE": -0.21, "CMAPLE": 0.0, "VecME": 0.21}  # side by side, in x units
-TOP = 40  # per cent: headroom above the data, so that the legend clears them (as Fig. 2c)
+TOP = 40  # per cent: headroom above the data, so that the legend clears them (as Fig. 3a)
 
 
 def main() -> None:
@@ -60,7 +60,7 @@ def main() -> None:
     ax.grid(axis="y", color="#E5E5E5", linewidth=0.5)
     ax.set_axisbelow(True)
     ax.legend(loc="upper right", frameon=False, handletextpad=0.4)
-    save(fig, args.img_dir, "fig2d_pandemic_rf_error")
+    save(fig, args.img_dir, "fig3b_pandemic_rf_error")
     gap = max(
         abs(rf[("VecME", n, s)] - v)
         for (m, n, s), v in rf.items()

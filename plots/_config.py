@@ -20,6 +20,7 @@ FIGURE_FOLDERS: Final = {
     "figS4": "fig2",  # alignment length
     "fig3": "fig3",
     "figS5": "fig3",  # SARS-CoV-2 variants and shared branches
+    "fig4": "fig4",
 }
 
 
@@ -77,5 +78,5 @@ SCALING_SERIES: Final = [
     ("JC random tree", "JC random tree", "#1B9E77", "^", "-.", True, 0.55),
 ]
 
-# Fig. 2c,d: the pandemic programs, as named in maple.tsv, and their key in SPEC
+# Fig. 3a,b: the pandemic programs, as named in maple.tsv, and their key in SPEC
 PANDEMIC: Final = [("MAPLE", "MAPLE"), ("CMAPLE", "CMAPLE"), ("VecME", "P2V")]

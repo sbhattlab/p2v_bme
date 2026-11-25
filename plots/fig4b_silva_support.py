@@ -1,4 +1,4 @@
-"""Fig. 3b: transfer bootstrap support of the internal branches of the SILVA 144 tree,
+"""Fig. 4b: transfer bootstrap support of the internal branches of the SILVA 144 tree,
 by the size of their split.
 
 Inputs:  data/tables/silva_support.tsv                                  (make_tables.py)
@@ -6,9 +6,9 @@ Options: --tables-dir, --img-dir
 Flow:    per bin of split size (sequences on the smaller side): the share of its branches with at
          least 90%, 70-90% and under 70% transfer bootstrap support, as one stacked bar;
          the key above is a small stacked bar in the same shades
-Outputs: img/fig3/fig3b_silva_support.{pdf,svg,png}
+Outputs: img/fig4/fig4b_silva_support.{pdf,svg,png}
 
-    pixi run -e paper python -m plots.fig3b_silva_support
+    pixi run -e paper python -m plots.fig4b_silva_support
 """
 
 import matplotlib.pyplot as plt
@@ -30,7 +30,7 @@ LABELS = {
     "11-100": "11–100",
 }
 # Support classes, dark to light, so that the well-supported share is read from the left;
-# 70% is the threshold of Fig. 3c. Shades of Bacteria's colour in Fig. 3a.
+# 70% is the threshold of Fig. 3c. Shades of Bacteria's colour in Fig. 4a.
 CLASSES = (("≥ 90%", "#1f6f8b"), ("70–90%", "#79AFC4"), ("< 70%", "#DCE9EF"))
 EDGE_COLOUR, EDGE_WIDTH = "white", 0.8  # gaps between the segments
 
@@ -77,7 +77,7 @@ def main() -> None:
     key.set_ylim(-0.5, 0.5)
     key.set_axis_off()
     key.text(len(CLASSES) / 2, 0.9, "Transfer bootstrap support", ha="center", va="bottom")
-    save(fig, args.img_dir, "fig3b_silva_support")
+    save(fig, args.img_dir, "fig4b_silva_support")
 
 
 if __name__ == "__main__":

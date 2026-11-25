@@ -1,5 +1,5 @@
 """SILVA Release 144: tree, bootstrap, supports, biology, domains, leave-out series, GTDB
-(Fig. 3a,b; tables silva_support, silva_gtdb).
+(Fig. 4a,b; tables silva_support, silva_gtdb).
 
 Inputs:  data/datasets/silva144/SILVA_144_SSURef_tax_silva_full_align_trunc.fasta[.gz]
                                                                                 (download_data.py)

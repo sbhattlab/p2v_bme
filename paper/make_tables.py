@@ -451,7 +451,7 @@ def table_random_tree(results: Path) -> Outputs:
 
 
 def table_maple(results: Path) -> Outputs:
-    """Builds Table S5 (maple) and Fig. 2c,d's data: results -> {tableS5_maple.md, maple.tsv}."""
+    """Builds Table S5 (maple) and Fig. 3a,b's data: results -> {tableS5_maple.md, maple.tsv}."""
     ours = our_runs(results, "pandemic").to_dict("records")
     record = read_json(results / "baselines" / "maple" / "cmaple_benchmark_summary.json")
     rows: list[dict] = []
@@ -785,7 +785,7 @@ def table_scaling_methods(results: Path) -> Outputs:
 
 
 def table_silva_support(results: Path) -> Outputs:
-    """Builds Table S14 (silva_support) and Fig. 3b's data:
+    """Builds Table S14 (silva_support) and Fig. 4b's data:
     results -> {tableS14_silva_support.md, silva_support.tsv}."""
     path = one_file(results / "silva", "silva144_dedup_tbe_B*_quantiles.json")
     data = read_json(path)
@@ -833,7 +833,7 @@ def table_silva_support(results: Path) -> Outputs:
 
 
 def table_silva_clades(results: Path) -> Outputs:
-    """Collects Fig. 3a's data: results
+    """Collects Fig. 4a's data: results
     -> {silva_clades.tsv (one row per clade), silva_clade_paths.tsv}.
 
     A clade's path is its best node and its ancestors up to the root,
