@@ -25,8 +25,8 @@ Outputs: data/tables/tableS<N>_<name>.md, numbered as in the supplement:
          S1 representative_sensitivity, S2 gtr_fit, S3 fastme, S4 scaling, S5 maple, S6 bootstrap,
          S7 comparators, S8 baseline_10k, S9 seqlen, S10 random_tree, S11 viridian_support,
          S12 viridian_variants, S13 viridian_thresholds, S14 silva_support, S15 silva_gtdb;
-         data/tables/<data>.tsv, the figures' data: scaling, random_tree, maple, silva_support,
-         scaling_methods, silva_clades, silva_clade_paths, viridian_variants,
+         data/tables/<data>.tsv, the figures' data: scaling, random_tree, maple, calibration,
+         silva_support, scaling_methods, silva_clades, silva_clade_paths, viridian_variants,
          viridian_substitutions, viridian_resolution
 
     pixi run -e paper python -m paper.make_tables
@@ -634,6 +634,38 @@ def table_bootstrap(results: Path) -> Outputs:
     return {"tableS6_bootstrap.md": rounded(table, dict.fromkeys(table.columns[4:], 2))}
 
 
+def table_calibration(results: Path) -> Outputs:
+    """Collects Fig. 3c's data: the share of branches in the true tree by exact bootstrap support, for the
+    largest RNASim calibration, the pandemic simulation and the random tree of 10^6 sequences (or the largest):
+    results -> {calibration.tsv}."""
+    folder = results / "calibration"
+    sets = []
+    rnasim = folder / "rnasim_bootstrap_calibration_summary.json"
+    if rnasim.exists():
+        data = read_json(rnasim)
+        for key, n in (("N1M_boot", 1_000_000), ("N100k_boot", 100_000)):
+            if "reliability" in data.get(key, {}):
+                sets.append(("RNASim", n, data[key]["reliability"]))
+                break
+    pandemic = folder / "maple_bootstrap_calibration_summary.json"
+    if pandemic.exists():
+        data = read_json(pandemic)
+        if "reliability" in data:
+            sets.append(("SARS-CoV-2-like simulation", data["N"], data["reliability"]))
+    random_trees = {int(p.stem.split("_")[1]): p for p in folder.glob("calibration_*.json")}
+    if random_trees:
+        n = 1_000_000 if 1_000_000 in random_trees else max(random_trees)
+        data = read_json(random_trees[n])
+        if "reliability" in data:
+            sets.append(("Random tree", n, data["reliability"]))
+    if not sets:
+        raise MissingResults(
+            "calibration: no summary with reliability bins (paper/run_calibration.py)"
+        )
+    rows = [{"dataset": name, "n": n} | b for name, n, bins in sets for b in bins]
+    return {"calibration.tsv": pd.DataFrame(rows)}
+
+
 def table_baseline_10k(results: Path) -> Outputs:
     """Builds Table S8 (baseline_10k): results -> {tableS8_baseline_10k.md}."""
     ours = {"sample": our_runs(results, "scaling"), "random": our_runs(results, "random_start")}
@@ -1161,6 +1193,7 @@ TABLES = {
     "random_tree": table_random_tree,
     "maple": table_maple,
     "bootstrap": table_bootstrap,
+    "calibration": table_calibration,
     "baseline_10k": table_baseline_10k,
     "comparators": table_comparators,
     "scaling_methods": table_scaling_methods,

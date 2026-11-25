@@ -354,6 +354,25 @@ def version_of(args: Namespace, tag: str) -> str:
     return read_json(folder_of(args, tag) / "ref.json")["version"]
 
 
+def reliability(exact: np.ndarray, ok: np.ndarray) -> list[dict]:
+    """Bins the branches by their exact bootstrap support and gives the share in the true tree per bin:
+    (supports, in the true tree) -> [{support_above, support_to, branches, mean_support_pct, correct_pct}].
+    """
+    bins = []
+    for lo, hi in zip(RELIABILITY_EDGES, RELIABILITY_EDGES[1:]):
+        m = (exact <= hi) & ((exact > lo) | (lo == 0.0))
+        bins.append(
+            {
+                "support_above": lo,
+                "support_to": hi,
+                "branches": int(m.sum()),
+                "mean_support_pct": pct(exact[m]),
+                "correct_pct": pct(ok[m]),
+            }
+        )
+    return bins
+
+
 def count_trees(path: Path) -> int:
     """Counts the trees of a file with one per line: path -> count."""
     return len(path.read_text().split())
@@ -378,6 +397,7 @@ def rnasim_summary(args: Namespace) -> None:
                     mean_true_transfer_pct=pct(d["true_transfer"]),
                     mean_correct_pct=pct(d["correct"]),
                 )
+                entry["reliability"] = reliability(d["exact"], d["correct"] == 1)
             entry["bins"] = by_size(d)
             summary[f"{key}_{kind}"] = entry
             summary["version"] = version_of(args, tag)
@@ -433,6 +453,7 @@ def maple_summary(args: Namespace) -> None:
         "wrong_branches_zero_snp": int((wrong & (bl < REGIMES["zero_snp"][2])).sum()),
         "regimes": regimes,
         "by_size": sizes,
+        "reliability": reliability(boot["exact"], boot["correct"] == 1),
         "view": "branches of our reference tree, classified by their estimated length",
         "version": report["version"],
     }
@@ -464,18 +485,6 @@ def random_tree_summary(args: Namespace, tag: str) -> None:
                     "support95_wrong_pct": pct(~ok[m & high]),
                 }
             )
-    reliability = []
-    for lo, hi in zip(RELIABILITY_EDGES, RELIABILITY_EDGES[1:]):
-        m = (exact <= hi) & ((exact > lo) | (lo == 0.0))
-        reliability.append(
-            {
-                "support_above": lo,
-                "support_to": hi,
-                "branches": int(m.sum()),
-                "mean_support_pct": pct(exact[m]),
-                "correct_pct": pct(ok[m]),
-            }
-        )
     summary = {
         "dataset": f"first random-tree dataset of {n:,} leaves (yule10k rep0, {n})",
         "n_leaves": n,
@@ -495,7 +504,7 @@ def random_tree_summary(args: Namespace, tag: str) -> None:
             "wrong_branches": int((~ok & high).sum()),
         },
         "by_size": sizes,
-        "reliability": reliability,
+        "reliability": reliability(exact, ok),
         "repeat": {
             "mean_exact_pct": pct(again),
             "mean_tbe_pct": pct(seed["tbe"]),
