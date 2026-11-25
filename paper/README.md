@@ -12,10 +12,11 @@ bash scripts/install_baselines.sh   # MAPLE and DIPPER (built with the pixi envi
 pixi run -e paper check-paper
 ```
 
-`check-paper` runs every script and plot on tiny simulated inputs, on the CPU, in about a minute (CI runs it). The full
-runs take hours to days on GPUs. Every script skips the runs whose outputs exist (`--overwrite` reruns them), so it can
-be stopped and started again, and its options split the work (`--sets`, `--sizes`, `--replicates`, `--steps`, ...). Each
-task passes its arguments to the script, and each script's `--help` lists its options, inputs and outputs:
+`check-paper` runs every script on tiny simulated inputs, on the CPU, in about a minute (CI runs it); the plots, whose
+tables need the full runs, only with `--help`. The full runs take hours to days on GPUs. Every script skips the runs
+whose outputs exist (`--overwrite` reruns them), so it can be stopped and started again, and its options split the work
+(`--sets`, `--sizes`, `--replicates`, `--steps`, ...). Each task passes its arguments to the script, and each script's
+`--help` lists its options, inputs and outputs:
 
 ```bash
 pixi run -e paper run_benchmarks --help
@@ -151,30 +152,33 @@ bootstrap; `--replicates A-B`), `repeats` (repeat searches), `supports`, `record
 - **Outputs:** `data/tables/tableS<N>_<name>.md` (one Markdown table per supplementary table) and
   `data/tables/<name>.tsv` (the figures' data)
 
-Every table of the paper (`--tables`; default: all). A table whose results are missing is skipped, with a note.
+Every table of the paper (`--tables`; default: all).
 
 ## Figures
 
-- **Command:** `pixi run -e paper <script>`, e.g. `pixi run -e paper fig2a_scaling_time`; `pixi run -e paper fig2` and
-  `fig3` draw a figure with its supplementary figures (Fig. 2 with Figs S1-S4, Fig. 3 with Fig. S5)
+- **Command:** `pixi run -e paper <script>`, e.g. `pixi run -e paper fig2a_scaling_time`; `pixi run -e paper fig2`,
+  `fig3` and `fig4` draw a figure with its supplementary figures (Fig. 2 with Figs S1-S3, Fig. 3 with Fig. S4)
 - **Requires:** `make_tables`
 - **Inputs:** `data/tables/<name>.tsv`
-- **Outputs:** `img/fig2/` (Fig. 2 with Figs S1-S4) and `img/fig3/` (Fig. 3 with Fig. S5): `<figure>.pdf`,
-  `<figure>.svg`, `<figure>.png`
+- **Outputs:** `img/fig2/` (Fig. 2 with Figs S1-S3), `img/fig3/` (Fig. 3 with Fig. S4) and `img/fig4/` (Fig. 4):
+  `<figure>.pdf`, `<figure>.svg`, `<figure>.png`
 
-| Script                            | Figure                                                         | Reads                                       |
-| --------------------------------- | -------------------------------------------------------------- | ------------------------------------------- |
-| `fig2a_scaling_time`              | 2a: time against the number of sequences                       | `scaling.tsv`, `random_tree.tsv`            |
-| `fig2b_scaling_rf_error`          | 2b: RF error against the number of sequences                   | `scaling.tsv`, `random_tree.tsv`            |
-| `fig2c_pandemic_time`             | 2c: time of VecME, MAPLE and CMAPLE, pandemic sets             | `maple.tsv`                                 |
-| `fig2d_pandemic_rf_error`         | 2d: RF error of the three programs by branch length, pandemic  | `maple.tsv`                                 |
-| `fig3a_silva_clades`              | 3a: the SILVA 144 tree reduced to the domains and major clades | `silva_clades.tsv`, `silva_clade_paths.tsv` |
-| `fig3b_silva_support`             | 3b: SILVA 144 branches by support class and split size         | `silva_support.tsv`                         |
-| `fig3c_sarscov2_resolution`       | 3c: resolution of the SARS-CoV-2 tree by sampling month        | `viridian_resolution.tsv`                   |
-| `figS1_3_scaling`                 | S1-S3: time, RF error, host and GPU memory of every method     | `scaling_methods.tsv`                       |
-| `figS4_seqlen_effect`             | S4: RF error on 1,000 and 10,000 sites                         | `scaling_methods.tsv`                       |
-| `figS5a_sarscov2_variants`        | S5a: supports of the named SARS-CoV-2 variants                 | `viridian_variants.tsv`                     |
-| `figS5b_sarscov2_shared_branches` | S5b: branches shared by our tree and MAPLE's                   | `viridian_substitutions.tsv`                |
+| Script                           | Figure                                                          | Reads                                       |
+| -------------------------------- | --------------------------------------------------------------- | ------------------------------------------- |
+| `fig2a_scaling_time`             | 2a: time against the number of sequences                        | `scaling.tsv`, `random_tree.tsv`            |
+| `fig2b_scaling_rf_error`         | 2b: RF error against the number of sequences                    | `scaling.tsv`, `random_tree.tsv`            |
+| `fig2c_random_trees`             | 2c: RF error of every method on the random-tree JC alignments   | `scaling_methods.tsv`                       |
+| `fig2d_seqlen_effect`            | 2d: RF error on 1,000 and 10,000 sites                          | `scaling_methods.tsv`                       |
+| `fig3a_pandemic_time`            | 3a: time of VecME, MAPLE and CMAPLE, pandemic sets              | `maple.tsv`                                 |
+| `fig3b_pandemic_rf_error`        | 3b: RF error of the three programs by branch length, pandemic   | `maple.tsv`                                 |
+| `fig3c_bootstrap_calibration`    | 3c: branches in the true tree by bootstrap support              | `calibration.tsv`                           |
+| `fig3d_sarscov2_variants`        | 3d: supports of the named SARS-CoV-2 variants                   | `viridian_variants.tsv`                     |
+| `fig3e_sarscov2_resolution`      | 3e: resolution of the SARS-CoV-2 tree by sampling month         | `viridian_resolution.tsv`                   |
+| `fig4a_silva_clades`             | 4a: the SILVA 144 tree reduced to major clades: support, depths | `silva_clades.tsv`, `silva_clade_paths.tsv` |
+| `fig4b_silva_support`            | 4b: SILVA 144 branches by support class and split size          | `silva_support.tsv`                         |
+| `fig4c_gtdb_recovery`            | 4c: mean F1 of the GTDB taxa by rank, four trees                | `silva_gtdb.tsv`                            |
+| `figS1_3_scaling`                | S1-S3: time, RF error, host and GPU memory of every method      | `scaling_methods.tsv`                       |
+| `figS4_sarscov2_shared_branches` | S4: branches shared by our tree and MAPLE's                     | `viridian_substitutions.tsv`                |
 
 `figS1_3_scaling` writes one figure per dataset (S1: RNASim, S2: JC10k, S3: random-tree JC), e.g.
 `img/fig2/figS2_scaling.pdf`.

@@ -1,16 +1,14 @@
-"""Fig. S5a: support of the branch of each named SARS-CoV-2 variant in our tree of
+"""Fig. 3d: support of the branch of each named SARS-CoV-2 variant in our tree of
 the Viridian genomes.
 
 Inputs:  data/tables/viridian_variants.tsv                              (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    one row per variant, largest first:
          transfer support (filled), exact support (hollow), substitutions
-Outputs: img/fig3/figS5a_sarscov2_variants.{pdf,svg,png}
+Outputs: img/fig3/fig3d_sarscov2_variants.{pdf,svg,png}
 
-    pixi run -e paper python -m plots.figS5a_sarscov2_variants
+    pixi run -e paper python -m plots.fig3d_sarscov2_variants
 """
-
-# pylint: disable=invalid-name  # figS<N>: the paper's numbering of its supplementary figures
 
 import matplotlib.pyplot as plt
 
@@ -106,7 +104,7 @@ def main() -> None:
         ncol=1,
         handletextpad=0.2,
     )
-    save(fig, args.img_dir, "figS5a_sarscov2_variants", bbox_inches=None)
+    save(fig, args.img_dir, "fig3d_sarscov2_variants", bbox_inches=None)
 
 
 if __name__ == "__main__":

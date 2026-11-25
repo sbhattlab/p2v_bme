@@ -1,5 +1,5 @@
 """SILVA Release 144: tree, bootstrap, supports, biology, domains, leave-out series, GTDB
-(Fig. 3a,b; tables silva_support, silva_gtdb).
+(Fig. 4a,b; tables silva_support, silva_gtdb).
 
 Inputs:  data/datasets/silva144/SILVA_144_SSURef_tax_silva_full_align_trunc.fasta[.gz]
                                                                                 (download_data.py)
@@ -23,8 +23,8 @@ Flow:    distinct     the alignment vecme searches: the 1,600 columns most occup
          supports     vecme -t tree.all.nwk --supports boot.nwk
            |
            v
-         records      the tree of the distinct sequences: support by split size, taxonomic F1 and
-           |          organelles, the domains in every bootstrap tree, the run records
+         records      the tree of the distinct sequences: support by split size, taxonomic F1, clade depth
+           |          and organelles, the domains in every bootstrap tree, the run records
            v
          leaveout     repeat searches, and searches without groups of sequences,
            |          compared with the tree
@@ -518,9 +518,27 @@ def support_records(tree: dict, out: Path, n_all: int, n_boot: int, version: str
     )
 
 
-def best_split(tree: dict, leaves: np.ndarray, name: str) -> dict:
+def root_distances(tree: dict) -> np.ndarray:
+    """Measures every node's distance from the root: tree -> one distance per node.
+
+    Negative branch lengths (least-squares fits give some) count as 0.
+    """
+    length = np.maximum(np.nan_to_num(tree["length"]), 0.0).tolist()
+    parent = tree["parent"].tolist()
+    dist = [0.0] * len(parent)
+    # children come before their parent: from the root down
+    for u in range(len(parent) - 2, -1, -1):
+        dist[u] = dist[parent[u]] + length[u]
+    return np.array(dist)
+
+
+def best_split(tree: dict, leaves: np.ndarray, name: str, dist: np.ndarray) -> dict:
     """Finds the branch whose split matches a set of leaves best, by F1:
-    (tree, leaves) -> its record."""
+    (tree, leaves, root_distances(tree)) -> its record.
+
+    depth_median: the median distance from the branch's node to the leaves below it
+    (None when the taxon matches the other side of the split best).
+    """
     k, size, parent = len(tree["names"]), tree["size"], tree["parent"]
     root = parent.size - 1
     total = leaves.size
@@ -540,6 +558,11 @@ def best_split(tree: dict, leaves: np.ndarray, name: str) -> dict:
     def val(arr: np.ndarray, x: int) -> float:
         return 0.0 if x == root or np.isnan(arr[x]) else float(arr[x])
 
+    depth = None
+    if not comp:
+        below_node = np.arange(tree["first"][node], tree["first"][node] + tree["size"][node])
+        depth = round(float(np.median(dist[below_node] - dist[node])), 6)
+
     return {
         "name": name,
         "unique_leaves": int(total),
@@ -553,6 +576,7 @@ def best_split(tree: dict, leaves: np.ndarray, name: str) -> dict:
         "tbe_pct": round(val(tree["tbe"], node), 4),
         "fbp_pct": round(val(tree["exact"], node), 4),
         "bl": val(tree["length"], node),
+        "depth_median": depth,
         "ancestor_nodes": chain,
         "ancestor_sz": [int(tree["size"][x]) for x in chain],
         "ancestor_tbe": [round(val(tree["tbe"], x), 4) for x in chain],
@@ -604,14 +628,15 @@ def biology(tree: dict, taxonomy: dict[str, str], alpha: float) -> dict:
     phyla = groups_of([f"{p[0]};{field(p, 2)}" for p in paths])
     classes = groups_of([f"{p[0]};{field(p, 3)}" for p in paths])
     root = tree["parent"].size - 1
+    dist = root_distances(tree)
     record = {
         "K_unique": len(paths),
         "root_node": root,
         "total_tree_length": round(float(np.nansum(tree["length"][:root])), 2),
         "gamma_alpha": alpha,
-        "domains": [best_split(tree, v, n) for n, v in domains.items()],
-        "phyla": [best_split(tree, v, n) for n, v in list(phyla.items())[:TOP]],
-        "classes": [best_split(tree, v, n) for n, v in list(classes.items())[:TOP]],
+        "domains": [best_split(tree, v, n, dist) for n, v in domains.items()],
+        "phyla": [best_split(tree, v, n, dist) for n, v in list(phyla.items())[:TOP]],
+        "classes": [best_split(tree, v, n, dist) for n, v in list(classes.items())[:TOP]],
     }
     is_bac = np.array([p[0] == "Bacteria" for p in paths])
     chl = np.flatnonzero(is_bac & np.array(["Chloroplast" in p for p in paths]))

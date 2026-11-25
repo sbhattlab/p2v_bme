@@ -17,9 +17,9 @@ FIGURE_FOLDERS: Final = {
     "figS1": "fig2",  # S1-S3: every method by size
     "figS2": "fig2",
     "figS3": "fig2",
-    "figS4": "fig2",  # alignment length
     "fig3": "fig3",
-    "figS5": "fig3",  # SARS-CoV-2 variants and shared branches
+    "figS4": "fig3",  # SARS-CoV-2 shared branches
+    "fig4": "fig4",
 }
 
 
@@ -29,8 +29,8 @@ FIGURE_FOLDERS: Final = {
 # FastTree blues, VeryFastTree greys, the MAPLE purples; DIPPER black; VecME vermilion.
 # Checked for red-green colour blindness (Machado et al. 2009): methods drawn together stay apart.
 # Markers pair up the same way (square and diamond, the two triangles), for colour-blind readers.
-# METHODS: the methods of Figs S1-S4, in drawing order.
-# PANDEMIC_METHODS: the other programs of Figs 2c,d and S5b.
+# METHODS: the methods of Figs 2c,d and S1-S3, in drawing order.
+# PANDEMIC_METHODS: the other programs of Figs 3a,b and S4.
 METHODS: Final = [
     ("FastTree-ME", "FastTree-ME", "#6BAED6", "s", True, "-"),
     ("FastTree-ML", "FastTree-ML", "#1F78B4", "D", True, "-"),
@@ -77,5 +77,5 @@ SCALING_SERIES: Final = [
     ("JC random tree", "JC random tree", "#1B9E77", "^", "-.", True, 0.55),
 ]
 
-# Fig. 2c,d: the pandemic programs, as named in maple.tsv, and their key in SPEC
+# Fig. 3a,b: the pandemic programs, as named in maple.tsv, and their key in SPEC
 PANDEMIC: Final = [("MAPLE", "MAPLE"), ("CMAPLE", "CMAPLE"), ("VecME", "P2V")]

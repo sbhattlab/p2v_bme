@@ -20,6 +20,7 @@ from plots.utils import parser, save, scaling_axes, scaling_data, scaling_series
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
 INHERITED_ALPHA = 0.35  # the inherited splits are secondary: the lightest series
+EXPANDED = ("RNASim", "JC")  # the series whose largest sizes expand the 10^5-leaf alignment
 
 
 def backbone_series(ax: plt.Axes, rows: list[dict[str, str]]) -> None:
@@ -28,6 +29,8 @@ def backbone_series(ax: plt.Axes, rows: list[dict[str, str]]) -> None:
         group = sorted((r for r in rows if r["dataset"] == dataset), key=lambda r: int(r["n"]))
         expanded = [i for i, r in enumerate(group) if r.get("large_scale_design")]
         if not expanded:
+            if dataset in EXPANDED:
+                raise SystemExit(f"{dataset}: no expanded sizes (large_scale_design)")
             continue
         ks = [expanded[0] - 1, *expanded]  # from the expanded alignment's own size
         n = [int(group[k]["n"]) for k in ks]

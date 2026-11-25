@@ -1,4 +1,4 @@
-"""Fig. 3c: how finely the SARS-CoV-2 tree places genomes, by sampling month (Viridian genomes).
+"""Fig. 3e: how finely the SARS-CoV-2 tree places genomes, by sampling month (Viridian genomes).
 
 For each genome, the smallest clade around it whose branch has at least 70% transfer support and
 half a substitution: the line is the monthly median of the genomes of that clade sampled within 15
@@ -12,9 +12,9 @@ Flow:    the months at the 70% threshold, checked for gaps
            |
            v
          variant strip and resolution curve on a shared month axis
-Outputs: img/fig3/fig3c_sarscov2_resolution.{pdf,svg,png}
+Outputs: img/fig3/fig3e_sarscov2_resolution.{pdf,svg,png}
 
-    pixi run -e paper python -m plots.fig3c_sarscov2_resolution
+    pixi run -e paper python -m plots.fig3e_sarscov2_resolution
 """
 
 import matplotlib.pyplot as plt
@@ -147,7 +147,7 @@ def main() -> None:
     ax.set_axisbelow(True)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-    save(fig, args.img_dir, "fig3c_sarscov2_resolution")
+    save(fig, args.img_dir, "fig3e_sarscov2_resolution")
 
 
 if __name__ == "__main__":

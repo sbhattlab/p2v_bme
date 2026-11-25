@@ -1,11 +1,11 @@
-"""Fig. 2c: running time of VecME, MAPLE and CMAPLE on the simulated pandemic alignments.
+"""Fig. 3a: running time of VecME, MAPLE and CMAPLE on the simulated pandemic alignments.
 
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    per program and size: mean over the three branch-length scales, the bar spans their range
-Outputs: img/fig2/fig2c_pandemic_time.{pdf,svg,png}
+Outputs: img/fig3/fig3a_pandemic_time.{pdf,svg,png}
 
-    pixi run -e paper python -m plots.fig2c_pandemic_time
+    pixi run -e paper python -m plots.fig3a_pandemic_time
 """
 
 import statistics
@@ -16,22 +16,21 @@ import numpy as np
 from matplotlib.ticker import LogLocator, NullLocator
 
 from plots._config import PANDEMIC, STYLE
-from plots.utils import OURS, method_style, parser, read_tsv, save
+from plots.utils import OURS, PANDEMIC_SIZES, method_style, pandemic_rows, parser, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
-SIZES = [100000, 200000, 500000]
 HEADROOM = 1.3  # decades above the slowest run, so that the legend clears the data
 
 
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
-    rows = read_tsv(args.tables_dir, "maple")
+    rows = pandemic_rows(args.tables_dir)
     fig, ax = plt.subplots(figsize=FIGSIZE)
     fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.96)
     for method, key in PANDEMIC:
         means, los, his = [], [], []
-        for n in SIZES:
+        for n in PANDEMIC_SIZES:
             values = [
                 float(r["time_s"]) for r in rows if r["method"] == method and int(r["n"]) == n
             ]
@@ -39,7 +38,7 @@ def main() -> None:
             los.append(means[-1] - min(values))
             his.append(max(values) - means[-1])
         ax.errorbar(
-            SIZES,
+            PANDEMIC_SIZES,
             means,
             yerr=[los, his],
             elinewidth=0.75,
@@ -58,8 +57,10 @@ def main() -> None:
         10 ** (np.ceil(np.log10(max(times)) + HEADROOM)),
     )
     ax.yaxis.set_major_locator(LogLocator(base=10, numticks=12))  # a tick every decade
-    ax.set_xticks(SIZES)
-    ax.set_xticklabels([f"{n // 1000}" for n in SIZES])  # in thousands, as the x label says
+    ax.set_xticks(PANDEMIC_SIZES)
+    ax.set_xticklabels(
+        [f"{n // 1000}" for n in PANDEMIC_SIZES]
+    )  # in thousands, as the x label says
     ax.xaxis.set_minor_locator(NullLocator())
     ax.tick_params(axis="x", which="minor", bottom=False)
     ax.set_xlabel("Sequences (thousands)")
@@ -67,7 +68,7 @@ def main() -> None:
     ax.grid(axis="y", which="major", color="#E5E5E5", linewidth=0.5)
     ax.set_axisbelow(True)
     ax.legend(loc="upper left", frameon=False, handlelength=1.5)
-    save(fig, args.img_dir, "fig2c_pandemic_time")
+    save(fig, args.img_dir, "fig3a_pandemic_time")
 
 
 if __name__ == "__main__":

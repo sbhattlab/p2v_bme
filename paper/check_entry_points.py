@@ -15,7 +15,7 @@ Flow:    a 300-sequence alignment and its tree from make_test_fasta stand in for
          --help of run_viridian, whose input (Viridian) has no tiny stand-in here
            |
            v
-         make_tables, then each plot whose data the tiny runs make; --help of the others
+         make_tables for the tables the tiny runs make in full (TABLES_BUILT); --help of every plot
 Outputs: tmp/paper_check/ (removed at the end unless --keep);
          a failing step stops the check with its error
 
@@ -37,12 +37,8 @@ SIZE = "60"  # sequences of the tiny sets
 FASTME_SIZE = "30"
 CUT, CUT_TO = 5, 100  # the SILVA stand-in: sequences cut short, and their sites left
 THREADS = "2"
-# plots drawn from the tiny runs' tables; the others need downloaded or larger data (only --help)
-PLOTS_DRAWN = (
-    "fig2a_scaling_time",
-    "fig2b_scaling_rf_error",
-    "figS1_3_scaling",
-)
+# tables the tiny runs make in full; the others need the paper's sizes, replicates, DIPPER or downloaded data
+TABLES_BUILT = ("representative_sensitivity", "fastme", "gtr_fit")
 
 
 def step(*args: str) -> None:
@@ -118,14 +114,12 @@ def main() -> None:
         str(results),
         "--tables-dir",
         str(tables),
+        "--tables",
+        *TABLES_BUILT,
     )
 
-    img = ["--tables-dir", str(tables), "--img-dir", str(work / "img")]
     for script in sorted(Path("plots").glob("fig*.py")):
-        if script.stem in PLOTS_DRAWN:
-            step(f"plots.{script.stem}", *img)
-        else:
-            step(f"plots.{script.stem}", "--help")
+        step(f"plots.{script.stem}", "--help")
     if not args.keep:
         shutil.rmtree(work)
     print("check_entry_points: every entry point ran")

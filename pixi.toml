@@ -66,31 +66,40 @@ make_tables = "python -m paper.make_tables"
 # and one per figure with its supplementary figures, e.g. pixi run -e paper fig2
 fig2a_scaling_time = "python -m plots.fig2a_scaling_time"
 fig2b_scaling_rf_error = "python -m plots.fig2b_scaling_rf_error"
-fig2c_pandemic_time = "python -m plots.fig2c_pandemic_time"
-fig2d_pandemic_rf_error = "python -m plots.fig2d_pandemic_rf_error"
-fig3a_silva_clades = "python -m plots.fig3a_silva_clades"
-fig3b_silva_support = "python -m plots.fig3b_silva_support"
-fig3c_sarscov2_resolution = "python -m plots.fig3c_sarscov2_resolution"
+fig2c_random_trees = "python -m plots.fig2c_random_trees"
+fig2d_seqlen_effect = "python -m plots.fig2d_seqlen_effect"
+fig3a_pandemic_time = "python -m plots.fig3a_pandemic_time"
+fig3b_pandemic_rf_error = "python -m plots.fig3b_pandemic_rf_error"
+fig3c_bootstrap_calibration = "python -m plots.fig3c_bootstrap_calibration"
+fig3d_sarscov2_variants = "python -m plots.fig3d_sarscov2_variants"
+fig3e_sarscov2_resolution = "python -m plots.fig3e_sarscov2_resolution"
+fig4a_silva_clades = "python -m plots.fig4a_silva_clades"
+fig4b_silva_support = "python -m plots.fig4b_silva_support"
+fig4c_gtdb_recovery = "python -m plots.fig4c_gtdb_recovery"
 figS1_3_scaling = "python -m plots.figS1_3_scaling"
-figS4_seqlen_effect = "python -m plots.figS4_seqlen_effect"
-figS5a_sarscov2_variants = "python -m plots.figS5a_sarscov2_variants"
-figS5b_sarscov2_shared_branches = "python -m plots.figS5b_sarscov2_shared_branches"
-# Fig. 2 with Figs S1-S3 (every method by size) and S4 (alignment length)
+figS4_sarscov2_shared_branches = "python -m plots.figS4_sarscov2_shared_branches"
+# Fig. 2 with Figs S1-S3 (every method by size)
 fig2 = { cmd = "echo 'All fig2 plots done.'", depends-on = [
   "fig2a_scaling_time",
   "fig2b_scaling_rf_error",
-  "fig2c_pandemic_time",
-  "fig2d_pandemic_rf_error",
+  "fig2c_random_trees",
+  "fig2d_seqlen_effect",
   "figS1_3_scaling",
-  "figS4_seqlen_effect",
 ] }
-# Fig. 3 with Fig. S5 (SARS-CoV-2 variants and shared branches)
+# Fig. 3 with Fig. S4 (SARS-CoV-2 shared branches)
 fig3 = { cmd = "echo 'All fig3 plots done.'", depends-on = [
-  "fig3a_silva_clades",
-  "fig3b_silva_support",
-  "fig3c_sarscov2_resolution",
-  "figS5a_sarscov2_variants",
-  "figS5b_sarscov2_shared_branches",
+  "fig3a_pandemic_time",
+  "fig3b_pandemic_rf_error",
+  "fig3c_bootstrap_calibration",
+  "fig3d_sarscov2_variants",
+  "fig3e_sarscov2_resolution",
+  "figS4_sarscov2_shared_branches",
+] }
+# Fig. 4
+fig4 = { cmd = "echo 'All fig4 plots done.'", depends-on = [
+  "fig4a_silva_clades",
+  "fig4b_silva_support",
+  "fig4c_gtdb_recovery",
 ] }
 
 # ---- DIPPER build environment ------------------------------------------------------------------------
