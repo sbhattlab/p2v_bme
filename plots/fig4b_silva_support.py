@@ -28,6 +28,7 @@ LABELS = {
     "101-1000": "101–1,000",
     "3-10": "3–10",
     "11-100": "11–100",
+    "2": "2",
 }
 # Support classes, dark to light, so that the well-supported share is read from the left;
 # 70% is the threshold of Fig. 3e. Shades of Bacteria's colour in Fig. 4a.
@@ -58,7 +59,7 @@ def main() -> None:
             linewidth=EDGE_WIDTH,
         )
         left += share
-    ax.set_yticks(y, [LABELS.get(b["split_size_bin"], b["split_size_bin"]) for b in bins])
+    ax.set_yticks(y, [LABELS[b["split_size_bin"]] for b in bins])
     ax.set_ylim(-0.5, len(bins) - 0.5)
     ax.set_xlim(0, 100)
     ax.set_xticks([0, 25, 50, 75, 100])

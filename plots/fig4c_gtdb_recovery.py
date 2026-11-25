@@ -45,8 +45,8 @@ def main() -> None:
     x = range(len(RANKS))
     for tree, (label, colour, marker, width) in TREES.items():
         f1 = {r["rank"]: float(r["mean_f1"]) for r in rows if r["tree"] == tree}
-        if not f1:
-            continue
+        if set(f1) != set(RANKS):
+            raise SystemExit(f"silva_gtdb.tsv: {tree} has ranks {sorted(f1)}, not {RANKS}")
         ax.plot(
             x,
             [f1[rank] for rank in RANKS],
@@ -58,7 +58,7 @@ def main() -> None:
             zorder=3 if tree == "full" else 2,
         )
     taxa = {r["rank"]: int(r["taxa"]) for r in rows if r["tree"] == "full"}
-    ax.set_xticks(list(x), [f"{rank.capitalize()}\n({taxa.get(rank, 0):,})" for rank in RANKS])
+    ax.set_xticks(list(x), [f"{rank.capitalize()}\n({taxa[rank]:,})" for rank in RANKS])
     ax.tick_params(axis="x", labelsize=plt.rcParams["xtick.labelsize"] * 0.85)
     ax.set_ylim(0.5, 0.95)  # room for the legend under the lines
     ax.set_ylabel("Mean F$_1$ of GTDB taxa")

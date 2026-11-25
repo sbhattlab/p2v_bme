@@ -28,6 +28,7 @@ from plots._config import (  # pylint: disable=wrong-import-position
     DEFAULT_TABLES_DIR,
     FIGURE_FOLDERS,
     FIGURE_FORMATS,
+    PANDEMIC,
     SAVE_METADATA,
     SCALING_FIGURES,
     SCALING_SERIES,
@@ -77,6 +78,27 @@ def save(fig: plt.Figure, img_dir: Path, name: str, **kwargs) -> None:
     print(f"wrote {img_dir / name}.{{{','.join(FIGURE_FORMATS)}}}")
 
 
+# ---- Figs 3a,b: the pandemic simulations ----
+
+PANDEMIC_SIZES = (100_000, 200_000, 500_000)
+PANDEMIC_BRANCH_LENGTHS = (5e-5, 1e-4, 1.5e-4)  # mean, in substitutions per site
+
+
+def pandemic_rows(tables_dir: Path) -> list[dict[str, str]]:
+    """Reads Figs 3a,b's data, one row per program, size and mean branch length;
+    stops unless every program has exactly one of each: folder -> rows of maple.tsv."""
+    rows = read_tsv(tables_dir, "maple")
+    cells = [(r["method"], int(r["n"]), float(r["mean_branch_length"])) for r in rows]
+    expected = [
+        (m, n, b) for m, _ in PANDEMIC for n in PANDEMIC_SIZES for b in PANDEMIC_BRANCH_LENGTHS
+    ]
+    if sorted(cells) != sorted(expected):
+        missing = sorted(set(expected) - set(cells))
+        extra = sorted(c for c in set(cells) if cells.count(c) > 1 or c not in expected)
+        raise SystemExit(f"maple.tsv: missing {missing}; duplicated or unexpected {extra}")
+    return rows
+
+
 # ---- Figs 2a,b: one series per dataset over the number of sequences ----
 
 
@@ -86,11 +108,12 @@ def scaling_series(ax: plt.Axes, rows: list[dict[str, str]], field: str) -> None
     for dataset, label, colour, marker, linestyle, filled, alpha in SCALING_SERIES:
         group = sorted((r for r in rows if r["dataset"] == dataset), key=lambda r: int(r["n"]))
         if not group:
-            print(f"no data for {dataset}: its series is not drawn")
-            continue
+            raise SystemExit(f"no {field} data for {dataset}")
+        if blank := [r["n"] for r in group if r[f"{field}_sd"] == ""]:
+            raise SystemExit(f"{dataset}: no {field} SD at {', '.join(blank)} (one run only?)")
         n = [int(r["n"]) for r in group]
         mu = [float(r[f"{field}_mean"]) for r in group]
-        sd = [float(r[f"{field}_sd"] or 0) for r in group]
+        sd = [float(r[f"{field}_sd"]) for r in group]
         ax.errorbar(
             n,
             mu,
@@ -166,17 +189,30 @@ PANELS = {
     "host": ("host_memory_mb", 1 / MIB_PER_GIB, "Host memory (GiB)"),
     "gpu": ("gpu_memory_peak_mib", 1 / MIB_PER_GIB, "GPU memory (GiB)"),
 }
+GPU_PROGRAMS = ("P2V", "DIPPER")  # the methods with a GPU memory; the others run on CPUs only
 # One full-width page per dataset: the four panels in two rows, the methods' legend above
 SCALING_PAGE = (7.2, 5.4)
 
 
 def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: float) -> dict:
     """Summarises one field per method and size:
-    (rows, dataset, field) -> {(n, method): (mean, min, max)}."""
+    (rows, dataset, field) -> {(n, method): (mean, min, max)}.
+
+    Every run must have the field, except the CPU programs' runs for GPU memory (left out).
+    """
     values: dict[tuple[int, str], list[float]] = {}
+    blank: dict[str, list[str]] = {}
     for r in rows:
-        if r["dataset"] == dataset and r["method"] in PLOTTED and r[field] != "":
+        if r["dataset"] != dataset or r["method"] not in PLOTTED:
+            continue
+        if field == PANELS["gpu"][0] and r["method"] not in GPU_PROGRAMS:
+            continue
+        if r[field] == "":
+            blank.setdefault(r["method"], []).append(r["n"])
+        else:
             values.setdefault((int(r["n"]), r["method"]), []).append(float(r[field]) * scale)
+    if blank:
+        raise SystemExit(f"{dataset}: runs without {field}, by method (sizes): {blank}")
     return {k: (statistics.mean(v), min(v), max(v)) for k, v in values.items()}
 
 
@@ -283,9 +319,7 @@ def method_pages(args: Namespace) -> None:
             ax.text(-0.2, 1.0, letter, transform=ax.transAxes, fontweight="bold", va="bottom")
             stats = method_stats(rows, dataset, field, scale)
             if not stats:
-                print(f"no {field} data for {dataset}: {figure}{letter} left empty")
-                ax.set_axis_off()
-                continue
+                raise SystemExit(f"no {field} data for {dataset}: {figure}{letter} would be empty")
             step = EXPANDED_FROM if panel == "rf" and dataset in EXPANDED_DATASETS else None
             method_lines(ax, stats, panel, step)
             ax.set_ylabel(ylabel)

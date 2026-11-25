@@ -15,7 +15,7 @@ import statistics
 import matplotlib.pyplot as plt
 
 from plots._config import PANDEMIC, STYLE
-from plots.utils import OURS, method_style, parser, read_tsv, save
+from plots.utils import OURS, method_style, pandemic_rows, parser, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
 SITES = 30000  # every pandemic alignment: x = mean branch length x SITES = substitutions per branch
@@ -26,7 +26,7 @@ TOP = 40  # per cent: headroom above the data, so that the legend clears them (a
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
-    rows = read_tsv(args.tables_dir, "maple")
+    rows = pandemic_rows(args.tables_dir)
     scales = sorted({float(r["mean_branch_length"]) for r in rows})
     rf = {
         (r["method"], int(r["n"]), float(r["mean_branch_length"])): float(r["rf_pct"]) for r in rows

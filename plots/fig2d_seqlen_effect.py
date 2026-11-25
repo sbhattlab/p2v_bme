@@ -43,10 +43,9 @@ def main() -> None:
             rows.append(
                 (key, (statistics.mean(a), min(a), max(a)), (statistics.mean(b), min(b), max(b)))
             )
-        elif a or b:
-            print(f"skipping {key}: results for only one alignment length at N = {N}")
-    if not rows:
-        raise SystemExit(f"no method has both {SHORT} and {LONG} results at N = {N}")
+        else:
+            have = [tag for tag, runs in ((SHORT, a), (LONG, b)) if runs]
+            raise SystemExit(f"{key} at N = {N}: results for {have}, not for {SHORT} and {LONG}")
     rows.sort(key=lambda r: -r[2][0])  # worst at the bottom of the reading order -> best on top
 
     fig, ax = plt.subplots(figsize=(3.6, 2.9))

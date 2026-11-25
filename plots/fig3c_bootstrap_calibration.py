@@ -38,7 +38,9 @@ def main() -> None:
     for dataset, (name, colour, marker) in STYLES.items():
         points = [r for r in rows if r["dataset"] == dataset and int(r["branches"]) >= MIN_BRANCHES]
         if not points:
-            continue
+            raise SystemExit(
+                f"calibration.tsv: no bin of {dataset} with {MIN_BRANCHES} branches or more"
+            )
         ax.plot(
             [float(r["mean_support_pct"]) for r in points],
             [float(r["correct_pct"]) for r in points],
