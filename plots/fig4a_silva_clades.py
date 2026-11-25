@@ -1,5 +1,5 @@
-"""Fig. 4a: the SILVA 144 tree reduced to the three domains and 20 major clades,
-with the transfer support of every branch written on the tree.
+"""Fig. 4a: the SILVA 144 tree reduced to the three domains and 20 major clades, as a cladogram,
+with the transfer support of every branch written on the tree and each clade's depth.
 
 Inputs:  data/tables/silva_clades.tsv, silva_clade_paths.tsv            (make_tables.py)
 Options: --tables-dir, --img-dir
@@ -10,8 +10,9 @@ Flow:    the paths from each selected clade's best node to the root
          Archaea and Eukaryota
            |
            v
-         one row per clade: triangle, name, unique sequences; each branch's transfer support (TBE) at its
-         end; one colour per domain
+         a cladogram: one step per branch, the clades lined up on the right;
+         one row per clade: triangle (length: its median depth, against a scale bar), name, distinct sequences;
+         each branch's transfer support (TBE) at its end; one colour per domain
 Outputs: img/fig4/fig4a_silva_clades.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig4a_silva_clades
@@ -29,11 +30,13 @@ from plots.utils import parser, read_tsv, save
 COLOURS = {"Archaea": "#6a4c93", "Eukaryota": "#c85a32", "Bacteria": "#1f6f8b"}
 BRANCH, TEXT = "#4a5568", "#1a202c"
 SUPPORT_SIZE = 7  # points: the numbers on the branches, smaller than the labels
-STRETCH = 1.7  # widens the tree, so that the numbers on the dense backbone do not collide
+TREE_WIDTH = 1.25  # axis units from the root to the clades
+TRIANGLE = 0.20  # axis units: the triangle of the deepest clade
 NAME_GAP, COUNT_X = (
-    0.02,
-    1.45,
+    0.03,
+    1.65,
 )  # x of the clade names and of the right edge of the counts, past the triangles
+SCALE_BAR, SCALE_Y = 0.1, -1.05  # substitutions per site; its row, below the clades
 SELECTED_CLADES = [
     ("Archaea;Halobacteriota", "Halobacteriota"),
     ("Archaea;Thermoproteota", "Thermoproteota"),
@@ -42,7 +45,8 @@ SELECTED_CLADES = [
     ("Eukaryota;Chloroplastida", "Chloroplastida"),
     ("Bacteria;Planctomycetota", "Planctomycetota"),
     ("Bacteria;Bacteroidota", "Bacteroidota"),
-    ("Bacteria;Chloroflexota--other", "Chloroflexota"),
+    # SILVA's Chloroflexota without Chloroflexia, the class of the phylum's type: pro parte
+    ("Bacteria;Chloroflexota--other", "Chloroflexota p.p."),
     ("Bacteria;Spirochaetota", "Spirochaetota"),
     ("Bacteria;Actinomycetota", "Actinomycetota"),
     ("Bacteria;Clostridiota", "Clostridiota"),
@@ -119,6 +123,10 @@ def induced_tree(clades: dict, paths: dict) -> dict:
         if u in targets:
             key, label = targets[u]
             c = clades[key]
+            if c["depth_median"] == "":
+                raise SystemExit(
+                    f"{key}: no depth in silva_clades.tsv (the other side of its best split)"
+                )
             return {
                 "leaf": True,
                 "node": u,
@@ -128,6 +136,7 @@ def induced_tree(clades: dict, paths: dict) -> dict:
                 "tbe": float(c["tbe_pct"]),
                 "f1": float(c["f1"]),
                 "leaves": int(c["unique_leaves"]),
+                "depth": float(c["depth_median"]),
                 "rank": order[key],
             }
         children = [
@@ -166,22 +175,27 @@ def induced_tree(clades: dict, paths: dict) -> dict:
     return root
 
 
-def place(node: dict, x0: float, counter: list[int]) -> float:
-    """Sets the x (square-root branch lengths) and y (row) of every node:
-    -> the largest x below the node."""
-    step = (
-        0.0
-        if node["node"] == -1
-        else STRETCH * (0.016 + 0.36 * math.sqrt(max(0.0, node["length"])))
-    )
-    node["x0"], node["x"] = x0, x0 + step
+def height(node: dict) -> int:
+    """Counts the steps from a node to its farthest clade, for it and the nodes below: node -> steps."""
+    node["h"] = 0 if node["leaf"] else 1 + max(height(c) for c in node["children"])
+    return node["h"]
+
+
+def clades_of(node: dict) -> list[dict]:
+    """Lists the clades below a node: node -> its leaves."""
+    return [node] if node["leaf"] else [c for child in node["children"] for c in clades_of(child)]
+
+
+def place(node: dict, x0: float, step: float, counter: list[int]) -> None:
+    """Sets the x (one step per branch, the clades at TREE_WIDTH) and y (row) of every node."""
+    node["x0"], node["x"] = x0, TREE_WIDTH - step * node["h"]
     if node["leaf"]:
         node["y"] = len(SELECTED_CLADES) - 1 - counter[0]
         counter[0] += 1
-        return node["x"]
-    right = max(place(c, node["x"], counter) for c in node["children"])
+        return
+    for c in node["children"]:
+        place(c, node["x"], step, counter)
     node["y"] = 0.5 * (node["children"][0]["y"] + node["children"][-1]["y"])
-    return right
 
 
 def support(ax: plt.Axes, x: float, y: float, tbe: float) -> None:
@@ -197,20 +211,20 @@ def support(ax: plt.Axes, x: float, y: float, tbe: float) -> None:
     )
 
 
-def draw(ax: plt.Axes, node: dict, tips: float, label: bool = True) -> None:
+def draw(ax: plt.Axes, node: dict, tips: float, scale: float, label: bool = True) -> None:
     """Draws a node, its row if it is a selected clade, and its subtree:
-    (axes, node, x of the triangles' bases, whether to number the node's branch) -> None."""
+    (axes, node, x past the longest triangle, axis units per substitution per site,
+    whether to number the node's branch) -> None."""
     x0, x1, y = node["x0"], node["x"], node["y"]
     if node["node"] != -1:
         ax.plot([x0, x1], [y, y], color=BRANCH, lw=1.2, solid_capstyle="round", zorder=2)
     if node["leaf"]:
         colour = domain_colour(node["key"])
-        if x1 < tips - 0.010:
-            ax.plot([x1, tips - 0.008], [y, y], color=colour, lw=0.75, ls=":", alpha=0.75, zorder=1)
+        end = x1 + scale * node["depth"]
         h = 0.22 + 0.05 * (math.log10(max(1000, node["leaves"])) - 4.0)
         ax.add_patch(
             Polygon(
-                [[x1, y], [tips, y + h], [tips, y - h]],
+                [[x1, y], [end, y + h], [end, y - h]],
                 closed=True,
                 facecolor=colour,
                 edgecolor=colour,
@@ -219,6 +233,15 @@ def draw(ax: plt.Axes, node: dict, tips: float, label: bool = True) -> None:
                 zorder=3,
             )
         )
+        if end < tips - 0.01:
+            ax.plot(
+                [end + 0.015, tips + NAME_GAP - 0.015],
+                [y, y],
+                color=colour,
+                lw=0.75,
+                ls=":",
+                alpha=0.75,
+            )
         if label:
             support(ax, x1, y, node["tbe"])
         ax.text(tips + NAME_GAP, y, node["label"], color=TEXT, va="center", ha="left")
@@ -231,7 +254,7 @@ def draw(ax: plt.Axes, node: dict, tips: float, label: bool = True) -> None:
         support(ax, x1, y, node["tbe"])
     # the root splits one branch in two halves: it is numbered once
     for i, c in enumerate(node["children"]):
-        draw(ax, c, tips, label=not (node["node"] == -1 and i == 1))
+        draw(ax, c, tips, scale, label=not (node["node"] == -1 and i == 1))
 
 
 def main() -> None:
@@ -239,7 +262,9 @@ def main() -> None:
     plt.style.use(STYLE)
     clades, paths = read_clades(args.tables_dir)
     tree = induced_tree(clades, paths)
-    tips = place(tree, 0.0, [0]) + 0.025
+    place(tree, 0.0, TREE_WIDTH / height(tree), [0])
+    scale = TRIANGLE / max(c["depth"] for c in clades_of(tree))
+    tips = TREE_WIDTH + TRIANGLE
 
     fig = plt.figure(figsize=(4.5, 4.6))
     ax = fig.add_axes((0.02, 0.02, 0.96, 0.95))
@@ -266,10 +291,21 @@ def main() -> None:
             va="center",
             linespacing=1.15,
         )
-    draw(ax, tree, tips)
+    draw(ax, tree, tips, scale)
     ax.text(tips + COUNT_X, 19.82, "Sequences", color=TEXT, ha="right", va="bottom")
+    # the scale of the triangles, under them
+    ax.plot(
+        [TREE_WIDTH, TREE_WIDTH + scale * SCALE_BAR],
+        [SCALE_Y, SCALE_Y],
+        color=TEXT,
+        lw=1.2,
+        solid_capstyle="butt",
+    )
+    ax.text(
+        TREE_WIDTH + scale * SCALE_BAR + 0.03, SCALE_Y, f"{SCALE_BAR:g}", color=TEXT, va="center"
+    )
     ax.set_xlim(-0.56, tips + COUNT_X + 0.04)
-    ax.set_ylim(-0.75, 20.45)
+    ax.set_ylim(-1.5, 20.45)
     save(fig, args.img_dir, "fig4a_silva_clades")
 
 
