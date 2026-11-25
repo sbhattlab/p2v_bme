@@ -72,6 +72,13 @@ ALIAS = {
     "FastTree-ME": "FastTree-ME",
 }
 
+# Fig. 3c: the calibration sets drawn (name, sequences, summary in calibration/, keys to the entry);
+# the summaries' reliability bins come from run_calibration.py
+CALIBRATION_SETS = (
+    ("RNASim", 1_000_000, "rnasim_bootstrap_calibration_summary.json", ("N1M_boot",)),
+    ("SARS-CoV-2-like simulation", 100_000, "maple_bootstrap_calibration_summary.json", ()),
+    ("Random tree", 1_000_000, "calibration_1000000.json", ()),
+)
 # RNASim calibration: bootstrap replicates and repeat searches per reference tree
 # (run_calibration.py)
 CALIBRATION_BOOTSTRAPS = 64
@@ -635,34 +642,21 @@ def table_bootstrap(results: Path) -> Outputs:
 
 
 def table_calibration(results: Path) -> Outputs:
-    """Collects Fig. 3c's data: the share of branches in the true tree by exact bootstrap support, for the
-    largest RNASim calibration, the pandemic simulation and the random tree of 10^6 sequences (or the largest):
-    results -> {calibration.tsv}."""
+    """Collects Fig. 3c's data: the share of branches in the true tree by exact bootstrap support, for each set
+    of CALIBRATION_SETS; every set must be there: results -> {calibration.tsv}."""
     folder = results / "calibration"
-    sets = []
-    rnasim = folder / "rnasim_bootstrap_calibration_summary.json"
-    if rnasim.exists():
-        data = read_json(rnasim)
-        for key, n in (("N1M_boot", 1_000_000), ("N100k_boot", 100_000)):
-            if "reliability" in data.get(key, {}):
-                sets.append(("RNASim", n, data[key]["reliability"]))
-                break
-    pandemic = folder / "maple_bootstrap_calibration_summary.json"
-    if pandemic.exists():
-        data = read_json(pandemic)
-        if "reliability" in data:
-            sets.append(("SARS-CoV-2-like simulation", data["N"], data["reliability"]))
-    random_trees = {int(p.stem.split("_")[1]): p for p in folder.glob("calibration_*.json")}
-    if random_trees:
-        n = 1_000_000 if 1_000_000 in random_trees else max(random_trees)
-        data = read_json(random_trees[n])
-        if "reliability" in data:
-            sets.append(("Random tree", n, data["reliability"]))
-    if not sets:
-        raise MissingResults(
-            "calibration: no summary with reliability bins (paper/run_calibration.py)"
-        )
-    rows = [{"dataset": name, "n": n} | b for name, n, bins in sets for b in bins]
+    rows, missing = [], []
+    for name, n, summary, keys in CALIBRATION_SETS:
+        path = folder / summary
+        data = read_json(path) if path.exists() else {}
+        for key in keys:
+            data = data.get(key, {})
+        if "reliability" not in data or data.get("N", n) != n:
+            missing.append(f"{name} {n:,} ({summary}{''.join(f'[{k}]' for k in keys)})")
+            continue
+        rows += [{"dataset": name, "n": n} | b for b in data["reliability"]]
+    if missing:
+        raise MissingResults(f"calibration: no reliability bins for {', '.join(missing)}")
     return {"calibration.tsv": pd.DataFrame(rows)}
 
 
