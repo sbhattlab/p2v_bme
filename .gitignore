@@ -22,6 +22,8 @@ jobs/
 CLAUDE.md
 # LaTeX version of the paper's tables (local)
 paper/latex/
+# Local working copy of the manuscript
+manuscript/
 
 # Large benchmark data & logs (also outside data/)
 data_*/
