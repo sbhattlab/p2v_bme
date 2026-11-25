@@ -1,5 +1,5 @@
 """Every table of the paper and the data behind its figures,
-from the raw results (Tables S1-S15; Figs 2, 3, S1-S5).
+from the raw results (Tables S1-S15; Figs 2-4, S1-S4).
 
 Inputs:  data/results/                                    (the run_*.py scripts)
            scaling/, random_start/, seqlen/,              our runs:
