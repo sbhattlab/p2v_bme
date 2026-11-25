@@ -26,7 +26,7 @@ Outputs: data/tables/tableS<N>_<name>.md, numbered as in the supplement:
          S7 comparators, S8 baseline_10k, S9 seqlen, S10 random_tree, S11 viridian_support,
          S12 viridian_variants, S13 viridian_thresholds, S14 silva_support, S15 silva_gtdb;
          data/tables/<data>.tsv, the figures' data: scaling, random_tree, maple, calibration,
-         silva_support, scaling_methods, silva_clades, silva_clade_paths, viridian_variants,
+         silva_support, silva_gtdb, scaling_methods, silva_clades, silva_clade_paths, viridian_variants,
          viridian_substitutions, viridian_resolution
 
     pixi run -e paper python -m paper.make_tables
@@ -908,7 +908,8 @@ def table_silva_clades(results: Path) -> Outputs:
 
 
 def table_silva_gtdb(results: Path) -> Outputs:
-    """Builds Table S15 (silva_gtdb): results -> {tableS15_silva_gtdb.md}."""
+    """Builds Table S15 (silva_gtdb) and Fig. 4c's data:
+    results -> {tableS15_silva_gtdb.md, silva_gtdb.tsv}."""
     record = read_json(results / "silva" / "gtdb_labelled_scores.json")
     out = record["trees"]
     ranks = [rank.capitalize() for rank in RANKS[1:6]]
@@ -922,7 +923,21 @@ def table_silva_gtdb(results: Path) -> Outputs:
         ]
     )
     decimals = dict.fromkeys(ranks, 2) | {"Consistent branches (%)": 0}
-    return {"tableS15_silva_gtdb.md": rounded(table, decimals)}
+    # one row per tree and rank: the mean F1 of the GTDB taxa and how many there are
+    rows = pd.DataFrame(
+        [
+            {
+                "tree": tag,
+                "rank": key,
+                "taxa": out[tag][key]["taxa"],
+                "mean_f1": out[tag][key]["mean_f1"],
+            }
+            for tag in GTDB_TREES
+            if tag in out
+            for key in RANKS[1:6]
+        ]
+    )
+    return {"tableS15_silva_gtdb.md": rounded(table, decimals), "silva_gtdb.tsv": rows}
 
 
 def table_seqlen(results: Path) -> Outputs:
