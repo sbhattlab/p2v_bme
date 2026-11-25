@@ -1,12 +1,14 @@
 # Reproducing the paper
 
 The paper's analyses are Python scripts in this folder, run from the repository root through pixi tasks of the `paper`
-environment, which also has the comparison programs (FastME, FastTree, VeryFastTree). Each script writes into `data/`
+environment, which also has the comparison programs FastME, FastTree, VeryFastTree and CMAPLE; MAPLE and DIPPER, which
+pixi does not provide, are installed into `extern/` by `scripts/install_baselines.sh`. Each script writes into `data/`
 ([data/README.md](../data/README.md)); the figures are scripts in `plots/`.
 
 ```bash
 pixi run build              # build/vecme and the paper's tools (paper/tools: bme_scores, eval_cmaple_rf, ...)
 pixi install -e paper
+bash scripts/install_baselines.sh   # MAPLE and DIPPER (built with the pixi environment dipper)
 pixi run -e paper check-paper
 ```
 
@@ -76,7 +78,7 @@ seeds.
 
 - **Command:** `pixi run -e paper run_baselines --run FAMILY ...`, or `--source SOURCE` to import recorded runs
 - **Requires:** `pixi run build` (`eval_cmaple_rf`); for `--run`: `simulate_data`, `download_data --sources cmaple`, and
-  for `--run dipper` the DIPPER program (`--dipper`; not in the pixi environments)
+  for `--run dipper` the DIPPER program (`--dipper`, e.g. `extern/dipper/bin/dipper`: `scripts/install_baselines.sh`)
 - **Inputs:** for `--run`, the simulated sets and `data/datasets/cmaple/simulated/`; for `--source`, the recorded runs
   (a git repository, with `--ref`, or a folder)
 - **Outputs:** `data/results/baselines/{default,default_100k,default_yule,random_start,dipper,maple}/`; with `--source`,
