@@ -1,4 +1,4 @@
-"""Fig. 2d: RF error of Phylo2VecME, MAPLE and CMAPLE on the simulated pandemic alignments,
+"""Fig. 2d: RF error of VecME, MAPLE and CMAPLE on the simulated pandemic alignments,
 by mean branch length in substitutions per branch (as Fig. 2c draws their times).
 
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
@@ -19,7 +19,7 @@ from plots.utils import OURS, method_style, parser, read_tsv, save
 
 FIGSIZE = (52 / 25.4, 62 / 25.4)
 SITES = 30000  # every pandemic alignment: x = mean branch length x SITES = substitutions per branch
-DODGE = {"MAPLE": -0.21, "CMAPLE": 0.0, "Phylo2VecME": 0.21}  # side by side, in x units
+DODGE = {"MAPLE": -0.21, "CMAPLE": 0.0, "VecME": 0.21}  # side by side, in x units
 TOP = 40  # per cent: headroom above the data, so that the legend clears them (as Fig. 2c)
 
 
@@ -62,9 +62,9 @@ def main() -> None:
     ax.legend(loc="upper right", frameon=False, handletextpad=0.4)
     save(fig, args.img_dir, "fig2d_pandemic_rf_error")
     gap = max(
-        abs(rf[("Phylo2VecME", n, s)] - v)
+        abs(rf[("VecME", n, s)] - v)
         for (m, n, s), v in rf.items()
-        if m in ("MAPLE", "CMAPLE") and ("Phylo2VecME", n, s) in rf
+        if m in ("MAPLE", "CMAPLE") and ("VecME", n, s) in rf
     )
     print(f"largest RF gap to MAPLE or CMAPLE on one alignment: {gap:.6f} percentage points")
 

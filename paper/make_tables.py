@@ -427,7 +427,7 @@ def table_random_tree(results: Path) -> Outputs:
 
     methods = ["P2V", "DIPPER", "FastTree-ME", "VFT-ME", "FastTree-ML", "VFT-ML"]
     head = [
-        "Phylo2VecME",
+        "VecME",
         "DIPPER",
         "FastTree ME",
         "VeryFastTree ME",
@@ -469,7 +469,7 @@ def table_maple(results: Path) -> Outputs:
             {
                 "n": n,
                 "mean_branch_length": length,
-                "method": "Phylo2VecME",
+                "method": "VecME",
                 "time_s": r["time_s"],
                 "rf_pct": r["evaluation"]["rf_all_pct"],
                 "resolved_rf_pct": r["evaluation"]["rf_res10_pct"],
@@ -518,10 +518,10 @@ def table_maple(results: Path) -> Outputs:
             {
                 "Leaves": p["n"],
                 "Mean branch length": p["mean_branch_length"],
-                "Phylo2VecME time (s)": p["time_s"],
+                "VecME time (s)": p["time_s"],
                 "CMAPLE time (s)": c["time_s"],
                 "MAPLE time (s)": m["time_s"],
-                "Phylo2VecME RF (%)": p["rf_pct"],
+                "VecME RF (%)": p["rf_pct"],
                 "CMAPLE RF (%)": c["rf_pct"],
                 "MAPLE RF (%)": m["rf_pct"],
             }
@@ -639,8 +639,8 @@ def table_baseline_10k(results: Path) -> Outputs:
     ours = {"sample": our_runs(results, "scaling"), "random": our_runs(results, "random_start")}
     dipper = dipper_runs(results)
     cases = [
-        ("Phylo2VecME sample", "sample", "sample"),
-        ("Phylo2VecME random", "random", "supplied random tree"),
+        ("VecME sample", "sample", "sample"),
+        ("VecME random", "random", "supplied random tree"),
         ("DIPPER", "DIPPER-GPU", "de novo"),
         ("FastTree ME", "FastTree-ME", "supplied random tree"),
         ("VeryFastTree ME", "VFT-ME", "supplied random tree"),
@@ -700,7 +700,7 @@ def table_baseline_10k(results: Path) -> Outputs:
         timing_scope=rows["method"].map(
             lambda m: TIMING if keys[m] in ours else "archived comparator process wall time"
         ),
-        interpretation="CPU ME/ML and random Phylo2VecME are random-start search stress tests; "
+        interpretation="CPU ME/ML and random VecME are random-start search stress tests; "
         "hardware differs",
         sd_definition="sample SD (ddof=1)",
     )
@@ -729,7 +729,7 @@ def table_comparators(results: Path) -> Outputs:
     cpu = [r for r in default_runs(results) if r["tag"] in DATASETS and r["N"] <= sizes_max]
     methods = ["P2V", "DIPPER", "FastTree-ME", "VFT-ME", "FastTree-ML", "VFT-ML"]
     head = [
-        "Phylo2VecME",
+        "VecME",
         "DIPPER",
         "FastTree ME",
         "VeryFastTree ME",

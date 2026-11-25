@@ -26,7 +26,7 @@ FIGURE_FOLDERS: Final = {
 # One entry per method, used identically in every figure:
 # key, legend label, colour, marker, filled, line style.
 # Hue = program, shade = algorithm (light: ME, dark: ML), after ColorBrewer's Paired:
-# FastTree blues, VeryFastTree greys, the MAPLE purples; DIPPER black; Phylo2VecME vermilion.
+# FastTree blues, VeryFastTree greys, the MAPLE purples; DIPPER black; VecME vermilion.
 # Checked for red-green colour blindness (Machado et al. 2009): methods drawn together stay apart.
 # Markers pair up the same way (square and diamond, the two triangles), for colour-blind readers.
 # METHODS: the methods of Figs S1-S4, in drawing order.
@@ -37,7 +37,7 @@ METHODS: Final = [
     ("VFT-ME", "VeryFastTree-ME", "#BDBDBD", "^", True, "-"),
     ("VFT-ML", "VeryFastTree-ML", "#636363", "v", True, "-"),
     ("DIPPER", "DIPPER", "#000000", "X", True, "-"),
-    ("P2V", "Phylo2VecME", "#D55E00", "o", True, "-"),
+    ("P2V", "VecME", "#D55E00", "o", True, "-"),
 ]
 PANDEMIC_METHODS: Final = [
     ("MAPLE", "MAPLE", "#B294C7", "P", True, "--"),
@@ -65,7 +65,7 @@ SCALING_FIGURES: Final = {"rnasim": "figS1", "jc10k": "figS2", "yule10k": "figS3
 
 # Fig. 2a,b: dataset in the data, legend label, colour, marker, line style, filled marker,
 # intensity (alpha).
-# Every series is Phylo2VecME: RNASim takes its vermilion, the JC series teal, a hue no method uses
+# Every series is VecME: RNASim takes its vermilion, the JC series teal, a hue no method uses
 # (apart from vermilion for colour-blind readers and on tinted screens).
 # Three intensities: the PASTA-tree series in full, the random-tree series lighter, and Fig. 2b's
 # inherited splits (fig2b_scaling_rf_error.py) lightest.
@@ -78,4 +78,4 @@ SCALING_SERIES: Final = [
 ]
 
 # Fig. 2c,d: the pandemic programs, as named in maple.tsv, and their key in SPEC
-PANDEMIC: Final = [("MAPLE", "MAPLE"), ("CMAPLE", "CMAPLE"), ("Phylo2VecME", "P2V")]
+PANDEMIC: Final = [("MAPLE", "MAPLE"), ("CMAPLE", "CMAPLE"), ("VecME", "P2V")]

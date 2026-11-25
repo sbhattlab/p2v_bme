@@ -164,7 +164,7 @@ Every table of the paper (`--tables`; default: all). A table whose results are m
 | --------------------------------- | -------------------------------------------------------------- | ------------------------------------------- |
 | `fig2a_scaling_time`              | 2a: time against the number of sequences                       | `scaling.tsv`, `random_tree.tsv`            |
 | `fig2b_scaling_rf_error`          | 2b: RF error against the number of sequences                   | `scaling.tsv`, `random_tree.tsv`            |
-| `fig2c_pandemic_time`             | 2c: time of Phylo2VecME, MAPLE and CMAPLE, pandemic sets       | `maple.tsv`                                 |
+| `fig2c_pandemic_time`             | 2c: time of VecME, MAPLE and CMAPLE, pandemic sets             | `maple.tsv`                                 |
 | `fig2d_pandemic_rf_error`         | 2d: RF error of the three programs by branch length, pandemic  | `maple.tsv`                                 |
 | `fig3a_silva_clades`              | 3a: the SILVA 144 tree reduced to the domains and major clades | `silva_clades.tsv`, `silva_clade_paths.tsv` |
 | `fig3b_silva_support`             | 3b: SILVA 144 branches by support class and split size         | `silva_support.tsv`                         |

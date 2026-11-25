@@ -44,8 +44,8 @@ def main() -> None:
     fig.subplots_adjust(left=0.2, right=0.97, top=0.84, bottom=0.17)
     x = range(len(BINS))
     for field, label, key in (
-        ("ours_in_maple_pct", "Phylo2VecME's, in MAPLE's", "P2V"),
-        ("maple_in_ours_pct", "MAPLE's, in Phylo2VecME's", "MAPLE"),
+        ("ours_in_maple_pct", "VecME's, in MAPLE's", "P2V"),
+        ("maple_in_ours_pct", "MAPLE's, in VecME's", "MAPLE"),
     ):
         ax.plot(
             x,
