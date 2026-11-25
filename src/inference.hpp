@@ -1,7 +1,7 @@
 /*
  * inference.hpp
  *
- * Public interface of the Phylo2Vec BME tree search, with core.hpp (the alignment and tree types), the
+ * Public interface of the VecME tree search, with core.hpp (the alignment and tree types), the
  * input/output headers (fasta.hpp, maple.hpp, newick.hpp, io.hpp), processing.hpp (before and after inference)
  * and device.hpp (the devices): Settings, Result and infer() (balanced minimum evolution, distances under a
  * substitution model, GPU minibatch search).

@@ -2,7 +2,7 @@
  * sim_jc69_fast.c
  *
  * Ultra-fast OpenMP bit-parallel Jukes-Cantor (JC69) sequence simulator and
- * bitplane packer for Phylo2Vec-BME benchmarks (N = 1,000 up to N = 1,000,000+ taxa,
+ * bitplane packer for VecME benchmarks (N = 1,000 up to N = 1,000,000+ taxa,
  * L = 1,000 to L = 10,000+ sites).
  *
  * Input binary tree file (<tree_in.bin>):

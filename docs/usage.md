@@ -11,8 +11,8 @@ The options are grouped as in `vecme --help-all`; the files they write are in [o
 
 `-s` takes an aligned DNA FASTA file, or a MAPLE file if its name ends in `.maple`. A, C, G and T (or U), in either
 case, are bases; anything else (gaps, `N`, other IUPAC codes) is missing data. Sequence names (the first word of each
-header) must be unique. Gzipped files are not read yet ([#12](https://github.com/sbhattlab/p2v_bme/issues/12)):
-decompress them first.
+header) must be unique. Gzipped files are not read yet ([#12](https://github.com/sbhattlab/vecme/issues/12)): decompress
+them first.
 
 ## Core options
 

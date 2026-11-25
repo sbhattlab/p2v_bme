@@ -1,7 +1,7 @@
 [workspace]
 authors = ["Neclow <32112754+Neclow@users.noreply.github.com>"]
 channels = ["conda-forge", "bioconda"]
-name = "phylo2vec_bme"
+name = "vecme"
 platforms = ["linux-64"]
 version = "0.1.0"
 

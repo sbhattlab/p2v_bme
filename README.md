@@ -1,9 +1,9 @@
-# Phylo2VecME
+# VecME
 
-Phylo2VecME infers phylogenetic trees from aligned DNA sequences by balanced minimum evolution (BME), for up to millions
-of sequences. Trees are encoded as Phylo2Vec integer vectors: every single-integer rearrangement of a window of the tree
-is scored in one pass, and a multi-scale search over windows of condensed subtrees, from local ones to the whole tree,
-runs these passes in minibatches on GPUs or CPU cores. The standard bootstrap gives each branch of the tree its transfer
+VecME infers phylogenetic trees from aligned DNA sequences by balanced minimum evolution (BME), for up to millions of
+sequences. Trees are encoded as Phylo2Vec integer vectors: every single-integer rearrangement of a window of the tree is
+scored in one pass, and a multi-scale search over windows of condensed subtrees, from local ones to the whole tree, runs
+these passes in minibatches on GPUs or CPU cores. The standard bootstrap gives each branch of the tree its transfer
 (TBE) and exact supports.
 
 The command-line program is `vecme`: an aligned FASTA file in, an unrooted Newick tree and a JSON report of the run out.
@@ -12,10 +12,10 @@ The command-line program is `vecme`: an aligned FASTA file in, an unrooted Newic
 
 ### Prebuilt binary
 
-Each [release](https://github.com/sbhattlab/p2v_bme/releases) has a Linux binary with its SHA-256 checksum. The latest:
+Each [release](https://github.com/sbhattlab/vecme/releases) has a Linux binary with its SHA-256 checksum. The latest:
 
 ```bash
-curl -fsSLO https://github.com/sbhattlab/p2v_bme/releases/latest/download/vecme-linux-x86_64.tar.gz
+curl -fsSLO https://github.com/sbhattlab/vecme/releases/latest/download/vecme-linux-x86_64.tar.gz
 tar xzf vecme-linux-x86_64.tar.gz
 vecme-linux-x86_64/vecme --version
 ```
@@ -32,7 +32,7 @@ Otherwise, build it from source.
 
 #### Prerequisites
 
-- Linux on x86-64 (other systems: issue [#14](https://github.com/sbhattlab/p2v_bme/issues/14))
+- Linux on x86-64 (other systems: issue [#14](https://github.com/sbhattlab/vecme/issues/14))
 - a C and C++17 compiler with OpenMP (e.g. GCC)
 - [pixi](https://pixi.sh), which installs the other build dependencies (CMake included):
 
@@ -45,8 +45,8 @@ Otherwise, build it from source.
 #### Build
 
 ```bash
-git clone https://github.com/sbhattlab/p2v_bme.git
-cd p2v_bme
+git clone https://github.com/sbhattlab/vecme.git
+cd vecme
 pixi run build    # build/vecme, with the GPU code if CUDA is found
 pixi run test     # optional: the tests
 ```
@@ -116,11 +116,11 @@ run, and [data/README.md](data/README.md) the data they download and write.
 
 ## Citation
 
-If you use Phylo2VecME, please cite:
+If you use VecME, please cite:
 
 ```bibtex
-@article{bhatt2026phylo2vecme,
-  title   = {Phylo2VecME: phylogenetic inference with uncertainty for millions of sequences},
+@article{bhatt2026vecme,
+  title   = {VecME: phylogenetic inference with uncertainty for millions of sequences},
   author  = {Bhatt, Samir and Scheidwasser, Neil and Penn, Matthew J. and Andersen, Frederik M. and
              Ferguson, Neil M. and Donnelly, Christl A. and Kraemer, Moritz U. G. and Suchard, Marc A. and
              Aarestrup, Frank M. and Khurana, Mark P. and Zhu, Harrison B. H. and Duch{\^e}ne, David A.},
