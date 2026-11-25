@@ -65,6 +65,7 @@ make_tables = "python -m paper.make_tables"
 # and one per figure with its supplementary figures, e.g. pixi run -e paper fig2
 fig2a_scaling_time = "python -m plots.fig2a_scaling_time"
 fig2b_scaling_rf_error = "python -m plots.fig2b_scaling_rf_error"
+fig2c_random_trees = "python -m plots.fig2c_random_trees"
 fig2d_seqlen_effect = "python -m plots.fig2d_seqlen_effect"
 fig3a_pandemic_time = "python -m plots.fig3a_pandemic_time"
 fig3b_pandemic_rf_error = "python -m plots.fig3b_pandemic_rf_error"
@@ -78,6 +79,7 @@ figS5b_sarscov2_shared_branches = "python -m plots.figS5b_sarscov2_shared_branch
 fig2 = { cmd = "echo 'All fig2 plots done.'", depends-on = [
   "fig2a_scaling_time",
   "fig2b_scaling_rf_error",
+  "fig2c_random_trees",
   "fig2d_seqlen_effect",
   "figS1_3_scaling",
 ] }
