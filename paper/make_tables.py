@@ -4,9 +4,9 @@ from the raw results (Tables S1-S15; Figs 2, 3, S1-S5).
 Inputs:  data/results/                                    (the run_*.py scripts)
            scaling/, random_start/, seqlen/,              our runs:
            representatives/, pandemic/                    <set>/<n>/rep<r>_seed<s>[_cap<P>].json
-                                                          (p2v-bme report) with .vs_true.json,
+                                                          (vecme report) with .vs_true.json,
                                                           .backbone.json, .vs_cap64.json
-                                                          (p2v-bme --supports), .score.json,
+                                                          (vecme --supports), .score.json,
                                                           .eval.json
            calibration/, fastme/, gtr_fit/, silva/,       records scored from our trees,
            viridian/,                                     in the paper's file formats
@@ -137,7 +137,7 @@ def threads_of(report: Path, details: dict) -> int | str:
     (report, its details) -> the count ('' if not recorded).
 
     CPU runs: their workers ("CPU: 16 threads" in the report);
-    GPU runs: the host threads that run_p2vbme recorded in <prefix>.host.json.
+    GPU runs: the host threads that run_vecme recorded in <prefix>.host.json.
     """
     workers = [d for d in details["devices"] if d.startswith("CPU: ")]
     if workers:
@@ -147,7 +147,7 @@ def threads_of(report: Path, details: dict) -> int | str:
 
 
 def rf_from(path: Path) -> float | str:
-    """Reads the RF error of a p2v-bme --supports comparison:
+    """Reads the RF error of a vecme --supports comparison:
     report -> 100 - mean exact support ('' if none).
 
     For binary trees on the same leaves, RF / (2 (n - 3)) = 1 - (shared splits) / (n - 3).
@@ -168,7 +168,7 @@ warned_no_peak: set[str] = set()
 
 def our_runs(results: Path, experiment: str) -> pd.DataFrame:
     """Reads our runs of one experiment:
-    (results dir, experiment) -> one row per p2v-bme report, in run order, blanks as NaN."""
+    (results dir, experiment) -> one row per vecme report, in run order, blanks as NaN."""
     rows: list[dict] = []
     no_peak = 0  # GPU reports without gpu_memory_peak_mib
     for path in (results / experiment).glob("*/*/*.json"):
@@ -232,7 +232,7 @@ def our_runs(results: Path, experiment: str) -> pd.DataFrame:
         warned_no_peak.add(experiment)
         print(
             f"make_tables: {experiment}: {no_peak} GPU reports have no gpu_memory_peak_mib"
-            " (written by an earlier p2v-bme); their GPU memory is left blank",
+            " (written by an earlier vecme); their GPU memory is left blank",
             file=sys.stderr,
         )
     return pd.DataFrame(rows).replace("", np.nan).infer_objects()
@@ -339,7 +339,7 @@ def scaling_rows(results: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
             "host_memory_mb": runs["host_memory_mb"],
             "gpu_memory_peak_mib": runs["gpu_memory_peak_mib"],
             "source_path": runs["source_path"],
-            "source_key": "p2v-bme report",
+            "source_key": "vecme report",
             "timing_scope": TIMING,
         }
     )
@@ -366,7 +366,7 @@ def scaling_rows(results: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     )
     aggregate.loc[at_base, "backbone_rf_pct_sd"] = pd.NA
     aggregate = aggregate.assign(
-        source_key="p2v-bme report",
+        source_key="vecme report",
         timing_scope=TIMING,
         large_scale_design=aggregate["n"].map(
             lambda n: "100k-backbone microclade expansion" if n >= SIZES_EXPANDED else ""
@@ -423,11 +423,11 @@ def table_random_tree(results: Path) -> Outputs:
     )
     rows.insert(0, "dataset", "JC random tree")
     rows.insert(2, "initialisation", "sample")
-    rows = rows.assign(source_key="p2v-bme report", timing_scope=TIMING, sd_definition=SD)
+    rows = rows.assign(source_key="vecme report", timing_scope=TIMING, sd_definition=SD)
 
     methods = ["P2V", "DIPPER", "FastTree-ME", "VFT-ME", "FastTree-ML", "VFT-ML"]
     head = [
-        "Phylo2VecME",
+        "VecME",
         "DIPPER",
         "FastTree ME",
         "VeryFastTree ME",
@@ -469,7 +469,7 @@ def table_maple(results: Path) -> Outputs:
             {
                 "n": n,
                 "mean_branch_length": length,
-                "method": "Phylo2VecME",
+                "method": "VecME",
                 "time_s": r["time_s"],
                 "rf_pct": r["evaluation"]["rf_all_pct"],
                 "resolved_rf_pct": r["evaluation"]["rf_res10_pct"],
@@ -480,7 +480,7 @@ def table_maple(results: Path) -> Outputs:
                 "representative_cap": r["cap"],
                 "exact_check_eta": "",
                 "source_path": r["source_path"],
-                "source_key": "p2v-bme report; .eval.json",
+                "source_key": "vecme report; .eval.json",
                 "timing_scope": TIMING,
                 "hardware_note": "",
                 "resolved_metric": "fraction of true splits missing among branches >=1 expected substitution",
@@ -518,10 +518,10 @@ def table_maple(results: Path) -> Outputs:
             {
                 "Leaves": p["n"],
                 "Mean branch length": p["mean_branch_length"],
-                "Phylo2VecME time (s)": p["time_s"],
+                "VecME time (s)": p["time_s"],
                 "CMAPLE time (s)": c["time_s"],
                 "MAPLE time (s)": m["time_s"],
-                "Phylo2VecME RF (%)": p["rf_pct"],
+                "VecME RF (%)": p["rf_pct"],
                 "CMAPLE RF (%)": c["rf_pct"],
                 "MAPLE RF (%)": m["rf_pct"],
             }
@@ -639,8 +639,8 @@ def table_baseline_10k(results: Path) -> Outputs:
     ours = {"sample": our_runs(results, "scaling"), "random": our_runs(results, "random_start")}
     dipper = dipper_runs(results)
     cases = [
-        ("Phylo2VecME sample", "sample", "sample"),
-        ("Phylo2VecME random", "random", "supplied random tree"),
+        ("VecME sample", "sample", "sample"),
+        ("VecME random", "random", "supplied random tree"),
         ("DIPPER", "DIPPER-GPU", "de novo"),
         ("FastTree ME", "FastTree-ME", "supplied random tree"),
         ("VeryFastTree ME", "VFT-ME", "supplied random tree"),
@@ -695,12 +695,12 @@ def table_baseline_10k(results: Path) -> Outputs:
     rows.insert(3, "initialisation", rows["method"].map({m: i for m, _, i in cases}))
     rows = rows.assign(
         source_key=rows["method"].map(
-            lambda m: "p2v-bme report" if keys[m] in ours else f"methods.{keys[m]}"
+            lambda m: "vecme report" if keys[m] in ours else f"methods.{keys[m]}"
         ),
         timing_scope=rows["method"].map(
             lambda m: TIMING if keys[m] in ours else "archived comparator process wall time"
         ),
-        interpretation="CPU ME/ML and random Phylo2VecME are random-start search stress tests; "
+        interpretation="CPU ME/ML and random VecME are random-start search stress tests; "
         "hardware differs",
         sd_definition="sample SD (ddof=1)",
     )
@@ -729,7 +729,7 @@ def table_comparators(results: Path) -> Outputs:
     cpu = [r for r in default_runs(results) if r["tag"] in DATASETS and r["N"] <= sizes_max]
     methods = ["P2V", "DIPPER", "FastTree-ME", "VFT-ME", "FastTree-ML", "VFT-ML"]
     head = [
-        "Phylo2VecME",
+        "VecME",
         "DIPPER",
         "FastTree ME",
         "VeryFastTree ME",

@@ -17,7 +17,7 @@
 #include "simulations.hpp"
 #include "support.hpp"
 
-using namespace p2vbme;
+using namespace vecme;
 
 namespace {
 

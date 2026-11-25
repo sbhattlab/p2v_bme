@@ -14,7 +14,7 @@
 #include <limits>
 #include <stdexcept>
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -398,4 +398,4 @@ std::string format_support(double percent) {
     return std::string(buf, n);
 }
 
-} // namespace p2vbme
+} // namespace vecme

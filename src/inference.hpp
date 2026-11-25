@@ -1,13 +1,13 @@
 /*
  * inference.hpp
  *
- * Public interface of the Phylo2Vec BME tree search, with core.hpp (the alignment and tree types), the
+ * Public interface of the VecME tree search, with core.hpp (the alignment and tree types), the
  * input/output headers (fasta.hpp, maple.hpp, newick.hpp, io.hpp), processing.hpp (before and after inference)
  * and device.hpp (the devices): Settings, Result and infer() (balanced minimum evolution, distances under a
  * substitution model, GPU minibatch search).
  */
-#ifndef P2VBME_INFERENCE_HPP
-#define P2VBME_INFERENCE_HPP
+#ifndef VECME_INFERENCE_HPP
+#define VECME_INFERENCE_HPP
 
 #include <cstdint>
 #include <functional>
@@ -21,7 +21,7 @@
 #include "distances.hpp"
 #include "stop_reason.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 enum class TreeInit { Sample, Random, Given };
 
@@ -78,6 +78,6 @@ using LogCallback = std::function<void(const std::string &line)>;
 Result infer(const Alignment &aln, const Settings &settings, Devices &devices, const Tree *start_tree = nullptr,
              const LogCallback &log = nullptr);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_INFERENCE_HPP
+#endif // VECME_INFERENCE_HPP

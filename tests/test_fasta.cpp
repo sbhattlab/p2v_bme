@@ -13,11 +13,11 @@
 
 namespace {
 
-using p2vbme::WORD_BITS;
+using vecme::WORD_BITS;
 
-bool bit(const p2vbme::Alignment &a, int taxon, int plane, int site) {
+bool bit(const vecme::Alignment &a, int taxon, int plane, int site) {
     const int w = site / WORD_BITS, k = site % WORD_BITS; // bit k of word w
-    return (a.packed[((size_t)taxon * p2vbme::N_PLANES + plane) * a.n_words + w] >> k) & 1ULL;
+    return (a.packed[((size_t)taxon * vecme::N_PLANES + plane) * a.n_words + w] >> k) & 1ULL;
 }
 
 } // namespace
@@ -25,7 +25,7 @@ bool bit(const p2vbme::Alignment &a, int taxon, int plane, int site) {
 TEST(Fasta, PacksPlanesAsTheBundles) {
     const std::string p = temp_path("pack.fa");
     write_file(p, ">a desc\nACGTU-\nNnRY\n>b\nacgtac\ngtac\n");
-    const auto aln = p2vbme::read_fasta(p);
+    const auto aln = vecme::read_fasta(p);
     ASSERT_EQ(aln.n_taxa, 2);
     ASSERT_EQ(aln.n_sites, 10);
     ASSERT_EQ(aln.n_words, 1);
@@ -37,7 +37,7 @@ TEST(Fasta, PacksPlanesAsTheBundles) {
     EXPECT_TRUE(bit(aln, 0, 3, 3));
     EXPECT_TRUE(bit(aln, 0, 3, 4)); // U counts as T
     for (int site = 5; site < 10; ++site)
-        for (int plane = 0; plane < p2vbme::N_PLANES; ++plane)
+        for (int plane = 0; plane < vecme::N_PLANES; ++plane)
             EXPECT_FALSE(bit(aln, 0, plane, site)) << site << " " << plane;
     for (int site = 0; site < 5; ++site)
         EXPECT_TRUE(bit(aln, 0, 4, site));
@@ -57,7 +57,7 @@ TEST(Fasta, RejectsBadInput) {
         const std::string p = temp_path("bad.fa");
         write_file(p, text);
         try {
-            p2vbme::read_fasta(p);
+            vecme::read_fasta(p);
             ADD_FAILURE() << "no error for: " << text;
         } catch (const std::runtime_error &e) {
             EXPECT_NE(std::string(e.what()).find(message), std::string::npos) << e.what();
@@ -82,11 +82,11 @@ TEST(Fasta, RandomSequencesPackAsALetterByLetterLoop) {
     }
     const std::string p = temp_path("random.fa");
     write_file(p, text);
-    const auto aln = p2vbme::read_fasta(p);
+    const auto aln = vecme::read_fasta(p);
     ASSERT_EQ(aln.n_taxa, n);
     ASSERT_EQ(aln.n_sites, length);
     ASSERT_EQ(aln.n_words, n_words);
-    std::vector<uint64_t> expected((size_t)n * p2vbme::N_PLANES * n_words, 0);
+    std::vector<uint64_t> expected((size_t)n * vecme::N_PLANES * n_words, 0);
     for (int x = 0; x < n; ++x) {
         EXPECT_EQ(aln.names[x], "seq" + std::to_string(x));
         for (int i = 0; i < length; ++i) {
@@ -102,9 +102,9 @@ TEST(Fasta, RandomSequencesPackAsALetterByLetterLoop) {
                 plane = 3;
             if (plane < 0)
                 continue;
-            uint64_t *row = &expected[(size_t)x * p2vbme::N_PLANES * n_words];
+            uint64_t *row = &expected[(size_t)x * vecme::N_PLANES * n_words];
             row[(size_t)plane * n_words + i / WORD_BITS] |= 1ULL << (i % WORD_BITS);
-            row[(size_t)p2vbme::VALID_PLANE * n_words + i / WORD_BITS] |= 1ULL << (i % WORD_BITS);
+            row[(size_t)vecme::VALID_PLANE * n_words + i / WORD_BITS] |= 1ULL << (i % WORD_BITS);
         }
     }
     EXPECT_EQ(aln.packed, expected);

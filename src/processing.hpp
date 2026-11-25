@@ -6,8 +6,8 @@
  * sequences set aside (at most two copies of each go into the search).
  * The trees: a given start tree restricted to the sequences kept and, after inference, the copies joined back.
  */
-#ifndef P2VBME_PROCESSING_HPP
-#define P2VBME_PROCESSING_HPP
+#ifndef VECME_PROCESSING_HPP
+#define VECME_PROCESSING_HPP
 
 #include <cstdint>
 #include <vector>
@@ -16,7 +16,7 @@
 #include "distances.hpp"
 #include "gtr_fit.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // ---- The alignment: base frequencies, GTR or GTR+GC fit, identical sequences set aside ----
 
@@ -73,6 +73,6 @@ Tree reattach(const Tree &tree, const Deduplication &dd, std::vector<int32_t> *n
 // node_map as reattach's (the identity when no copy was set aside).
 void restore_copies(Tree &tree, const Deduplication &dd, std::vector<int32_t> *node_map = nullptr);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_PROCESSING_HPP
+#endif // VECME_PROCESSING_HPP

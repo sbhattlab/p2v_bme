@@ -1,7 +1,7 @@
 /*
  * inference.cpp
  *
- * p2vbme::infer: one run of the method on an in-memory alignment, on the given devices: start tree, search,
+ * vecme::infer: one run of the method on an in-memory alignment, on the given devices: start tree, search,
  * branch lengths, with the settings taken from Settings.
  */
 #include <algorithm>
@@ -21,7 +21,7 @@
 #include "start_tree.hpp"
 #include "timing.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -220,4 +220,4 @@ Result infer(const Alignment &aln, const Settings &opt, Devices &devices, const 
     return res;
 }
 
-} // namespace p2vbme
+} // namespace vecme

@@ -12,14 +12,14 @@
  *     OOPSLA 2014, 453-472. doi:10.1145/2660193.2660195
  *   Vigna, S. (2015). splitmix.c (public domain). https://prng.di.unimi.it/splitmix.c
  */
-#ifndef P2VBME_RANDOM_HPP
-#define P2VBME_RANDOM_HPP
+#ifndef VECME_RANDOM_HPP
+#define VECME_RANDOM_HPP
 
 #include <cstddef>
 #include <cstdint>
 #include <utility>
 
-namespace p2vbme {
+namespace vecme {
 
 // splitmix64's increment (Steele et al.'s gamma): 2^64 / phi, phi the golden ratio, rounded to the nearest odd integer.
 constexpr uint64_t SPLITMIX64_GAMMA = 0x9E3779B97F4A7C15ULL;
@@ -76,6 +76,6 @@ constexpr uint64_t SALT_GTR_FIT_PAIRS = 0xE7037ED1A0B428DBULL;
 constexpr uint64_t SALT_BOOTSTRAP = 0x8EBC6AF09C88C6E3ULL;
 constexpr uint64_t SALT_BOOTSTRAP_COLUMNS = 0x589965CC75374CC3ULL;
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_RANDOM_HPP
+#endif // VECME_RANDOM_HPP

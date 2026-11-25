@@ -1,6 +1,6 @@
 // Helpers shared by the input/output unit tests (test_fasta, test_maple, test_processing, test_newick).
-#ifndef P2VBME_TESTS_IO_TEST_HELPERS_HPP
-#define P2VBME_TESTS_IO_TEST_HELPERS_HPP
+#ifndef VECME_TESTS_IO_TEST_HELPERS_HPP
+#define VECME_TESTS_IO_TEST_HELPERS_HPP
 
 #include <gtest/gtest.h>
 
@@ -14,7 +14,7 @@
 
 namespace {
 
-std::string temp_path(const std::string &name) { return testing::TempDir() + "p2vbme_" + name; }
+std::string temp_path(const std::string &name) { return testing::TempDir() + "vecme_" + name; }
 
 void write_file(const std::string &path, const std::string &text) { std::ofstream(path) << text; }
 
@@ -26,7 +26,7 @@ std::string read_file(const std::string &path) {
 }
 
 // Leaf sets below every internal node except the root: the rooted splits of a tree.
-std::set<std::set<int>> clades(const p2vbme::Tree &t, int n) {
+std::set<std::set<int>> clades(const vecme::Tree &t, int n) {
     std::vector<std::set<int>> below(2 * n - 1);
     for (int i = 0; i < n; ++i)
         below[i] = {i};
@@ -42,4 +42,4 @@ std::set<std::set<int>> clades(const p2vbme::Tree &t, int n) {
 
 } // namespace
 
-#endif // P2VBME_TESTS_IO_TEST_HELPERS_HPP
+#endif // VECME_TESTS_IO_TEST_HELPERS_HPP

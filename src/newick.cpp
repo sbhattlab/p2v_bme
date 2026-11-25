@@ -18,7 +18,7 @@
 
 #include "newick.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -373,4 +373,4 @@ void append_newick_unrooted(const std::string &path, const std::vector<std::stri
     put_newick_file(path, std::ios::app, names, tree, true, {});
 }
 
-} // namespace p2vbme
+} // namespace vecme

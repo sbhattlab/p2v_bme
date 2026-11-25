@@ -5,7 +5,7 @@ environment, which also has the comparison programs (FastME, FastTree, VeryFastT
 ([data/README.md](../data/README.md)); the figures are scripts in `plots/`.
 
 ```bash
-pixi run build              # build/p2v-bme and the paper's tools (paper/tools: bme_scores, eval_cmaple_rf, ...)
+pixi run build              # build/vecme and the paper's tools (paper/tools: bme_scores, eval_cmaple_rf, ...)
 pixi install -e paper
 pixi run -e paper check-paper
 ```
@@ -19,7 +19,7 @@ task passes its arguments to the script, and each script's `--help` lists its op
 pixi run -e paper run_benchmarks --help
 ```
 
-The scripts that run p2v-bme use the GPU if one is found (`--accelerator`, `--devices`, as p2v-bme's `-a` and `-d`).
+The scripts that run vecme use the GPU if one is found (`--accelerator`, `--devices`, as vecme's `-a` and `-d`).
 
 The tasks, in the order they run:
 
@@ -63,12 +63,12 @@ comparison's sets (`fastme`) are subsets, as the paper's: `jc10k` and `rnasim` o
 ## Benchmarks
 
 - **Command:** `pixi run -e paper run_benchmarks`
-- **Requires:** `pixi run build` (`p2v-bme`, `bme_scores`, `eval_cmaple_rf`); `simulate_data`;
+- **Requires:** `pixi run build` (`vecme`, `bme_scores`, `eval_cmaple_rf`); `simulate_data`;
   `download_data --sources cmaple` (pandemic sets)
 - **Inputs:** `data/datasets/<set>/<n>/rep<r>.fa`, `rep<r>.true.nwk`; `data/datasets/cmaple/simulated/`
 - **Outputs:** `data/results/<experiment>/<set>/<n>/rep<r>_seed<s>.{nwk,json}` and their scores against the true tree
 
-p2v-bme (`-m JC69`) on the simulated sets, scored against their true trees. `--experiments`: `scaling`, `random_start`,
+vecme (`-m JC69`) on the simulated sets, scored against their true trees. `--experiments`: `scaling`, `random_start`,
 `seqlen`, `representatives`, `round_limit`, `pandemic` (default: all), each with the paper's sets, sizes, replicates and
 seeds.
 
@@ -83,17 +83,17 @@ seeds.
   `PROVENANCE.json` (commit, and each imported file's recorded path and checksum)
 
 FastTree, VeryFastTree, FastME, DIPPER, MAPLE and CMAPLE, each tree scored against the true tree. `--run` takes the
-families `default`, `random_start`, `dipper` and `maple`. The programs do not depend on p2v-bme, so recorded runs can be
+families `default`, `random_start`, `dipper` and `maple`. The programs do not depend on vecme, so recorded runs can be
 imported unchanged instead (`--source`), in the same layout. One of `--run` and `--source` is needed.
 
 ## FastME comparison
 
 - **Command:** `pixi run -e paper run_fastme`
-- **Requires:** `pixi run build` (`p2v-bme`, `bme_scores`); `simulate_data --sets fastme`
+- **Requires:** `pixi run build` (`vecme`, `bme_scores`); `simulate_data --sets fastme`
 - **Inputs:** `data/datasets/fastme/<set>/<n>/rep<r>.fa`, `rep<r>.true.nwk`, `rep<r>.random_start.nwk`
 - **Outputs:** `data/results/fastme/<set>/<n>/rep<r>_*`, `rep<r>.case.json`; `data/results/fastme/cases.jsonl`
 
-p2v-bme and FastME on the same JC69 distance matrix, from their own and from the same random start trees, every tree
+vecme and FastME on the same JC69 distance matrix, from their own and from the same random start trees, every tree
 rescored exactly.
 
 ## Bootstrap calibration
@@ -112,18 +112,18 @@ tree. `--steps ref boot seed score`; `--replicates A-B` spreads the bootstrap ov
 ## GTR+GC fit recovery
 
 - **Command:** `pixi run -e paper run_gtr_fit_recovery`
-- **Requires:** `pixi run build` (`p2v-bme`)
+- **Requires:** `pixi run build` (`vecme`)
 - **Inputs:** none (alignments simulated with the paper's settings and seeds)
 - **Outputs:** `data/results/gtr_fit/runs/<alignment>.{nwk,json}`, `data/results/gtr_fit/recovery.tsv`
 
-p2v-bme's GTR+GC fit (`-m GTR+GC --max-rounds 0`, on the CPU) on alignments of 1,000 sequences simulated under GTR with
+vecme's GTR+GC fit (`-m GTR+GC --max-rounds 0`, on the CPU) on alignments of 1,000 sequences simulated under GTR with
 gamma rates, compared with the true shape and exchangeabilities.
 
 ## SILVA 144
 
 - **Command:** `pixi run -e paper run_silva`
-- **Requires:** `pixi run build` (`p2v-bme`, `reattach_left_out`); `download_data --sources silva144`; for the gtdb
-  step, SILVA's ARB database dumped as text with ARB's tools (`--arb-dump`; ARB is not in the pixi environments)
+- **Requires:** `pixi run build` (`vecme`, `reattach_left_out`); `download_data --sources silva144`; for the gtdb step,
+  SILVA's ARB database dumped as text with ARB's tools (`--arb-dump`; ARB is not in the pixi environments)
 - **Inputs:** `data/datasets/silva144/SILVA_144_SSURef_tax_silva_full_align_trunc.fasta.gz`
 - **Outputs:** `data/results/silva/`
 
@@ -164,7 +164,7 @@ Every table of the paper (`--tables`; default: all). A table whose results are m
 | --------------------------------- | -------------------------------------------------------------- | ------------------------------------------- |
 | `fig2a_scaling_time`              | 2a: time against the number of sequences                       | `scaling.tsv`, `random_tree.tsv`            |
 | `fig2b_scaling_rf_error`          | 2b: RF error against the number of sequences                   | `scaling.tsv`, `random_tree.tsv`            |
-| `fig2c_pandemic_time`             | 2c: time of Phylo2VecME, MAPLE and CMAPLE, pandemic sets       | `maple.tsv`                                 |
+| `fig2c_pandemic_time`             | 2c: time of VecME, MAPLE and CMAPLE, pandemic sets             | `maple.tsv`                                 |
 | `fig2d_pandemic_rf_error`         | 2d: RF error of the three programs by branch length, pandemic  | `maple.tsv`                                 |
 | `fig3a_silva_clades`              | 3a: the SILVA 144 tree reduced to the domains and major clades | `silva_clades.tsv`, `silva_clade_paths.tsv` |
 | `fig3b_silva_support`             | 3b: SILVA 144 branches by support class and split size         | `silva_support.tsv`                         |

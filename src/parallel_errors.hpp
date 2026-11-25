@@ -4,14 +4,14 @@
  * Exceptions thrown inside an OpenMP parallel region, carried out of it (the device steps run one host thread per
  * device: the search's windows, the start tree's nearest-sample step, the branch lengths).
  */
-#ifndef P2VBME_PARALLEL_ERRORS_HPP
-#define P2VBME_PARALLEL_ERRORS_HPP
+#ifndef VECME_PARALLEL_ERRORS_HPP
+#define VECME_PARALLEL_ERRORS_HPP
 
 #include <atomic>
 #include <exception>
 #include <mutex>
 
-namespace p2vbme {
+namespace vecme {
 
 // The first exception thrown by the device steps inside an OpenMP region (one host thread per device).
 // It is kept and rethrown after the region, because an exception must not leave a parallel region.
@@ -36,6 +36,6 @@ class ParallelErrors {
     std::mutex mutex_;
 };
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_PARALLEL_ERRORS_HPP
+#endif // VECME_PARALLEL_ERRORS_HPP

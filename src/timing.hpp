@@ -3,12 +3,12 @@
  *
  * The wall clock that times the run's steps and applies the time limit.
  */
-#ifndef P2VBME_TIMING_HPP
-#define P2VBME_TIMING_HPP
+#ifndef VECME_TIMING_HPP
+#define VECME_TIMING_HPP
 
 #include <chrono>
 
-namespace p2vbme {
+namespace vecme {
 
 // Monotonic wall clock, seconds (std::chrono::steady_clock).
 // Its zero is unspecified, so only differences between readings are meaningful.
@@ -16,6 +16,6 @@ inline double wall_sec() {
     return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_TIMING_HPP
+#endif // VECME_TIMING_HPP

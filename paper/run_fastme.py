@@ -1,18 +1,18 @@
-"""FastME comparison: p2v-bme and FastME on the same distance matrix,
+"""FastME comparison: vecme and FastME on the same distance matrix,
 every tree rescored exactly (table fastme).
 
 Both programs minimise the BME length of the same matrix
-(p2v-bme's JC69 distances, written by bme_scores).
+(vecme's JC69 distances, written by bme_scores).
 Every output tree is rescored in double precision from the full matrix by bme_scores,
 which shares no code with the search.
 Three arms per case:
-  sample  each program's own start: p2v-bme sample-and-place (seed rep + 1);
+  sample  each program's own start: vecme sample-and-place (seed rep + 1);
           FastME BIONJ, NNI and SPR, rerun from its own output until the topology stops changing,
           at most 5 reruns (its time: the first run alone)
   rand    the same random start tree for both (the set's, rooted as the paper's);
           FastME rerun from it until the topology stops changing,
           at most 8 runs (its time: all runs)
-  polish  p2v-bme started from FastME's converged tree of the sample arm
+  polish  vecme started from FastME's converged tree of the sample arm
 and an SPR check of our trees (sample, rand):
 FastME's SPR from our tree until the topology stops changing.
 FastME keeps a start tree unless its result is shorter than the start's branch lengths add up to,
@@ -30,16 +30,16 @@ Options: --sets, --sizes, --replicates, --arms, --accelerator, --devices, --keep
 Flow:    each set x size x replicate
            |
            v
-         bme_scores --phylip: the JC69 matrix as p2v-bme computes it
+         bme_scores --phylip: the JC69 matrix as vecme computes it
            |
            v
-         p2v-bme (sample, rand, polish) and FastME (BIONJ start, the random start) to convergence,
+         vecme (sample, rand, polish) and FastME (BIONJ start, the random start) to convergence,
          FastME's SPR from our trees
            |      (each step skipped if its output exists)
            v
          bme_scores: exact lengths;
-         p2v-bme --supports: RF to the true tree and between the programs' trees
-Outputs: data/results/fastme/<set>/<n>/rep<r>_*.{nwk,json}       trees, p2v-bme reports, FastME runs
+         vecme --supports: RF to the true tree and between the programs' trees
+Outputs: data/results/fastme/<set>/<n>/rep<r>_*.{nwk,json}       trees, vecme reports, FastME runs
          data/results/fastme/<set>/<n>/rep<r>.case.json            the case's record
          data/results/fastme/cases.jsonl                           every case found (make_tables.py)
 
@@ -56,7 +56,7 @@ from paper._config import BME_SCORES, DEFAULT_DATASETS_DIR, FASTME
 from paper.utils import (
     parse_common_args,
     read_json,
-    run_p2vbme,
+    run_vecme,
     search_options,
     supports,
     with_edge_lengths,
@@ -119,7 +119,7 @@ def run_fastme(fastme: str, phylip: Path, args: list[str], out: Path) -> float:
 def fastme_to_convergence(
     fastme: str,
     tool: str,
-    p2vbme: str,
+    vecme: str,
     fasta: Path,
     phylip: Path,
     start: Path | None,
@@ -157,7 +157,7 @@ def fastme_to_convergence(
         passes.append({"tree": str(out), "wall_s": wall, "L": length})
         if current is not None:
             vs_input = Path(f"{prefix}_pass{len(passes) - 1}.vs_input")
-            rf = rf_pct(p2vbme, Path(current), out, vs_input, overwrite)
+            rf = rf_pct(vecme, Path(current), out, vs_input, overwrite)
             if rf < SAME_TOPOLOGY_RF:
                 break
         current = out
@@ -173,14 +173,14 @@ def fastme_to_convergence(
     return record
 
 
-def rf_pct(p2vbme: str, tree: Path, other: Path, prefix: Path, overwrite: bool) -> float:
+def rf_pct(vecme: str, tree: Path, other: Path, prefix: Path, overwrite: bool) -> float:
     """Computes the normalised RF distance of two binary trees in %:
     (tree, other) -> 100 - mean exact support."""
-    return 100.0 - supports(p2vbme, tree, other, prefix, overwrite)["supports"]["mean_exact"]
+    return 100.0 - supports(vecme, tree, other, prefix, overwrite)["supports"]["mean_exact"]
 
 
 def solver_entry(report: dict) -> dict:
-    """Takes the run's time and devices from a p2v-bme report: report -> the case's solver entry."""
+    """Takes the run's time and devices from a vecme report: report -> the case's solver entry."""
     details = report["details"]
     devices = details["devices"]
     gpus = [d for d in devices if d.startswith("GPU")]
@@ -210,9 +210,9 @@ def score_case(
     ow = args.overwrite
 
     def ours(arm: str, start: Path | None) -> tuple[Path, dict]:
-        """Runs p2v-bme for one arm: (arm, start tree) -> (tree, report)."""
+        """Runs vecme for one arm: (arm, start tree) -> (tree, report)."""
         prefix = folder / f"{name}_seed{seed}_{arm}"
-        report = run_p2vbme(args.p2vbme, [*p2v, *(["-t", str(start)] if start else [])], prefix, ow)
+        report = run_vecme(args.vecme, [*p2v, *(["-t", str(start)] if start else [])], prefix, ow)
         return Path(f"{prefix}.nwk"), report
 
     def fastme(start: Path | None, moves: list[str], label: str) -> dict:
@@ -220,7 +220,7 @@ def score_case(
         return fastme_to_convergence(
             args.fastme,
             args.bme_scores,
-            args.p2vbme,
+            args.vecme,
             fasta,
             phylip,
             start,
@@ -231,7 +231,7 @@ def score_case(
 
     def rf(tree: Path, other: Path, label: str) -> float:
         """RF between two of the case's trees in %."""
-        return rf_pct(args.p2vbme, tree, other, folder / f"{Path(tree).stem}.vs_{label}", ow)
+        return rf_pct(args.vecme, tree, other, folder / f"{Path(tree).stem}.vs_{label}", ow)
 
     record: dict = {
         "tag": fasta.parent.parent.name,
@@ -251,7 +251,7 @@ def score_case(
     times = {"sample": first["wall_s"], "polish": first["wall_s"]}
     if "rand" in arms:
         # the set's random start, rooted as the paper gave it to both programs
-        # (p2v-bme's search depends on the rooting)
+        # (vecme's search depends on the rooting)
         starts["rand"] = fasta.with_name(f"{name}.random_start.nwk")
         references["rand"] = fastme(starts["rand"], FASTME_NNI_SPR, "fastme_rand")
         times["rand"] = references["rand"]["wall_s"]

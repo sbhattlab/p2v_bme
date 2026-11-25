@@ -11,7 +11,7 @@
 
 #include "device.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // auto: the GPU if one is found (and single precision), else the CPU
 Accelerator resolve_accelerator(Accelerator accelerator, Precision precision) {
@@ -51,4 +51,4 @@ Devices select_devices(Accelerator accelerator, Precision precision, const std::
     return make_cpu_devices(threads > 0 ? threads : omp_get_max_threads(), precision == Precision::Double);
 }
 
-} // namespace p2vbme
+} // namespace vecme

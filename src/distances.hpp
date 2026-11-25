@@ -19,8 +19,8 @@
  *     mitochondrial DNA in humans and chimpanzees. Molecular Biology and Evolution 10, 512-526.
  *     doi:10.1093/oxfordjournals.molbev.a040023
  */
-#ifndef P2VBME_DISTANCES_HPP
-#define P2VBME_DISTANCES_HPP
+#ifndef VECME_DISTANCES_HPP
+#define VECME_DISTANCES_HPP
 
 #include <cmath>
 #include <cstdint>
@@ -31,7 +31,7 @@
 #include "eigen_dist.hpp"
 #include "host_device.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // ---- Models ----------------------------------------------------------------------------------------------
 
@@ -295,6 +295,6 @@ template <class T> P2V_HD inline T pair_distance(const DistanceParams<T> &p, con
     return clamp_distance(d);
 }
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_DISTANCES_HPP
+#endif // VECME_DISTANCES_HPP

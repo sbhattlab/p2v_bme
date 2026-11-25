@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-namespace p2vbme {
+namespace vecme {
 
 void queue_shuffle_rooted(const int32_t *c1_r, const int32_t *c2_r, int32_t n_leaves, bool flip, int64_t *v_out,
                           int32_t *perm_out) {
@@ -84,4 +84,4 @@ void to_skeleton(const int64_t *v, int32_t n_leaves, int32_t *c1_out, int32_t *c
     }
 }
 
-} // namespace p2vbme
+} // namespace vecme

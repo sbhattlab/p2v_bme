@@ -20,8 +20,8 @@
 
 namespace {
 
-using p2vbme::queue_shuffle_rooted;
-using p2vbme::to_skeleton;
+using vecme::queue_shuffle_rooted;
+using vecme::to_skeleton;
 
 // Builds a random rooted tree on n leaves by random joins: (c1, c2), root 2n - 2, the other internal ids shuffled.
 void random_rooted_tree(int32_t n, std::mt19937_64 &rng, std::vector<int32_t> &c1, std::vector<int32_t> &c2) {

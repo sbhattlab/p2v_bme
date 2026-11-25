@@ -1,4 +1,4 @@
-"""Fig. 2c: running time of Phylo2VecME, MAPLE and CMAPLE on the simulated pandemic alignments.
+"""Fig. 2c: running time of VecME, MAPLE and CMAPLE on the simulated pandemic alignments.
 
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
 Options: --tables-dir, --img-dir

@@ -1,4 +1,4 @@
-"""Helpers several scripts share: running p2v-bme, reading its outputs, comparing trees."""
+"""Helpers several scripts share: running vecme, reading its outputs, comparing trees."""
 
 import json
 import os
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from paper._config import DEFAULT_RESULTS_DIR, P2VBME
+from paper._config import DEFAULT_RESULTS_DIR, VECME
 
 
 def read_json(path: Path) -> dict:
@@ -27,20 +27,20 @@ def write_json(path: Path, data: dict) -> None:
 
 
 def parse_common_args(doc: str, devices: bool = True) -> ArgumentParser:
-    """Builds the command line the p2v-bme scripts share:
-    docstring -> parser with --results-dir, --p2vbme, --overwrite, and --accelerator, --devices."""
+    """Builds the command line the vecme scripts share:
+    docstring -> parser with --results-dir, --vecme, --overwrite, and --accelerator, --devices."""
     parser = ArgumentParser(description=doc, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", type=Path, default=Path(DEFAULT_RESULTS_DIR))
-    parser.add_argument("--p2vbme", default=P2VBME)
+    parser.add_argument("--vecme", default=VECME)
     parser.add_argument("--overwrite", action="store_true", help="redo what exists")
     if devices:
-        parser.add_argument("--accelerator", default="auto", help="p2v-bme -a (default: auto)")
-        parser.add_argument("--devices", default="auto", help="p2v-bme -d (default: auto)")
+        parser.add_argument("--accelerator", default="auto", help="vecme -a (default: auto)")
+        parser.add_argument("--devices", default="auto", help="vecme -d (default: auto)")
     return parser
 
 
 def search_options(args: Namespace, alignment: Path, model: str, dedup: bool = False) -> list[str]:
-    """Starts the options of a p2v-bme search:
+    """Starts the options of a vecme search:
     (args, alignment, model) -> [-s alignment, -m model, --no-dedup, -a, -d].
 
     Without dedup, as the paper's runs except SILVA's:
@@ -60,21 +60,21 @@ def search_options(args: Namespace, alignment: Path, model: str, dedup: bool = F
     ]
 
 
-def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> dict:
-    """Runs p2v-bme unless its report exists: (args, prefix) -> the report <prefix>.json.
+def run_vecme(vecme: str, args: list[str], prefix: Path, overwrite: bool) -> dict:
+    """Runs vecme unless its report exists: (args, prefix) -> the report <prefix>.json.
 
-    args are p2v-bme's options without -p;
+    args are vecme's options without -p;
     the run writes <prefix>.nwk, <prefix>.json and <prefix>.log,
     and for a search (-s) this function writes <prefix>.host.json: the CPU threads the run had
     (OMP_NUM_THREADS, else the cores it may use), which the tables state for GPU runs.
     A failed run leaves no report (only its log): it runs again.
-    The report decides: p2v-bme gets --overwrite,
+    The report decides: vecme gets --overwrite,
     so the other outputs of a run without a report do not stop it.
     """
     report = Path(f"{prefix}.json")
     if overwrite or not report.exists():
         report.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run([p2vbme, *args, "-p", str(prefix), "-q", "--overwrite"], check=True)
+        subprocess.run([vecme, *args, "-p", str(prefix), "-q", "--overwrite"], check=True)
         if "-s" in args:
             threads = os.environ.get("OMP_NUM_THREADS")
             host = {"cpu_threads": int(threads) if threads else len(os.sched_getaffinity(0))}
@@ -82,17 +82,17 @@ def run_p2vbme(p2vbme: str, args: list[str], prefix: Path, overwrite: bool) -> d
     return read_json(report)
 
 
-def supports(p2vbme: str, tree: Path, replicates: Path, prefix: Path, overwrite: bool) -> dict:
+def supports(vecme: str, tree: Path, replicates: Path, prefix: Path, overwrite: bool) -> dict:
     """Computes the supports of a tree's branches over replicate trees:
     (tree, replicates, prefix) -> report.
 
     Writes <prefix>.support.nwk (labels "TBE/exact" in %) and <prefix>.json;
     skipped if the report exists.
     """
-    return run_p2vbme(p2vbme, ["-t", str(tree), "--supports", str(replicates)], prefix, overwrite)
+    return run_vecme(vecme, ["-t", str(tree), "--supports", str(replicates)], prefix, overwrite)
 
 
-def compare_to_truth(p2vbme: str, tree: Path, true_tree: Path, overwrite: bool) -> dict:
+def compare_to_truth(vecme: str, tree: Path, true_tree: Path, overwrite: bool) -> dict:
     """Compares a tree with the true tree: (tree, true tree) -> {rf_pct, mean_tbe, mean_exact}.
 
     Writes <tree without .nwk>.vs_true.{support.nwk,json}.
@@ -100,7 +100,7 @@ def compare_to_truth(p2vbme: str, tree: Path, true_tree: Path, overwrite: bool) 
     1 - mean exact support.
     """
     prefix = Path(str(tree).removesuffix(".nwk") + ".vs_true")
-    s = supports(p2vbme, tree, true_tree, prefix, overwrite)["supports"]
+    s = supports(vecme, tree, true_tree, prefix, overwrite)["supports"]
     return {
         "rf_pct": 100.0 - s["mean_exact"],
         "mean_tbe": s["mean_tbe"],
@@ -250,7 +250,7 @@ def with_edge_lengths(tree: Path, edge: float, out: Path) -> Path:
 
 
 def concatenate_trees(paths: list[Path], out: Path, overwrite: bool) -> Path:
-    """Writes trees one per line into one file, for p2v-bme --supports: (tree files, out) -> out."""
+    """Writes trees one per line into one file, for vecme --supports: (tree files, out) -> out."""
     if overwrite or not out.exists():
         missing = [p for p in paths if not p.exists()]
         if missing:

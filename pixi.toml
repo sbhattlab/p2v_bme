@@ -1,12 +1,12 @@
 [workspace]
 authors = ["Neclow <32112754+Neclow@users.noreply.github.com>"]
 channels = ["conda-forge", "bioconda"]
-name = "phylo2vec_bme"
+name = "vecme"
 platforms = ["linux-64"]
 version = "0.1.0"
 
 # ---- package environment (default) ------------------------------------------------------------------
-# What building and testing p2v-bme needs, plus pre-commit (.pre-commit-config.yaml). C/C++ compilers and nvcc come
+# What building and testing vecme needs, plus pre-commit (.pre-commit-config.yaml). C/C++ compilers and nvcc come
 # from the system (cc, g++, nvcc on PATH).
 [dependencies]
 cmake = ">=4.5.1,<5"
@@ -50,7 +50,7 @@ PYTHONPATH = "$PIXI_PROJECT_ROOT"
 check-paper = { cmd = "python -m paper.check_entry_points", depends-on = ["build"] }
 # The paper's scripts (paper/), in the order they run; extra arguments go to the script, e.g.
 #   pixi run -e paper download_data --sources rnasim
-# Each one's --help lists its options. The ones that run p2v-bme or the paper's tools need `pixi run build` first.
+# Each one's --help lists its options. The ones that run vecme or the paper's tools need `pixi run build` first.
 download_data = "python -m paper.download_data"
 simulate_data = "python -m paper.simulate_data"
 run_benchmarks = "python -m paper.run_benchmarks"

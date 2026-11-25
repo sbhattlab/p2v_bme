@@ -1,8 +1,8 @@
 // Helpers shared by the error-path tests (test_search, test_start_tree, test_branch_lengths, test_inference,
 // test_device_gpu): a fake device that throws from one chosen step, so the device-step errors run without a GPU, and
 // the message of an exception.
-#ifndef P2VBME_TESTS_FAKE_DEVICE_TEST_HELPERS_HPP
-#define P2VBME_TESTS_FAKE_DEVICE_TEST_HELPERS_HPP
+#ifndef VECME_TESTS_FAKE_DEVICE_TEST_HELPERS_HPP
+#define VECME_TESTS_FAKE_DEVICE_TEST_HELPERS_HPP
 
 #include <gtest/gtest.h>
 
@@ -19,7 +19,7 @@
 
 namespace {
 
-using namespace p2vbme;
+using namespace vecme;
 
 // A device that does nothing, except throw from one chosen step.
 // Window kernels that find no move, so a window solve returns 0 (a failing device that is not meant to fail here).
@@ -90,4 +90,4 @@ template <class F> std::string thrown_message(F f) {
 
 } // namespace
 
-#endif // P2VBME_TESTS_FAKE_DEVICE_TEST_HELPERS_HPP
+#endif // VECME_TESTS_FAKE_DEVICE_TEST_HELPERS_HPP

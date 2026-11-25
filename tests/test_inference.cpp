@@ -35,7 +35,7 @@
 
 namespace {
 
-using namespace p2vbme;
+using namespace vecme;
 
 // The smallest BME length over all unrooted binary topologies on N leaves (stepwise insertion of each leaf into
 // every edge).

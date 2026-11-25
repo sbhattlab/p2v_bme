@@ -3,7 +3,7 @@
  *
  * BME lengths of given trees, scored independently of the search.
  * Exact (the FastME comparison, the benchmarks up to 10^4 sequences): the distance matrix of an alignment computed as
- * p2v-bme's search computes it (the model's pair distance in single precision, as on the GPU), optionally written as
+ * vecme's search computes it (the model's pair distance in single precision, as on the GPU), optionally written as
  * a square PHYLIP matrix for FastME, and the balanced minimum evolution length of each tree from the full matrix in
  * double precision.
  * With --cap K (the sweep of the cap on representatives, 10^5 and 10^6 sequences): the paper's evaluator, which keeps
@@ -43,30 +43,30 @@
 
 namespace {
 
-using p2vbme::Alignment;
-using p2vbme::N_BASES;
-using p2vbme::N_PLANES;
-using p2vbme::Tree;
-using p2vbme::VALID_PLANE;
+using vecme::Alignment;
+using vecme::N_BASES;
+using vecme::N_PLANES;
+using vecme::Tree;
+using vecme::VALID_PLANE;
 
 constexpr float EVALUATOR_P_MAX = 0.74f; // the evaluator's cap on a pair's mismatch proportion
 
-// Computes the distance matrix as p2v-bme's search does: (aln, model) -> N x N floats, row major.
-std::vector<float> distance_matrix(const Alignment &aln, p2vbme::SubstitutionModel model) {
-    if (model.model == p2vbme::Model::GTR_GC)
+// Computes the distance matrix as vecme's search does: (aln, model) -> N x N floats, row major.
+std::vector<float> distance_matrix(const Alignment &aln, vecme::SubstitutionModel model) {
+    if (model.model == vecme::Model::GTR_GC)
         throw std::runtime_error("GTR+GC needs the fitted rates and alpha; not supported here");
-    if (model.model == p2vbme::Model::GTR)
+    if (model.model == vecme::Model::GTR)
         throw std::runtime_error("GTR needs the fitted rates; not supported here");
-    p2vbme::base_frequencies(aln.packed.data(), aln.n_taxa, aln.n_words, model.base_freqs);
-    const p2vbme::DistanceParams<float> params = p2vbme::distance_params<float>(model);
+    vecme::base_frequencies(aln.packed.data(), aln.n_taxa, aln.n_words, model.base_freqs);
+    const vecme::DistanceParams<float> params = vecme::distance_params<float>(model);
     const int32_t n = aln.n_taxa;
-    const size_t row = (size_t)p2vbme::N_PLANES * aln.n_words;
+    const size_t row = (size_t)vecme::N_PLANES * aln.n_words;
     std::vector<float> D((size_t)n * n, 0.0f);
 #pragma omp parallel for schedule(dynamic, 16)
     for (int32_t i = 0; i < n; ++i)
         for (int32_t j = i + 1; j < n; ++j) {
-            const p2vbme::PairCounts c = p2vbme::count_pair(&aln.packed[i * row], &aln.packed[j * row], aln.n_words);
-            const float d = p2vbme::pair_distance(params, c.n);
+            const vecme::PairCounts c = vecme::count_pair(&aln.packed[i * row], &aln.packed[j * row], aln.n_words);
+            const float d = vecme::pair_distance(params, c.n);
             D[(size_t)i * n + j] = d;
             D[(size_t)j * n + i] = d;
         }
@@ -297,10 +297,10 @@ int main(int argc, char **argv) {
         const int32_t cap = cap_arg.empty() ? 0 : std::stoi(cap_arg);
         if (!cap_arg.empty() && cap < 2)
             throw std::runtime_error("--cap needs K >= 2, not " + cap_arg);
-        const Alignment aln = p2vbme::read_alignment(alignment);
-        p2vbme::SubstitutionModel model;
-        model.model = p2vbme::parse_model(model_name);
-        if (cap > 0 && model.model != p2vbme::Model::JC69)
+        const Alignment aln = vecme::read_alignment(alignment);
+        vecme::SubstitutionModel model;
+        model.model = vecme::parse_model(model_name);
+        if (cap > 0 && model.model != vecme::Model::JC69)
             throw std::runtime_error("--cap scores as the paper's evaluator, which has JC69 only");
         std::vector<float> D;
         if (cap == 0 || !phylip.empty())
@@ -308,7 +308,7 @@ int main(int argc, char **argv) {
         if (!phylip.empty())
             write_phylip(aln.names, D, phylip);
         for (const std::string &path : trees) {
-            const Tree tree = p2vbme::read_newick(path, aln.names);
+            const Tree tree = vecme::read_newick(path, aln.names);
             const double length = cap > 0 ? capped_bme_length(tree, aln, cap) : exact_bme_length(tree, D);
             std::printf("{\"tree\": %s, \"bme_length\": %.17g}\n", json_string(path).c_str(), length);
         }

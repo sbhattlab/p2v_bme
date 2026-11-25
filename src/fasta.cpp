@@ -10,7 +10,7 @@
 
 #include "fasta.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 Alignment read_fasta(const std::string &path) {
     std::ifstream in(path);
@@ -91,4 +91,4 @@ Alignment read_fasta(const std::string &path) {
     return aln;
 }
 
-} // namespace p2vbme
+} // namespace vecme

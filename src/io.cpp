@@ -11,7 +11,7 @@
 #include "io.hpp"
 #include "maple.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 Alignment read_alignment(const std::string &path) {
     constexpr std::string_view MAPLE_EXTENSION = ".maple";
@@ -21,4 +21,4 @@ Alignment read_alignment(const std::string &path) {
     return ext == MAPLE_EXTENSION ? read_maple(path) : read_fasta(path);
 }
 
-} // namespace p2vbme
+} // namespace vecme

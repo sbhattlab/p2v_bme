@@ -39,8 +39,8 @@
  * In single precision the cells of close pairs lose up to ~40% to cancellation (d = 1e-7), and the objective (~1e8
  * for 100,000 pairs of 1,000 sites) can no longer resolve the search's steps.
  */
-#ifndef P2VBME_GTR_FIT_HPP
-#define P2VBME_GTR_FIT_HPP
+#ifndef VECME_GTR_FIT_HPP
+#define VECME_GTR_FIT_HPP
 
 #include <cstdint>
 #include <utility>
@@ -49,7 +49,7 @@
 #include "core.hpp"
 #include "distances.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // ---- The estimator's constants (the paper's values) ----------------------------------------------------
 
@@ -108,6 +108,6 @@ GtrFit fit_gtr_gc(const Alignment &aln, int32_t n_pairs, uint64_t seed, int thre
 // Fits GTR to an alignment: (aln, n_pairs, seed) -> rates, as fit_gtr_gc fits GTR+GC.
 GtrFit fit_gtr(const Alignment &aln, int32_t n_pairs, uint64_t seed, int threads = 0);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_GTR_FIT_HPP
+#endif // VECME_GTR_FIT_HPP

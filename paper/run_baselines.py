@@ -1,7 +1,7 @@
 """Comparison programs: FastTree, VeryFastTree, FastME, DIPPER, MAPLE and CMAPLE
 (tables comparators, baseline_10k, maple; the comparator series of the scaling figures).
 
-They do not depend on p2v-bme, so their recorded runs can be reused:
+They do not depend on vecme, so their recorded runs can be reused:
 --source copies the paper's records unchanged into data/results/baselines/, with their provenance.
 --run shows how they were made and makes them again,
 in the same layout, family by family (one of the two is needed):
@@ -60,7 +60,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 from paper._config import DEFAULT_DATASETS_DIR, EVAL_CMAPLE_RF, FASTME, FASTTREE, VERYFASTTREE
-from paper.utils import parse_common_args, read_json, run_p2vbme, with_edge_lengths, write_json
+from paper.utils import parse_common_args, read_json, run_vecme, with_edge_lengths, write_json
 
 # The recorded files the tables and figures read (paths below the source's RECORDS_ROOT),
 # and the folder of data/results/baselines/ each goes to (the same as --run writes)
@@ -94,7 +94,7 @@ GRIDS = {
 }
 REPLICATES = 5  # up to 100,000 sequences; one above
 THREADS = 64  # CPU programs, as recorded
-DIPPER_THREADS = 12  # DIPPER: the CPU threads of every p2v-bme run of the paper
+DIPPER_THREADS = 12  # DIPPER: the CPU threads of every vecme run of the paper
 FAMILIES = ("default", "random_start", "dipper", "maple")
 DEFAULT_METHODS = ("FastTree-ML", "VeryFastTree-ML", "FastTree-ME", "VeryFastTree-ME")
 JC69_SETS_PREFIXES = ("jc", "yule")  # simulated under JC69: -nocat
@@ -349,7 +349,7 @@ def run_random_start(args, out: Path, tag: str, n: int, rep: int) -> None:
     work = out / "random_start" / f"{tag}_rep{rep}_{n}"
     work.mkdir(parents=True, exist_ok=True)
     sites = alignment_sites(fasta)
-    # The random start: p2v-bme's random tree (no search), every edge 0.05 long
+    # The random start: vecme's random tree (no search), every edge 0.05 long
     start_args = [
         "-s",
         str(fasta),
@@ -361,8 +361,8 @@ def run_random_start(args, out: Path, tag: str, n: int, rep: int) -> None:
         "0",
         "--no-branch-lengths",
     ]
-    run_p2vbme(
-        args.p2vbme,
+    run_vecme(
+        args.vecme,
         [*start_args, "--seed", str(rep + 1), "-a", "cpu"],
         work / "start",
         args.overwrite,

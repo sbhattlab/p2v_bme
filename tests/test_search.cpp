@@ -23,7 +23,7 @@
 #include "search.hpp"
 #include "start_tree.hpp"
 
-using namespace p2vbme;
+using namespace vecme;
 
 namespace {
 

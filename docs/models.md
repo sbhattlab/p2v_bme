@@ -23,7 +23,7 @@
 ## GTR+GC
 
 `+GC` is a continuous gamma, as in [IQ-TREE 3](https://github.com/iqtree/iqtree3)'s AliSim, not IQ-TREE's discrete `+G`,
-which p2v-bme refuses; `GTR` is the same model without rate variation ([GTR](#gtr)). The distance is the eigenvalue
+which vecme refuses; `GTR` is the same model without rate variation ([GTR](#gtr)). The distance is the eigenvalue
 estimator of Penn et al. (2025).
 
 The six exchangeabilities (mean 1) and the shape alpha are fitted to the alignment before the search, without a tree, by
@@ -33,7 +33,7 @@ no rate variation), and a small penalty on the rate variance only matters when t
 runs on the CPU in double precision; its values are printed and stored in the report (`substitution_model`), and the
 bootstrap replicates reuse them.
 
-p2v-bme warns when the fit does not converge, or when no pair qualifies (the distances then use equal rates and alpha =
+vecme warns when the fit does not converge, or when no pair qualifies (the distances then use equal rates and alpha =
 1). In single precision, it also warns when alpha is outside [0.05, 1000] or the exchangeabilities span more than
 100-fold, the range where single-precision distances were checked against double precision; `--precision double` avoids
 the issue.

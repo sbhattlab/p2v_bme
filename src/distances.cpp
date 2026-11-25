@@ -10,7 +10,7 @@
 
 #include <stdexcept>
 
-namespace p2vbme {
+namespace vecme {
 
 const char *model_name(Model model) {
     switch (model) {
@@ -88,4 +88,4 @@ PairCounts count_pair(const uint64_t *row_a, const uint64_t *row_b, int32_t n_wo
     return c;
 }
 
-} // namespace p2vbme
+} // namespace vecme

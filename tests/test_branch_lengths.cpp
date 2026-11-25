@@ -29,7 +29,7 @@
 
 namespace {
 
-using namespace p2vbme;
+using namespace vecme;
 
 struct Case {
     Tree tree;

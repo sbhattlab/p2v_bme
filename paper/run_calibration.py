@@ -6,18 +6,18 @@ Inputs:  data/datasets/<set>/<n>/rep0.fa, rep0.true.nwk                         
          and the CMAPLE and MAPLE trees
          aln_100K_0.0001.maple.treefile, aln_100K_0.0001_wo_ref_tree.tree     (download_data.py)
 Options: --sets, --steps, --replicates, --bootstrap, --repeats, --accelerator, --devices,
-         --datasets-dir, --cmaple-dir, --results-dir, --p2vbme, --overwrite
+         --datasets-dir, --cmaple-dir, --results-dir, --vecme, --overwrite
 Flow:    each calibration set
          (RNASim 10^5 and 10^6, random tree 10^6, pandemic 10^5; random tree 10^7 on request)
            |
            v
-         ref      p2v-bme -s <alignment> -m JC69 --no-dedup --seed 1 --report-full
-         boot     p2v-bme ... --seed 1 -b r-r                r = 1..64, one run each (--replicates)
-         seed     p2v-bme ... --seed s --no-branch-lengths   s = 2..9: the search's noise alone
+         ref      vecme -s <alignment> -m JC69 --no-dedup --seed 1 --report-full
+         boot     vecme ... --seed 1 -b r-r                r = 1..64, one run each (--replicates)
+         seed     vecme ... --seed s --no-branch-lengths   s = 2..9: the search's noise alone
            |      (each run skipped if its report exists;
            |      --no-dedup: every tree on every sequence, as in the paper)
            v
-         score    p2v-bme -t ref.nwk --supports
+         score    vecme -t ref.nwk --supports
            |      {boot.nwk, seed.nwk, the true tree; pandemic: CMAPLE's, MAPLE's tree}
            |      (once every tree of the set exists;
            |      multifurcations of the other trees resolved as the paper did)
@@ -55,7 +55,7 @@ from paper.utils import (
     parse_common_args,
     pct,
     read_json,
-    run_p2vbme,
+    run_vecme,
     search_options,
     span,
     supports,
@@ -159,7 +159,7 @@ def folder_of(args: Namespace, tag: str) -> Path:
 
 
 def run_names(args: Namespace) -> dict[str, list[tuple[str, list[str]]]]:
-    """Lists the runs of a calibration set by step: args -> {step: [(name, p2v-bme options)]}."""
+    """Lists the runs of a calibration set by step: args -> {step: [(name, vecme options)]}."""
     seed = ["--seed", str(REFERENCE_SEED)]
     return {
         "ref": [("ref", [*seed, "--report-full"])],
@@ -186,8 +186,8 @@ def infer(args: Namespace, tag: str) -> None:
             continue
         for name, options in runs:
             print(f"{tag} {name}", flush=True)
-            run_p2vbme(
-                args.p2vbme,
+            run_vecme(
+                args.vecme,
                 [*common, *options],
                 folder_of(args, tag) / name,
                 args.overwrite,
@@ -274,18 +274,18 @@ def score(args: Namespace, tag: str) -> None:
     gather(seed_trees, folder / "seed.nwk", args.overwrite)
     for kind in ("boot", "seed"):
         supports(
-            args.p2vbme,
+            args.vecme,
             reference,
             folder / f"{kind}.nwk",
             folder / f"ref.{kind}",
             args.overwrite,
         )
     true_tree = binary_tree(files["true"], folder / "true.binary.nwk")
-    compare_to_truth(args.p2vbme, reference, true_tree, args.overwrite)
+    compare_to_truth(args.vecme, reference, true_tree, args.overwrite)
     others = [k for k in ("cmaple", "maple") if k in files]
     for k in others:
         other = binary_tree(files[k], folder / f"{k}.binary.nwk")
-        supports(args.p2vbme, reference, other, folder / f"ref.vs_{k}", args.overwrite)
+        supports(args.vecme, reference, other, folder / f"ref.vs_{k}", args.overwrite)
     for kind in ("boot", "seed"):
         out = folder / f"{tag}_{kind}_branches.tsv"
         if out.exists() and not args.overwrite:
@@ -350,7 +350,7 @@ def by_size(d: dict[str, np.ndarray]) -> dict:
 
 
 def version_of(args: Namespace, tag: str) -> str:
-    """Gives the p2v-bme version of a calibration's reference run: tag -> version."""
+    """Gives the vecme version of a calibration's reference run: tag -> version."""
     return read_json(folder_of(args, tag) / "ref.json")["version"]
 
 

@@ -27,7 +27,7 @@
 
 namespace {
 
-using namespace p2vbme;
+using namespace vecme;
 
 const Model MODELS[] = {Model::JC69, Model::K80,    Model::F81, Model::F84,
                         Model::TN93, Model::LogDet, Model::GTR, Model::GTR_GC};
@@ -194,7 +194,7 @@ TEST(DeviceGpu, OutOfMemoryIsReported) {
     EXPECT_LT((double)before - (double)after, 512.0 * 1048576.0) << "memory left behind by the failed device";
 }
 
-// The peak memory is p2v-bme's own allocations: memory taken on the GPU outside it (a bare cudaMalloc here, as by
+// The peak memory is vecme's own allocations: memory taken on the GPU outside it (a bare cudaMalloc here, as by
 // another process) does not count, and the peak stays when the device that reached it is gone.
 TEST(DeviceGpu, PeakMemoryCountsOwnAllocationsOnly) {
     auto dev = make_gpu_device(0, 64);

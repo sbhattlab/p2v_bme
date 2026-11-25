@@ -15,7 +15,7 @@
 #include "core.hpp"
 #include "maple.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 Alignment read_maple(const std::string &path) {
     std::ifstream in(path);
@@ -116,4 +116,4 @@ Alignment read_maple(const std::string &path) {
     return aln;
 }
 
-} // namespace p2vbme
+} // namespace vecme

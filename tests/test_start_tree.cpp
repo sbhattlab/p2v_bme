@@ -13,7 +13,7 @@
 #include "search.hpp"
 #include "start_tree.hpp"
 
-using namespace p2vbme;
+using namespace vecme;
 
 TEST(StartTree, NearestSampleFailureLeavesTheStartTree) {
     Devices devices = failing_devices(2, "nearest_sampled");

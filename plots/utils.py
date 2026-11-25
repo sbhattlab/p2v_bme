@@ -142,7 +142,7 @@ PLOTTED = [
     "VFT-ML",
     "DIPPER",
     "P2V",
-]  # drawing order; the legend lists them the other way round, Phylo2VecME first
+]  # drawing order; the legend lists them the other way round, VecME first
 FLOORS = {
     "time": 1e-2,
     "rf": 0.01,
@@ -182,7 +182,7 @@ def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: fl
 
 def method_style(key: str) -> dict:
     """Gives a method's line in the line plots (Figs 2c, S1-S3, S5b):
-    key -> line keywords, Phylo2VecME's stronger."""
+    key -> line keywords, VecME's stronger."""
     ours = key == OURS
     return {
         "color": SPEC[key]["color"],

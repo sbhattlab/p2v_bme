@@ -8,8 +8,8 @@
  * A Device holds what its steps read: the alignment (the GPU copies it, the CPU reads the caller's in place), the
  * start tree's subsamples and a workspace.
  */
-#ifndef P2VBME_DEVICE_HPP
-#define P2VBME_DEVICE_HPP
+#ifndef VECME_DEVICE_HPP
+#define VECME_DEVICE_HPP
 
 #include <cstdint>
 #include <memory>
@@ -20,7 +20,7 @@
 #include "config.hpp"
 #include "distances.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 class WindowKernels; // the window solve's arithmetic (search.hpp)
 
@@ -50,7 +50,7 @@ class Device {
     virtual void synchronize() = 0;
     // Returns the device's name for the report, e.g. "GPU 0: NVIDIA RTX A6000" or "CPU worker 0 (single precision)".
     virtual std::string name() const = 0;
-    // Returns the most memory p2v-bme held on the device's GPU at once, in MiB.
+    // Returns the most memory vecme held on the device's GPU at once, in MiB.
     // GPU: what this process allocated there, without the CUDA context or other processes; CPU: 0.
     virtual double memory_peak_mb() const = 0;
 
@@ -90,7 +90,7 @@ using Devices = std::vector<std::unique_ptr<Device>>;
 int visible_gpus();
 
 // Says why no GPU is visible, for messages: "" if one is; else, e.g., "no GPU found", "no NVIDIA driver found", a
-// driver too old for this build's CUDA, or "this p2v-bme was built without CUDA".
+// driver too old for this build's CUDA, or "this vecme was built without CUDA".
 std::string no_gpu_reason();
 
 // One device per GPU number in gpu_ids (empty: all visible GPUs), each with a workspace for windows of up to
@@ -124,6 +124,6 @@ Accelerator resolve_accelerator(Accelerator accelerator, Precision precision);
 // Throws std::logic_error if the accelerator is Auto.
 Devices select_devices(Accelerator accelerator, Precision precision, const std::vector<int> &gpu_ids, int32_t threads);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_DEVICE_HPP
+#endif // VECME_DEVICE_HPP

@@ -4,8 +4,8 @@
  * Start trees of the search: sample-and-place (from the sequences) and random.
  * Both functions return a Tree (core.hpp) without branch lengths, with children before parents (c1[u], c2[u] < u).
  */
-#ifndef P2VBME_START_TREE_HPP
-#define P2VBME_START_TREE_HPP
+#ifndef VECME_START_TREE_HPP
+#define VECME_START_TREE_HPP
 
 #include <cstdint>
 #include <vector>
@@ -13,7 +13,7 @@
 #include "device.hpp"
 #include "search.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // Random rooted binary tree on n_leaves leaves, post-order (c1[u] < u, c2[u] < u): v_i ~ U{0..i} plus a random leaf
 // permutation.
@@ -33,6 +33,6 @@ Tree build_random_tree(int32_t n_leaves, uint64_t seed);
 Tree build_sample_and_place_tree(int32_t n_leaves, int32_t &n0_leaves, uint64_t seed, Devices &devices,
                                  const SearchSettings &settings, int32_t level = 0);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_START_TREE_HPP
+#endif // VECME_START_TREE_HPP

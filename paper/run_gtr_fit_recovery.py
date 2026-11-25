@@ -1,10 +1,10 @@
-"""Recovery of the GTR+GC parameters by p2v-bme's fit on simulated alignments (table gtr_fit).
+"""Recovery of the GTR+GC parameters by vecme's fit on simulated alignments (table gtr_fit).
 
 Alignments of 1,000 sequences are simulated on a random ultrametric tree under GTR with unequal base
 frequencies and gamma rates across sites, at two divergence levels (median p-distance) and three
 lengths, with the paper's simulation code and seeds,
 so each alignment is the one the paper's fit saw.
-p2v-bme fits each one (-m GTR+GC, no search) and the fitted shape and exchangeabilities are
+vecme fits each one (-m GTR+GC, no search) and the fitted shape and exchangeabilities are
 compared with the truth.
 
 Inputs:  none (simulated)
@@ -16,11 +16,11 @@ Flow:    each alpha x sites x divergence x replicate
          simulate the alignment (the paper's code and seeds) -> FASTA
            |
            v
-         p2v-bme -m GTR+GC --max-rounds 0 --no-branch-lengths -t random -a cpu
+         vecme -m GTR+GC --max-rounds 0 --no-branch-lengths -t random -a cpu
            |      (skipped if its report exists)
            v
          alpha_hat, RMS error of the log exchangeabilities
-Outputs: data/results/gtr_fit/runs/<alignment>.{nwk,json}    p2v-bme's reports
+Outputs: data/results/gtr_fit/runs/<alignment>.{nwk,json}    vecme's reports
          data/results/gtr_fit/recovery.tsv                   one row per alignment (make_tables.py)
 
     pixi run -e paper python -m paper.run_gtr_fit_recovery
@@ -141,13 +141,13 @@ def write_fasta(seqs: np.ndarray, path: Path) -> None:
             handle.write(b">t%d\n" % k + letters[row].tobytes() + b"\n")
 
 
-# ---- p2v-bme's fit -------------------------------------------------------------------------------
+# ---- vecme's fit -------------------------------------------------------------------------------
 
 
-def fit(p2vbme: str, fasta: Path, prefix: Path, pairs: int, threads: int) -> dict:
-    """Fits GTR+GC with p2v-bme, no search: (alignment, prefix) -> its report <prefix>.json."""
+def fit(vecme: str, fasta: Path, prefix: Path, pairs: int, threads: int) -> dict:
+    """Fits GTR+GC with vecme, no search: (alignment, prefix) -> its report <prefix>.json."""
     cmd = [
-        p2vbme,
+        vecme,
         "-s",
         str(fasta),
         "-m",
@@ -185,10 +185,8 @@ def main() -> None:
         default=[0.10, 0.45],
         help="median p-distances",
     )
-    parser.add_argument("--pairs", type=int, default=100000, help="p2v-bme --gtr-fit-pairs")
-    parser.add_argument(
-        "--threads", type=int, default=16, help="OMP_NUM_THREADS of each p2v-bme run"
-    )
+    parser.add_argument("--pairs", type=int, default=100000, help="vecme --gtr-fit-pairs")
+    parser.add_argument("--threads", type=int, default=16, help="OMP_NUM_THREADS of each vecme run")
     parser.add_argument(
         "--keep-fasta",
         action="store_true",
@@ -215,7 +213,7 @@ def main() -> None:
                             simulate(args.sequences, sites, alpha, p, np.random.default_rng(seed)),
                             fasta,
                         )
-                        fit(args.p2vbme, fasta, prefix, args.pairs, args.threads)
+                        fit(args.vecme, fasta, prefix, args.pairs, args.threads)
                         if not args.keep_fasta:
                             fasta.unlink()
                     report = read_json(report_path)

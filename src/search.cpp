@@ -33,7 +33,7 @@
 #include "random.hpp"
 #include "timing.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // Decodes a skeleton's ordered vector into its tables, which the scoring, the moves and the write-back read.
 void to_skeleton_tables(const std::vector<int64_t> &v, SkeletonTables &sk) {
@@ -329,7 +329,7 @@ Skeleton extract_skeleton(int32_t window_root, const Tree &tree, const TreeSumma
     };
 
     std::vector<ExpNode> exp_nodes;
-    exp_nodes.reserve(std::min(p2vbme::WINDOW_MAX_INTERNALS, std::max(16, summary.leaf_count[window_root])));
+    exp_nodes.reserve(std::min(vecme::WINDOW_MAX_INTERNALS, std::max(16, summary.leaf_count[window_root])));
     exp_nodes.push_back({window_root, -1, -1});
 
     auto is_eligible = [&](int32_t w) -> bool {
@@ -347,7 +347,7 @@ Skeleton extract_skeleton(int32_t window_root, const Tree &tree, const TreeSumma
     if (is_eligible(b1_root))
         pq.push({summary.leaf_count[b1_root], b1_root, 0, 1});
 
-    while (!pq.empty() && (int32_t)exp_nodes.size() < p2vbme::WINDOW_MAX_INTERNALS) {
+    while (!pq.empty() && (int32_t)exp_nodes.size() < vecme::WINDOW_MAX_INTERNALS) {
         PqCand cand = pq.top();
         pq.pop();
         int32_t my_exp = (int32_t)exp_nodes.size();
@@ -415,7 +415,7 @@ Skeleton extract_skeleton(int32_t window_root, const Tree &tree, const TreeSumma
         skel_c2[2 * K - 2] = K_in;
     }
     // Step 3: encode the skeleton as an ordered vector (queue shuffle), for windows large enough to be solved.
-    if (K >= p2vbme::WINDOW_MIN_K) {
+    if (K >= vecme::WINDOW_MIN_K) {
         skel.v.resize(K - 1);
         skel.perm.resize(K);
         queue_shuffle_rooted(skel_c1.data(), skel_c2.data(), K, false, skel.v.data(), skel.perm.data());
@@ -460,7 +460,7 @@ void build_component_waves(const Tree &tree, const TreeSummary &summary, int32_t
     const int32_t root_r = n_nodes_r - 1;
     is_comp_root.assign(n_nodes_r, 0);
     waves.clear();
-    if (n_leaves < p2vbme::WINDOW_MIN_K)
+    if (n_leaves < vecme::WINDOW_MIN_K)
         return;
 
     // Step 1, bottom up: comp_size[u] is the number of internal nodes in the component u tops so far (0 for a leaf).
@@ -732,7 +732,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
             init_L = curr_L;
             best_L = curr_L;
             prev_L = curr_L;
-        } else if (batch_pending && curr_L >= prev_L - p2vbme::BATCH_MIN_GAIN) {
+        } else if (batch_pending && curr_L >= prev_L - vecme::BATCH_MIN_GAIN) {
             // the last batch did not lower L (Algorithm S1, line 4): restore the previous tree and use smaller batches.
             // A single move that fails is below the resolution of the scores, so the window is converged.
             v = prev_v;
@@ -744,7 +744,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
             continue;
         } else if (batch_pending) {
             // the last batch lowered L: allow larger batches
-            cur_batch_cap = std::min(max_batch_cap, cur_batch_cap + p2vbme::MOVE_BATCH_CAP_GROWTH);
+            cur_batch_cap = std::min(max_batch_cap, cur_batch_cap + vecme::MOVE_BATCH_CAP_GROWTH);
         }
         // (no batch pending: the skeleton was only relabelled, after a flip or an undo, so there is nothing to judge)
         batch_pending = false;
@@ -766,7 +766,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
         // A row's best move is a candidate only if its change is below this numerical zero (the scores may be single
         // precision).
         // A batch that does not lower L is undone in step 3, and max_iters bounds the sweeps.
-        const float eps_move_thresh = -p2vbme::MOVE_MIN_GAIN;
+        const float eps_move_thresh = -vecme::MOVE_MIN_GAIN;
         for (int32_t i = 1; i < K - 1; ++i) {
             // h_best_delta[i] < eps_move_thresh: the move improves the skeleton's BME score
             // h_best_j[i] >= 0: an edge was found to regraft onto (-1 otherwise)
@@ -842,7 +842,7 @@ double solve_window(int32_t K, int32_t max_iters, int32_t max_batch_cap, const i
         from_skeleton_tables(v, sk, root_u_sk, r_nb, (iter & 1) != 0, perm);
     }
 
-    if (best_L >= init_L - p2vbme::WINDOW_MIN_GAIN) {
+    if (best_L >= init_L - vecme::WINDOW_MIN_GAIN) {
         v = init_v;
         perm = init_perm;
         return 0.0;
@@ -1003,7 +1003,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
     const int32_t K = has_outgroup ? K_in + 1 : K_in;
     // Fewer than 4 pieces: one possible shape, so nothing to move
     // > max_window: device cannot handle the window
-    if (K < p2vbme::WINDOW_MIN_K || K > dev.max_window())
+    if (K < vecme::WINDOW_MIN_K || K > dev.max_window())
         return 0.0;
 
     const Tree &otree = (snapshot != NULL) ? *snapshot : tree;
@@ -1034,7 +1034,7 @@ static double run_subtree_minibatch_window(int32_t window_root, int32_t max_iter
     // Core device-powered search through the skeleton with SPR sweeps
     // Returns the gain, and the new skeleton in skel.v, skel.perm
     double dL =
-        solve_window(K, max_iters, p2vbme::MOVE_BATCH_CAP, representative_offsets.data(), representative_leaves.data(),
+        solve_window(K, max_iters, vecme::MOVE_BATCH_CAP, representative_offsets.data(), representative_leaves.data(),
                      representative_weights.data(), skel.v, skel.perm, *dev.window_kernels());
     if (dL == 0.0) {
         fruitless_hash = input_hash;
@@ -1115,7 +1115,7 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots
                 // Optimize it
                 // Write results back into the tree if it got shorter
                 window_dL[idx] = run_subtree_minibatch_window(
-                    window_root, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves, out_weights, *s.devices[d], s.tree,
+                    window_root, vecme::WINDOW_MAX_SWEEPS, s.settings, out_leaves, out_weights, *s.devices[d], s.tree,
                     s.summary, s.fruitless, window_fruitless[idx], stop_at_comp_root, &snapshot, &snapshot_summary);
             } catch (...) {
                 errors.capture();
@@ -1148,7 +1148,7 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots
             // Turn the window into a skeleton of pieces with representatives
             // Optimize it
             // Write results back into the tree if it got shorter
-            double dL = run_subtree_minibatch_window(window_root, p2vbme::WINDOW_MAX_SWEEPS, s.settings, out_leaves,
+            double dL = run_subtree_minibatch_window(window_root, vecme::WINDOW_MAX_SWEEPS, s.settings, out_leaves,
                                                      out_weights, *s.devices[0], s.tree, s.summary, s.fruitless,
                                                      fruitless_hash, stop_at_comp_root);
             if (fruitless_hash)
@@ -1164,7 +1164,7 @@ static void run_windows(SearchState &s, const std::vector<int32_t> &window_roots
 // A backbone window: the top of the whole tree as one window (WINDOW_MAX_INTERNALS splits, so K <= 1,500).
 // Only in rounds >= 1 and from BACKBONE_MIN_N leaves.
 static void run_backbone(SearchState &s, int32_t round) {
-    if (round == 0 || s.tree.n_leaves() < p2vbme::BACKBONE_MIN_N)
+    if (round == 0 || s.tree.n_leaves() < vecme::BACKBONE_MIN_N)
         return;
     run_windows(s, {s.root_r}, NULL);
     emit_stage(s, round, "backbone", 0);
@@ -1175,7 +1175,7 @@ static void run_backbone(SearchState &s, int32_t round) {
 static void run_wave_pass(SearchState &s, int32_t round) {
     std::vector<uint8_t> is_comp_root;
     std::vector<std::vector<int32_t>> waves;
-    build_component_waves(s.tree, s.summary, p2vbme::WAVE_COMPONENT_CAP, is_comp_root, waves);
+    build_component_waves(s.tree, s.summary, vecme::WAVE_COMPONENT_CAP, is_comp_root, waves);
     for (const std::vector<int32_t> &wave : waves)
         run_windows(s, wave, is_comp_root.data());
     emit_stage(s, round, "comp_waves", (int64_t)waves.size());
@@ -1191,24 +1191,24 @@ static void run_vcycle(SearchState &s, int32_t round) {
     // Find the largest clade sizes of the V-cycle's windows at each step
     // Ex. for N = 100,000: 4,096, 16,384, 65,536, 100,000, 25,000, 6,250, 3,200.
     // up from VCYCLE_BASE_SCALE by VCYCLE_SCALE_FACTOR while below n_leaves
-    for (int32_t sc = p2vbme::VCYCLE_BASE_SCALE; sc < n_leaves; sc *= p2vbme::VCYCLE_SCALE_FACTOR)
+    for (int32_t sc = vecme::VCYCLE_BASE_SCALE; sc < n_leaves; sc *= vecme::VCYCLE_SCALE_FACTOR)
         max_clade_sizes.push_back(sc);
     // Then n_leaves
     max_clade_sizes.push_back(n_leaves);
     // Down from n_leaves / VCYCLE_SCALE_FACTOR by VCYCLE_SCALE_FACTOR while above VCYCLE_FINEST_SCALE
-    for (int32_t sc = n_leaves / p2vbme::VCYCLE_SCALE_FACTOR; sc > p2vbme::VCYCLE_FINEST_SCALE;
-         sc /= p2vbme::VCYCLE_SCALE_FACTOR)
+    for (int32_t sc = n_leaves / vecme::VCYCLE_SCALE_FACTOR; sc > vecme::VCYCLE_FINEST_SCALE;
+         sc /= vecme::VCYCLE_SCALE_FACTOR)
         max_clade_sizes.push_back(sc);
     // Then VCYCLE_FINEST_SCALE, if the tree has more leaves
-    if (n_leaves > p2vbme::VCYCLE_FINEST_SCALE)
-        max_clade_sizes.push_back(p2vbme::VCYCLE_FINEST_SCALE);
+    if (n_leaves > vecme::VCYCLE_FINEST_SCALE)
+        max_clade_sizes.push_back(vecme::VCYCLE_FINEST_SCALE);
 
     // Main loop
     for (int32_t max_clade_size : max_clade_sizes) {
         // The floor: smaller clades are left to the waves (steps up to 4,096) or to a smaller step.
-        const int32_t min_clade_size = (max_clade_size <= p2vbme::VCYCLE_BASE_SCALE)
-                                           ? p2vbme::WAVE_COMPONENT_CAP
-                                           : (max_clade_size / p2vbme::VCYCLE_SCALE_FACTOR);
+        const int32_t min_clade_size = (max_clade_size <= vecme::VCYCLE_BASE_SCALE)
+                                           ? vecme::WAVE_COMPONENT_CAP
+                                           : (max_clade_size / vecme::VCYCLE_SCALE_FACTOR);
         // Pick the step's window roots: walking down from the root, the largest clades that fit, if above the floor.
         std::vector<int32_t> window_roots;
         std::vector<int32_t> st = {s.root_r};
@@ -1273,7 +1273,7 @@ double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &set
         run_wave_pass(s, round);
 
         // Pass 2B: a backbone window again, then the multi-scale V-cycle
-        if (n_leaves > p2vbme::WAVE_COMPONENT_CAP) {
+        if (n_leaves > vecme::WAVE_COMPONENT_CAP) {
             run_backbone(s, round);
             run_vcycle(s, round);
         }
@@ -1310,7 +1310,7 @@ double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &set
     }
 
     // Final cleanup pass (N > WAVE_COMPONENT_CAP): the component waves once more, after the last round.
-    if (n_leaves > p2vbme::WAVE_COMPONENT_CAP) {
+    if (n_leaves > vecme::WAVE_COMPONENT_CAP) {
         const int32_t round = run_stats.rounds_run;
         run_wave_pass(s, round);
         emit_stage(s, round, "round_end", -1, true);
@@ -1318,4 +1318,4 @@ double run_minibatch_bme(Tree &tree, Devices &devices, const SearchSettings &set
     return s.total_mb_delta_L;
 }
 
-} // namespace p2vbme
+} // namespace vecme

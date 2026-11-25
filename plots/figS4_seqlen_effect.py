@@ -55,7 +55,7 @@ def main() -> None:
     fig.subplots_adjust(left=0.35, right=0.94, bottom=0.19, top=0.88)
     for y, (key, (m1, lo1, hi1), (m2, lo2, hi2)) in enumerate(rows):
         s = SPEC[key]
-        ours = key == OURS  # Phylo2VecME drawn stronger; the markers are the data, so none is faded
+        ours = key == OURS  # VecME drawn stronger; the markers are the data, so none is faded
         size = 7 if ours else 6
         ax.plot([m1, m2], [y, y], color=s["color"], lw=2.6 if ours else 1.6, alpha=0.55, zorder=2)
         ax.errorbar(

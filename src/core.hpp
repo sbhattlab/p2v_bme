@@ -4,14 +4,14 @@
  * The types the whole package shares: a DNA alignment packed as bitplanes (Alignment) and a rooted binary tree
  * (Tree), and the packing of one aligned sequence into its bitplanes (pack_sequence).
  */
-#ifndef P2VBME_CORE_HPP
-#define P2VBME_CORE_HPP
+#ifndef VECME_CORE_HPP
+#define VECME_CORE_HPP
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
-namespace p2vbme {
+namespace vecme {
 
 // The DNA alphabet: the bases A, C, G, T/U, and the GTR exchangeabilities of their pairs (AC, AG, AT, CG, CT, GT).
 constexpr int32_t N_BASES = 4;
@@ -54,6 +54,6 @@ struct Tree {
 // The .maple reader packs its reference with it.
 void pack_sequence(const std::string &seq, int32_t n_words, uint64_t *out);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_CORE_HPP
+#endif // VECME_CORE_HPP

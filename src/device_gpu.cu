@@ -35,7 +35,7 @@
             cuda_fail(err_, #call, __LINE__);                                                                          \
     } while (0)
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -1291,7 +1291,7 @@ __global__ void __launch_bounds__(256)
                 if (si >= n_s)
                     continue;
                 float p = (valid[a][b] > 0) ? (float)(valid[a][b] - match[a][b]) / (float)valid[a][b]
-                                            : p2vbme::NN_P_NO_OVERLAP;
+                                            : vecme::NN_P_NO_OVERLAP;
                 unsigned long long key = ((unsigned long long)__float_as_uint(p) << 32) | (unsigned int)si;
                 if (key < kbest)
                     kbest = key;
@@ -1830,10 +1830,10 @@ void check_kernel_image(int gpu) {
         cudaGetLastError();
         cudaDeviceProp prop;
         CUDA_CHECK(cudaGetDeviceProperties(&prop, gpu));
-        throw std::runtime_error("this p2v-bme has no GPU code for GPU " + std::to_string(gpu) + " (" + prop.name +
+        throw std::runtime_error("this vecme has no GPU code for GPU " + std::to_string(gpu) + " (" + prop.name +
                                  ", compute capability " + std::to_string(prop.major) + "." +
                                  std::to_string(prop.minor) +
-                                 "); build p2v-bme from source, or run on the CPU (--accelerator cpu)");
+                                 "); build vecme from source, or run on the CPU (--accelerator cpu)");
     }
     if (err != cudaSuccess)
         cuda_fail(err, "cudaFuncGetAttributes", __LINE__);
@@ -2056,7 +2056,7 @@ std::string no_gpu_reason() {
     if (driver == 0)
         return "no NVIDIA driver found";
     if (err == cudaErrorInsufficientDriver)
-        return "the NVIDIA driver (CUDA " + cuda_version(driver) + ") is too old for this p2v-bme (CUDA " +
+        return "the NVIDIA driver (CUDA " + cuda_version(driver) + ") is too old for this vecme (CUDA " +
                cuda_version(runtime) + ")";
     if (err == cudaSuccess || err == cudaErrorNoDevice)
         return "no GPU found";
@@ -2078,4 +2078,4 @@ Devices make_devices(const std::vector<int> &gpu_ids) {
     return devices;
 }
 
-} // namespace p2vbme
+} // namespace vecme

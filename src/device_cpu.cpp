@@ -31,7 +31,7 @@
 #include "search.hpp"
 #include "threads.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 namespace {
 
@@ -525,17 +525,15 @@ std::unique_ptr<WindowKernels> make_cpu_window_kernels(const uint64_t *rows, int
 
 // ---- Without CUDA: the GPU entry points of device.hpp ----
 
-#ifndef P2VBME_WITH_CUDA
+#ifndef VECME_WITH_CUDA
 // A build without CUDA has no GPU.
 int visible_gpus() { return 0; }
 
-std::string no_gpu_reason() { return "this p2v-bme was built without CUDA"; }
+std::string no_gpu_reason() { return "this vecme was built without CUDA"; }
 
-Devices make_devices(const std::vector<int> &) { throw std::runtime_error("this p2v-bme was built without CUDA"); }
+Devices make_devices(const std::vector<int> &) { throw std::runtime_error("this vecme was built without CUDA"); }
 
-std::unique_ptr<Device> make_gpu_device(int, int32_t) {
-    throw std::runtime_error("this p2v-bme was built without CUDA");
-}
+std::unique_ptr<Device> make_gpu_device(int, int32_t) { throw std::runtime_error("this vecme was built without CUDA"); }
 #endif
 
-} // namespace p2vbme
+} // namespace vecme

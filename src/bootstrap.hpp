@@ -14,8 +14,8 @@
  *   Felsenstein, J. (1985). Confidence limits on phylogenies: an approach using the bootstrap. Evolution 39, 783-791.
  *     doi:10.1111/j.1558-5646.1985.tb00420.x
  */
-#ifndef P2VBME_BOOTSTRAP_HPP
-#define P2VBME_BOOTSTRAP_HPP
+#ifndef VECME_BOOTSTRAP_HPP
+#define VECME_BOOTSTRAP_HPP
 
 #include <cstdint>
 #include <functional>
@@ -26,7 +26,7 @@
 #include "device.hpp"
 #include "inference.hpp"
 
-namespace p2vbme {
+namespace vecme {
 
 // Computes the seed of bootstrap replicate r (1..B): (run seed, r) -> the replicate's seed.
 uint64_t replicate_seed(uint64_t seed, int32_t replicate);
@@ -82,6 +82,6 @@ BootstrapResult bootstrap(const Alignment &aln, const Settings &settings, Device
 std::vector<std::string> support_labels(const BootstrapResult &boot, const std::vector<int32_t> &node_map,
                                         const Tree &full_tree);
 
-} // namespace p2vbme
+} // namespace vecme
 
-#endif // P2VBME_BOOTSTRAP_HPP
+#endif // VECME_BOOTSTRAP_HPP
