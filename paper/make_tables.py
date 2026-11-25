@@ -931,6 +931,8 @@ def table_silva_clades(results: Path) -> Outputs:
     """Collects Fig. 4a's data: results
     -> {silva_clades.tsv (one row per clade), silva_clade_paths.tsv}.
 
+    A clade's depth is the median distance from its best node to the sequences below it
+    (empty when the clade is the other side of its best split).
     A clade's path is its best node and its ancestors up to the root,
     each with the branch above it (length, TBE and leaves below).
     """
@@ -942,6 +944,10 @@ def table_silva_clades(results: Path) -> Outputs:
         ("classes", "class"),
     ):
         for e in bio[section]:
+            if "depth_median" not in e:
+                raise MissingResults(
+                    f"silva144_real_biology: no clade depth (depth_median) for {e['name']}"
+                )
             clades.append(
                 {
                     "name": e["name"],
@@ -952,6 +958,7 @@ def table_silva_clades(results: Path) -> Outputs:
                     "f1": e["f1"],
                     "purity_pct": e["purity_pct"],
                     "recall_pct": e["recall_pct"],
+                    "depth_median": e["depth_median"],
                 }
             )
             nodes = e["ancestor_nodes"]
