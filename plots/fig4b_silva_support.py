@@ -30,7 +30,7 @@ LABELS = {
     "11-100": "11–100",
 }
 # Support classes, dark to light, so that the well-supported share is read from the left;
-# 70% is the threshold of Fig. 3c. Shades of Bacteria's colour in Fig. 4a.
+# 70% is the threshold of Fig. 3e. Shades of Bacteria's colour in Fig. 4a.
 CLASSES = (("≥ 90%", "#1f6f8b"), ("70–90%", "#79AFC4"), ("< 70%", "#DCE9EF"))
 EDGE_COLOUR, EDGE_WIDTH = "white", 0.8  # gaps between the segments
 

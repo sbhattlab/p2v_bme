@@ -1,16 +1,14 @@
-"""Fig. S4: RF error at 10,000 sequences on JC alignments of 1,000 and 10,000 sites,
+"""Fig. 2d: RF error at 10,000 sequences on JC alignments of 1,000 and 10,000 sites,
 for every method.
 
 Inputs:  data/tables/scaling_methods.tsv                                (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    per method with runs at both lengths:
          mean and range of the RF error (hollow: 1,000 sites, filled: 10,000)
-Outputs: img/fig2/figS4_seqlen_effect.{pdf,svg,png}
+Outputs: img/fig2/fig2d_seqlen_effect.{pdf,svg,png}
 
-    pixi run -e paper python -m plots.figS4_seqlen_effect
+    pixi run -e paper python -m plots.fig2d_seqlen_effect
 """
-
-# pylint: disable=invalid-name  # figS<N>: the paper's numbering of its supplementary figures
 
 import statistics
 
@@ -126,7 +124,7 @@ def main() -> None:
         columnspacing=1.5,
         borderaxespad=0.3,
     )
-    save(fig, args.img_dir, "figS4_seqlen_effect")
+    save(fig, args.img_dir, "fig2d_seqlen_effect")
 
 
 if __name__ == "__main__":

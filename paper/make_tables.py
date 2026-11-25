@@ -752,7 +752,7 @@ def table_comparators(results: Path) -> Outputs:
 
 
 def table_scaling_methods(results: Path) -> Outputs:
-    """Collects every method's runs on the simulated sets (Figs S1-S4):
+    """Collects every method's runs on the simulated sets (Figs 2c,d and S1-S3):
     results -> {scaling_methods.tsv}.
 
     One row per run: dataset tag, method key, size, time, RF error, host and GPU memory.

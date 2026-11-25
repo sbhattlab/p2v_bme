@@ -1,5 +1,5 @@
 """SARS-CoV-2 genomes (Viridian): tree, bootstrap, repeat searches and MAPLE's tree
-(Fig. 3c; tables viridian_support, viridian_variants, viridian_thresholds;
+(Figs 3d,e; tables viridian_support, viridian_variants, viridian_thresholds;
 Supplementary Fig. viridian-support).
 
 Inputs:  data/datasets/viridian/                                    (download_data.py)
