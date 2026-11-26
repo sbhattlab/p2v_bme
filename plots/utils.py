@@ -20,7 +20,9 @@ from matplotlib.ticker import (  # pylint: disable=wrong-import-position
     FuncFormatter,
     LogFormatterMathtext,
     LogLocator,
+    MultipleLocator,
     NullFormatter,
+    NullLocator,
 )
 
 from plots._config import (  # pylint: disable=wrong-import-position
@@ -336,13 +338,23 @@ def data_label_above(ax: plt.Axes, data: str) -> None:
     )
 
 
-def method_panel(
-    args: Namespace, dataset: str, panel: str, data: str, name: str, *, top: float
+def method_panel(  # pylint: disable=too-many-arguments
+    args: Namespace,
+    dataset: str,
+    panel: str,
+    data: str,
+    name: str,
+    *,
+    top: float,
+    legend: bool = True,
+    linear_y: tuple[float, float] | None = None,
 ) -> None:
-    """Draws a Fig. 2 panel of every method over the number of sequences (2a, 2c), with the methods'
-    legend and the data's name inside: (args, dataset, panel, data, name) -> img_dir/fig2/name.*.
+    """Draws a Fig. 2 panel of every method over the number of sequences (2a, 2c), with the data's
+    name inside: (args, dataset, panel, data, name) -> img_dir/fig2/name.*.
 
-    top: the axes' top edge, as the other panel of the row's."""
+    top: the axes' top edge, as the other panel of the row's.
+    legend: the methods' legend inside; without it, the panel relies on another panel's legend.
+    linear_y: (axis top, tick step) for a linear y axis from 0 instead of the log one."""
     field, scale, ylabel = PANELS[panel]
     stats = method_stats(read_tsv(args.tables_dir, "scaling_methods"), dataset, field, scale)
     if not stats:
@@ -350,8 +362,18 @@ def method_panel(
     fig, ax = plt.subplots(figsize=FIG2_PANEL)
     fig.subplots_adjust(left=0.17, right=0.97, bottom=0.16, top=top)
     method_lines(ax, stats, panel)
+    if linear_y is not None:
+        y_top, step = linear_y
+        if (highest := max(hi for _mean, _lo, hi in stats.values())) > y_top:
+            raise SystemExit(f"{dataset}: {field} up to {highest:g}, beyond the axis ({y_top:g})")
+        ax.set_yscale("linear")
+        ax.set_ylim(0, y_top)
+        ax.yaxis.set_major_locator(MultipleLocator(step))
+        ax.yaxis.set_minor_locator(NullLocator())
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
     ax.set_ylabel(ylabel)
-    method_legend_inside(ax, stats)
+    if legend:
+        method_legend_inside(ax, stats)
     data_label(ax, data)
     save(fig, args.img_dir, name)
 
