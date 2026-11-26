@@ -1,0 +1,79 @@
+"""Fig. 3b: time to a tree of the Viridian SARS-CoV-2 genomes, for VecME, CMAPLE and MAPLE.
+
+Inputs:  data/tables/viridian_time.tsv                                  (make_tables.py)
+Options: --tables-dir, --img-dir
+Flow:    one bar per run, fastest first, on a log time axis with the time written above;
+         a reported time (MAPLE's, from its authors) as an open, hatched bar
+Outputs: img/fig3/fig3b_sarscov2_time.{pdf,svg,png}
+
+    pixi run -e paper python -m plots.fig3b_sarscov2_time
+"""
+
+import matplotlib.pyplot as plt
+
+from plots._config import FIG3_AXES_Y, FIG3_HEIGHT, SPEC, STYLE
+from plots.utils import data_label, parser, read_tsv, save
+
+FIGSIZE = (66 / 25.4, FIG3_HEIGHT)  # beside Fig. 3a in the 180 mm page
+LEFT, RIGHT = 0.32, 0.97
+KEYS = {"VecME": "P2V", "CMAPLE": "CMAPLE", "MAPLE": "MAPLE"}  # program -> its key in SPEC
+UNITS = {"GPU": "GPU", "CPU core": "core"}  # unit in the table -> its name under the bar
+MINUTE, HOUR, DAY, WEEK = 60, 3600, 86400, 7 * 86400
+TICKS = {MINUTE: "1 min", HOUR: "1 h", DAY: "1 day", WEEK: "1 week"}
+BOTTOM, HEADROOM = MINUTE, 6  # bars start at 1 min; the axis ends 6 times above the slowest run
+BAR_WIDTH = 0.62
+
+
+def duration(seconds: float) -> str:
+    """Writes a time as the bar's label: seconds -> '27 min', '3.4 h' or '10 days'."""
+    if seconds < HOUR:
+        return f"{seconds / MINUTE:.0f} min"
+    if seconds < DAY:
+        return f"{seconds / HOUR:.1f} h"
+    return f"{seconds / DAY:.0f} days"
+
+
+def main() -> None:
+    args = parser(__doc__).parse_args()
+    plt.style.use(STYLE)
+    rows = sorted(read_tsv(args.tables_dir, "viridian_time"), key=lambda r: float(r["time_s"]))
+    if sorted(r["program"] for r in rows) != sorted(KEYS):
+        raise SystemExit(f"viridian_time.tsv: expected one run each of {', '.join(KEYS)}")
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+    bottom, top = FIG3_AXES_Y["ab"]
+    fig.subplots_adjust(left=LEFT, right=RIGHT, bottom=bottom, top=top)
+    labels = []
+    for x, r in enumerate(rows):
+        colour = SPEC[KEYS[r["program"]]]["color"]
+        reported = r["source"] == "reported"
+        seconds = float(r["time_s"])
+        ax.bar(
+            x,
+            seconds - BOTTOM,
+            bottom=BOTTOM,
+            width=BAR_WIDTH,
+            color="white" if reported else colour,
+            edgecolor=colour,
+            hatch="////" if reported else None,
+            linewidth=1.0,
+        )
+        ax.text(x, seconds * 1.25, ("~" if reported else "") + duration(seconds), ha="center")
+        units = int(r["units"])
+        unit = UNITS[r["unit"]] + ("s" if units > 1 else "")
+        labels.append(f"{r['program']}\n{units} {unit}")
+    ax.set_yscale("log")
+    ax.set_ylim(BOTTOM, HEADROOM * max(float(r["time_s"]) for r in rows))
+    ax.set_yticks(list(TICKS), list(TICKS.values()))
+    ax.minorticks_off()
+    ax.set_xticks(range(len(rows)), labels)
+    ax.tick_params(axis="x", length=0)
+    ax.set_xlim(-0.6, len(rows) - 0.4)
+    ax.set_ylabel("Time to the tree")
+    ax.grid(axis="y", color="#E5E5E5", linewidth=0.5)
+    ax.set_axisbelow(True)
+    data_label(ax, "SARS-CoV-2")
+    save(fig, args.img_dir, "fig3b_sarscov2_time", bbox_inches=None)
+
+
+if __name__ == "__main__":
+    main()

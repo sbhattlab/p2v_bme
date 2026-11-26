@@ -26,8 +26,8 @@ from plots.utils import (
     save,
 )
 
-FIGSIZE = (118 / 25.4, FIG3_HEIGHT)  # two thirds of the 180 mm page, beside Fig. 3b
-LEFT, RIGHT = 0.10, 0.86  # room on the right for the branch-length axis
+FIGSIZE = (110 / 25.4, FIG3_HEIGHT)  # beside Fig. 3b in the 180 mm page
+LEFT, RIGHT = 0.11, 0.85  # room on the right for the branch-length axis
 SITES = 30000  # every pandemic alignment: mean branch length x SITES = substitutions per branch
 HEADROOM = 1.3  # y axis up to this multiple of the largest error, for the data label
 
