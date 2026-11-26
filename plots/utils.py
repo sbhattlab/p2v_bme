@@ -1,5 +1,5 @@
 """Helpers several plot scripts share:
-reading figure data, saving figures, the panels of Figs 2a,b and S1-S3."""
+reading figure data, saving figures, the line plots of Figs 2a, 2c and S1-S3."""
 
 import re
 import statistics
@@ -26,12 +26,12 @@ from matplotlib.ticker import (  # pylint: disable=wrong-import-position
 from plots._config import (  # pylint: disable=wrong-import-position
     DEFAULT_IMG_DIR,
     DEFAULT_TABLES_DIR,
+    FIG2_PANEL,
     FIGURE_FOLDERS,
     FIGURE_FORMATS,
     PANDEMIC,
     SAVE_METADATA,
     SCALING_FIGURES,
-    SCALING_SERIES,
     SPEC,
 )
 
@@ -99,63 +99,6 @@ def pandemic_rows(tables_dir: Path) -> list[dict[str, str]]:
     return rows
 
 
-# ---- Figs 2a,b: one series per dataset over the number of sequences ----
-
-
-def scaling_series(ax: plt.Axes, rows: list[dict[str, str]], field: str) -> None:
-    """Draws a field's mean and SD per size for every dataset of SCALING_SERIES:
-    (axes, rows, field) -> None."""
-    for dataset, label, colour, marker, linestyle, filled, alpha in SCALING_SERIES:
-        group = sorted((r for r in rows if r["dataset"] == dataset), key=lambda r: int(r["n"]))
-        if not group:
-            raise SystemExit(f"no {field} data for {dataset}")
-        if blank := [r["n"] for r in group if r[f"{field}_sd"] == ""]:
-            raise SystemExit(f"{dataset}: no {field} SD at {', '.join(blank)} (one run only?)")
-        n = [int(r["n"]) for r in group]
-        mu = [float(r[f"{field}_mean"]) for r in group]
-        sd = [float(r[f"{field}_sd"]) for r in group]
-        ax.errorbar(
-            n,
-            mu,
-            yerr=sd,
-            color=colour,
-            marker=marker,
-            markersize=3.4,
-            linestyle=linestyle,
-            markerfacecolor=colour if filled else "white",
-            markeredgewidth=0.9,
-            linewidth=1.1,
-            elinewidth=0.75,
-            capsize=2,
-            capthick=0.7,
-            alpha=alpha,
-            label=label,
-        )
-
-
-def scaling_axes(ax: plt.Axes) -> None:
-    """Sets the log-log axes of Figs 2a,b: axes -> None."""
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    ax.set_xticks([1e3, 1e5, 1e7])
-    ax.xaxis.set_major_formatter(LogFormatterMathtext())
-    ax.set_xlabel("Number of sequences")
-    ax.grid(axis="y", which="major", color="#E5E5E5", linewidth=0.5)
-    ax.set_axisbelow(True)
-    ax.tick_params(which="minor", length=2)
-    ax.set_xlim(650, 1.5e7)
-
-
-def scaling_data(tables_dir: Path) -> list[dict[str, str]]:
-    """Reads the data of Figs 2a,b:
-    folder -> sample-and-place rows of scaling.tsv and random_tree.tsv."""
-    rows = read_tsv(tables_dir, "scaling") + read_tsv(tables_dir, "random_tree")
-    rows = [r for r in rows if r["initialisation"] == "sample"]
-    if len({(r["gpu_model"], r["gpu_count"]) for r in rows}) != 1:
-        raise SystemExit("mixed hardware in the scaling data: update the caption")
-    return rows
-
-
 # ---- Figs S1-S3: one line per method over the number of sequences ----
 
 PLOTTED = [
@@ -180,7 +123,11 @@ COMPARED_ALPHA = 0.6
 # with small clades, so their RF error is not on a par with the smaller sizes.
 # The RF line steps there with a dashed segment.
 EXPANDED_FROM = 1_000_000
-EXPANDED_DATASETS = ("rnasim", "jc10k")
+# The expanded datasets, keyed as in scaling_methods.tsv, and their name in scaling.tsv,
+# which holds VecME's error on the splits they inherit from the 100,000-sequence alignment
+EXPANDED_DATASETS = {"rnasim": "RNASim", "jc10k": "JC"}
+INHERITED_ALPHA = 0.35  # the inherited splits are secondary: lighter than every method
+LABEL_GREY = "#555555"  # text that names a panel's data, quieter than the axis labels
 MIB_PER_GIB = 1024.0
 # Each panel's column in scaling_methods.tsv, its scale and its y label
 PANELS = {
@@ -217,7 +164,7 @@ def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: fl
 
 
 def method_style(key: str) -> dict:
-    """Gives a method's line in the line plots (Figs 2c, S1-S4):
+    """Gives a method's line in the line plots (Figs 2a, 2c, S1-S4):
     key -> line keywords, VecME's stronger."""
     ours = key == OURS
     return {
@@ -305,9 +252,107 @@ def method_legend(fig: plt.Figure, stats: dict) -> None:
     )
 
 
+def inherited_splits(ax: plt.Axes, tables_dir: Path, name: str) -> None:
+    """Draws VecME's error on the splits that an expanded dataset inherits, with its key:
+    (axes, folder, name in scaling.tsv) -> None.
+
+    The line starts at the 100,000-sequence alignment that the larger sizes expand.
+    """
+    rows = read_tsv(tables_dir, "scaling")
+    group = sorted((r for r in rows if r["dataset"] == name), key=lambda r: int(r["n"]))
+    if len({r["n"] for r in group}) != len(group):
+        raise SystemExit(f"scaling.tsv: {name} has more than one row per size")
+    expanded = [i for i, r in enumerate(group) if r["large_scale_design"]]
+    if not expanded or expanded[0] == 0:
+        raise SystemExit(f"scaling.tsv: {name} has no expanded sizes (large_scale_design)")
+    ks = [expanded[0] - 1, *expanded]  # from the expanded alignment's own size
+    n = [int(group[k]["n"]) for k in ks]
+    inherited = [float(group[k]["backbone_rf_pct_mean"]) for k in ks]
+    colour, marker = SPEC[OURS]["color"], SPEC[OURS]["marker"]
+    ax.plot(
+        n,
+        inherited,
+        color=colour,
+        linestyle=":",
+        linewidth=1.0,
+        alpha=INHERITED_ALPHA,
+        zorder=4,
+    )
+    ax.plot(
+        n[1:],
+        inherited[1:],
+        linestyle="none",
+        marker=marker,
+        markersize=3.4,
+        markerfacecolor="white",
+        markeredgecolor=colour,
+        markeredgewidth=0.9,
+        alpha=INHERITED_ALPHA,
+        zorder=4,
+    )
+    key = Line2D(
+        [],
+        [],
+        color=colour,
+        linestyle=":",
+        linewidth=1.0,
+        marker=marker,
+        markersize=3.4,
+        markerfacecolor="white",
+        markeredgecolor=colour,
+        markeredgewidth=0.9,
+        alpha=INHERITED_ALPHA,
+        label="VecME, inherited splits only",
+    )
+    ax.legend(handles=[key], loc="lower left", handlelength=1.9, borderaxespad=0.3)
+
+
+def method_legend_inside(ax: plt.Axes, stats: dict) -> None:
+    """Adds the methods drawn as one column in the lower right of a panel (Figs 2a, 2c),
+    below the lines, where the log axes leave room: (axes, stats) -> None."""
+    present = [k for k in PLOTTED if any(key == k for _, key in stats)]
+    handles = [Line2D([], [], label=SPEC[k]["label"], **method_style(k)) for k in reversed(present)]
+    ax.legend(
+        handles=handles,
+        loc="lower right",
+        handlelength=1.8,
+        handletextpad=0.4,
+        labelspacing=0.3,
+        borderaxespad=0.2,
+    )
+
+
+def data_label(ax: plt.Axes, data: str) -> None:
+    """Names a panel's data in its upper left corner, as "Data: <data>": (axes, data) -> None."""
+    ax.text(
+        0.03, 0.97, f"Data: {data}", transform=ax.transAxes, ha="left", va="top", color=LABEL_GREY
+    )
+
+
+def method_panel(
+    args: Namespace, dataset: str, panel: str, data: str, name: str, *, top: float
+) -> None:
+    """Draws a Fig. 2 panel of every method over the number of sequences (2a, 2c), with the methods'
+    legend and the data's name inside: (args, dataset, panel, data, name) -> img_dir/fig2/name.*.
+
+    top: the axes' top edge, as the other panel of the row's."""
+    field, scale, ylabel = PANELS[panel]
+    stats = method_stats(read_tsv(args.tables_dir, "scaling_methods"), dataset, field, scale)
+    if not stats:
+        raise SystemExit(f"no {field} data for {dataset}")
+    fig, ax = plt.subplots(figsize=FIG2_PANEL)
+    fig.subplots_adjust(left=0.17, right=0.97, bottom=0.16, top=top)
+    method_lines(ax, stats, panel)
+    ax.set_ylabel(ylabel)
+    method_legend_inside(ax, stats)
+    data_label(ax, data)
+    save(fig, args.img_dir, name)
+
+
 def method_pages(args: Namespace) -> None:
     """Draws Figs S1-S3, one page per dataset:
-    runtime, RF error, host and GPU memory of every method over the number of sequences:
+    runtime, RF error, host and GPU memory of every method over the number of sequences;
+    on the expanded datasets (S1, S2), VecME's error on the inherited splits too:
     args -> img_dir/<folder>/figS<N>_scaling.{pdf,svg,png}."""
     rows = read_tsv(args.tables_dir, "scaling_methods")
     for dataset, figure in SCALING_FIGURES.items():
@@ -322,6 +367,8 @@ def method_pages(args: Namespace) -> None:
                 raise SystemExit(f"no {field} data for {dataset}: {figure}{letter} would be empty")
             step = EXPANDED_FROM if panel == "rf" and dataset in EXPANDED_DATASETS else None
             method_lines(ax, stats, panel, step)
+            if step is not None:
+                inherited_splits(ax, args.tables_dir, EXPANDED_DATASETS[dataset])
             ax.set_ylabel(ylabel)
             drawn.update(stats)
         for ax in axes[0]:

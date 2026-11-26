@@ -38,7 +38,7 @@ FASTME_SIZE = "30"
 CUT, CUT_TO = 5, 100  # the SILVA stand-in: sequences cut short, and their sites left
 THREADS = "2"
 # tables the tiny runs make in full; the others need the paper's sizes, replicates, DIPPER or downloaded data
-TABLES_BUILT = ("representative_sensitivity", "fastme", "gtr_fit")
+TABLES_BUILT = ("representative_sensitivity", "fastme", "fastme_cases", "gtr_fit")
 
 
 def step(*args: str) -> None:

@@ -60,17 +60,17 @@ SPEC: Final = {
     for m in [*METHODS, *PANDEMIC_METHODS]
 }
 
+# Fig. 2: every panel at one size, half the 180 mm page (a, b on the first row, c, d on the second)
+FIG2_PANEL: Final = (88 / 25.4, 74 / 25.4)
+
 # The datasets of the scaling figures (S1-S3) and their figure numbers
 SCALING_FIGURES: Final = {"rnasim": "figS1", "jc10k": "figS2", "yule10k": "figS3"}
 
-# Fig. 2a,b: dataset in the data, legend label, colour, marker, line style, filled marker,
-# intensity (alpha).
-# Every series is VecME: RNASim takes its vermilion, the JC series teal, a hue no method uses
+# VecME's datasets, for the figures that draw them as series (Fig. 3c takes their colours):
+# dataset in the data, legend label, colour, marker, line style, filled marker, intensity (alpha).
+# RNASim takes VecME's vermilion, the JC series teal, a hue no method uses
 # (apart from vermilion for colour-blind readers and on tinted screens).
-# Three intensities: the PASTA-tree series in full, the random-tree series lighter, and Fig. 2b's
-# inherited splits (fig2b_scaling_rf_error.py) lightest.
-# In legend order; the random-tree series is drawn last,
-# so that it stays visible where it runs along the other JC series.
+# The PASTA-tree series in full, the random-tree series lighter.
 SCALING_SERIES: Final = [
     ("RNASim", "RNASim (PASTA)", SPEC["P2V"]["color"], "s", "--", True, 1.0),
     ("JC", "JC (PASTA)", "#1B9E77", "o", "-", True, 1.0),
