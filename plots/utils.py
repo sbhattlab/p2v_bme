@@ -180,7 +180,10 @@ COMPARED_ALPHA = 0.6
 # with small clades, so their RF error is not on a par with the smaller sizes.
 # The RF line steps there with a dashed segment.
 EXPANDED_FROM = 1_000_000
-EXPANDED_DATASETS = ("rnasim", "jc10k")
+# The expanded datasets, keyed as in scaling_methods.tsv, and their name in scaling.tsv,
+# which holds VecME's error on the splits they inherit from the 100,000-sequence alignment
+EXPANDED_DATASETS = {"rnasim": "RNASim", "jc10k": "JC"}
+INHERITED_ALPHA = 0.35  # the inherited splits are secondary: lighter than every method
 MIB_PER_GIB = 1024.0
 # Each panel's column in scaling_methods.tsv, its scale and its y label
 PANELS = {
@@ -305,9 +308,65 @@ def method_legend(fig: plt.Figure, stats: dict) -> None:
     )
 
 
+def inherited_splits(ax: plt.Axes, tables_dir: Path, name: str) -> None:
+    """Draws VecME's error on the splits that an expanded dataset inherits, with its key:
+    (axes, folder, name in scaling.tsv) -> None.
+
+    The line starts at the 100,000-sequence alignment that the larger sizes expand.
+    """
+    rows = read_tsv(tables_dir, "scaling")
+    group = sorted((r for r in rows if r["dataset"] == name), key=lambda r: int(r["n"]))
+    if len({r["n"] for r in group}) != len(group):
+        raise SystemExit(f"scaling.tsv: {name} has more than one row per size")
+    expanded = [i for i, r in enumerate(group) if r["large_scale_design"]]
+    if not expanded or expanded[0] == 0:
+        raise SystemExit(f"scaling.tsv: {name} has no expanded sizes (large_scale_design)")
+    ks = [expanded[0] - 1, *expanded]  # from the expanded alignment's own size
+    n = [int(group[k]["n"]) for k in ks]
+    inherited = [float(group[k]["backbone_rf_pct_mean"]) for k in ks]
+    colour, marker = SPEC[OURS]["color"], SPEC[OURS]["marker"]
+    ax.plot(
+        n,
+        inherited,
+        color=colour,
+        linestyle=":",
+        linewidth=1.0,
+        alpha=INHERITED_ALPHA,
+        zorder=4,
+    )
+    ax.plot(
+        n[1:],
+        inherited[1:],
+        linestyle="none",
+        marker=marker,
+        markersize=3.4,
+        markerfacecolor="white",
+        markeredgecolor=colour,
+        markeredgewidth=0.9,
+        alpha=INHERITED_ALPHA,
+        zorder=4,
+    )
+    key = Line2D(
+        [],
+        [],
+        color=colour,
+        linestyle=":",
+        linewidth=1.0,
+        marker=marker,
+        markersize=3.4,
+        markerfacecolor="white",
+        markeredgecolor=colour,
+        markeredgewidth=0.9,
+        alpha=INHERITED_ALPHA,
+        label="VecME, inherited splits only",
+    )
+    ax.legend(handles=[key], loc="lower left", handlelength=1.9, borderaxespad=0.3)
+
+
 def method_pages(args: Namespace) -> None:
     """Draws Figs S1-S3, one page per dataset:
-    runtime, RF error, host and GPU memory of every method over the number of sequences:
+    runtime, RF error, host and GPU memory of every method over the number of sequences;
+    on the expanded datasets (S1, S2), VecME's error on the inherited splits too:
     args -> img_dir/<folder>/figS<N>_scaling.{pdf,svg,png}."""
     rows = read_tsv(args.tables_dir, "scaling_methods")
     for dataset, figure in SCALING_FIGURES.items():
@@ -322,6 +381,8 @@ def method_pages(args: Namespace) -> None:
                 raise SystemExit(f"no {field} data for {dataset}: {figure}{letter} would be empty")
             step = EXPANDED_FROM if panel == "rf" and dataset in EXPANDED_DATASETS else None
             method_lines(ax, stats, panel, step)
+            if step is not None:
+                inherited_splits(ax, args.tables_dir, EXPANDED_DATASETS[dataset])
             ax.set_ylabel(ylabel)
             drawn.update(stats)
         for ax in axes[0]:
