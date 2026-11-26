@@ -157,10 +157,10 @@ Every table of the paper (`--tables`; default: all).
 ## Figures
 
 - **Command:** `pixi run -e paper <script>`, e.g. `pixi run -e paper fig2a_scaling_time`; `pixi run -e paper fig2`,
-  `fig3` and `fig4` draw a figure with its supplementary figures (Fig. 2 with Figs S1-S4, Fig. 3 with Fig. S5)
+  `fig3` and `fig4` draw a figure with its supplementary figures (Fig. 2 with Figs S1-S4, Fig. 3 with Figs S5, S6)
 - **Requires:** `make_tables`
 - **Inputs:** `data/tables/<name>.tsv`
-- **Outputs:** `img/fig2/` (Fig. 2 with Figs S1-S4), `img/fig3/` (Fig. 3 with Fig. S5) and `img/fig4/` (Fig. 4):
+- **Outputs:** `img/fig2/` (Fig. 2 with Figs S1-S4), `img/fig3/` (Fig. 3 with Figs S5, S6) and `img/fig4/` (Fig. 4):
   `<figure>.pdf`, `<figure>.svg`, `<figure>.png`
 
 | Script                           | Figure                                                          | Reads                                       |
@@ -179,6 +179,7 @@ Every table of the paper (`--tables`; default: all).
 | `figS1_3_scaling`                | S1-S3: time, RF error, host and GPU memory of every method      | `scaling_methods.tsv`, `scaling.tsv`        |
 | `figS4_bootstrap_calibration`    | S4: branches in the true tree by bootstrap support              | `calibration.tsv`                           |
 | `figS5_sarscov2_shared_branches` | S5: branches shared by our tree and MAPLE's                     | `viridian_substitutions.tsv`                |
+| `figS6_pandemic_shared_branches` | S6: our branches in the true, CMAPLE and repeat-search trees    | `pandemic_branches.tsv`                     |
 
 `figS1_3_scaling` writes one figure per dataset (S1: RNASim, S2: JC10k, S3: random-tree JC), e.g.
 `img/fig2/figS2_scaling.pdf`.
