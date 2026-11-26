@@ -66,7 +66,7 @@ FIG2_PANEL: Final = (88 / 25.4, 74 / 25.4)
 # The datasets of the scaling figures (S1-S3) and their figure numbers
 SCALING_FIGURES: Final = {"rnasim": "figS1", "jc10k": "figS2", "yule10k": "figS3"}
 
-# Fig. 2a,b: dataset in the data, legend label, colour, marker, line style, filled marker,
+# Fig. 2b: dataset in the data, legend label, colour, marker, line style, filled marker,
 # intensity (alpha).
 # Every series is VecME: RNASim takes its vermilion, the JC series teal, a hue no method uses
 # (apart from vermilion for colour-blind readers and on tinted screens).

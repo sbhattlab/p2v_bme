@@ -99,7 +99,7 @@ def pandemic_rows(tables_dir: Path) -> list[dict[str, str]]:
     return rows
 
 
-# ---- Figs 2a,b: one series per dataset over the number of sequences ----
+# ---- Fig. 2b: one series per dataset over the number of sequences ----
 
 
 def scaling_series(ax: plt.Axes, rows: list[dict[str, str]], field: str) -> None:
@@ -134,7 +134,7 @@ def scaling_series(ax: plt.Axes, rows: list[dict[str, str]], field: str) -> None
 
 
 def scaling_axes(ax: plt.Axes) -> None:
-    """Sets the log-log axes of Figs 2a,b: axes -> None."""
+    """Sets the log-log axes of Fig. 2b: axes -> None."""
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xticks([1e3, 1e5, 1e7])
@@ -147,7 +147,7 @@ def scaling_axes(ax: plt.Axes) -> None:
 
 
 def scaling_data(tables_dir: Path) -> list[dict[str, str]]:
-    """Reads the data of Figs 2a,b:
+    """Reads the data of Fig. 2b:
     folder -> sample-and-place rows of scaling.tsv and random_tree.tsv."""
     rows = read_tsv(tables_dir, "scaling") + read_tsv(tables_dir, "random_tree")
     rows = [r for r in rows if r["initialisation"] == "sample"]
@@ -217,7 +217,7 @@ def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: fl
 
 
 def method_style(key: str) -> dict:
-    """Gives a method's line in the line plots (Figs 2c, S1-S4):
+    """Gives a method's line in the line plots (Figs 2a, 2c, S1-S4):
     key -> line keywords, VecME's stronger."""
     ours = key == OURS
     return {

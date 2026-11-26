@@ -452,7 +452,7 @@ def scaling_rows(results: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def table_scaling(results: Path) -> Outputs:
-    """Builds Table S4 (scaling) and Fig. 2a,b's data:
+    """Builds Table S4 (scaling) and Fig. 2b's data:
     results -> {tableS4_scaling.md, scaling.tsv}."""
     scale, _ = scaling_rows(results)
     table = pd.DataFrame(
