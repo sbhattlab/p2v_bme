@@ -98,7 +98,7 @@ CALIBRATION_SETS = (
 # "around 10 days" on 14 cores of an Intel Xeon Gold 6252 (De Maio et al. 2025, Nature,
 # doi:10.1038/s41586-025-09567-x)
 VIRIDIAN_GENOMES = 2_072_111
-CMAPLE_VIRIDIAN = "viridian/cmaple_1.1.0/all/run.json"
+CMAPLE_VIRIDIAN = "viridian/cmaple_1.0.0/all/run.json"
 B200_VIRIDIAN = "viridian/b200/real_trees.jsonl"
 MAPLE_VIRIDIAN_REPORTED = {"days": 10, "cores": 14, "cpu": "Intel Xeon Gold 6252"}
 SECONDS_PER_DAY = 86_400
