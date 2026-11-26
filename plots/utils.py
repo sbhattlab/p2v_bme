@@ -26,6 +26,7 @@ from matplotlib.ticker import (  # pylint: disable=wrong-import-position
 from plots._config import (  # pylint: disable=wrong-import-position
     DEFAULT_IMG_DIR,
     DEFAULT_TABLES_DIR,
+    FIG2_PANEL,
     FIGURE_FOLDERS,
     FIGURE_FORMATS,
     PANDEMIC,
@@ -326,6 +327,22 @@ def data_label(ax: plt.Axes, data: str) -> None:
     ax.text(
         0.03, 0.97, f"Data: {data}", transform=ax.transAxes, ha="left", va="top", color=LABEL_GREY
     )
+
+
+def method_panel(args: Namespace, dataset: str, panel: str, data: str, name: str) -> None:
+    """Draws a Fig. 2 panel of every method over the number of sequences (2a, 2c), with the methods'
+    legend and the data's name inside: (args, dataset, panel, data, name) -> img_dir/fig2/name.*."""
+    field, scale, ylabel = PANELS[panel]
+    stats = method_stats(read_tsv(args.tables_dir, "scaling_methods"), dataset, field, scale)
+    if not stats:
+        raise SystemExit(f"no {field} data for {dataset}")
+    fig, ax = plt.subplots(figsize=FIG2_PANEL)
+    fig.subplots_adjust(left=0.17, right=0.97, bottom=0.16, top=0.96)  # as Fig. 2b's
+    method_lines(ax, stats, panel)
+    ax.set_ylabel(ylabel)
+    method_legend_inside(ax, stats)
+    data_label(ax, data)
+    save(fig, args.img_dir, name)
 
 
 def method_pages(args: Namespace) -> None:

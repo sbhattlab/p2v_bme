@@ -15,17 +15,8 @@ Outputs: img/fig2/fig2c_random_trees.{pdf,svg,png}
 
 import matplotlib.pyplot as plt
 
-from plots._config import FIG2_PANEL, STYLE
-from plots.utils import (
-    PANELS,
-    data_label,
-    method_legend_inside,
-    method_lines,
-    method_stats,
-    parser,
-    read_tsv,
-    save,
-)
+from plots._config import STYLE
+from plots.utils import method_panel, parser
 
 DATASET = "yule10k"
 
@@ -33,17 +24,7 @@ DATASET = "yule10k"
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
-    field, scale, ylabel = PANELS["rf"]
-    stats = method_stats(read_tsv(args.tables_dir, "scaling_methods"), DATASET, field, scale)
-    if not stats:
-        raise SystemExit(f"no {field} data for {DATASET}")
-    fig, ax = plt.subplots(figsize=FIG2_PANEL)
-    fig.subplots_adjust(left=0.17, right=0.97, bottom=0.16, top=0.96)  # as in Fig. 2a
-    method_lines(ax, stats, "rf")
-    ax.set_ylabel(ylabel)
-    method_legend_inside(ax, stats)  # as in Fig. 2a
-    data_label(ax, "random trees (JC69)")
-    save(fig, args.img_dir, "fig2c_random_trees")
+    method_panel(args, DATASET, "rf", "random trees (JC69)", "fig2c_random_trees")
 
 
 if __name__ == "__main__":
