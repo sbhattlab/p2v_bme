@@ -15,13 +15,15 @@ import statistics
 import matplotlib.pyplot as plt
 
 from matplotlib.lines import Line2D
-from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
+from matplotlib.ticker import FuncFormatter, MultipleLocator
 
 from plots._config import FIG2_PANEL, METHODS, SPEC, STYLE
 from plots.utils import OURS, data_label, parser, read_tsv, save
 
 N = 10000
 SHORT, LONG = "jc1k", "jc10k"
+XLIM = (0, 25)  # RF error (%), linear, as Fig. 2b: the data span little more than a decade
+TICK_STEP = 5  # RF error (%)
 
 
 def main() -> None:
@@ -47,6 +49,8 @@ def main() -> None:
             have = [tag for tag, runs in ((SHORT, a), (LONG, b)) if runs]
             raise SystemExit(f"{key} at N = {N}: results for {have}, not for {SHORT} and {LONG}")
     rows.sort(key=lambda r: -r[2][0])  # worst at the bottom of the reading order -> best on top
+    if (top := max(max(r[1][2], r[2][2]) for r in rows)) > XLIM[1]:
+        raise SystemExit(f"RF error up to {top:.1f} %: beyond the axis ({XLIM[1]} %)")
 
     fig, ax = plt.subplots(figsize=FIG2_PANEL)
     fig.subplots_adjust(left=0.36, right=0.97, bottom=0.16, top=0.88)  # right, bottom as in Fig. 2c
@@ -85,11 +89,9 @@ def main() -> None:
     ax.set_yticks(range(len(rows)))
     ax.set_yticklabels([SPEC[k]["label"] for k, *_ in rows])
     ax.set_ylim(-0.6, len(rows) + 0.2)  # room above the top row for the data label
-    ax.set_xscale("log")
-    ax.set_xlim(1.3, 50)
-    ax.xaxis.set_major_locator(FixedLocator([2, 5, 10, 20, 50]))
+    ax.set_xlim(*XLIM)
+    ax.xaxis.set_major_locator(MultipleLocator(TICK_STEP))
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
-    ax.xaxis.set_minor_formatter(NullFormatter())
     ax.set_xlabel("RF error at N = 10,000 (%)")
     ax.grid(axis="x", color="#E6E6E6", lw=0.6)
     ax.legend(

@@ -3,7 +3,7 @@ each program from its own start tree.
 
 Inputs:  data/tables/fastme_cases.tsv                                   (make_tables.py)
 Options: --tables-dir, --img-dir
-Flow:    one point per alignment (log-log axes), on the dashed identity line if both are as accurate
+Flow:    one point per alignment (linear axes), on the dashed identity line if both are as accurate
            |
            v
          the JC and RNASim sets as two clusters, each labelled with its data and sizes
@@ -14,7 +14,7 @@ Outputs: img/fig2/fig2b_fastme.{pdf,svg,png}
 
 import matplotlib.pyplot as plt
 
-from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
+from matplotlib.ticker import FuncFormatter, MultipleLocator
 
 from plots._config import FIG2_PANEL, SPEC, STYLE
 from plots.utils import OURS, parser, read_tsv, save
@@ -28,8 +28,9 @@ FAMILIES = {
 }
 MARKERS = {"PASTA (JC69)": "o", "RNASim": "s"}  # as the datasets elsewhere in the paper
 # Each cluster's label: position (RF error of FastME, of VecME, in %) and alignment, off the points
-LABELS = {"PASTA (JC69)": (5.2, 3.3, "left"), "RNASim": (13, 25, "right")}
-LIMITS = (2, 30)  # RF error (%), both axes
+LABELS = {"PASTA (JC69)": (5.2, 3.3, "left"), "RNASim": (12.5, 24, "right")}
+LIMITS = (0, 25)  # RF error (%), both axes, linear: the data span less than a decade
+TICK_STEP = 5  # RF error (%)
 POINT_ALPHA = 0.3  # the points overlap: hundreds per cluster
 
 
@@ -40,7 +41,7 @@ def main() -> None:
     if unknown := {r["dataset"] for r in rows} - set(FAMILIES):
         raise SystemExit(f"fastme_cases.tsv: sets {sorted(unknown)} not in FAMILIES")
     values = [float(r[k]) for r in rows for k in ("rf_fastme_pct", "rf_vecme_pct")]
-    if not values or min(values) <= LIMITS[0] or max(values) >= LIMITS[1]:
+    if not values or min(values) < LIMITS[0] or max(values) > LIMITS[1]:
         raise SystemExit(f"fastme_cases.tsv: RF errors outside {LIMITS} %, or none")
     fig, ax = plt.subplots(figsize=FIG2_PANEL)
     # left as Fig. 2d's, below it (its method names take the room); the rest as Fig. 2a
@@ -64,12 +65,9 @@ def main() -> None:
         sizes = [int(r["n"]) for r in group]
         x, y, ha = LABELS[family]
         ax.text(x, y, f"{family}\nN = {min(sizes):,}–{max(sizes):,}", ha=ha, va="top")
-    ax.set_xscale("log")
-    ax.set_yscale("log")
     for axis in (ax.xaxis, ax.yaxis):
-        axis.set_major_locator(FixedLocator([2, 5, 10, 20]))
+        axis.set_major_locator(MultipleLocator(TICK_STEP))
         axis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
-        axis.set_minor_formatter(NullFormatter())
     ax.set_xlim(*LIMITS)
     ax.set_ylim(*LIMITS)
     ax.set_xlabel("RF error of FastME (%)")
