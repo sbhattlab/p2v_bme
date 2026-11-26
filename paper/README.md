@@ -169,8 +169,7 @@ Every table of the paper (`--tables`; default: all).
 | `fig2b_fastme`                   | 2b: RF error of VecME against FastME, per alignment             | `fastme_cases.tsv`                          |
 | `fig2c_random_trees`             | 2c: RF error of every method on the random-tree JC alignments   | `scaling_methods.tsv`                       |
 | `fig2d_seqlen_effect`            | 2d: RF error on 1,000 and 10,000 sites                          | `scaling_methods.tsv`                       |
-| `fig3a_pandemic_time`            | 3a: time of VecME, MAPLE and CMAPLE, pandemic sets              | `maple.tsv`                                 |
-| `fig3b_pandemic_rf_error`        | 3b: RF error of the three programs by branch length, pandemic   | `maple.tsv`                                 |
+| `fig3a_pandemic_speed_accuracy`  | 3a: time against RF error of VecME, MAPLE and CMAPLE, pandemic  | `maple.tsv`                                 |
 | `fig3c_sarscov2_variants`        | 3c: supports of the named SARS-CoV-2 variants                   | `viridian_variants.tsv`                     |
 | `fig3d_sarscov2_resolution`      | 3d: resolution of the SARS-CoV-2 tree by sampling month         | `viridian_resolution.tsv`                   |
 | `fig4a_silva_clades`             | 4a: the SILVA 144 tree reduced to major clades: support, depths | `silva_clades.tsv`, `silva_clade_paths.tsv` |

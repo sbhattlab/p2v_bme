@@ -68,8 +68,7 @@ fig2a_scaling_time = "python -m plots.fig2a_scaling_time"
 fig2b_fastme = "python -m plots.fig2b_fastme"
 fig2c_random_trees = "python -m plots.fig2c_random_trees"
 fig2d_seqlen_effect = "python -m plots.fig2d_seqlen_effect"
-fig3a_pandemic_time = "python -m plots.fig3a_pandemic_time"
-fig3b_pandemic_rf_error = "python -m plots.fig3b_pandemic_rf_error"
+fig3a_pandemic_speed_accuracy = "python -m plots.fig3a_pandemic_speed_accuracy"
 fig3c_sarscov2_variants = "python -m plots.fig3c_sarscov2_variants"
 fig3d_sarscov2_resolution = "python -m plots.fig3d_sarscov2_resolution"
 fig4a_silva_clades = "python -m plots.fig4a_silva_clades"
@@ -89,8 +88,7 @@ fig2 = { cmd = "echo 'All fig2 plots done.'", depends-on = [
 ] }
 # Fig. 3 with Fig. S5 (SARS-CoV-2 shared branches)
 fig3 = { cmd = "echo 'All fig3 plots done.'", depends-on = [
-  "fig3a_pandemic_time",
-  "fig3b_pandemic_rf_error",
+  "fig3a_pandemic_speed_accuracy",
   "fig3c_sarscov2_variants",
   "fig3d_sarscov2_resolution",
   "figS5_sarscov2_shared_branches",

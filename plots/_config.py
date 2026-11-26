@@ -31,7 +31,7 @@ FIGURE_FOLDERS: Final = {
 # Checked for red-green colour blindness (Machado et al. 2009): methods drawn together stay apart.
 # Markers pair up the same way (square and diamond, the two triangles), for colour-blind readers.
 # METHODS: the methods of Figs 2c,d and S1-S3, in drawing order.
-# PANDEMIC_METHODS: the other programs of Figs 3a,b and S5.
+# PANDEMIC_METHODS: the other programs of Figs 3a and S5.
 METHODS: Final = [
     ("FastTree-ME", "FastTree-ME", "#6BAED6", "s", True, "-"),
     ("FastTree-ML", "FastTree-ML", "#1F78B4", "D", True, "-"),
@@ -83,5 +83,5 @@ SCALING_SERIES: Final = [
 FIG3_HEIGHT: Final = 74 / 25.4
 FIG3_AXES_Y: Final = {"ab": (0.20, 0.96), "cd": (0.20, 0.84)}  # row -> (bottom, top)
 
-# Fig. 3a,b: the pandemic programs, as named in maple.tsv, and their key in SPEC
+# Fig. 3a: the pandemic programs, as named in maple.tsv, and their key in SPEC
 PANDEMIC: Final = [("MAPLE", "MAPLE"), ("CMAPLE", "CMAPLE"), ("VecME", "P2V")]

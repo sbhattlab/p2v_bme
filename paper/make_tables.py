@@ -518,7 +518,7 @@ def table_random_tree(results: Path) -> Outputs:
 
 
 def table_maple(results: Path) -> Outputs:
-    """Builds Table S5 (maple) and Fig. 3a,b's data: results -> {tableS5_maple.md, maple.tsv}."""
+    """Builds Table S5 (maple) and Fig. 3a's data: results -> {tableS5_maple.md, maple.tsv}."""
     ours = our_runs(results, "pandemic").to_dict("records")
     record = read_json(results / "baselines" / "maple" / "cmaple_benchmark_summary.json")
     rows: list[dict] = []
