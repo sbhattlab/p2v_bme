@@ -18,7 +18,7 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
 
 from plots._config import FIG2_PANEL, METHODS, SPEC, STYLE
-from plots.utils import OURS, parser, read_tsv, save
+from plots.utils import OURS, data_label, parser, read_tsv, save
 
 N = 10000
 SHORT, LONG = "jc1k", "jc10k"
@@ -84,7 +84,7 @@ def main() -> None:
         )
     ax.set_yticks(range(len(rows)))
     ax.set_yticklabels([SPEC[k]["label"] for k, *_ in rows])
-    ax.set_ylim(-0.6, len(rows) - 0.4)
+    ax.set_ylim(-0.6, len(rows) + 0.2)  # room above the top row for the data label
     ax.set_xscale("log")
     ax.set_xlim(1.3, 50)
     ax.xaxis.set_major_locator(FixedLocator([2, 5, 10, 20, 50]))
@@ -123,6 +123,7 @@ def main() -> None:
         columnspacing=1.5,
         borderaxespad=0.3,
     )
+    data_label(ax, "PASTA (JC69)")
     save(fig, args.img_dir, "fig2d_seqlen_effect")
 
 

@@ -15,15 +15,13 @@ Outputs: img/fig2/fig2a_scaling_time.{pdf,svg,png}
 
 import matplotlib.pyplot as plt
 
-from matplotlib.lines import Line2D
-
-from plots._config import FIG2_PANEL, SPEC, STYLE
+from plots._config import FIG2_PANEL, STYLE
 from plots.utils import (
     PANELS,
-    PLOTTED,
+    data_label,
+    method_legend_inside,
     method_lines,
     method_stats,
-    method_style,
     parser,
     read_tsv,
     save,
@@ -43,17 +41,8 @@ def main() -> None:
     fig.subplots_adjust(left=0.17, right=0.97, bottom=0.16, top=0.96)  # left, right as in Fig. 2c
     method_lines(ax, stats, "time")
     ax.set_ylabel(ylabel)
-    present = [k for k in PLOTTED if any(key == k for _, key in stats)]
-    handles = [Line2D([], [], label=SPEC[k]["label"], **method_style(k)) for k in reversed(present)]
-    # in the empty lower right: below VecME's line, right of the CPU programs' last size
-    ax.legend(
-        handles=handles,
-        loc="lower right",
-        handlelength=1.8,
-        handletextpad=0.4,
-        labelspacing=0.3,
-        borderaxespad=0.2,
-    )
+    method_legend_inside(ax, stats)
+    data_label(ax, "RNASim")
     save(fig, args.img_dir, "fig2a_scaling_time")
 
 

@@ -126,6 +126,7 @@ EXPANDED_FROM = 1_000_000
 # which holds VecME's error on the splits they inherit from the 100,000-sequence alignment
 EXPANDED_DATASETS = {"rnasim": "RNASim", "jc10k": "JC"}
 INHERITED_ALPHA = 0.35  # the inherited splits are secondary: lighter than every method
+LABEL_GREY = "#555555"  # text that names a panel's data, quieter than the axis labels
 MIB_PER_GIB = 1024.0
 # Each panel's column in scaling_methods.tsv, its scale and its y label
 PANELS = {
@@ -303,6 +304,28 @@ def inherited_splits(ax: plt.Axes, tables_dir: Path, name: str) -> None:
         label="VecME, inherited splits only",
     )
     ax.legend(handles=[key], loc="lower left", handlelength=1.9, borderaxespad=0.3)
+
+
+def method_legend_inside(ax: plt.Axes, stats: dict) -> None:
+    """Adds the methods drawn as one column in the lower right of a panel (Figs 2a, 2c),
+    below the lines, where the log axes leave room: (axes, stats) -> None."""
+    present = [k for k in PLOTTED if any(key == k for _, key in stats)]
+    handles = [Line2D([], [], label=SPEC[k]["label"], **method_style(k)) for k in reversed(present)]
+    ax.legend(
+        handles=handles,
+        loc="lower right",
+        handlelength=1.8,
+        handletextpad=0.4,
+        labelspacing=0.3,
+        borderaxespad=0.2,
+    )
+
+
+def data_label(ax: plt.Axes, data: str) -> None:
+    """Names a panel's data in its upper left corner, as "Data: <data>": (axes, data) -> None."""
+    ax.text(
+        0.03, 0.97, f"Data: {data}", transform=ax.transAxes, ha="left", va="top", color=LABEL_GREY
+    )
 
 
 def method_pages(args: Namespace) -> None:
