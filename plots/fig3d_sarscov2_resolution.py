@@ -1,17 +1,17 @@
-"""Fig. 3d: how finely the SARS-CoV-2 tree places genomes, by sampling month (Viridian genomes).
+"""Fig. 3d: the Viridian SARS-CoV-2 genomes sampled each month by variant, and how finely our tree places
+them, by sampling month.
 
-For each genome, the smallest clade around it whose branch has at least 70% transfer support and
-half a substitution: the line is the monthly median of the genomes of that clade sampled within 15
-days of the genome, with the interquartile range shaded; the dashed line counts all genomes sampled
-in those 31 days, so the axis counts genomes sampled in the same 31 days for both.
-Dots take the colour of the month's most common variant; the strip above shows each variant's share.
+Top: the genomes sampled each month, stacked by variant group. Bottom: for each genome, the smallest clade
+around it whose branch has at least 70% transfer support and half a substitution; the line is the monthly
+median of the genomes of that clade sampled within 15 days of the genome, with the interquartile range
+shaded. Dots take the colour of the month's most common variant.
 
 Inputs:  data/tables/viridian_resolution.tsv                            (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    the months at the 70% threshold, checked for gaps
            |
            v
-         variant strip and resolution curve on a shared month axis
+         genomes per month by variant (stacked areas) above the resolution curve, on one month axis
 Outputs: img/fig3/fig3d_sarscov2_resolution.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig3d_sarscov2_resolution
@@ -22,22 +22,21 @@ import numpy as np
 
 from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
 
-from plots._config import FIG3_AXES_Y, FIG3_HEIGHT, STYLE
+from plots._config import FIG3_HEIGHT, STYLE, VARIANT_GROUPS
 from plots.utils import parser, read_tsv, save
 
-SCALE = 0.8  # line and marker scale
-WIDTH = 108 / 25.4  # beside Fig. 3c in the 180 mm page
-LEFT, RIGHT = 0.26, 0.985  # of the main axes and the variant strip above them
-STRIP_GAP, STRIP_HEIGHT = 0.02, 0.07  # the strip above the main axes, in panel heights
-GROUPS = (
-    ("other", "Other", "#9A9A9A"),
-    ("alpha", "Alpha", "#3B7FB6"),
-    ("delta", "Delta", "#3A9E7E"),
-    ("omicron", "Omicron", "#D9713A"),
-    ("recombinant", "Recombinant", "#B5559B"),
-)
+FIGSIZE = (180 / 25.4, FIG3_HEIGHT)  # the full page width, below Figs 3a-c
+LEFT, RIGHT = 0.16, 0.99  # of both axes
+COUNTS_AXES = (0.60, 0.36)  # bottom and height of the genomes-per-month axes, in panel heights
+CLADES_AXES = (0.20, 0.38)  # bottom and height of the resolution axes
+YLABEL_X = -0.10  # both y labels at this distance from the axes, in axes widths, so that they align
 THRESHOLD = 0.70  # transfer support that a branch needs
 QUARTER = {"01": "Jan", "04": "Apr", "07": "Jul", "10": "Oct"}
+THOUSAND = 1000
+LABEL_SHARE = 0.5  # a variant is named on the areas where it holds more than this share of a month
+CLADE_LIM = (1, 2e5)  # genomes in the smallest supported clade
+NAME_FONTSIZE = 8  # the variant names on the areas
+GRID_COLOUR, GRID_WIDTH = "#EEEEEE", 0.6
 
 
 def months_at_threshold(rows: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -60,82 +59,57 @@ def main() -> None:
     def column(name: str) -> np.ndarray:
         return np.array([float(r[name]) for r in rows])
 
-    fig = plt.figure(figsize=(WIDTH, FIG3_HEIGHT))
-    bottom, top = FIG3_AXES_Y["cd"]
-    strip = fig.add_axes((LEFT, top + STRIP_GAP, RIGHT - LEFT, STRIP_HEIGHT))
-    ax = fig.add_axes((LEFT, bottom, RIGHT - LEFT, top - bottom), sharex=strip)
-
+    fig = plt.figure(figsize=FIGSIZE)
+    counts = fig.add_axes((LEFT, COUNTS_AXES[0], RIGHT - LEFT, COUNTS_AXES[1]))
+    ax = fig.add_axes((LEFT, CLADES_AXES[0], RIGHT - LEFT, CLADES_AXES[1]), sharex=counts)
     x = np.arange(len(rows))
-    shares = np.array([column(f"share_{key}") for key, _name, _colour in GROUPS])
-    bottom = np.zeros(len(rows))
-    for (_key, name, colour), share in zip(GROUPS, shares):
-        strip.bar(x, share, bottom=bottom, width=1.0, color=colour, linewidth=0)
-        bottom += share
-        if share.max() > 0.5:  # name a variant on the strip where it holds most of the genomes
-            strip.text(
-                float(np.average(x, weights=share)),
-                0.5,
+
+    # genomes per month by variant, stacked; each variant named at its peak month
+    shares = np.array([column(f"share_{key}") for key, _name, _colour in VARIANT_GROUPS])
+    per_month = shares * column("genomes") / THOUSAND
+    counts.stackplot(x, per_month, colors=[c for _, _, c in VARIANT_GROUPS], linewidth=0)
+    below = np.vstack([np.zeros(len(rows)), np.cumsum(per_month, axis=0)[:-1]])
+    for (_key, name, _colour), share, count, base in zip(VARIANT_GROUPS, shares, per_month, below):
+        if share.max() > LABEL_SHARE:
+            peak = int(np.argmax(count))
+            counts.text(
+                peak,
+                base[peak] + count[peak] / 2,
                 name,
                 color="white",
                 ha="center",
                 va="center",
                 fontweight="bold",
+                fontsize=NAME_FONTSIZE,
             )
-    strip.set_ylim(0, 1)
-    strip.set_yticks([])
-    strip.tick_params(axis="x", length=0, labelbottom=False)
-    for spine in strip.spines.values():
-        spine.set_visible(False)
+    counts.set_ylim(0, None)
+    counts.set_ylabel("Genomes per\nmonth (thousands)")
+    counts.tick_params(axis="x", labelbottom=False)
+    counts.grid(axis="y", color=GRID_COLOUR, linewidth=GRID_WIDTH)
+    counts.set_axisbelow(True)
 
+    # the resolution: median and interquartile range, dots in the colour of the month's main variant
     lead = shares.argmax(axis=0)
     med = column("window_median")
     ax.fill_between(
-        x,
-        column("window_q25"),
-        column("window_q75"),
-        color="#E3E3E3",
-        linewidth=0,
-        zorder=1,
+        x, column("window_q25"), column("window_q75"), color="#E3E3E3", linewidth=0, zorder=1
     )
-    ax.plot(
-        x,
-        med,
-        color="#444444",
-        linewidth=2.4 * SCALE,
-        zorder=2,
-        label="In the smallest supported clade\n(median, interquartile range)",
-    )
-    ax.plot(
-        x,
-        column("window_total_median"),
-        color="#888888",
-        linewidth=1.6 * SCALE,
-        linestyle=(0, (3, 2)),
-        zorder=1,
-        label="All",
-    )
-    ax.legend(
-        frameon=False,
-        loc="upper left",
-        ncol=2,
-        handlelength=1.8,
-        columnspacing=1.6,
-    )
+    ax.plot(x, med, color="#444444", linewidth=2.0, zorder=2)
     ax.scatter(
         x,
         med,
-        s=58 * SCALE**2,
-        c=[GROUPS[i][2] for i in lead],
+        s=40,
+        c=[VARIANT_GROUPS[i][2] for i in lead],
         edgecolors="white",
-        linewidths=0.9 * SCALE,
+        linewidths=0.8,
         zorder=3,
     )
     ax.set_yscale("log")
-    ax.set_ylim(1, 1e7)  # headroom for the two-line legend above the data
-    ax.yaxis.set_major_locator(FixedLocator([10, 100, 1e3, 1e4, 1e5, 1e6]))
+    ax.set_ylim(*CLADE_LIM)
+    ax.yaxis.set_major_locator(FixedLocator([10, 1e3, 1e5]))
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _pos: f"{int(v):,}"))
     ax.yaxis.set_minor_formatter(NullFormatter())
-    ax.set_ylabel("Genomes sampled in\nthe same 31 days")
+    ax.set_ylabel("Smallest supported\nclade (genomes)")
     ticks = [i for i, m in enumerate(months) if m[5:7] in QUARTER]
     ax.set_xticks(ticks)
     ax.set_xticklabels(
@@ -146,10 +120,10 @@ def main() -> None:
     )
     ax.set_xlim(-0.5, len(rows) - 0.5)
     ax.set_xlabel("Sampling month")
-    ax.grid(axis="y", color="#EEEEEE", linewidth=0.6, zorder=0)
+    ax.grid(axis="y", color=GRID_COLOUR, linewidth=GRID_WIDTH, zorder=0)
     ax.set_axisbelow(True)
-    for side in ("top", "right"):
-        ax.spines[side].set_visible(False)
+    for a in (counts, ax):
+        a.yaxis.set_label_coords(YLABEL_X, 0.5)
     save(fig, args.img_dir, "fig3d_sarscov2_resolution", bbox_inches=None)
 
 

@@ -329,6 +329,13 @@ def data_label(ax: plt.Axes, data: str) -> None:
     )
 
 
+def data_label_above(ax: plt.Axes, data: str) -> None:
+    """Names a panel's data just above its axes, at the left, as "Data: <data>": (axes, data) -> None."""
+    ax.text(
+        0.0, 1.03, f"Data: {data}", transform=ax.transAxes, ha="left", va="bottom", color=LABEL_GREY
+    )
+
+
 def method_panel(
     args: Namespace, dataset: str, panel: str, data: str, name: str, *, top: float
 ) -> None:
