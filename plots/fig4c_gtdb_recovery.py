@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from plots._config import SPEC, STYLE
 from plots.utils import parser, read_tsv, save
 
-FIGSIZE = (3.6, 2.8)  # half the page width: room for the legend on the right
+FIGSIZE = (88 / 25.4, 71 / 25.4)  # half the 180 mm page: room for the legend on the right
 RANKS = ["phylum", "class", "order", "family", "genus"]
 # tree in the table -> legend label, colour, marker, line width (VecME's full tree drawn strongest)
 # Labels on two lines, so that the legend on the right leaves the plot its width.
@@ -42,7 +42,7 @@ def main() -> None:
     plt.style.use(STYLE)
     rows = read_tsv(args.tables_dir, "silva_gtdb")
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    fig.subplots_adjust(left=0.17, right=0.68, bottom=0.2, top=0.97)
+    fig.subplots_adjust(left=0.17, right=0.64, bottom=0.2, top=0.97)
     x = range(len(RANKS))
     for tree, (label, colour, marker, width) in TREES.items():
         f1 = {r["rank"]: float(r["mean_f1"]) for r in rows if r["tree"] == tree}

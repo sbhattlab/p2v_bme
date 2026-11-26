@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 from plots._config import STYLE
 from plots.utils import parser, read_tsv, save
 
-FIGSIZE = (3.6, 2.8)  # Fig. 4c's size: the two share a row
+FIGSIZE = (88 / 25.4, 71 / 25.4)  # Fig. 4c's size: the two share a row
 # group in the table -> label, top to bottom
 GROUPS = {
     "mitochondria": "Mitochondria",
