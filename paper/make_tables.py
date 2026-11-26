@@ -1,5 +1,5 @@
 """Every table of the paper and the data behind its figures,
-from the raw results (Tables S1-S15; Figs 2-4, S1-S4).
+from the raw results (Tables S1-S15; Figs 2-4, S1-S6).
 
 Inputs:  data/results/                                    (the run_*.py scripts)
            scaling/, random_start/, seqlen/,              our runs:
@@ -28,7 +28,8 @@ Outputs: data/tables/tableS<N>_<name>.md, numbered as in the supplement:
          S12 viridian_variants, S13 viridian_thresholds, S14 silva_support, S15 silva_gtdb;
          data/tables/<data>.tsv, the figures' data: scaling, maple, calibration,
          silva_support, silva_gtdb, scaling_methods, fastme_cases, silva_clades, silva_clade_paths,
-         silva_organelles, viridian_variants, viridian_substitutions, viridian_resolution
+         silva_organelles, viridian_variants, viridian_substitutions, viridian_resolution,
+         viridian_time, pandemic_branches
 
     pixi run -e paper python -m paper.make_tables
     pixi run -e paper python -m paper.make_tables --tables scaling maple --overwrite
@@ -84,13 +85,31 @@ ALIAS = {
     "FastTree-ME": "FastTree-ME",
 }
 
-# Fig. 3c: the calibration sets drawn (name, sequences, summary in calibration/, keys to the entry);
+# Fig. S4: the calibration sets drawn (name, sequences, summary in calibration/, keys to the entry);
 # the summaries' reliability bins come from run_calibration.py
 CALIBRATION_SETS = (
     ("RNASim", 1_000_000, "rnasim_bootstrap_calibration_summary.json", ("N1M_boot",)),
     ("SARS-CoV-2-like simulation", 100_000, "maple_bootstrap_calibration_summary.json", ()),
     ("Random tree", 1_000_000, "calibration_1000000.json", ()),
 )
+# Fig. 3b: the time to a tree of the Viridian genomes. Ours: the tree step of run_viridian.py, and
+# runs on one and eight B200 GPUs recorded in B200_VIRIDIAN (the benchmark harness before vecme 0.1.0);
+# CMAPLE: one serial run on the same alignment, recorded in CMAPLE_VIRIDIAN; MAPLE: as reported,
+# "around 10 days" on 14 cores of an Intel Xeon Gold 6252 (De Maio et al. 2025, Nature,
+# doi:10.1038/s41586-025-09567-x)
+VIRIDIAN_GENOMES = 2_072_111
+CMAPLE_VIRIDIAN = "viridian/cmaple_1.1.0/all/run.json"
+B200_VIRIDIAN = "viridian/b200/real_trees.jsonl"
+MAPLE_VIRIDIAN_REPORTED = {"days": 10, "cores": 14, "cpu": "Intel Xeon Gold 6252"}
+SECONDS_PER_DAY = 86_400
+# Fig. S6: the branches of our tree of the bootstrapped pandemic simulation (100,000 sequences, 3 substitutions
+# per branch; run_calibration.py), as its per-branch tables of the bootstrap and the repeat searches give them
+PANDEMIC_BRANCHES = (
+    "calibration/cmaple_0.0001/100000/maple_00001_100000_{}_branches.tsv"  # boot, seed
+)
+PANDEMIC_SITES = 30_000  # branch length x sites = substitutions on the branch
+# substitutions on the branch, [from, to): Fig. S5's bins, with the branches under half a substitution first
+PANDEMIC_BINS = ((0.0, 0.5), (0.5, 1.5), (1.5, 2.5), (2.5, 3.5), (3.5, 5.5), (5.5, None))
 # RNASim calibration: bootstrap replicates and repeat searches per reference tree
 # (run_calibration.py)
 CALIBRATION_BOOTSTRAPS = 64
@@ -518,7 +537,7 @@ def table_random_tree(results: Path) -> Outputs:
 
 
 def table_maple(results: Path) -> Outputs:
-    """Builds Table S5 (maple) and Fig. 3a,b's data: results -> {tableS5_maple.md, maple.tsv}."""
+    """Builds Table S5 (maple) and Fig. 3a's data: results -> {tableS5_maple.md, maple.tsv}."""
     ours = our_runs(results, "pandemic").to_dict("records")
     record = read_json(results / "baselines" / "maple" / "cmaple_benchmark_summary.json")
     rows: list[dict] = []
@@ -705,7 +724,7 @@ def table_bootstrap(results: Path) -> Outputs:
 
 
 def table_calibration(results: Path) -> Outputs:
-    """Collects Fig. 3c's data: the share of branches in the true tree by exact bootstrap support, for each set
+    """Collects Fig. S4's data: the share of branches in the true tree by exact bootstrap support, for each set
     of CALIBRATION_SETS; every set must be there: results -> {calibration.tsv}."""
     folder = results / "calibration"
     rows, missing = [], []
@@ -1252,7 +1271,7 @@ def table_gtr_fit(results: Path) -> Outputs:
 
 
 def table_viridian(results: Path) -> Outputs:
-    """Builds Tables S11-S13 (viridian_*) and the data of Figs 3c, S5:
+    """Builds Tables S11-S13 (viridian_*) and the data of Figs 3c,d, S5:
     results -> their .md and .tsv."""
     s = read_json(results / "viridian" / "summary.json")
     # read as text: the record goes on unchanged as the figures' data
@@ -1352,6 +1371,115 @@ def table_viridian(results: Path) -> Outputs:
     return out
 
 
+def table_viridian_time(results: Path) -> Outputs:
+    """Collects Fig. 3b's data: the time to a tree of the Viridian genomes. Our runs: the tree step
+    on one GPU and the recorded runs on one and eight B200 GPUs, timed as the paper times its runs
+    (start tree, search, branch lengths); CMAPLE's wall time; MAPLE's as reported:
+    results -> {viridian_time.tsv}."""
+    paths = {
+        "our tree": results / "viridian" / "tree.json",
+        "B200 runs": results / B200_VIRIDIAN,
+        "CMAPLE": results / CMAPLE_VIRIDIAN,
+    }
+    if missing := [f"{name} ({path})" for name, path in paths.items() if not path.exists()]:
+        raise MissingResults(f"viridian_time: no {', '.join(missing)}")
+    ours, cmaple = read_json(paths["our tree"]), read_json(paths["CMAPLE"])
+    b200 = [json.loads(line)["record"] for line in paths["B200 runs"].read_text().splitlines()]
+    details = ours["details"]
+    genomes = [details["input"]["sequences"], cmaple["genomes"], *(r["N"] for r in b200)]
+    if not b200 or set(genomes) != {VIRIDIAN_GENOMES}:
+        raise MissingResults(
+            f"viridian_time: runs not all on {VIRIDIAN_GENOMES:,} genomes: {genomes}"
+        )
+    gpus = {short_gpu(d.split(": ", 1)[1]) for d in details["devices"] if d.startswith("GPU ")}
+    if details["settings"]["accelerator"] != "gpu" or len(gpus) != 1:
+        raise MissingResults(
+            f"viridian_time: our run is not on one GPU model: {details['devices']}"
+        )
+    stages = details["time"]
+    rows = [
+        {
+            "program": "VecME",
+            "units": len(details["devices"]),
+            "unit": "GPU",
+            "model": gpus.pop(),
+            "cpu_threads": threads_of(paths["our tree"], details),
+            "time_s": stages["start_tree"] + stages["search"] + stages["branch_lengths"],
+            "source": "measured",
+        }
+    ]
+    rows += [
+        {
+            "program": "VecME",
+            "units": r["n_gpus"],
+            "unit": "GPU",
+            "model": short_gpu(r["gpu_name"]),
+            "cpu_threads": r["cpu_threads"],
+            "time_s": r["dt_mb_gpu"] + r["dt_bl_gpu"],  # start tree and search, branch lengths
+            "source": "measured",
+        }
+        for r in sorted(b200, key=lambda r: r["n_gpus"])
+    ]
+    rows += [
+        {
+            "program": "CMAPLE",
+            "units": cmaple["threads"],
+            "unit": "CPU core",
+            "model": cmaple["cpu"],
+            "cpu_threads": cmaple["threads"],
+            "time_s": cmaple["wall_s"],
+            "source": "measured",
+        },
+        {
+            "program": "MAPLE",
+            "units": MAPLE_VIRIDIAN_REPORTED["cores"],
+            "unit": "CPU core",
+            "model": MAPLE_VIRIDIAN_REPORTED["cpu"],
+            "cpu_threads": MAPLE_VIRIDIAN_REPORTED["cores"],
+            "time_s": MAPLE_VIRIDIAN_REPORTED["days"] * SECONDS_PER_DAY,
+            "source": "reported",
+        },
+    ]
+    return {"viridian_time.tsv": pd.DataFrame([r | {"genomes": VIRIDIAN_GENOMES} for r in rows])}
+
+
+def table_pandemic_branches(results: Path) -> Outputs:
+    """Collects Fig. S6's data: the branches of our tree of the bootstrapped pandemic simulation by the
+    substitutions on them, with the share also in the true tree, in CMAPLE's tree and, on average, in a
+    repeat search: results -> {pandemic_branches.tsv}."""
+    paths = {kind: results / PANDEMIC_BRANCHES.format(kind) for kind in ("boot", "seed")}
+    if missing := [str(path) for path in paths.values() if not path.exists()]:
+        raise MissingResults(f"pandemic_branches: no {', '.join(missing)}")
+    boot, seed = (pd.read_csv(paths[kind], sep="\t") for kind in ("boot", "seed"))
+    if not (
+        boot["node"].equals(seed["node"]) and boot["branch_length"].equals(seed["branch_length"])
+    ):
+        raise MissingResults("pandemic_branches: the boot and seed tables are not of the same tree")
+    if not (
+        boot[["correct", "cmaple_correct"]].isin([0, 1]).all().all()
+        and seed["exact"].between(0, 1).all()
+    ):
+        raise MissingResults("pandemic_branches: values outside 0-1 in the per-branch tables")
+    substitutions = boot["branch_length"] * PANDEMIC_SITES
+    rows, covered = [], 0
+    for low, high in PANDEMIC_BINS:
+        inside = (substitutions >= low) & ((substitutions < high) if high is not None else True)
+        covered += int(inside.sum())
+        rows.append(
+            {
+                "substitutions_from": low,
+                "substitutions_to": "" if high is None else high,
+                "branches": int(inside.sum()),
+                "in_true_pct": 100 * boot["correct"][inside].mean(),
+                "in_cmaple_pct": 100 * boot["cmaple_correct"][inside].mean(),
+                "in_repeat_pct": 100 * seed["exact"][inside].mean(),
+            }
+        )
+    if covered != len(boot):
+        raise MissingResults("pandemic_branches: the bins do not cover every branch")
+    return {"pandemic_branches.tsv": pd.DataFrame(rows)}
+
+
 TABLES = {
     "scaling": table_scaling,
     "random_tree": table_random_tree,
@@ -1371,6 +1499,8 @@ TABLES = {
     "fastme_cases": table_fastme_cases,
     "gtr_fit": table_gtr_fit,
     "viridian": table_viridian,
+    "viridian_time": table_viridian_time,
+    "pandemic_branches": table_pandemic_branches,
 }
 
 

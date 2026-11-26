@@ -1,4 +1,4 @@
-"""Fig. 3c: bootstrap calibration: the share of branches in the true tree against their exact bootstrap support,
+"""Fig. S4: bootstrap calibration: the share of branches in the true tree against their exact bootstrap support,
 on RNASim, the SARS-CoV-2-like simulation and the random tree.
 
 Inputs:  data/tables/calibration.tsv                                    (make_tables.py)
@@ -8,9 +8,9 @@ Flow:    each dataset's support bins with at least MIN_BRANCHES branches
            v
          mean support of the bin (x) against its share of branches in the true tree (y), with the diagonal
          of perfect calibration
-Outputs: img/fig3/fig3c_bootstrap_calibration.{pdf,svg,png}
+Outputs: img/fig2/figS4_bootstrap_calibration.{pdf,svg,png}
 
-    pixi run -e paper python -m plots.fig3c_bootstrap_calibration
+    pixi run -e paper python -m plots.figS4_bootstrap_calibration
 """
 
 import matplotlib.pyplot as plt
@@ -61,7 +61,7 @@ def main() -> None:
     ax.set_axisbelow(True)
     # above the axes: inside, the names would cross the curves at this width
     ax.legend(loc="lower left", bbox_to_anchor=(-0.28, 1.02), handlelength=1.6, borderaxespad=0.0)
-    save(fig, args.img_dir, "fig3c_bootstrap_calibration")
+    save(fig, args.img_dir, "figS4_bootstrap_calibration")
 
 
 if __name__ == "__main__":

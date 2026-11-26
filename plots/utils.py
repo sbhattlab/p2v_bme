@@ -78,14 +78,14 @@ def save(fig: plt.Figure, img_dir: Path, name: str, **kwargs) -> None:
     print(f"wrote {img_dir / name}.{{{','.join(FIGURE_FORMATS)}}}")
 
 
-# ---- Figs 3a,b: the pandemic simulations ----
+# ---- Fig. 3a: the pandemic simulations ----
 
 PANDEMIC_SIZES = (100_000, 200_000, 500_000)
 PANDEMIC_BRANCH_LENGTHS = (5e-5, 1e-4, 1.5e-4)  # mean, in substitutions per site
 
 
 def pandemic_rows(tables_dir: Path) -> list[dict[str, str]]:
-    """Reads Figs 3a,b's data, one row per program, size and mean branch length;
+    """Reads Fig. 3a's data, one row per program, size and mean branch length;
     stops unless every program has exactly one of each: folder -> rows of maple.tsv."""
     rows = read_tsv(tables_dir, "maple")
     cells = [(r["method"], int(r["n"]), float(r["mean_branch_length"])) for r in rows]
@@ -164,7 +164,7 @@ def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: fl
 
 
 def method_style(key: str) -> dict:
-    """Gives a method's line in the line plots (Figs 2a, 2c, S1-S4):
+    """Gives a method's line in the line plots (Figs 2a, 2c, S1-S3, S5):
     key -> line keywords, VecME's stronger."""
     ours = key == OURS
     return {

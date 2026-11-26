@@ -17,8 +17,10 @@ FIGURE_FOLDERS: Final = {
     "figS1": "fig2",  # S1-S3: every method by size
     "figS2": "fig2",
     "figS3": "fig2",
+    "figS4": "fig2",  # bootstrap calibration
     "fig3": "fig3",
-    "figS4": "fig3",  # SARS-CoV-2 shared branches
+    "figS5": "fig3",  # SARS-CoV-2 shared branches
+    "figS6": "fig3",  # pandemic simulation: shared branches
     "fig4": "fig4",
 }
 
@@ -30,7 +32,7 @@ FIGURE_FOLDERS: Final = {
 # Checked for red-green colour blindness (Machado et al. 2009): methods drawn together stay apart.
 # Markers pair up the same way (square and diamond, the two triangles), for colour-blind readers.
 # METHODS: the methods of Figs 2c,d and S1-S3, in drawing order.
-# PANDEMIC_METHODS: the other programs of Figs 3a,b and S4.
+# PANDEMIC_METHODS: the other programs of Figs 3a and S5.
 METHODS: Final = [
     ("FastTree-ME", "FastTree-ME", "#6BAED6", "s", True, "-"),
     ("FastTree-ML", "FastTree-ML", "#1F78B4", "D", True, "-"),
@@ -77,5 +79,10 @@ SCALING_SERIES: Final = [
     ("JC random tree", "JC random tree", "#1B9E77", "^", "-.", True, 0.55),
 ]
 
-# Fig. 3a,b: the pandemic programs, as named in maple.tsv, and their key in SPEC
+# Fig. 3: two rows of panels 74 mm high (a, b; c, d); within a row the main axes share their bottom
+# and top, as fractions of the panel, so that panels placed side by side line up
+FIG3_HEIGHT: Final = 74 / 25.4
+FIG3_AXES_Y: Final = {"ab": (0.28, 0.96), "cd": (0.20, 0.84)}  # row -> (bottom, top)
+
+# Fig. 3a: the pandemic programs, as named in maple.tsv, and their key in SPEC
 PANDEMIC: Final = [("MAPLE", "MAPLE"), ("CMAPLE", "CMAPLE"), ("VecME", "P2V")]

@@ -1,4 +1,4 @@
-"""Fig. 3e: how finely the SARS-CoV-2 tree places genomes, by sampling month (Viridian genomes).
+"""Fig. 3d: how finely the SARS-CoV-2 tree places genomes, by sampling month (Viridian genomes).
 
 For each genome, the smallest clade around it whose branch has at least 70% transfer support and
 half a substitution: the line is the monthly median of the genomes of that clade sampled within 15
@@ -12,9 +12,9 @@ Flow:    the months at the 70% threshold, checked for gaps
            |
            v
          variant strip and resolution curve on a shared month axis
-Outputs: img/fig3/fig3e_sarscov2_resolution.{pdf,svg,png}
+Outputs: img/fig3/fig3d_sarscov2_resolution.{pdf,svg,png}
 
-    pixi run -e paper python -m plots.fig3e_sarscov2_resolution
+    pixi run -e paper python -m plots.fig3d_sarscov2_resolution
 """
 
 import matplotlib.pyplot as plt
@@ -22,10 +22,13 @@ import numpy as np
 
 from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
 
-from plots._config import STYLE
+from plots._config import FIG3_AXES_Y, FIG3_HEIGHT, STYLE
 from plots.utils import parser, read_tsv, save
 
-SCALE = 1.0  # line and marker scale
+SCALE = 0.8  # line and marker scale
+WIDTH = 108 / 25.4  # beside Fig. 3c in the 180 mm page
+LEFT, RIGHT = 0.26, 0.985  # of the main axes and the variant strip above them
+STRIP_GAP, STRIP_HEIGHT = 0.02, 0.07  # the strip above the main axes, in panel heights
 GROUPS = (
     ("other", "Other", "#9A9A9A"),
     ("alpha", "Alpha", "#3B7FB6"),
@@ -57,10 +60,10 @@ def main() -> None:
     def column(name: str) -> np.ndarray:
         return np.array([float(r[name]) for r in rows])
 
-    # full page width, as the other figures, so that its text prints at the style's 9 pt
-    fig = plt.figure(figsize=(7.2, 3.0))
-    strip = fig.add_axes((0.17, 0.87, 0.815, 0.07))
-    ax = fig.add_axes((0.17, 0.22, 0.815, 0.63), sharex=strip)
+    fig = plt.figure(figsize=(WIDTH, FIG3_HEIGHT))
+    bottom, top = FIG3_AXES_Y["cd"]
+    strip = fig.add_axes((LEFT, top + STRIP_GAP, RIGHT - LEFT, STRIP_HEIGHT))
+    ax = fig.add_axes((LEFT, bottom, RIGHT - LEFT, top - bottom), sharex=strip)
 
     x = np.arange(len(rows))
     shares = np.array([column(f"share_{key}") for key, _name, _colour in GROUPS])
@@ -100,7 +103,7 @@ def main() -> None:
         color="#444444",
         linewidth=2.4 * SCALE,
         zorder=2,
-        label="In the smallest supported clade (median, interquartile range)",
+        label="In the smallest supported clade\n(median, interquartile range)",
     )
     ax.plot(
         x,
@@ -128,7 +131,7 @@ def main() -> None:
         zorder=3,
     )
     ax.set_yscale("log")
-    ax.set_ylim(1, 3e6)
+    ax.set_ylim(1, 1e7)  # headroom for the two-line legend above the data
     ax.yaxis.set_major_locator(FixedLocator([10, 100, 1e3, 1e4, 1e5, 1e6]))
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _pos: f"{int(v):,}"))
     ax.yaxis.set_minor_formatter(NullFormatter())
@@ -147,7 +150,7 @@ def main() -> None:
     ax.set_axisbelow(True)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-    save(fig, args.img_dir, "fig3e_sarscov2_resolution")
+    save(fig, args.img_dir, "fig3d_sarscov2_resolution", bbox_inches=None)
 
 
 if __name__ == "__main__":
