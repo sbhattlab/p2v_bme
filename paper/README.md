@@ -177,6 +177,7 @@ Every table of the paper (`--tables`; default: all).
 | `fig4a_silva_clades`             | 4a: the SILVA 144 tree reduced to major clades: support, depths | `silva_clades.tsv`, `silva_clade_paths.tsv` |
 | `fig4b_silva_support`            | 4b: SILVA 144 branches by support class and split size          | `silva_support.tsv`                         |
 | `fig4c_gtdb_recovery`            | 4c: mean F1 of the GTDB taxa by rank, four trees                | `silva_gtdb.tsv`                            |
+| `fig4d_silva_organelles`         | 4d: SILVA's organelle sequences placed within Eukaryota         | `silva_organelles.tsv`                      |
 | `figS1_3_scaling`                | S1-S3: time, RF error, host and GPU memory of every method      | `scaling_methods.tsv`, `scaling.tsv`        |
 | `figS4_sarscov2_shared_branches` | S4: branches shared by our tree and MAPLE's                     | `viridian_substitutions.tsv`                |
 
