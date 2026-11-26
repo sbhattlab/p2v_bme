@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 from matplotlib.lines import Line2D
 
-from plots._config import SPEC, STYLE
+from plots._config import FIG2_PANEL, SPEC, STYLE
 from plots.utils import (
     PANELS,
     PLOTTED,
@@ -29,7 +29,6 @@ from plots.utils import (
     save,
 )
 
-FIGSIZE = (88 / 25.4, 74 / 25.4)  # half the 180 mm page
 DATASET = "yule10k"
 
 
@@ -40,7 +39,7 @@ def main() -> None:
     stats = method_stats(read_tsv(args.tables_dir, "scaling_methods"), DATASET, field, scale)
     if not stats:
         raise SystemExit(f"no {field} data for {DATASET}")
-    fig, ax = plt.subplots(figsize=FIGSIZE)
+    fig, ax = plt.subplots(figsize=FIG2_PANEL)
     fig.subplots_adjust(left=0.17, right=0.97, bottom=0.16, top=0.76)
     method_lines(ax, stats, "rf")
     ax.set_ylabel(ylabel)

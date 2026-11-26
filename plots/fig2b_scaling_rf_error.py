@@ -15,10 +15,9 @@ Outputs: img/fig2/fig2b_scaling_rf_error.{pdf,svg,png}
 
 import matplotlib.pyplot as plt
 
-from plots._config import SCALING_SERIES, STYLE
+from plots._config import FIG2_PANEL, SCALING_SERIES, STYLE
 from plots.utils import parser, save, scaling_axes, scaling_data, scaling_series
 
-FIGSIZE = (52 / 25.4, 62 / 25.4)
 INHERITED_ALPHA = 0.35  # the inherited splits are secondary: the lightest series
 EXPANDED = ("RNASim", "JC")  # the series whose largest sizes expand the 10^5-leaf alignment
 
@@ -62,8 +61,8 @@ def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
     rows = scaling_data(args.tables_dir)
-    fig, ax = plt.subplots(figsize=FIGSIZE)
-    fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.96)
+    fig, ax = plt.subplots(figsize=FIG2_PANEL)
+    fig.subplots_adjust(left=0.17, right=0.97, bottom=0.16, top=0.96)  # as in Fig. 2a
     scaling_series(ax, rows, "rf_pct")
     backbone_series(ax, rows)
     scaling_axes(ax)

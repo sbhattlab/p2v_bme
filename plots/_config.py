@@ -60,6 +60,9 @@ SPEC: Final = {
     for m in [*METHODS, *PANDEMIC_METHODS]
 }
 
+# Fig. 2: every panel at one size, half the 180 mm page (a, b on the first row, c, d on the second)
+FIG2_PANEL: Final = (88 / 25.4, 74 / 25.4)
+
 # The datasets of the scaling figures (S1-S3) and their figure numbers
 SCALING_FIGURES: Final = {"rnasim": "figS1", "jc10k": "figS2", "yule10k": "figS3"}
 

@@ -10,20 +10,15 @@ Outputs: img/fig2/fig2a_scaling_time.{pdf,svg,png}
 
 import matplotlib.pyplot as plt
 
-from plots._config import STYLE
+from plots._config import FIG2_PANEL, STYLE
 from plots.utils import parser, save, scaling_axes, scaling_data, scaling_series
-
-FIGSIZE = (
-    52 / 25.4,
-    62 / 25.4,
-)  # a quarter of the 180 mm page, as in the paper's four-panel row
 
 
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
-    fig, ax = plt.subplots(figsize=FIGSIZE)
-    fig.subplots_adjust(left=0.27, right=0.97, bottom=0.21, top=0.96)
+    fig, ax = plt.subplots(figsize=FIG2_PANEL)
+    fig.subplots_adjust(left=0.17, right=0.97, bottom=0.16, top=0.96)  # left, right as in Fig. 2c
     scaling_series(ax, scaling_data(args.tables_dir), "time_s")
     scaling_axes(ax)
     ax.set_ylabel("Time (s)")
