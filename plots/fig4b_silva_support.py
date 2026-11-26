@@ -17,8 +17,8 @@ import numpy as np
 from plots._config import STYLE
 from plots.utils import parser, read_tsv, save
 
-# 3a's height and the rest of the page width, so that the row 3a + 3b is as wide as 3c
-FIGSIZE = (2.7, 4.6)
+# Fig. 4a's height; 64 mm wide: with 4a (112 mm) and a 4 mm gap, the 180 mm page
+FIGSIZE = (64 / 25.4, 117 / 25.4)
 LABELS = {
     "10001-2106464": ">10,000",
     ">10k": ">10,000",
