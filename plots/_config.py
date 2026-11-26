@@ -79,10 +79,19 @@ SCALING_SERIES: Final = [
     ("JC random tree", "JC random tree", "#1B9E77", "^", "-.", True, 0.55),
 ]
 
-# Fig. 3: two rows of panels 74 mm high (a, b; c, d); within a row the main axes share their bottom
-# and top, as fractions of the panel, so that panels placed side by side line up
+# Fig. 3: a, b and c in one row of panels 74 mm high whose main axes share their bottom and top, as
+# fractions of the panel, so that they line up side by side; d below them, as high, at full width
 FIG3_HEIGHT: Final = 74 / 25.4
-FIG3_AXES_Y: Final = {"ab": (0.28, 0.96), "cd": (0.20, 0.84)}  # row -> (bottom, top)
+FIG3_AXES_Y: Final = (0.28, 0.88)  # bottom and top of the main axes of Figs 3a-c
+# Figs 3c,d: the SARS-CoV-2 variant groups of the Viridian records (key in the data, name, colour);
+# a variant outside these groups is drawn in the first group's grey
+VARIANT_GROUPS: Final = (
+    ("other", "Other", "#9A9A9A"),
+    ("alpha", "Alpha", "#3B7FB6"),
+    ("delta", "Delta", "#3A9E7E"),
+    ("omicron", "Omicron", "#D9713A"),
+    ("recombinant", "Recombinant", "#B5559B"),
+)
 
 # Fig. 3a: the pandemic programs, as named in maple.tsv, and their key in SPEC
 PANDEMIC: Final = [("MAPLE", "MAPLE"), ("CMAPLE", "CMAPLE"), ("VecME", "P2V")]
