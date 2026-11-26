@@ -10,17 +10,17 @@ Outputs: img/fig3/fig3b_sarscov2_time.{pdf,svg,png}
 """
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from plots._config import FIG3_AXES_Y, FIG3_HEIGHT, SPEC, STYLE
 from plots.utils import data_label, parser, read_tsv, save
 
 FIGSIZE = (66 / 25.4, FIG3_HEIGHT)  # beside Fig. 3a in the 180 mm page
-LEFT, RIGHT = 0.32, 0.97
+LEFT, RIGHT = 0.27, 0.97
 KEYS = {"VecME": "P2V", "CMAPLE": "CMAPLE", "MAPLE": "MAPLE"}  # program -> its key in SPEC
 UNITS = {"GPU": "GPU", "CPU core": "core"}  # unit in the table -> its name under the bar
-MINUTE, HOUR, DAY, WEEK = 60, 3600, 86400, 7 * 86400
-TICKS = {MINUTE: "1 min", HOUR: "1 h", DAY: "1 day", WEEK: "1 week"}
-BOTTOM, HEADROOM = MINUTE, 6  # bars start at 1 min; the axis ends 6 times above the slowest run
+MINUTE, HOUR, DAY = 60, 3600, 86400
+HEADROOM = 6  # the axis ends 6 times above the slowest run, room for its label
 BAR_WIDTH = 0.62
 
 
@@ -42,6 +42,8 @@ def main() -> None:
     fig, ax = plt.subplots(figsize=FIGSIZE)
     bottom, top = FIG3_AXES_Y["ab"]
     fig.subplots_adjust(left=LEFT, right=RIGHT, bottom=bottom, top=top)
+    times = [float(r["time_s"]) for r in rows]
+    base = 10 ** np.floor(np.log10(min(times)))  # bars start at the decade below the fastest run
     labels = []
     for x, r in enumerate(rows):
         colour = SPEC[KEYS[r["program"]]]["color"]
@@ -49,8 +51,8 @@ def main() -> None:
         seconds = float(r["time_s"])
         ax.bar(
             x,
-            seconds - BOTTOM,
-            bottom=BOTTOM,
+            seconds - base,
+            bottom=base,
             width=BAR_WIDTH,
             color="white" if reported else colour,
             edgecolor=colour,
@@ -62,13 +64,11 @@ def main() -> None:
         unit = UNITS[r["unit"]] + ("s" if units > 1 else "")
         labels.append(f"{r['program']}\n{units} {unit}")
     ax.set_yscale("log")
-    ax.set_ylim(BOTTOM, HEADROOM * max(float(r["time_s"]) for r in rows))
-    ax.set_yticks(list(TICKS), list(TICKS.values()))
-    ax.minorticks_off()
+    ax.set_ylim(base, HEADROOM * max(times))
     ax.set_xticks(range(len(rows)), labels)
     ax.tick_params(axis="x", length=0)
     ax.set_xlim(-0.6, len(rows) - 0.4)
-    ax.set_ylabel("Time to the tree")
+    ax.set_ylabel("Time (s)")
     ax.grid(axis="y", color="#E5E5E5", linewidth=0.5)
     ax.set_axisbelow(True)
     data_label(ax, "SARS-CoV-2")
