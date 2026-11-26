@@ -24,7 +24,7 @@ DATASET = "rnasim"
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
-    method_panel(args, DATASET, "time", "RNASim", "fig2a_scaling_time")
+    method_panel(args, DATASET, "time", "RNASim", "fig2a_scaling_time", top=0.96)  # as Fig. 2b
 
 
 if __name__ == "__main__":

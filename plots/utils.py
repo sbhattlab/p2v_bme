@@ -329,15 +329,19 @@ def data_label(ax: plt.Axes, data: str) -> None:
     )
 
 
-def method_panel(args: Namespace, dataset: str, panel: str, data: str, name: str) -> None:
+def method_panel(
+    args: Namespace, dataset: str, panel: str, data: str, name: str, *, top: float
+) -> None:
     """Draws a Fig. 2 panel of every method over the number of sequences (2a, 2c), with the methods'
-    legend and the data's name inside: (args, dataset, panel, data, name) -> img_dir/fig2/name.*."""
+    legend and the data's name inside: (args, dataset, panel, data, name) -> img_dir/fig2/name.*.
+
+    top: the axes' top edge, as the other panel of the row's."""
     field, scale, ylabel = PANELS[panel]
     stats = method_stats(read_tsv(args.tables_dir, "scaling_methods"), dataset, field, scale)
     if not stats:
         raise SystemExit(f"no {field} data for {dataset}")
     fig, ax = plt.subplots(figsize=FIG2_PANEL)
-    fig.subplots_adjust(left=0.17, right=0.97, bottom=0.16, top=0.96)  # as Fig. 2b's
+    fig.subplots_adjust(left=0.17, right=0.97, bottom=0.16, top=top)
     method_lines(ax, stats, panel)
     ax.set_ylabel(ylabel)
     method_legend_inside(ax, stats)

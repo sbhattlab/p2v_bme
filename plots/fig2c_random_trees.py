@@ -24,7 +24,8 @@ DATASET = "yule10k"
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
-    method_panel(args, DATASET, "rf", "random trees (JC69)", "fig2c_random_trees")
+    # top as Fig. 2d's, whose legend sits above its axes
+    method_panel(args, DATASET, "rf", "random trees (JC69)", "fig2c_random_trees", top=0.88)
 
 
 if __name__ == "__main__":

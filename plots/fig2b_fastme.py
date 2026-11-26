@@ -43,7 +43,8 @@ def main() -> None:
     if not values or min(values) <= LIMITS[0] or max(values) >= LIMITS[1]:
         raise SystemExit(f"fastme_cases.tsv: RF errors outside {LIMITS} %, or none")
     fig, ax = plt.subplots(figsize=FIG2_PANEL)
-    fig.subplots_adjust(left=0.17, right=0.97, bottom=0.16, top=0.96)  # as in Fig. 2a
+    # left as Fig. 2d's, below it (its method names take the room); the rest as Fig. 2a
+    fig.subplots_adjust(left=0.36, right=0.97, bottom=0.16, top=0.96)
     ax.plot(LIMITS, LIMITS, color="#999999", linewidth=0.8, linestyle="--", zorder=1)
     for family, marker in MARKERS.items():
         group = [r for r in rows if FAMILIES[r["dataset"]] == family]
