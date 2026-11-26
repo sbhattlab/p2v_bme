@@ -1,24 +1,25 @@
-"""Fig. 3d: support of the branch of each named SARS-CoV-2 variant in our tree of
+"""Fig. 3c: support of the branch of each named SARS-CoV-2 variant in our tree of
 the Viridian genomes.
 
 Inputs:  data/tables/viridian_variants.tsv                              (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    one row per variant, largest first:
          transfer support (filled), exact support (hollow), substitutions
-Outputs: img/fig3/fig3d_sarscov2_variants.{pdf,svg,png}
+Outputs: img/fig3/fig3c_sarscov2_variants.{pdf,svg,png}
 
-    pixi run -e paper python -m plots.fig3d_sarscov2_variants
+    pixi run -e paper python -m plots.fig3c_sarscov2_variants
 """
 
 import matplotlib.pyplot as plt
 
-from plots._config import SPEC, STYLE
+from plots._config import FIG3_AXES_Y, FIG3_HEIGHT, SPEC, STYLE
 from plots.utils import parser, read_tsv, save
 
-FIGSIZE = (84 / 25.4, 66 / 25.4)  # panel a of the 150 mm wide figure
+FIGSIZE = (68 / 25.4, FIG3_HEIGHT)  # beside Fig. 3d in the 180 mm page
+LEFT, RIGHT = 0.44, 0.97  # the two label columns take the left 30 mm
 # The two label columns left of the axes, in axes widths:
 # names left-aligned, genome counts right-aligned
-NAME_X, COUNT_X = -0.57, -0.03
+NAME_X, COUNT_X = -0.81, -0.03
 
 
 def main() -> None:
@@ -29,7 +30,8 @@ def main() -> None:
         key=lambda v: -float(v["genomes"]),
     )
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    fig.subplots_adjust(left=0.36, right=0.97, top=0.84, bottom=0.17)
+    bottom, top = FIG3_AXES_Y["cd"]
+    fig.subplots_adjust(left=LEFT, right=RIGHT, top=top, bottom=bottom)
     for y, v in enumerate(rows):
         exact, tbe = 100 * float(v["ours_exact"]), 100 * float(v["ours_tbe"])
         ax.plot([exact, tbe], [y, y], color="#CCCCCC", linewidth=1.0, zorder=1)
@@ -73,7 +75,7 @@ def main() -> None:
     ax.set_xlim(-4, 124)
     ax.spines["bottom"].set_bounds(-4, 104)
     ax.set_xticks([0, 25, 50, 75, 100])
-    ax.set_xlabel("Support of the variant's branch (%)")
+    ax.set_xlabel("Branch support (%)")
     ax.tick_params(axis="y", length=0)
     handles = [
         plt.Line2D(
@@ -104,7 +106,7 @@ def main() -> None:
         ncol=1,
         handletextpad=0.2,
     )
-    save(fig, args.img_dir, "fig3d_sarscov2_variants", bbox_inches=None)
+    save(fig, args.img_dir, "fig3c_sarscov2_variants", bbox_inches=None)
 
 
 if __name__ == "__main__":

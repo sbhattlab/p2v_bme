@@ -1203,7 +1203,7 @@ def table_gtr_fit(results: Path) -> Outputs:
 
 
 def table_viridian(results: Path) -> Outputs:
-    """Builds Tables S11-S13 (viridian_*) and the data of Figs 3c, S5:
+    """Builds Tables S11-S13 (viridian_*) and the data of Figs 3c,d, S5:
     results -> their .md and .tsv."""
     s = read_json(results / "viridian" / "summary.json")
     # read as text: the record goes on unchanged as the figures' data

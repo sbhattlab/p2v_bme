@@ -171,8 +171,8 @@ Every table of the paper (`--tables`; default: all).
 | `fig2d_seqlen_effect`            | 2d: RF error on 1,000 and 10,000 sites                          | `scaling_methods.tsv`                       |
 | `fig3a_pandemic_time`            | 3a: time of VecME, MAPLE and CMAPLE, pandemic sets              | `maple.tsv`                                 |
 | `fig3b_pandemic_rf_error`        | 3b: RF error of the three programs by branch length, pandemic   | `maple.tsv`                                 |
-| `fig3d_sarscov2_variants`        | 3d: supports of the named SARS-CoV-2 variants                   | `viridian_variants.tsv`                     |
-| `fig3e_sarscov2_resolution`      | 3e: resolution of the SARS-CoV-2 tree by sampling month         | `viridian_resolution.tsv`                   |
+| `fig3c_sarscov2_variants`        | 3c: supports of the named SARS-CoV-2 variants                   | `viridian_variants.tsv`                     |
+| `fig3d_sarscov2_resolution`      | 3d: resolution of the SARS-CoV-2 tree by sampling month         | `viridian_resolution.tsv`                   |
 | `fig4a_silva_clades`             | 4a: the SILVA 144 tree reduced to major clades: support, depths | `silva_clades.tsv`, `silva_clade_paths.tsv` |
 | `fig4b_silva_support`            | 4b: SILVA 144 branches by support class and split size          | `silva_support.tsv`                         |
 | `fig4c_gtdb_recovery`            | 4c: mean F1 of the GTDB taxa by rank, four trees                | `silva_gtdb.tsv`                            |
