@@ -15,13 +15,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from plots._config import FIG3_AXES_Y, FIG3_HEIGHT, SPEC, STYLE
-from plots.utils import data_label, parser, read_tsv, save
+from plots.utils import data_label_above, parser, read_tsv, save
 
-FIGSIZE = (80 / 25.4, FIG3_HEIGHT)  # beside Fig. 3a in the 180 mm page
-LEFT, RIGHT = 0.17, 0.98
+FIGSIZE = (56 / 25.4, FIG3_HEIGHT)  # in the row of Figs 3a-c across the 180 mm page
+LEFT, RIGHT = 0.24, 0.98
 PROGRAMS = {"VecME": "P2V", "CMAPLE": "CMAPLE", "MAPLE": "MAPLE"}  # in order; -> key in SPEC
 MINUTE, HOUR, DAY = 60, 3600, 86400
-HEADROOM = 6  # the axis ends 6 times above the slowest run, room for its label
+HEADROOM = 4  # the axis ends 4 times above the slowest run, room for its label
+TIME_FONTSIZE = 7  # the times above the bars, smaller to fit over the narrow bars on one line
 BAR_WIDTH = 0.62
 LABEL_ROTATION = 45  # degrees
 
@@ -52,7 +53,7 @@ def main() -> None:
     order = list(PROGRAMS)
     rows.sort(key=lambda r: (order.index(r["program"]), float(r["time_s"])))
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    bottom, top = FIG3_AXES_Y["ab"]
+    bottom, top = FIG3_AXES_Y
     fig.subplots_adjust(left=LEFT, right=RIGHT, bottom=bottom, top=top)
     times = [float(r["time_s"]) for r in rows]
     base = 10 ** np.floor(np.log10(min(times)))  # bars start at the decade below the fastest run
@@ -70,7 +71,8 @@ def main() -> None:
             hatch="////" if reported else None,
             linewidth=1.0,
         )
-        ax.text(x, seconds * 1.25, ("~" if reported else "") + duration(seconds), ha="center")
+        label = ("~" if reported else "") + duration(seconds)
+        ax.text(x, seconds * 1.25, label, ha="center", fontsize=TIME_FONTSIZE)
     ax.set_yscale("log")
     ax.set_ylim(base, HEADROOM * max(times))
     ax.set_xticks(
@@ -83,9 +85,7 @@ def main() -> None:
     ax.tick_params(axis="x", length=0)
     ax.set_xlim(-0.55, len(rows) - 0.45)
     ax.set_ylabel("Time (s)")
-    ax.grid(axis="y", color="#E5E5E5", linewidth=0.5)
-    ax.set_axisbelow(True)
-    data_label(ax, "SARS-CoV-2")
+    data_label_above(ax, "Viridian")
     save(fig, args.img_dir, "fig3b_sarscov2_time", bbox_inches=None)
 
 

@@ -19,17 +19,20 @@ from plots.utils import (
     LABEL_GREY,
     OURS,
     PANDEMIC_BRANCH_LENGTHS,
-    data_label,
+    data_label_above,
     method_style,
     pandemic_rows,
     parser,
     save,
 )
 
-FIGSIZE = (96 / 25.4, FIG3_HEIGHT)  # beside Fig. 3b in the 180 mm page
-LEFT, RIGHT = 0.11, 0.85  # room on the right for the branch-length axis
+FIGSIZE = (58 / 25.4, FIG3_HEIGHT)  # in the row of Figs 3a-c across the 180 mm page
+LEFT, RIGHT = 0.20, 0.80  # room on the right for the branch-length axis
 SITES = 30000  # every pandemic alignment: mean branch length x SITES = substitutions per branch
-HEADROOM = 1.3  # y axis up to this multiple of the largest error, for the data label
+HEADROOM = (
+    1.5  # y axis up to this multiple of the largest error: room for the legend above the data
+)
+LEGEND_FONTSIZE = 7
 
 
 def main() -> None:
@@ -37,7 +40,7 @@ def main() -> None:
     plt.style.use(STYLE)
     rows = pandemic_rows(args.tables_dir)
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    bottom, top = FIG3_AXES_Y["ab"]
+    bottom, top = FIG3_AXES_Y
     fig.subplots_adjust(left=LEFT, right=RIGHT, bottom=bottom, top=top)
     bands = []  # (substitutions per branch, mean RF error of every run at that branch length)
     for length in PANDEMIC_BRANCH_LENGTHS:
@@ -58,21 +61,25 @@ def main() -> None:
     ax.set_ylim(0, HEADROOM * max(float(r["rf_pct"]) for r in rows))
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("RF error (%)")
-    ax.grid(color="#E5E5E5", linewidth=0.5)
-    ax.set_axisbelow(True)
-    data_label(ax, "simulated pandemic")
-    # the legend between the two upper bands, at the right
-    upper = sorted(rf for _, rf in bands)[-2:]
+    data_label_above(ax, "simulations")
+    # the legend boxed in the upper left corner, above the top band
     ax.legend(
-        loc="center right",
-        bbox_to_anchor=(1.0, np.mean(upper) / ax.get_ylim()[1]),
-        handlelength=1.8,
+        loc="upper left",
+        fontsize=LEGEND_FONTSIZE,
+        handlelength=1.3,
+        handletextpad=0.3,
+        borderaxespad=0.4,
+        borderpad=0.4,
+        frameon=True,
+        fancybox=False,
+        edgecolor="#BBBBBB",
+        framealpha=1.0,
     )
     # the bands' branch lengths, on a right-hand axis at each band's height
     right = ax.twinx()
     right.set_ylim(ax.get_ylim())
     right.set_yticks([rf for _, rf in bands], [f"{subs:g}" for subs, _ in bands])
-    right.set_ylabel("Substitutions per branch", color=LABEL_GREY)
+    right.set_ylabel("Substitutions per branch", color=LABEL_GREY, labelpad=2)
     right.tick_params(axis="y", length=0, colors=LABEL_GREY)
     right.spines[["top", "right"]].set_visible(False)
     save(fig, args.img_dir, "fig3a_pandemic_speed_accuracy", bbox_inches=None)
