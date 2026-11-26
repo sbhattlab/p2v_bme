@@ -53,6 +53,7 @@ SIZES_EXPANDED = (
     1_000_000  # from here on, the PASTA-tree datasets expand the 100,000-leaf alignment (backbone)
 )
 BACKBONE_SIZE = 100_000
+FASTME_RAND_MAX_N = 5_000  # run_fastme.py runs the random-start arm only up to this size
 DATASETS = {"rnasim": "RNASim", "jc10k": "JC"}
 # The runs each simulated set must have: its sizes; at each, REPLICATES runs of every method,
 # except DIPPER (once from DIPPER_ONCE_FROM on) and the CPU programs (not run above CPU_LARGEST)
@@ -1103,17 +1104,23 @@ def table_fastme(results: Path) -> Outputs:
     ppm = 1e6
 
     arms = (("sample", "own"), ("rand", "same random"))
+
+    def expected(arm: str, n: int) -> bool:
+        return arm != "rand" or n <= FASTME_RAND_MAX_N
+
     missing = [
         f"{r['tag']} {r['n']:,} rep {r['rep']} ({arm})"
         for r in rows
         for arm, _ in arms
-        if not isinstance(r[arm], dict)
+        if expected(arm, r["n"]) and not isinstance(r[arm], dict)
     ]
     if missing:
         raise MissingResults(f"fastme/cases.jsonl: no FastME comparison for {'; '.join(missing)}")
     cases = []
     for rank, (arm, start) in enumerate(arms):
         for r in rows:
+            if not expected(arm, r["n"]):
+                continue
             x = r[arm]
             cases.append(
                 {
