@@ -1,5 +1,5 @@
 """Every table of the paper and the data behind its figures,
-from the raw results (Tables S1-S15; Figs 2-4, S1-S5).
+from the raw results (Tables S1-S15; Figs 2-4, S1-S6).
 
 Inputs:  data/results/                                    (the run_*.py scripts)
            scaling/, random_start/, seqlen/,              our runs:
@@ -28,7 +28,7 @@ Outputs: data/tables/tableS<N>_<name>.md, numbered as in the supplement:
          S12 viridian_variants, S13 viridian_thresholds, S14 silva_support, S15 silva_gtdb;
          data/tables/<data>.tsv, the figures' data: scaling, maple, calibration,
          silva_support, silva_gtdb, scaling_methods, fastme_cases, silva_clades, silva_clade_paths,
-         viridian_variants, viridian_substitutions, viridian_resolution, viridian_time
+         viridian_variants, viridian_substitutions, viridian_resolution, viridian_time, pandemic_branches
 
     pixi run -e paper python -m paper.make_tables
     pixi run -e paper python -m paper.make_tables --tables scaling maple --overwrite
@@ -101,6 +101,14 @@ CMAPLE_VIRIDIAN = "viridian/cmaple_1.1.0/all/run.json"
 B200_VIRIDIAN = "viridian/b200/real_trees.jsonl"
 MAPLE_VIRIDIAN_REPORTED = {"days": 10, "cores": 14, "cpu": "Intel Xeon Gold 6252"}
 SECONDS_PER_DAY = 86_400
+# Fig. S6: the branches of our tree of the bootstrapped pandemic simulation (100,000 sequences, 3 substitutions
+# per branch; run_calibration.py), as its per-branch tables of the bootstrap and the repeat searches give them
+PANDEMIC_BRANCHES = (
+    "calibration/cmaple_0.0001/100000/maple_00001_100000_{}_branches.tsv"  # boot, seed
+)
+PANDEMIC_SITES = 30_000  # branch length x sites = substitutions on the branch
+# substitutions on the branch, [from, to): Fig. S5's bins, with the branches under half a substitution first
+PANDEMIC_BINS = ((0.0, 0.5), (0.5, 1.5), (1.5, 2.5), (2.5, 3.5), (3.5, 5.5), (5.5, None))
 # RNASim calibration: bootstrap replicates and repeat searches per reference tree
 # (run_calibration.py)
 CALIBRATION_BOOTSTRAPS = 64
@@ -1385,6 +1393,43 @@ def table_viridian_time(results: Path) -> Outputs:
     return {"viridian_time.tsv": pd.DataFrame([r | {"genomes": VIRIDIAN_GENOMES} for r in rows])}
 
 
+def table_pandemic_branches(results: Path) -> Outputs:
+    """Collects Fig. S6's data: the branches of our tree of the bootstrapped pandemic simulation by the
+    substitutions on them, with the share also in the true tree, in CMAPLE's tree and, on average, in a
+    repeat search: results -> {pandemic_branches.tsv}."""
+    paths = {kind: results / PANDEMIC_BRANCHES.format(kind) for kind in ("boot", "seed")}
+    if missing := [str(path) for path in paths.values() if not path.exists()]:
+        raise MissingResults(f"pandemic_branches: no {', '.join(missing)}")
+    boot, seed = (pd.read_csv(paths[kind], sep="\t") for kind in ("boot", "seed"))
+    if not (
+        boot["node"].equals(seed["node"]) and boot["branch_length"].equals(seed["branch_length"])
+    ):
+        raise MissingResults("pandemic_branches: the boot and seed tables are not of the same tree")
+    if not (
+        boot[["correct", "cmaple_correct"]].isin([0, 1]).all().all()
+        and seed["exact"].between(0, 1).all()
+    ):
+        raise MissingResults("pandemic_branches: values outside 0-1 in the per-branch tables")
+    substitutions = boot["branch_length"] * PANDEMIC_SITES
+    rows, covered = [], 0
+    for low, high in PANDEMIC_BINS:
+        inside = (substitutions >= low) & ((substitutions < high) if high is not None else True)
+        covered += int(inside.sum())
+        rows.append(
+            {
+                "substitutions_from": low,
+                "substitutions_to": "" if high is None else high,
+                "branches": int(inside.sum()),
+                "in_true_pct": 100 * boot["correct"][inside].mean(),
+                "in_cmaple_pct": 100 * boot["cmaple_correct"][inside].mean(),
+                "in_repeat_pct": 100 * seed["exact"][inside].mean(),
+            }
+        )
+    if covered != len(boot):
+        raise MissingResults("pandemic_branches: the bins do not cover every branch")
+    return {"pandemic_branches.tsv": pd.DataFrame(rows)}
+
+
 TABLES = {
     "scaling": table_scaling,
     "random_tree": table_random_tree,
@@ -1404,6 +1449,7 @@ TABLES = {
     "gtr_fit": table_gtr_fit,
     "viridian": table_viridian,
     "viridian_time": table_viridian_time,
+    "pandemic_branches": table_pandemic_branches,
 }
 
 
