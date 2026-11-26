@@ -41,11 +41,11 @@ def main() -> None:
     if keys != list(BINS):
         raise SystemExit("the substitution bins of the data are not the ones this figure labels")
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    fig.subplots_adjust(left=0.2, right=0.97, top=0.84, bottom=0.17)
+    fig.subplots_adjust(left=0.2, right=0.97, top=0.78, bottom=0.17)
     x = range(len(BINS))
     for field, label, key in (
-        ("ours_in_maple_pct", "VecME's, in MAPLE's", "P2V"),
-        ("maple_in_ours_pct", "MAPLE's, in VecME's", "MAPLE"),
+        ("ours_in_maple_pct", "VecME branches in the MAPLE tree", "P2V"),
+        ("maple_in_ours_pct", "MAPLE branches in the VecME tree", "MAPLE"),
     ):
         ax.plot(
             x,
@@ -60,7 +60,8 @@ def main() -> None:
     ax.set_ylabel("Branches in the other tree (%)")
     ax.set_ylim(75, 100)
     ax.grid(axis="y", color="#E5E5E5", linewidth=0.5)
-    ax.legend(loc="lower right", handlelength=1.6, handletextpad=0.4, borderaxespad=0.2)
+    # above the axes: the labels are wider than the panel's data area
+    fig.legend(loc="upper center", bbox_to_anchor=(0.5, 1.0), handlelength=1.6, handletextpad=0.4)
     save(fig, args.img_dir, "figS5_sarscov2_shared_branches", bbox_inches=None)
 
 
