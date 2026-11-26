@@ -6,8 +6,8 @@ Options: --tables-dir, --img-dir
 Flow:    the random-tree rows (yule10k) of every method
            |
            v
-         one line per method over the sizes (log-log axes): the mean at each size; the whisker spans
-         the replicates (as Fig. S3b)
+         one line per method over the sizes (log x, linear y): the mean at each size; the whisker
+         spans the replicates (as Fig. S3b); no legend: colours and symbols as in Fig. 2a, above it
 Outputs: img/fig2/fig2c_random_trees.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig2c_random_trees
@@ -19,13 +19,22 @@ from plots._config import STYLE
 from plots.utils import method_panel, parser
 
 DATASET = "yule10k"
+Y_AXIS = (8, 2)  # RF error (%): top and tick step of a linear axis, the errors being about 1-7 %
 
 
 def main() -> None:
     args = parser(__doc__).parse_args()
     plt.style.use(STYLE)
-    # top as Fig. 2d's, whose legend sits above its axes
-    method_panel(args, DATASET, "rf", "random trees (JC69)", "fig2c_random_trees", top=0.88)
+    method_panel(
+        args,
+        DATASET,
+        "rf",
+        "random trees (JC69)",
+        "fig2c_random_trees",
+        top=0.88,  # as Fig. 2d's, whose legend sits above its axes
+        legend=False,  # Fig. 2a's, above in the same column
+        linear_y=Y_AXIS,
+    )
 
 
 if __name__ == "__main__":
