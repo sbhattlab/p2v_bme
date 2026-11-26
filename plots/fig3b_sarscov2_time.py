@@ -3,8 +3,8 @@ CMAPLE and MAPLE.
 
 Inputs:  data/tables/viridian_time.tsv                                  (make_tables.py)
 Options: --tables-dir, --img-dir
-Flow:    one bar per run, grouped by program (VecME fastest first), on a log time axis with the time
-         written above; the hardware under each bar and the program under its group;
+Flow:    one bar per run, by program (VecME fastest first), on a log time axis with the time
+         written above; the program and its hardware under each bar, at 45 degrees;
          a reported time (MAPLE's, from its authors) as an open, hatched bar
 Outputs: img/fig3/fig3b_sarscov2_time.{pdf,svg,png}
 
@@ -23,7 +23,7 @@ PROGRAMS = {"VecME": "P2V", "CMAPLE": "CMAPLE", "MAPLE": "MAPLE"}  # in order; -
 MINUTE, HOUR, DAY = 60, 3600, 86400
 HEADROOM = 6  # the axis ends 6 times above the slowest run, room for its label
 BAR_WIDTH = 0.62
-GROUP_Y = -0.12  # the program names under the hardware, in axes heights
+LABEL_ROTATION = 45  # degrees
 
 
 def duration(seconds: float) -> str:
@@ -35,13 +35,12 @@ def duration(seconds: float) -> str:
     return f"{seconds / DAY:.0f} days"
 
 
-def hardware(row: dict[str, str]) -> str:
-    """Names a run's hardware under its bar: row -> '8× B200', 'A6000', '1 core' or '14 cores'."""
+def run_label(row: dict[str, str]) -> str:
+    """Names a run under its bar: row -> 'VecME, 8× B200', 'VecME, 1× A6000' or 'MAPLE, 14 cores'."""
     units = int(row["units"])
     if row["unit"] == "GPU":
-        model = row["model"].removeprefix("RTX ")
-        return f"{units}× {model}" if units > 1 else model
-    return f"{units} core" + ("s" if units > 1 else "")
+        return f"{row['program']}, {units}× {row['model'].removeprefix('RTX ')}"
+    return f"{row['program']}, {units} core" + ("s" if units > 1 else "")
 
 
 def main() -> None:
@@ -72,23 +71,15 @@ def main() -> None:
             linewidth=1.0,
         )
         ax.text(x, seconds * 1.25, ("~" if reported else "") + duration(seconds), ha="center")
-    # the program under its group of bars, with a line under the hardware when the group has several
-    below = ax.get_xaxis_transform()  # x in bars, y in axes heights
-    for program in PROGRAMS:
-        xs = [x for x, r in enumerate(rows) if r["program"] == program]
-        ax.text(np.mean(xs), GROUP_Y, program, transform=below, ha="center", va="top")
-        if len(xs) > 1:
-            ax.plot(
-                [xs[0] - 0.35, xs[-1] + 0.35],
-                [GROUP_Y + 0.01] * 2,
-                transform=below,
-                color="#333333",
-                linewidth=0.6,
-                clip_on=False,
-            )
     ax.set_yscale("log")
     ax.set_ylim(base, HEADROOM * max(times))
-    ax.set_xticks(range(len(rows)), [hardware(r) for r in rows])
+    ax.set_xticks(
+        range(len(rows)),
+        [run_label(r) for r in rows],
+        rotation=LABEL_ROTATION,
+        ha="right",
+        rotation_mode="anchor",
+    )
     ax.tick_params(axis="x", length=0)
     ax.set_xlim(-0.55, len(rows) - 0.45)
     ax.set_ylabel("Time (s)")
