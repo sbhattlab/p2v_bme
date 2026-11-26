@@ -27,8 +27,8 @@ Outputs: data/tables/tableS<N>_<name>.md, numbered as in the supplement:
          S7 comparators, S8 baseline_10k, S9 seqlen, S10 random_tree, S11 viridian_support,
          S12 viridian_variants, S13 viridian_thresholds, S14 silva_support, S15 silva_gtdb;
          data/tables/<data>.tsv, the figures' data: scaling, random_tree, maple, calibration,
-         silva_support, silva_gtdb, scaling_methods, silva_clades, silva_clade_paths, viridian_variants,
-         viridian_substitutions, viridian_resolution
+         silva_support, silva_gtdb, scaling_methods, fastme_cases, silva_clades, silva_clade_paths,
+         viridian_variants, viridian_substitutions, viridian_resolution
 
     pixi run -e paper python -m paper.make_tables
     pixi run -e paper python -m paper.make_tables --tables scaling maple --overwrite
@@ -54,6 +54,8 @@ SIZES_EXPANDED = (
 )
 BACKBONE_SIZE = 100_000
 FASTME_RAND_MAX_N = 5_000  # run_fastme.py runs the random-start arm only up to this size
+# The FastME comparison's sets, by their names in Table S3
+FASTME_SETS = {"jc10k": "JC", "jc1m": "JC subsets", "rnasim": "RNASim", "rna1m": "RNASim subsets"}
 DATASETS = {"rnasim": "RNASim", "jc10k": "JC"}
 # The runs each simulated set must have: its sizes; at each, REPLICATES runs of every method,
 # except DIPPER (once from DIPPER_ONCE_FROM on) and the CPU programs (not run above CPU_LARGEST)
@@ -1094,13 +1096,7 @@ def table_fastme(results: Path) -> Outputs:
     rows = pd.read_json(results / "fastme" / "cases.jsonl", lines=True, precise_float=True).to_dict(
         "records"
     )
-    names = {
-        "jc10k": "JC",
-        "jc1m": "JC subsets",
-        "rnasim": "RNASim",
-        "rna1m": "RNASim subsets",
-    }
-    order = list(names)
+    order = list(FASTME_SETS)
     ppm = 1e6
 
     arms = (("sample", "own"), ("rand", "same random"))
@@ -1125,7 +1121,7 @@ def table_fastme(results: Path) -> Outputs:
             cases.append(
                 {
                     "Start tree": start,
-                    "Dataset": names[r["tag"]],
+                    "Dataset": FASTME_SETS[r["tag"]],
                     "N": r["n"],
                     "rank": (rank, order.index(r["tag"]), r["n"]),
                     "length": ppm * x["rel_diff"],
@@ -1160,6 +1156,35 @@ def table_fastme(results: Path) -> Outputs:
     decimals |= dict.fromkeys(table.columns[7:13], 2)
     decimals |= {"Time FastME (s)": 0, "Time FastME SD": 0, "Time ours (s)": 2, "Time ours SD": 2}
     return {"tableS3_fastme.md": rounded(table, decimals)}
+
+
+def table_fastme_cases(results: Path) -> Outputs:
+    """Builds Fig. 2b's data, one row per alignment of the FastME comparison,
+    each program from its own start tree: results -> {fastme_cases.tsv}."""
+    rows = pd.read_json(results / "fastme" / "cases.jsonl", lines=True, precise_float=True).to_dict(
+        "records"
+    )
+    missing = [
+        f"{r['tag']} {r['n']:,} rep {r['rep']}" for r in rows if not isinstance(r["sample"], dict)
+    ]
+    if missing:
+        raise MissingResults(
+            f"fastme/cases.jsonl: no own-start comparison for {'; '.join(missing)}"
+        )
+    cases = pd.DataFrame(
+        {
+            "dataset": [FASTME_SETS[r["tag"]] for r in rows],
+            "n": [r["n"] for r in rows],
+            "rep": [r["rep"] for r in rows],
+            "rf_vecme_pct": [r["sample"]["rf_truth"] for r in rows],
+            "rf_fastme_pct": [r["sample"]["rf_truth_fastme"] for r in rows],
+        }
+    )
+    if blank := [
+        f"{c.dataset} {c.n:,} rep {c.rep}" for c in cases[cases.isna().any(axis=1)].itertuples()
+    ]:
+        raise MissingResults(f"fastme/cases.jsonl: no RF error for {'; '.join(blank)}")
+    return {"fastme_cases.tsv": cases}
 
 
 def table_gtr_fit(results: Path) -> Outputs:
@@ -1302,6 +1327,7 @@ TABLES = {
     "seqlen": table_seqlen,
     "representative_sensitivity": table_representatives,
     "fastme": table_fastme,
+    "fastme_cases": table_fastme_cases,
     "gtr_fit": table_gtr_fit,
     "viridian": table_viridian,
 }
