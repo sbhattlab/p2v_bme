@@ -164,7 +164,7 @@ def method_stats(rows: list[dict[str, str]], dataset: str, field: str, scale: fl
 
 
 def method_style(key: str) -> dict:
-    """Gives a method's line in the line plots (Figs 2a, 2c, S1-S4):
+    """Gives a method's line in the line plots (Figs 2a, 2c, S1-S3, S5):
     key -> line keywords, VecME's stronger."""
     ours = key == OURS
     return {

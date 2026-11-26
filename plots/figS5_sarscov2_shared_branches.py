@@ -1,13 +1,13 @@
-"""Fig. S4: share of the branches of our SARS-CoV-2 tree that are in MAPLE's,
+"""Fig. S5: share of the branches of our SARS-CoV-2 tree that are in MAPLE's,
 and of MAPLE's in ours.
 
 Inputs:  data/tables/viridian_substitutions.tsv                         (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    per bin of substitutions on the branch:
          the share of branches also in the other tree, for each tree
-Outputs: img/fig3/figS4_sarscov2_shared_branches.{pdf,svg,png}
+Outputs: img/fig3/figS5_sarscov2_shared_branches.{pdf,svg,png}
 
-    pixi run -e paper python -m plots.figS4_sarscov2_shared_branches
+    pixi run -e paper python -m plots.figS5_sarscov2_shared_branches
 """
 
 # pylint: disable=invalid-name  # figS<N>: the paper's numbering of its supplementary figures
@@ -61,7 +61,7 @@ def main() -> None:
     ax.set_ylim(75, 100)
     ax.grid(axis="y", color="#E5E5E5", linewidth=0.5)
     ax.legend(loc="lower right", handlelength=1.6, handletextpad=0.4, borderaxespad=0.2)
-    save(fig, args.img_dir, "figS4_sarscov2_shared_branches", bbox_inches=None)
+    save(fig, args.img_dir, "figS5_sarscov2_shared_branches", bbox_inches=None)
 
 
 if __name__ == "__main__":

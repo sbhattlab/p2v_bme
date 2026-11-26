@@ -1,5 +1,5 @@
 """Every table of the paper and the data behind its figures,
-from the raw results (Tables S1-S15; Figs 2-4, S1-S4).
+from the raw results (Tables S1-S15; Figs 2-4, S1-S5).
 
 Inputs:  data/results/                                    (the run_*.py scripts)
            scaling/, random_start/, seqlen/,              our runs:
@@ -84,7 +84,7 @@ ALIAS = {
     "FastTree-ME": "FastTree-ME",
 }
 
-# Fig. 3c: the calibration sets drawn (name, sequences, summary in calibration/, keys to the entry);
+# Fig. S4: the calibration sets drawn (name, sequences, summary in calibration/, keys to the entry);
 # the summaries' reliability bins come from run_calibration.py
 CALIBRATION_SETS = (
     ("RNASim", 1_000_000, "rnasim_bootstrap_calibration_summary.json", ("N1M_boot",)),
@@ -705,7 +705,7 @@ def table_bootstrap(results: Path) -> Outputs:
 
 
 def table_calibration(results: Path) -> Outputs:
-    """Collects Fig. 3c's data: the share of branches in the true tree by exact bootstrap support, for each set
+    """Collects Fig. S4's data: the share of branches in the true tree by exact bootstrap support, for each set
     of CALIBRATION_SETS; every set must be there: results -> {calibration.tsv}."""
     folder = results / "calibration"
     rows, missing = [], []
