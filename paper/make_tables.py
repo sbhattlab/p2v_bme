@@ -91,12 +91,14 @@ CALIBRATION_SETS = (
     ("SARS-CoV-2-like simulation", 100_000, "maple_bootstrap_calibration_summary.json", ()),
     ("Random tree", 1_000_000, "calibration_1000000.json", ()),
 )
-# Fig. 3b: the time to a tree of the Viridian genomes. Ours: the tree step of run_viridian.py;
+# Fig. 3b: the time to a tree of the Viridian genomes. Ours: the tree step of run_viridian.py, and
+# runs on one and eight B200 GPUs recorded in B200_VIRIDIAN (the benchmark harness before vecme 0.1.0);
 # CMAPLE: one serial run on the same alignment, recorded in CMAPLE_VIRIDIAN; MAPLE: as reported,
 # "around 10 days" on 14 cores of an Intel Xeon Gold 6252 (De Maio et al. 2025, Nature,
 # doi:10.1038/s41586-025-09567-x)
 VIRIDIAN_GENOMES = 2_072_111
 CMAPLE_VIRIDIAN = "viridian/cmaple_1.1.0/all/run.json"
+B200_VIRIDIAN = "viridian/b200/real_trees.jsonl"
 MAPLE_VIRIDIAN_REPORTED = {"days": 10, "cores": 14, "cpu": "Intel Xeon Gold 6252"}
 SECONDS_PER_DAY = 86_400
 # RNASim calibration: bootstrap replicates and repeat searches per reference tree
@@ -1312,34 +1314,55 @@ def table_viridian(results: Path) -> Outputs:
 
 
 def table_viridian_time(results: Path) -> Outputs:
-    """Collects Fig. 3b's data: the time to a tree of the Viridian genomes, ours and CMAPLE's
-    measured (each run's whole wall time, reading included) and MAPLE's as reported:
+    """Collects Fig. 3b's data: the time to a tree of the Viridian genomes. Our runs: the tree step
+    on one GPU and the recorded runs on one and eight B200 GPUs, timed as the paper times its runs
+    (start tree, search, branch lengths); CMAPLE's wall time; MAPLE's as reported:
     results -> {viridian_time.tsv}."""
-    paths = {"VecME": results / "viridian" / "tree.json", "CMAPLE": results / CMAPLE_VIRIDIAN}
+    paths = {
+        "our tree": results / "viridian" / "tree.json",
+        "B200 runs": results / B200_VIRIDIAN,
+        "CMAPLE": results / CMAPLE_VIRIDIAN,
+    }
     if missing := [f"{name} ({path})" for name, path in paths.items() if not path.exists()]:
-        raise MissingResults(f"viridian_time: no run of {', '.join(missing)}")
-    ours, cmaple = read_json(paths["VecME"]), read_json(paths["CMAPLE"])
+        raise MissingResults(f"viridian_time: no {', '.join(missing)}")
+    ours, cmaple = read_json(paths["our tree"]), read_json(paths["CMAPLE"])
+    b200 = [json.loads(line)["record"] for line in paths["B200 runs"].read_text().splitlines()]
     details = ours["details"]
-    genomes = {"VecME": details["input"]["sequences"], "CMAPLE": cmaple["genomes"]}
-    if set(genomes.values()) != {VIRIDIAN_GENOMES}:
+    genomes = [details["input"]["sequences"], cmaple["genomes"], *(r["N"] for r in b200)]
+    if not b200 or set(genomes) != {VIRIDIAN_GENOMES}:
         raise MissingResults(
-            f"viridian_time: runs not on all {VIRIDIAN_GENOMES:,} genomes: {genomes}"
+            f"viridian_time: runs not all on {VIRIDIAN_GENOMES:,} genomes: {genomes}"
         )
     gpus = {short_gpu(d.split(": ", 1)[1]) for d in details["devices"] if d.startswith("GPU ")}
     if details["settings"]["accelerator"] != "gpu" or len(gpus) != 1:
         raise MissingResults(
             f"viridian_time: our run is not on one GPU model: {details['devices']}"
         )
+    stages = details["time"]
     rows = [
         {
             "program": "VecME",
             "units": len(details["devices"]),
             "unit": "GPU",
             "model": gpus.pop(),
-            "cpu_threads": threads_of(paths["VecME"], details),
-            "time_s": ours["time"],
+            "cpu_threads": threads_of(paths["our tree"], details),
+            "time_s": stages["start_tree"] + stages["search"] + stages["branch_lengths"],
             "source": "measured",
-        },
+        }
+    ]
+    rows += [
+        {
+            "program": "VecME",
+            "units": r["n_gpus"],
+            "unit": "GPU",
+            "model": short_gpu(r["gpu_name"]),
+            "cpu_threads": r["cpu_threads"],
+            "time_s": r["dt_mb_gpu"] + r["dt_bl_gpu"],  # start tree and search, branch lengths
+            "source": "measured",
+        }
+        for r in sorted(b200, key=lambda r: r["n_gpus"])
+    ]
+    rows += [
         {
             "program": "CMAPLE",
             "units": cmaple["threads"],
