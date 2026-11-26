@@ -28,7 +28,8 @@ from matplotlib.patches import Polygon
 from plots._config import STYLE
 from plots.utils import parser, read_tsv, save
 
-COLOURS = {"Archaea": "#6a4c93", "Eukaryota": "#c85a32", "Bacteria": "#1f6f8b"}
+# Eukaryota in seaborn's dark red: apart from VecME's vermilion in Fig. 4c, also when colour-blind
+COLOURS = {"Archaea": "#6a4c93", "Eukaryota": "#8c0800", "Bacteria": "#1f6f8b"}
 # 112 mm wide: with Fig. 4b (64 mm) and a 4 mm gap, the 180 mm page
 FIGSIZE = (112 / 25.4, 117 / 25.4)
 BRANCH, TEXT = "#4a5568", "#1a202c"

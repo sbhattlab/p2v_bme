@@ -26,7 +26,7 @@ GROUPS = {
     "archaea": "Archaea",
 }
 ORGANELLES = ("mitochondria", "chloroplasts")
-EUKARYOTA, OTHER = "#c85a32", "#BBBBBB"  # Eukaryota's colour in Fig. 4a; the other groups
+EUKARYOTA, OTHER = "#8c0800", "#BBBBBB"  # Eukaryota's colour in Fig. 4a; the other groups
 NOTE, NOTE_SIZE = "#4a5568", 7  # the grey of Fig. 4a's branches; points, as Fig. 4a's supports
 COUNT_GAP = 1.5  # percentage points between a bar and its counts
 
