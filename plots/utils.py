@@ -1,5 +1,5 @@
 """Helpers several plot scripts share:
-reading figure data, saving figures, the panels of Figs 2a,b and S1-S3."""
+reading figure data, saving figures, the line plots of Figs 2a, 2c and S1-S3."""
 
 import re
 import statistics
@@ -31,7 +31,6 @@ from plots._config import (  # pylint: disable=wrong-import-position
     PANDEMIC,
     SAVE_METADATA,
     SCALING_FIGURES,
-    SCALING_SERIES,
     SPEC,
 )
 
@@ -96,63 +95,6 @@ def pandemic_rows(tables_dir: Path) -> list[dict[str, str]]:
         missing = sorted(set(expected) - set(cells))
         extra = sorted(c for c in set(cells) if cells.count(c) > 1 or c not in expected)
         raise SystemExit(f"maple.tsv: missing {missing}; duplicated or unexpected {extra}")
-    return rows
-
-
-# ---- Fig. 2b: one series per dataset over the number of sequences ----
-
-
-def scaling_series(ax: plt.Axes, rows: list[dict[str, str]], field: str) -> None:
-    """Draws a field's mean and SD per size for every dataset of SCALING_SERIES:
-    (axes, rows, field) -> None."""
-    for dataset, label, colour, marker, linestyle, filled, alpha in SCALING_SERIES:
-        group = sorted((r for r in rows if r["dataset"] == dataset), key=lambda r: int(r["n"]))
-        if not group:
-            raise SystemExit(f"no {field} data for {dataset}")
-        if blank := [r["n"] for r in group if r[f"{field}_sd"] == ""]:
-            raise SystemExit(f"{dataset}: no {field} SD at {', '.join(blank)} (one run only?)")
-        n = [int(r["n"]) for r in group]
-        mu = [float(r[f"{field}_mean"]) for r in group]
-        sd = [float(r[f"{field}_sd"]) for r in group]
-        ax.errorbar(
-            n,
-            mu,
-            yerr=sd,
-            color=colour,
-            marker=marker,
-            markersize=3.4,
-            linestyle=linestyle,
-            markerfacecolor=colour if filled else "white",
-            markeredgewidth=0.9,
-            linewidth=1.1,
-            elinewidth=0.75,
-            capsize=2,
-            capthick=0.7,
-            alpha=alpha,
-            label=label,
-        )
-
-
-def scaling_axes(ax: plt.Axes) -> None:
-    """Sets the log-log axes of Fig. 2b: axes -> None."""
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    ax.set_xticks([1e3, 1e5, 1e7])
-    ax.xaxis.set_major_formatter(LogFormatterMathtext())
-    ax.set_xlabel("Number of sequences")
-    ax.grid(axis="y", which="major", color="#E5E5E5", linewidth=0.5)
-    ax.set_axisbelow(True)
-    ax.tick_params(which="minor", length=2)
-    ax.set_xlim(650, 1.5e7)
-
-
-def scaling_data(tables_dir: Path) -> list[dict[str, str]]:
-    """Reads the data of Fig. 2b:
-    folder -> sample-and-place rows of scaling.tsv and random_tree.tsv."""
-    rows = read_tsv(tables_dir, "scaling") + read_tsv(tables_dir, "random_tree")
-    rows = [r for r in rows if r["initialisation"] == "sample"]
-    if len({(r["gpu_model"], r["gpu_count"]) for r in rows}) != 1:
-        raise SystemExit("mixed hardware in the scaling data: update the caption")
     return rows
 
 

@@ -65,7 +65,7 @@ make_tables = "python -m paper.make_tables"
 # The plots (plots/), from make_tables' figure data: one task per script, e.g. pixi run -e paper fig2a_scaling_time,
 # and one per figure with its supplementary figures, e.g. pixi run -e paper fig2
 fig2a_scaling_time = "python -m plots.fig2a_scaling_time"
-fig2b_scaling_rf_error = "python -m plots.fig2b_scaling_rf_error"
+fig2b_fastme = "python -m plots.fig2b_fastme"
 fig2c_random_trees = "python -m plots.fig2c_random_trees"
 fig2d_seqlen_effect = "python -m plots.fig2d_seqlen_effect"
 fig3a_pandemic_time = "python -m plots.fig3a_pandemic_time"
@@ -81,7 +81,7 @@ figS4_sarscov2_shared_branches = "python -m plots.figS4_sarscov2_shared_branches
 # Fig. 2 with Figs S1-S3 (every method by size)
 fig2 = { cmd = "echo 'All fig2 plots done.'", depends-on = [
   "fig2a_scaling_time",
-  "fig2b_scaling_rf_error",
+  "fig2b_fastme",
   "fig2c_random_trees",
   "fig2d_seqlen_effect",
   "figS1_3_scaling",

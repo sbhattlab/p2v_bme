@@ -166,7 +166,7 @@ Every table of the paper (`--tables`; default: all).
 | Script                           | Figure                                                          | Reads                                       |
 | -------------------------------- | --------------------------------------------------------------- | ------------------------------------------- |
 | `fig2a_scaling_time`             | 2a: time of every method on the RNASim alignments               | `scaling_methods.tsv`                       |
-| `fig2b_scaling_rf_error`         | 2b: RF error against the number of sequences                    | `scaling.tsv`, `random_tree.tsv`            |
+| `fig2b_fastme`                   | 2b: RF error of VecME against FastME, per alignment             | `fastme_cases.tsv`                          |
 | `fig2c_random_trees`             | 2c: RF error of every method on the random-tree JC alignments   | `scaling_methods.tsv`                       |
 | `fig2d_seqlen_effect`            | 2d: RF error on 1,000 and 10,000 sites                          | `scaling_methods.tsv`                       |
 | `fig3a_pandemic_time`            | 3a: time of VecME, MAPLE and CMAPLE, pandemic sets              | `maple.tsv`                                 |
