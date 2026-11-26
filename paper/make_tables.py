@@ -26,7 +26,7 @@ Outputs: data/tables/tableS<N>_<name>.md, numbered as in the supplement:
          S1 representative_sensitivity, S2 gtr_fit, S3 fastme, S4 scaling, S5 maple, S6 bootstrap,
          S7 comparators, S8 baseline_10k, S9 seqlen, S10 random_tree, S11 viridian_support,
          S12 viridian_variants, S13 viridian_thresholds, S14 silva_support, S15 silva_gtdb;
-         data/tables/<data>.tsv, the figures' data: scaling, random_tree, maple, calibration,
+         data/tables/<data>.tsv, the figures' data: scaling, maple, calibration,
          silva_support, silva_gtdb, scaling_methods, fastme_cases, silva_clades, silva_clade_paths,
          viridian_variants, viridian_substitutions, viridian_resolution
 
@@ -485,23 +485,14 @@ def yule_runs(results: Path) -> pd.DataFrame:
 
 
 def table_random_tree(results: Path) -> Outputs:
-    """Builds Table S10 (random_tree) and Fig. 2's third series:
-    results -> {tableS10_random_tree.md, random_tree.tsv}."""
+    """Builds Table S10 (random_tree): results -> {tableS10_random_tree.md}."""
     ours = yule_runs(results)
-    rows = ours.groupby("n", as_index=False).agg(
-        n_replicates=("rep", "size"),
-        time_s_mean=("time_s", every("mean")),
-        time_s_sd=("time_s", every("std")),
-        rf_pct_mean=("rf_pct", every("mean")),
-        rf_pct_sd=("rf_pct", every("std")),
-        gpu_count=("gpu_count", one_of("GPU counts")),
-        gpu_model=("gpu_model", one_of("GPU models")),
-        cpu_threads=("cpu_threads", one_of("CPU thread counts")),
-        source_paths=("source_path", "|".join),
-    )
-    rows.insert(0, "dataset", "JC random tree")
-    rows.insert(2, "initialisation", "sample")
-    rows = rows.assign(source_key="vecme report", timing_scope=TIMING, sd_definition=SD)
+    for column, what in (
+        ("gpu_count", "GPU counts"),
+        ("gpu_model", "GPU models"),
+        ("cpu_threads", "CPU thread counts"),
+    ):
+        one_of(what)(ours[column])  # one setting at every size, as the table's caption gives
 
     head = [
         "VecME",
@@ -523,7 +514,7 @@ def table_random_tree(results: Path) -> Outputs:
     check_runs(runs.assign(set="yule10k"), ["yule10k"], COMPARED, max(SIZES))
     means = runs.groupby(["method", "n"]).agg(every("mean"))
     table = method_grid(means, COMPARED, head, sorted(set(ours["n"])))
-    return {"tableS10_random_tree.md": table, "random_tree.tsv": rows}
+    return {"tableS10_random_tree.md": table}
 
 
 def table_maple(results: Path) -> Outputs:
