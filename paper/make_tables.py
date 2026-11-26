@@ -28,7 +28,7 @@ Outputs: data/tables/tableS<N>_<name>.md, numbered as in the supplement:
          S12 viridian_variants, S13 viridian_thresholds, S14 silva_support, S15 silva_gtdb;
          data/tables/<data>.tsv, the figures' data: scaling, maple, calibration,
          silva_support, silva_gtdb, scaling_methods, fastme_cases, silva_clades, silva_clade_paths,
-         viridian_variants, viridian_substitutions, viridian_resolution
+         viridian_variants, viridian_substitutions, viridian_resolution, viridian_time
 
     pixi run -e paper python -m paper.make_tables
     pixi run -e paper python -m paper.make_tables --tables scaling maple --overwrite
@@ -91,6 +91,14 @@ CALIBRATION_SETS = (
     ("SARS-CoV-2-like simulation", 100_000, "maple_bootstrap_calibration_summary.json", ()),
     ("Random tree", 1_000_000, "calibration_1000000.json", ()),
 )
+# Fig. 3b: the time to a tree of the Viridian genomes. Ours: the tree step of run_viridian.py;
+# CMAPLE: one serial run on the same alignment, recorded in CMAPLE_VIRIDIAN; MAPLE: as reported,
+# "around 10 days" on 14 cores of an Intel Xeon Gold 6252 (De Maio et al. 2025, Nature,
+# doi:10.1038/s41586-025-09567-x)
+VIRIDIAN_GENOMES = 2_072_111
+CMAPLE_VIRIDIAN = "viridian/cmaple_1.1.0/all/run.json"
+MAPLE_VIRIDIAN_REPORTED = {"days": 10, "cores": 14, "cpu": "Intel Xeon Gold 6252"}
+SECONDS_PER_DAY = 86_400
 # RNASim calibration: bootstrap replicates and repeat searches per reference tree
 # (run_calibration.py)
 CALIBRATION_BOOTSTRAPS = 64
@@ -1303,6 +1311,57 @@ def table_viridian(results: Path) -> Outputs:
     return out
 
 
+def table_viridian_time(results: Path) -> Outputs:
+    """Collects Fig. 3b's data: the time to a tree of the Viridian genomes, ours and CMAPLE's
+    measured (each run's whole wall time, reading included) and MAPLE's as reported:
+    results -> {viridian_time.tsv}."""
+    paths = {"VecME": results / "viridian" / "tree.json", "CMAPLE": results / CMAPLE_VIRIDIAN}
+    if missing := [f"{name} ({path})" for name, path in paths.items() if not path.exists()]:
+        raise MissingResults(f"viridian_time: no run of {', '.join(missing)}")
+    ours, cmaple = read_json(paths["VecME"]), read_json(paths["CMAPLE"])
+    details = ours["details"]
+    genomes = {"VecME": details["input"]["sequences"], "CMAPLE": cmaple["genomes"]}
+    if set(genomes.values()) != {VIRIDIAN_GENOMES}:
+        raise MissingResults(
+            f"viridian_time: runs not on all {VIRIDIAN_GENOMES:,} genomes: {genomes}"
+        )
+    gpus = {short_gpu(d.split(": ", 1)[1]) for d in details["devices"] if d.startswith("GPU ")}
+    if details["settings"]["accelerator"] != "gpu" or len(gpus) != 1:
+        raise MissingResults(
+            f"viridian_time: our run is not on one GPU model: {details['devices']}"
+        )
+    rows = [
+        {
+            "program": "VecME",
+            "units": len(details["devices"]),
+            "unit": "GPU",
+            "model": gpus.pop(),
+            "cpu_threads": threads_of(paths["VecME"], details),
+            "time_s": ours["time"],
+            "source": "measured",
+        },
+        {
+            "program": "CMAPLE",
+            "units": cmaple["threads"],
+            "unit": "CPU core",
+            "model": cmaple["cpu"],
+            "cpu_threads": cmaple["threads"],
+            "time_s": cmaple["wall_s"],
+            "source": "measured",
+        },
+        {
+            "program": "MAPLE",
+            "units": MAPLE_VIRIDIAN_REPORTED["cores"],
+            "unit": "CPU core",
+            "model": MAPLE_VIRIDIAN_REPORTED["cpu"],
+            "cpu_threads": MAPLE_VIRIDIAN_REPORTED["cores"],
+            "time_s": MAPLE_VIRIDIAN_REPORTED["days"] * SECONDS_PER_DAY,
+            "source": "reported",
+        },
+    ]
+    return {"viridian_time.tsv": pd.DataFrame([r | {"genomes": VIRIDIAN_GENOMES} for r in rows])}
+
+
 TABLES = {
     "scaling": table_scaling,
     "random_tree": table_random_tree,
@@ -1321,6 +1380,7 @@ TABLES = {
     "fastme_cases": table_fastme_cases,
     "gtr_fit": table_gtr_fit,
     "viridian": table_viridian,
+    "viridian_time": table_viridian_time,
 }
 
 
