@@ -28,7 +28,7 @@ Outputs: data/tables/tableS<N>_<name>.md, numbered as in the supplement:
          S12 viridian_variants, S13 viridian_thresholds, S14 silva_support, S15 silva_gtdb;
          data/tables/<data>.tsv, the figures' data: scaling, maple, calibration,
          silva_support, silva_gtdb, scaling_methods, fastme_cases, silva_clades, silva_clade_paths,
-         viridian_variants, viridian_substitutions, viridian_resolution
+         silva_organelles, viridian_variants, viridian_substitutions, viridian_resolution
 
     pixi run -e paper python -m paper.make_tables
     pixi run -e paper python -m paper.make_tables --tables scaling maple --overwrite
@@ -971,6 +971,55 @@ def table_silva_clades(results: Path) -> Outputs:
     return {"silva_clades.tsv": clades, "silva_clade_paths.tsv": paths}
 
 
+def table_silva_organelles(results: Path) -> Outputs:
+    """Collects Fig. 4d's data: results -> {silva_organelles.tsv}.
+
+    One row per group of sequences by SILVA's label: how many the tree places within its
+    Eukaryota clade and within Chloroplastida, out of the group's distinct sequences.
+    SILVA files chloroplasts and mitochondria under Bacteria;
+    the other bacteria are the rest of Bacteria.
+    """
+    bio = read_json(one_file(results / "silva", "silva144_real_biology_B*.json"))
+    if "eukaryota_clade_breakdown" not in bio:
+        raise MissingResults("silva144_real_biology: no eukaryota_clade_breakdown")
+    e = bio["eukaryota_clade_breakdown"]
+    total = {d["name"]: d["unique_leaves"] for d in bio["domains"]}
+    chloroplasts, mitochondria = e["bacteria_chloroplast_total"], e["bacteria_mitochondria_total"]
+    # group -> (within Eukaryota, within Chloroplastida, distinct sequences);
+    # the record does not count Archaea within Chloroplastida
+    counts: dict[str, tuple[int, int | None, int]] = {
+        "mitochondria": (
+            e["bacteria_mitochondria_in_clade"],
+            e["bacteria_mitochondria_in_chloroplastida"],
+            mitochondria,
+        ),
+        "chloroplasts": (
+            e["bacteria_chloroplast_in_clade"],
+            e["bacteria_chloroplast_in_chloroplastida"],
+            chloroplasts,
+        ),
+        "other_bacteria": (
+            e["other_bacteria_in_clade"],
+            e["other_bacteria_in_chloroplastida"],
+            total["Bacteria"] - chloroplasts - mitochondria,
+        ),
+        "archaea": (e["archaea_in_clade"], None, total["Archaea"]),
+    }
+    for group, (k, inner, n) in counts.items():
+        if not 0 <= k <= n or (inner is not None and inner > k):
+            raise SystemExit(f"silva144_real_biology: {group}: {k}, {inner} of {n} sequences")
+    rows = [
+        {
+            "group": group,
+            "in_eukaryota": k,
+            "in_chloroplastida": "" if inner is None else inner,
+            "total": n,
+        }
+        for group, (k, inner, n) in counts.items()
+    ]
+    return {"silva_organelles.tsv": rows}
+
+
 def table_silva_gtdb(results: Path) -> Outputs:
     """Builds Table S15 (silva_gtdb) and Fig. 4c's data:
     results -> {tableS15_silva_gtdb.md, silva_gtdb.tsv}."""
@@ -1314,6 +1363,7 @@ TABLES = {
     "scaling_methods": table_scaling_methods,
     "silva_support": table_silva_support,
     "silva_clades": table_silva_clades,
+    "silva_organelles": table_silva_organelles,
     "silva_gtdb": table_silva_gtdb,
     "seqlen": table_seqlen,
     "representative_sensitivity": table_representatives,
