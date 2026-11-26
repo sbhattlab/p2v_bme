@@ -15,20 +15,21 @@ import matplotlib.pyplot as plt
 from plots._config import SPEC, STYLE
 from plots.utils import parser, read_tsv, save
 
-FIGSIZE = (2.7, 2.8)  # Fig. 4b's width: the two stack in one column
+FIGSIZE = (88 / 25.4, 71 / 25.4)  # half the 180 mm page: room for the legend on the right
 RANKS = ["phylum", "class", "order", "family", "genus"]
 # tree in the table -> legend label, colour, marker, line width (VecME's full tree drawn strongest)
+# Labels on two lines, so that the legend on the right leaves the plot its width.
 TREES = {
-    "full": ("VecME, full tree", SPEC["P2V"]["color"], "o", 2.0),
-    "ours": ("VecME, labelled only", "#F4A582", "o", 1.1),
+    "full": ("VecME,\nfull tree", SPEC["P2V"]["color"], "o", 2.0),
+    "ours": ("VecME,\nlabelled only", "#F4A582", "o", 1.1),
     "ft_me": (
-        "FastTree-ME, labelled only",
+        "FastTree-ME,\nlabelled only",
         SPEC["FastTree-ME"]["color"],
         SPEC["FastTree-ME"]["marker"],
         1.0,
     ),
     "ft_ml": (
-        "FastTree-ML, labelled only",
+        "FastTree-ML,\nlabelled only",
         SPEC["FastTree-ML"]["color"],
         SPEC["FastTree-ML"]["marker"],
         1.0,
@@ -41,7 +42,7 @@ def main() -> None:
     plt.style.use(STYLE)
     rows = read_tsv(args.tables_dir, "silva_gtdb")
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    fig.subplots_adjust(left=0.24, right=0.93, bottom=0.2, top=0.97)
+    fig.subplots_adjust(left=0.17, right=0.64, bottom=0.2, top=0.97)
     x = range(len(RANKS))
     for tree, (label, colour, marker, width) in TREES.items():
         f1 = {r["rank"]: float(r["mean_f1"]) for r in rows if r["tree"] == tree}
@@ -60,11 +61,18 @@ def main() -> None:
     taxa = {r["rank"]: int(r["taxa"]) for r in rows if r["tree"] == "full"}
     ax.set_xticks(list(x), [f"{rank.capitalize()}\n({taxa[rank]:,})" for rank in RANKS])
     ax.tick_params(axis="x", labelsize=plt.rcParams["xtick.labelsize"] * 0.85)
-    ax.set_ylim(0.5, 0.95)  # room for the legend under the lines
+    ax.set_ylim(0.75, 0.9)
+    ax.set_yticks([0.75, 0.8, 0.85, 0.9])
     ax.set_ylabel("Mean F$_1$ of GTDB taxa")
     ax.grid(axis="y", color="#E5E5E5", linewidth=0.5)
     ax.set_axisbelow(True)
-    ax.legend(loc="lower left", handlelength=1.6, borderaxespad=0.3)
+    ax.legend(
+        loc="center left",
+        bbox_to_anchor=(1.02, 0.5),
+        handlelength=1.6,
+        labelspacing=0.8,
+        borderaxespad=0.0,
+    )
     save(fig, args.img_dir, "fig4c_gtdb_recovery")
 
 

@@ -75,6 +75,7 @@ fig3d_sarscov2_resolution = "python -m plots.fig3d_sarscov2_resolution"
 fig4a_silva_clades = "python -m plots.fig4a_silva_clades"
 fig4b_silva_support = "python -m plots.fig4b_silva_support"
 fig4c_gtdb_recovery = "python -m plots.fig4c_gtdb_recovery"
+fig4d_silva_organelles = "python -m plots.fig4d_silva_organelles"
 figS1_3_scaling = "python -m plots.figS1_3_scaling"
 figS4_bootstrap_calibration = "python -m plots.figS4_bootstrap_calibration"
 figS5_sarscov2_shared_branches = "python -m plots.figS5_sarscov2_shared_branches"
@@ -102,6 +103,7 @@ fig4 = { cmd = "echo 'All fig4 plots done.'", depends-on = [
   "fig4a_silva_clades",
   "fig4b_silva_support",
   "fig4c_gtdb_recovery",
+  "fig4d_silva_organelles",
 ] }
 
 # ---- DIPPER build environment ------------------------------------------------------------------------

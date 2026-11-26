@@ -22,14 +22,20 @@ import math
 
 import matplotlib.pyplot as plt
 
+from matplotlib import patheffects
 from matplotlib.patches import Polygon
 
 from plots._config import STYLE
 from plots.utils import parser, read_tsv, save
 
-COLOURS = {"Archaea": "#6a4c93", "Eukaryota": "#c85a32", "Bacteria": "#1f6f8b"}
+# Eukaryota in seaborn's dark red: apart from VecME's vermilion in Fig. 4c, also when colour-blind
+COLOURS = {"Archaea": "#6a4c93", "Eukaryota": "#8c0800", "Bacteria": "#1f6f8b"}
+# 112 mm wide: with Fig. 4b (64 mm) and a 4 mm gap, the 180 mm page
+FIGSIZE = (112 / 25.4, 117 / 25.4)
 BRANCH, TEXT = "#4a5568", "#1a202c"
 SUPPORT_SIZE = 7  # points: the numbers on the branches, smaller than the labels
+# A white outline, so that a number stays legible where it crosses a branch
+SUPPORT_HALO = [patheffects.withStroke(linewidth=2, foreground="white")]
 TREE_WIDTH = 1.25  # axis units from the root to the clades
 TRIANGLE = 0.20  # axis units: the triangle of the deepest clade
 NAME_GAP, COUNT_X = (
@@ -208,6 +214,7 @@ def support(ax: plt.Axes, x: float, y: float, tbe: float) -> None:
         color="#2d3748",
         ha="right",
         va="bottom",
+        path_effects=SUPPORT_HALO,
     )
 
 
@@ -266,7 +273,7 @@ def main() -> None:
     scale = TRIANGLE / max(c["depth"] for c in clades_of(tree))
     tips = TREE_WIDTH + TRIANGLE
 
-    fig = plt.figure(figsize=(4.5, 4.6))
+    fig = plt.figure(figsize=FIGSIZE)
     ax = fig.add_axes((0.02, 0.02, 0.96, 0.95))
     for spine in ax.spines.values():
         spine.set_visible(False)
