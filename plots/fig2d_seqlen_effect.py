@@ -38,8 +38,8 @@ def main() -> None:
             if (r["dataset"], r["method"], int(r["n"])) == (dataset, key, N)
         ]
 
-    rows = []
-    for key, *_ in METHODS:
+    rows = []  # bottom to top, VecME at the bottom: top to bottom as Fig. 2a's legend
+    for key, *_ in reversed(METHODS):
         a, b = values(SHORT, key), values(LONG, key)
         if a and b:
             rows.append(
@@ -48,7 +48,6 @@ def main() -> None:
         else:
             have = [tag for tag, runs in ((SHORT, a), (LONG, b)) if runs]
             raise SystemExit(f"{key} at N = {N}: results for {have}, not for {SHORT} and {LONG}")
-    rows.sort(key=lambda r: -r[2][0])  # worst at the bottom of the reading order -> best on top
     if (top := max(max(r[1][2], r[2][2]) for r in rows)) > XLIM[1]:
         raise SystemExit(f"RF error up to {top:.1f} %: beyond the axis ({XLIM[1]} %)")
 
