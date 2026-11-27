@@ -26,7 +26,7 @@ Outputs: data/tables/tableS<N>_<name>.md, numbered as in the supplement:
          S1 representative_sensitivity, S2 gtr_fit, S3 fastme, S4 scaling, S5 maple, S6 bootstrap,
          S7 comparators, S8 baseline_10k, S9 seqlen, S10 random_tree, S11 viridian_support,
          S12 viridian_variants, S13 viridian_thresholds, S14 silva_support, S15 silva_gtdb;
-         data/tables/<data>.tsv, the figures' data: scaling, maple, calibration,
+         data/tables/<data>.tsv, the figures' data: scaling, maple, calibration, roc,
          silva_support, silva_gtdb, scaling_methods, fastme_cases, silva_clades, silva_clade_paths,
          silva_organelles, viridian_variants, viridian_substitutions, viridian_resolution,
          viridian_time, pandemic_branches
@@ -85,12 +85,31 @@ ALIAS = {
     "FastTree-ME": "FastTree-ME",
 }
 
-# Fig. S4: the calibration sets drawn (name, sequences, summary in calibration/, keys to the entry);
-# the summaries' reliability bins come from run_calibration.py
+# Fig. S4: the calibration sets drawn (name, sequences, summary in calibration/, keys to the entry,
+# per-branch table of the bootstrap in calibration/); the summaries' reliability bins (S4b) and the
+# per-branch tables (the ROC of S4a) come from the same runs of run_calibration.py
 CALIBRATION_SETS = (
-    ("RNASim", 1_000_000, "rnasim_bootstrap_calibration_summary.json", ("N1M_boot",)),
-    ("SARS-CoV-2-like simulation", 100_000, "maple_bootstrap_calibration_summary.json", ()),
-    ("Random tree", 1_000_000, "calibration_1000000.json", ()),
+    (
+        "RNASim",
+        1_000_000,
+        "rnasim_bootstrap_calibration_summary.json",
+        ("N1M_boot",),
+        "rnasim/1000000/rnasim_1000000_boot_branches.tsv",
+    ),
+    (
+        "SARS-CoV-2-like simulation",
+        100_000,
+        "maple_bootstrap_calibration_summary.json",
+        (),
+        "cmaple_0.0001/100000/maple_00001_100000_boot_branches.tsv",
+    ),
+    (
+        "Random tree",
+        1_000_000,
+        "calibration_1000000.json",
+        (),
+        "yule10k/1000000/yule10k_1000000_boot_branches.tsv",
+    ),
 )
 # Fig. 3b: the time to a tree of the Viridian genomes. Ours: the tree step of run_viridian.py, and
 # runs on one and eight B200 GPUs recorded in B200_VIRIDIAN (the benchmark harness before vecme 0.1.0);
@@ -732,22 +751,42 @@ def table_bootstrap(results: Path) -> Outputs:
 
 
 def table_calibration(results: Path) -> Outputs:
-    """Collects Fig. S4's data: the share of branches in the true tree by exact bootstrap support, for each set
-    of CALIBRATION_SETS; every set must be there: results -> {calibration.tsv}."""
+    """Collects Fig. S4's data for each set of CALIBRATION_SETS: the ROC of exact bootstrap support
+    (a) and the share of branches in the true tree by support (b); every set must be there:
+    results -> {roc.tsv, calibration.tsv}."""
     folder = results / "calibration"
-    rows, missing = [], []
-    for name, n, summary, keys in CALIBRATION_SETS:
+    roc, rows, missing = [], [], []
+    for name, n, summary, keys, branches in CALIBRATION_SETS:
         path = folder / summary
         data = read_json(path) if path.exists() else {}
         for key in keys:
             data = data.get(key, {})
-        if "reliability" not in data or data.get("N", n) != n:
-            missing.append(f"{name} {n:,} ({summary}{''.join(f'[{k}]' for k in keys)})")
+        if "reliability" not in data or data.get("N", n) != n or not (folder / branches).exists():
+            missing.append(f"{name} {n:,} ({summary}{''.join(f'[{k}]' for k in keys)}, {branches})")
             continue
         rows += [{"dataset": name, "n": n} | b for b in data["reliability"]]
+        # The ROC: one point per support value, from the highest down.
+        # A branch is correct when its split is in the true tree.
+        frame = pd.read_csv(folder / branches, sep="\t", usecols=["exact", "correct"])
+        if len(frame) != n - 3 or not frame["correct"].isin([0, 1]).all():
+            raise MissingResults(f"calibration: {branches} is not one row per branch of the tree")
+        counts = frame.groupby("exact")["correct"].agg(["sum", "count"]).sort_index(ascending=False)
+        correct, wrong = counts["sum"], counts["count"] - counts["sum"]
+        roc += [
+            {
+                "dataset": name,
+                "n": n,
+                "support_pct": round(100 * s, 4),
+                "tpr_pct": 100 * t,
+                "fpr_pct": 100 * f,
+            }
+            for s, t, f in zip(
+                counts.index, correct.cumsum() / correct.sum(), wrong.cumsum() / wrong.sum()
+            )
+        ]
     if missing:
-        raise MissingResults(f"calibration: no reliability bins for {', '.join(missing)}")
-    return {"calibration.tsv": pd.DataFrame(rows)}
+        raise MissingResults(f"calibration: no bins or branches for {', '.join(missing)}")
+    return {"roc.tsv": pd.DataFrame(roc), "calibration.tsv": pd.DataFrame(rows)}
 
 
 def table_baseline_10k(results: Path) -> Outputs:
