@@ -1,13 +1,14 @@
-"""Figs S1, S2, S3: running time, RF error, host and GPU memory of every method at each size,
-on RNASim, JC10k and random-tree JC.
+"""Figs S1, S2, S3: running time, normalised RF distance, host and GPU memory of every method at
+each size, on RNASim, JC10k and random-tree JC.
 
 Inputs:  data/tables/scaling_methods.tsv, scaling.tsv                   (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    each dataset (rnasim -> S1, jc10k -> S2, yule10k -> S3)
            |
            v
-         four panels (a runtime, b RF error, c host memory, d GPU memory), one line per method over
-         the sizes (log-log axes): the mean at each size; the whisker spans the replicates;
+         four panels (a runtime, b normalised RF distance, c host memory, d GPU memory),
+         one line per method over the sizes (log-log axes): the mean at each size;
+         the whisker spans the replicates;
          in b of S1 and S2, VecME's error on the splits inherited from the 10^5-sequence alignment
 Outputs: img/fig2/figS1_scaling.{pdf,svg,png}, figS2_scaling..., figS3_scaling...
 

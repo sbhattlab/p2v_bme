@@ -1,8 +1,9 @@
-"""Fig. 3a: time against RF error of VecME, MAPLE and CMAPLE on the simulated pandemic alignments.
+"""Fig. 3a: time against normalised RF distance of VecME, MAPLE and CMAPLE on the simulated pandemic
+alignments.
 
 Inputs:  data/tables/maple.tsv                                          (make_tables.py)
 Options: --tables-dir, --img-dir
-Flow:    per program and mean branch length: one line through the three sizes (time, RF error)
+Flow:    per program and mean branch length: one line through the three sizes (time, RF distance)
            |
            v
          the three branch lengths as three bands, named on the right in substitutions per branch
@@ -42,7 +43,7 @@ def main() -> None:
     fig, ax = plt.subplots(figsize=FIGSIZE)
     bottom, top = FIG3_AXES_Y
     fig.subplots_adjust(left=LEFT, right=RIGHT, bottom=bottom, top=top)
-    bands = []  # (substitutions per branch, mean RF error of every run at that branch length)
+    bands = []  # (substitutions per branch, mean RF distance of every run at that branch length)
     for length in PANDEMIC_BRANCH_LENGTHS:
         group = [r for r in rows if float(r["mean_branch_length"]) == length]
         bands.append((length * SITES, float(np.mean([float(r["rf_pct"]) for r in group]))))
@@ -60,7 +61,7 @@ def main() -> None:
     ax.set_xlim(10 ** np.floor(np.log10(min(times))), 10 ** np.ceil(np.log10(max(times))))
     ax.set_ylim(0, HEADROOM * max(float(r["rf_pct"]) for r in rows))
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("RF error (%)")
+    ax.set_ylabel("Normalised RF distance (%)")
     data_label_above(ax, "simulations")
     # the legend boxed in the upper left corner, above the top band
     ax.legend(
