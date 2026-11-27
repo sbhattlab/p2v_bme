@@ -1,5 +1,5 @@
-"""Fig. 2c: RF error of every method against the number of sequences, on the JC alignments simulated on
-random trees (no sequences added by expansion).
+"""Fig. 2c: normalised RF distance of every method against the number of sequences, on the JC
+alignments simulated on random trees (no sequences added by expansion).
 
 Inputs:  data/tables/scaling_methods.tsv                                (make_tables.py)
 Options: --tables-dir, --img-dir
@@ -19,7 +19,8 @@ from plots._config import STYLE
 from plots.utils import method_panel, parser
 
 DATASET = "yule10k"
-Y_AXIS = (8, 2)  # RF error (%): top and tick step of a linear axis, the errors being about 1-7 %
+# Normalised RF distance (%): top and tick step of a linear axis, the distances being about 1-7 %
+Y_AXIS = (8, 2)
 
 
 def main() -> None:

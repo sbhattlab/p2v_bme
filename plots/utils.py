@@ -117,12 +117,12 @@ FLOORS = {
     "host": 2e-2,
     "gpu": 0.1,
 }  # lower axis limits
-TOPS = {"time": 3e4, "rf": 100, "host": 1000, "gpu": 100}  # RF error ends at 100 %
+TOPS = {"time": 3e4, "rf": 100, "host": 1000, "gpu": 100}  # RF distance ends at 100 %
 # The new method is drawn stronger than the methods it is compared with
 OURS = "P2V"
 COMPARED_ALPHA = 0.6
 # From 10^6 sequences, the PASTA-tree datasets expand the 100,000-sequence alignment
-# with small clades, so their RF error is not on a par with the smaller sizes.
+# with small clades, so their RF distance is not on a par with the smaller sizes.
 # The RF line steps there with a dashed segment.
 EXPANDED_FROM = 1_000_000
 # The expanded datasets, keyed as in scaling_methods.tsv, and their name in scaling.tsv,
@@ -134,7 +134,7 @@ MIB_PER_GIB = 1024.0
 # Each panel's column in scaling_methods.tsv, its scale and its y label
 PANELS = {
     "time": ("time_s", 1.0, "Runtime (s)"),
-    "rf": ("rf_pct", 1.0, "RF error (%)"),
+    "rf": ("rf_pct", 1.0, "Normalised RF distance (%)"),
     "host": ("host_memory_mb", 1 / MIB_PER_GIB, "Host memory (GiB)"),
     "gpu": ("gpu_memory_peak_mib", 1 / MIB_PER_GIB, "GPU memory (GiB)"),
 }
@@ -381,8 +381,8 @@ def method_panel(  # pylint: disable=too-many-arguments
 
 def method_pages(args: Namespace) -> None:
     """Draws Figs S1-S3, one page per dataset:
-    runtime, RF error, host and GPU memory of every method over the number of sequences;
-    on the expanded datasets (S1, S2), VecME's error on the inherited splits too:
+    runtime, normalised RF distance, host and GPU memory of every method over the number of
+    sequences; on the expanded datasets (S1, S2), VecME's error on the inherited splits too:
     args -> img_dir/<folder>/figS<N>_scaling.{pdf,svg,png}."""
     rows = read_tsv(args.tables_dir, "scaling_methods")
     for dataset, figure in SCALING_FIGURES.items():

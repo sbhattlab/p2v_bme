@@ -1,10 +1,10 @@
-"""Fig. 2d: RF error at 10,000 sequences on JC alignments of 1,000 and 10,000 sites,
+"""Fig. 2d: normalised RF distance at 10,000 sequences on JC alignments of 1,000 and 10,000 sites,
 for every method.
 
 Inputs:  data/tables/scaling_methods.tsv                                (make_tables.py)
 Options: --tables-dir, --img-dir
 Flow:    per method with runs at both lengths:
-         mean and range of the RF error (hollow: 1,000 sites, filled: 10,000)
+         mean and range of the normalised RF distance (hollow: 1,000 sites, filled: 10,000)
 Outputs: img/fig2/fig2d_seqlen_effect.{pdf,svg,png}
 
     pixi run -e paper python -m plots.fig2d_seqlen_effect
@@ -22,8 +22,9 @@ from plots.utils import OURS, data_label, parser, read_tsv, save
 
 N = 10000
 SHORT, LONG = "jc1k", "jc10k"
-XLIM = (0, 25)  # RF error (%), linear, as Fig. 2b: the data span little more than a decade
-TICK_STEP = 5  # RF error (%)
+# Normalised RF distance (%), linear, as Fig. 2b: the data span little more than a decade
+XLIM = (0, 25)
+TICK_STEP = 5  # normalised RF distance (%)
 
 
 def main() -> None:
@@ -49,7 +50,7 @@ def main() -> None:
             have = [tag for tag, runs in ((SHORT, a), (LONG, b)) if runs]
             raise SystemExit(f"{key} at N = {N}: results for {have}, not for {SHORT} and {LONG}")
     if (top := max(max(r[1][2], r[2][2]) for r in rows)) > XLIM[1]:
-        raise SystemExit(f"RF error up to {top:.1f} %: beyond the axis ({XLIM[1]} %)")
+        raise SystemExit(f"RF distance up to {top:.1f} %: beyond the axis ({XLIM[1]} %)")
 
     fig, ax = plt.subplots(figsize=FIG2_PANEL)
     fig.subplots_adjust(left=0.36, right=0.97, bottom=0.16, top=0.88)  # right, bottom as in Fig. 2c
@@ -91,7 +92,7 @@ def main() -> None:
     ax.set_xlim(*XLIM)
     ax.xaxis.set_major_locator(MultipleLocator(TICK_STEP))
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
-    ax.set_xlabel("RF error at N = 10,000 (%)")
+    ax.set_xlabel("Normalised RF distance (%)")
     ax.grid(axis="x", color="#E6E6E6", lw=0.6)
     ax.legend(
         handles=[
@@ -124,7 +125,7 @@ def main() -> None:
         columnspacing=1.5,
         borderaxespad=0.3,
     )
-    data_label(ax, "PASTA (JC69)")
+    data_label(ax, "PASTA (JC69), N = 10,000")
     save(fig, args.img_dir, "fig2d_seqlen_effect")
 
 
