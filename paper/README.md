@@ -178,7 +178,7 @@ Every table of the paper (`--tables`; default: all).
 | `fig4c_gtdb_recovery`           | 4c: mean F1 of the GTDB taxa by rank, four trees                    | `silva_gtdb.tsv`                                      |
 | `fig4d_silva_organelles`        | 4d: share of each SILVA group placed within Eukaryota, by size      | `silva_organelles.tsv`                                |
 | `figS1_3_scaling`               | S1-S3: time, RF error, host and GPU memory of every method          | `scaling_methods.tsv`, `scaling.tsv`                  |
-| `figS4_bootstrap_calibration`   | S4: branches in the true tree by bootstrap support                  | `calibration.tsv`                                     |
+| `figS4_bootstrap_calibration`   | S4: ROC (a) and branches in the true tree (b) by bootstrap support  | `roc.tsv`, `calibration.tsv`                          |
 | `figS5_shared_branches`         | S5: VecME branches also in the MAPLE tree (a) and the true tree (b) | `viridian_substitutions.tsv`, `pandemic_branches.tsv` |
 
 `figS1_3_scaling` writes one figure per dataset (S1: RNASim, S2: JC10k, S3: random-tree JC), e.g.
