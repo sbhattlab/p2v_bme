@@ -157,30 +157,29 @@ Every table of the paper (`--tables`; default: all).
 ## Figures
 
 - **Command:** `pixi run -e paper <script>`, e.g. `pixi run -e paper fig2a_scaling_time`; `pixi run -e paper fig2`,
-  `fig3` and `fig4` draw a figure with its supplementary figures (Fig. 2 with Figs S1-S4, Fig. 3 with Figs S5, S6)
+  `fig3` and `fig4` draw a figure with its supplementary figures (Fig. 2 with Figs S1-S4, Fig. 3 with Fig. S5)
 - **Requires:** `make_tables`
 - **Inputs:** `data/tables/<name>.tsv`
-- **Outputs:** `img/fig2/` (Fig. 2 with Figs S1-S4), `img/fig3/` (Fig. 3 with Figs S5, S6) and `img/fig4/` (Fig. 4):
+- **Outputs:** `img/fig2/` (Fig. 2 with Figs S1-S4), `img/fig3/` (Fig. 3 with Fig. S5) and `img/fig4/` (Fig. 4):
   `<figure>.pdf`, `<figure>.svg`, `<figure>.png`
 
-| Script                           | Figure                                                          | Reads                                       |
-| -------------------------------- | --------------------------------------------------------------- | ------------------------------------------- |
-| `fig2a_scaling_time`             | 2a: time of every method on the RNASim alignments               | `scaling_methods.tsv`                       |
-| `fig2b_fastme`                   | 2b: RF error of VecME against FastME, per alignment             | `fastme_cases.tsv`                          |
-| `fig2c_random_trees`             | 2c: RF error of every method on the random-tree JC alignments   | `scaling_methods.tsv`                       |
-| `fig2d_seqlen_effect`            | 2d: RF error on 1,000 and 10,000 sites                          | `scaling_methods.tsv`                       |
-| `fig3a_pandemic_speed_accuracy`  | 3a: time against RF error of VecME, MAPLE and CMAPLE, pandemic  | `maple.tsv`                                 |
-| `fig3b_sarscov2_time`            | 3b: time to the SARS-CoV-2 tree, VecME, CMAPLE and MAPLE        | `viridian_time.tsv`                         |
-| `fig3c_sarscov2_variants`        | 3c: supports and genomes of the named SARS-CoV-2 variants       | `viridian_variants.tsv`                     |
-| `fig3d_sarscov2_resolution`      | 3d: genomes per month by variant; resolution of the tree        | `viridian_resolution.tsv`                   |
-| `fig4a_silva_clades`             | 4a: the SILVA 144 tree reduced to major clades: support, depths | `silva_clades.tsv`, `silva_clade_paths.tsv` |
-| `fig4b_silva_support`            | 4b: SILVA 144 branches by support class and split size          | `silva_support.tsv`                         |
-| `fig4c_gtdb_recovery`            | 4c: mean F1 of the GTDB taxa by rank, four trees                | `silva_gtdb.tsv`                            |
-| `fig4d_silva_organelles`         | 4d: share of each SILVA group placed within Eukaryota, by size  | `silva_organelles.tsv`                      |
-| `figS1_3_scaling`                | S1-S3: time, RF error, host and GPU memory of every method      | `scaling_methods.tsv`, `scaling.tsv`        |
-| `figS4_bootstrap_calibration`    | S4: branches in the true tree by bootstrap support              | `calibration.tsv`                           |
-| `figS5_sarscov2_shared_branches` | S5: branches shared by our tree and MAPLE's                     | `viridian_substitutions.tsv`                |
-| `figS6_pandemic_shared_branches` | S6: our branches in the true, CMAPLE and repeat-search trees    | `pandemic_branches.tsv`                     |
+| Script                          | Figure                                                              | Reads                                                 |
+| ------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------- |
+| `fig2a_scaling_time`            | 2a: time of every method on the RNASim alignments                   | `scaling_methods.tsv`                                 |
+| `fig2b_fastme`                  | 2b: RF error of VecME against FastME, per alignment                 | `fastme_cases.tsv`                                    |
+| `fig2c_random_trees`            | 2c: RF error of every method on the random-tree JC alignments       | `scaling_methods.tsv`                                 |
+| `fig2d_seqlen_effect`           | 2d: RF error on 1,000 and 10,000 sites                              | `scaling_methods.tsv`                                 |
+| `fig3a_pandemic_speed_accuracy` | 3a: time against RF error of VecME, MAPLE and CMAPLE, pandemic      | `maple.tsv`                                           |
+| `fig3b_sarscov2_time`           | 3b: time to the SARS-CoV-2 tree, VecME, CMAPLE and MAPLE            | `viridian_time.tsv`                                   |
+| `fig3c_sarscov2_variants`       | 3c: supports and genomes of the named SARS-CoV-2 variants           | `viridian_variants.tsv`                               |
+| `fig3d_sarscov2_resolution`     | 3d: genomes per month by variant; resolution of the tree            | `viridian_resolution.tsv`                             |
+| `fig4a_silva_clades`            | 4a: the SILVA 144 tree reduced to major clades: support, depths     | `silva_clades.tsv`, `silva_clade_paths.tsv`           |
+| `fig4b_silva_support`           | 4b: SILVA 144 branches by support class and split size              | `silva_support.tsv`                                   |
+| `fig4c_gtdb_recovery`           | 4c: mean F1 of the GTDB taxa by rank, four trees                    | `silva_gtdb.tsv`                                      |
+| `fig4d_silva_organelles`        | 4d: share of each SILVA group placed within Eukaryota, by size      | `silva_organelles.tsv`                                |
+| `figS1_3_scaling`               | S1-S3: time, RF error, host and GPU memory of every method          | `scaling_methods.tsv`, `scaling.tsv`                  |
+| `figS4_bootstrap_calibration`   | S4: branches in the true tree by bootstrap support                  | `calibration.tsv`                                     |
+| `figS5_shared_branches`         | S5: VecME branches also in the MAPLE tree (a) and the true tree (b) | `viridian_substitutions.tsv`, `pandemic_branches.tsv` |
 
 `figS1_3_scaling` writes one figure per dataset (S1: RNASim, S2: JC10k, S3: random-tree JC), e.g.
 `img/fig2/figS2_scaling.pdf`.

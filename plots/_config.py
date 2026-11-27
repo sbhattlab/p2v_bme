@@ -19,8 +19,7 @@ FIGURE_FOLDERS: Final = {
     "figS3": "fig2",
     "figS4": "fig2",  # bootstrap calibration
     "fig3": "fig3",
-    "figS5": "fig3",  # SARS-CoV-2 shared branches
-    "figS6": "fig3",  # pandemic simulation: shared branches
+    "figS5": "fig3",  # shared branches: SARS-CoV-2, pandemic simulation
     "fig4": "fig4",
 }
 

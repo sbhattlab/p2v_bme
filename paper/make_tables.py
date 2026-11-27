@@ -1,5 +1,5 @@
 """Every table of the paper and the data behind its figures,
-from the raw results (Tables S1-S15; Figs 2-4, S1-S6).
+from the raw results (Tables S1-S15; Figs 2-4, S1-S5).
 
 Inputs:  data/results/                                    (the run_*.py scripts)
            scaling/, random_start/, seqlen/,              our runs:
@@ -102,13 +102,15 @@ CMAPLE_VIRIDIAN = "viridian/cmaple_1.0.0/all/run.json"
 B200_VIRIDIAN = "viridian/b200/real_trees.jsonl"
 MAPLE_VIRIDIAN_REPORTED = {"days": 10, "cores": 14, "cpu": "Intel Xeon Gold 6252"}
 SECONDS_PER_DAY = 86_400
-# Fig. S6: the branches of our tree of the bootstrapped pandemic simulation (100,000 sequences, 3 substitutions
-# per branch; run_calibration.py), as its per-branch tables of the bootstrap and the repeat searches give them
+# Fig. S5b: the branches of our tree of the bootstrapped pandemic simulation (100,000 sequences,
+# 3 substitutions per branch; run_calibration.py), as its per-branch tables of the bootstrap and the
+# repeat searches give them
 PANDEMIC_BRANCHES = (
     "calibration/cmaple_0.0001/100000/maple_00001_100000_{}_branches.tsv"  # boot, seed
 )
 PANDEMIC_SITES = 30_000  # branch length x sites = substitutions on the branch
-# substitutions on the branch, [from, to): Fig. S5's bins, with the branches under half a substitution first
+# substitutions on the branch, [from, to): the bins of Fig. S5,
+# the branches under half a substitution first
 PANDEMIC_BINS = ((0.0, 0.5), (0.5, 1.5), (1.5, 2.5), (2.5, 3.5), (3.5, 5.5), (5.5, None))
 # RNASim calibration: bootstrap replicates and repeat searches per reference tree
 # (run_calibration.py)
@@ -1365,7 +1367,23 @@ def table_viridian(results: Path) -> Outputs:
     )
     decimals = dict.fromkeys(table.columns[1:], 0) | {"Ours shared (%)": 1, "MAPLE shared (%)": 1}
     out["tableS11_viridian_support.md"] = rounded(table, decimals)
+    # Fig. S5a's bins: the branches under half a substitution first.
+    # The summary has no share of MAPLE's branches in ours for them.
+    short = s["ours"]["branches"] - s["ours"]["real"]
+    if abs(100 * short / s["ours"]["branches"] - s["ours"]["below_half_substitution_pct"]) > 1e-6:
+        raise SystemExit(
+            "the SARS-CoV-2 summary's branches under half a substitution do not add up"
+        )
     out["viridian_substitutions.tsv"] = [
+        {
+            "substitutions_from": 0.0,
+            "substitutions_to": 0.5,
+            "ours_branches": short,
+            "ours_in_maple_pct": s["ours"]["below_half_in_maple_pct"],
+            "maple_branches": s["maple"]["branches"] - s["maple"]["real"],
+            "maple_in_ours_pct": "",
+        }
+    ] + [
         {
             "substitutions_from": key[0],
             "substitutions_to": "" if key[1] is None else key[1],
@@ -1469,9 +1487,9 @@ def table_viridian_time(results: Path) -> Outputs:
 
 
 def table_pandemic_branches(results: Path) -> Outputs:
-    """Collects Fig. S6's data: the branches of our tree of the bootstrapped pandemic simulation by the
-    substitutions on them, with the share also in the true tree, in CMAPLE's tree and, on average, in a
-    repeat search: results -> {pandemic_branches.tsv}."""
+    """Collects Fig. S5b's data: the branches of our tree of the bootstrapped pandemic simulation by
+    the substitutions on them, with the share also in the true tree, in MAPLE's tree, in CMAPLE's
+    tree and, on average, in a repeat search: results -> {pandemic_branches.tsv}."""
     paths = {kind: results / PANDEMIC_BRANCHES.format(kind) for kind in ("boot", "seed")}
     if missing := [str(path) for path in paths.values() if not path.exists()]:
         raise MissingResults(f"pandemic_branches: no {', '.join(missing)}")
@@ -1481,7 +1499,7 @@ def table_pandemic_branches(results: Path) -> Outputs:
     ):
         raise MissingResults("pandemic_branches: the boot and seed tables are not of the same tree")
     if not (
-        boot[["correct", "cmaple_correct"]].isin([0, 1]).all().all()
+        boot[["correct", "maple_correct", "cmaple_correct"]].isin([0, 1]).all().all()
         and seed["exact"].between(0, 1).all()
     ):
         raise MissingResults("pandemic_branches: values outside 0-1 in the per-branch tables")
@@ -1496,6 +1514,7 @@ def table_pandemic_branches(results: Path) -> Outputs:
                 "substitutions_to": "" if high is None else high,
                 "branches": int(inside.sum()),
                 "in_true_pct": 100 * boot["correct"][inside].mean(),
+                "in_maple_pct": 100 * boot["maple_correct"][inside].mean(),
                 "in_cmaple_pct": 100 * boot["cmaple_correct"][inside].mean(),
                 "in_repeat_pct": 100 * seed["exact"][inside].mean(),
             }
