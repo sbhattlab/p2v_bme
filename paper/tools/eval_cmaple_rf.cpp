@@ -10,6 +10,8 @@
  *      isolating true evolutionary splits from zero-mutation polytomy ties on short-branch
  *      pandemic SARS-CoV-2 phylogenies.
  *
+ * Both trees must have the same leaves, each once; otherwise it stops with an error.
+ *
  * Compile:
  *   g++ -O3 -march=native -std=c++17 eval_cmaple_rf.cpp -o eval_cmaple_rf
  */
@@ -35,9 +37,12 @@ struct SplitInfo {
     double bl;
 };
 
+// Reads the non-trivial splits of a Newick tree, sorted by hash.
+// new_leaves: the tree may name leaves not seen before (the true tree); otherwise every leaf must be known.
+// A leaf named twice, or an unknown leaf when new_leaves is false, is an error.
 static bool parse_newick_splits(const char *path, std::unordered_map<std::string, int32_t> &taxon_to_id,
                                 std::vector<uint64_t> &leaf_hashes, uint64_t &rng_state, int32_t &out_n_leaves,
-                                std::vector<SplitInfo> &out_splits) {
+                                std::vector<SplitInfo> &out_splits, bool new_leaves) {
     FILE *fp = fopen(path, "rb");
     if (!fp)
         return false;
@@ -68,6 +73,7 @@ static bool parse_newick_splits(const char *path, std::unordered_map<std::string
 
     uint64_t total_xor = 0;
     int32_t n_leaves = 0;
+    std::vector<char> seen(taxon_to_id.size(), 0); // per leaf id: already in this tree
 
     auto read_branch_len = [&](size_t &i) -> double {
         while (i < sz && isspace((unsigned char)buf[i]))
@@ -140,13 +146,22 @@ static bool parse_newick_splits(const char *path, std::unordered_map<std::string
             if (!name.empty()) {
                 int32_t lid = -1;
                 auto it = taxon_to_id.find(name);
-                if (it == taxon_to_id.end()) {
+                if (it != taxon_to_id.end()) {
+                    lid = it->second;
+                } else if (new_leaves) {
                     lid = (int32_t)taxon_to_id.size();
                     taxon_to_id[name] = lid;
                     leaf_hashes.push_back(splitmix64(&rng_state));
+                    seen.push_back(0);
                 } else {
-                    lid = it->second;
+                    fprintf(stderr, "ERROR: leaf '%s' of %s is not in the true tree\n", name.c_str(), path);
+                    return false;
                 }
+                if (seen[lid]) {
+                    fprintf(stderr, "ERROR: leaf '%s' appears twice in %s\n", name.c_str(), path);
+                    return false;
+                }
+                seen[lid] = 1;
                 uint64_t h = leaf_hashes[lid];
                 total_xor ^= h;
                 n_leaves++;
@@ -206,12 +221,17 @@ int main(int argc, char **argv) {
     int32_t n_true = 0, n_test = 0;
     std::vector<SplitInfo> sp_true, sp_test;
 
-    if (!parse_newick_splits(true_path, taxon_to_id, leaf_hashes, rng, n_true, sp_true)) {
+    if (!parse_newick_splits(true_path, taxon_to_id, leaf_hashes, rng, n_true, sp_true, true)) {
         fprintf(stderr, "ERROR: failed to parse %s\n", true_path);
         return 1;
     }
-    if (!parse_newick_splits(test_path, taxon_to_id, leaf_hashes, rng, n_test, sp_test)) {
+    if (!parse_newick_splits(test_path, taxon_to_id, leaf_hashes, rng, n_test, sp_test, false)) {
         fprintf(stderr, "ERROR: failed to parse %s\n", test_path);
+        return 1;
+    }
+    // Every leaf of the test tree is in the true tree, once: the same leaves if the counts agree
+    if (n_test != n_true) {
+        fprintf(stderr, "ERROR: %s has %d leaves, the true tree %s has %d\n", test_path, n_test, true_path, n_true);
         return 1;
     }
 
