@@ -1,5 +1,5 @@
-"""Fig. 2b: RF error of VecME against FastME's, one point per alignment of the FastME comparison,
-each program from its own start tree.
+"""Fig. 2b: normalised RF distance of VecME against FastME's, one point per alignment of the FastME
+comparison, each program from its own start tree.
 
 Inputs:  data/tables/fastme_cases.tsv                                   (make_tables.py)
 Options: --tables-dir, --img-dir
@@ -27,10 +27,11 @@ FAMILIES = {
     "RNASim subsets": "RNASim",
 }
 MARKERS = {"PASTA (JC69)": "o", "RNASim": "s"}  # as the datasets elsewhere in the paper
-# Each cluster's label: position (RF error of FastME, of VecME, in %) and alignment, off the points
+# Each cluster's label: position (normalised RF distance of FastME, of VecME, in %) and alignment,
+# off the points
 LABELS = {"PASTA (JC69)": (5.2, 3.3, "left"), "RNASim": (12.5, 24, "right")}
-LIMITS = (0, 25)  # RF error (%), both axes, linear: the data span less than a decade
-TICK_STEP = 5  # RF error (%)
+LIMITS = (0, 25)  # normalised RF distance (%), both axes, linear: the data span less than a decade
+TICK_STEP = 5  # normalised RF distance (%)
 POINT_ALPHA = 0.3  # the points overlap: hundreds per cluster
 
 
@@ -42,7 +43,7 @@ def main() -> None:
         raise SystemExit(f"fastme_cases.tsv: sets {sorted(unknown)} not in FAMILIES")
     values = [float(r[k]) for r in rows for k in ("rf_fastme_pct", "rf_vecme_pct")]
     if not values or min(values) < LIMITS[0] or max(values) > LIMITS[1]:
-        raise SystemExit(f"fastme_cases.tsv: RF errors outside {LIMITS} %, or none")
+        raise SystemExit(f"fastme_cases.tsv: RF distances outside {LIMITS} %, or none")
     fig, ax = plt.subplots(figsize=FIG2_PANEL)
     # left as Fig. 2d's, below it (its method names take the room); the rest as Fig. 2a
     fig.subplots_adjust(left=0.36, right=0.97, bottom=0.16, top=0.96)
@@ -70,8 +71,8 @@ def main() -> None:
         axis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
     ax.set_xlim(*LIMITS)
     ax.set_ylim(*LIMITS)
-    ax.set_xlabel("RF error of FastME (%)")
-    ax.set_ylabel("RF error of VecME (%)")
+    ax.set_xlabel("Normalised RF distance of FastME (%)")
+    ax.set_ylabel("Normalised RF distance of VecME (%)")
     ax.grid(color="#E6E6E6", linewidth=0.5)
     ax.set_axisbelow(True)
     save(fig, args.img_dir, "fig2b_fastme")

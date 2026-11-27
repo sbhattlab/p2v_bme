@@ -398,7 +398,7 @@ def method_grid(
     (means by method and n, method keys, their names, sizes) -> one row per size."""
     rf = means["rf_pct"].unstack("method").reindex(index=sizes, columns=methods)
     time = means["time_s"].unstack("method").reindex(index=sizes, columns=methods)
-    rf = rf.set_axis([f"{name} RF (%)" for name in names], axis=1)
+    rf = rf.set_axis([f"{name} normalised RF distance (%)" for name in names], axis=1)
     time = time.set_axis([f"{name} time (s)" for name in names], axis=1)
     table = pd.concat([rf, time], axis=1).rename_axis("Leaves").reset_index()
     return rounded(table, dict.fromkeys(rf.columns, 2) | dict.fromkeys(time.columns, 3))
@@ -484,13 +484,19 @@ def table_scaling(results: Path) -> Outputs:
             "Replicates": scale["n_replicates"],
             "Time (s)": scale["time_s_mean"],
             "Time SD": scale["time_s_sd"],
-            "RF (%)": scale["rf_pct_mean"],
-            "RF SD": scale["rf_pct_sd"],
-            "Backbone RF (%)": scale["backbone_rf_pct_mean"],
+            "Normalised RF distance (%)": scale["rf_pct_mean"],
+            "Normalised RF distance SD": scale["rf_pct_sd"],
+            "Backbone normalised RF distance (%)": scale["backbone_rf_pct_mean"],
             "GPUs": scale["gpu_count"],
         }
     )
-    decimals = {"Time (s)": 3, "Time SD": 3, "RF (%)": 2, "RF SD": 2, "Backbone RF (%)": 2}
+    decimals = {
+        "Time (s)": 3,
+        "Time SD": 3,
+        "Normalised RF distance (%)": 2,
+        "Normalised RF distance SD": 2,
+        "Backbone normalised RF distance (%)": 2,
+    }
     return {"tableS4_scaling.md": rounded(table, decimals), "scaling.tsv": scale}
 
 
@@ -607,9 +613,9 @@ def table_maple(results: Path) -> Outputs:
                 "VecME time (s)": p["time_s"],
                 "CMAPLE time (s)": c["time_s"],
                 "MAPLE time (s)": m["time_s"],
-                "VecME RF (%)": p["rf_pct"],
-                "CMAPLE RF (%)": c["rf_pct"],
-                "MAPLE RF (%)": m["rf_pct"],
+                "VecME normalised RF distance (%)": p["rf_pct"],
+                "CMAPLE normalised RF distance (%)": c["rf_pct"],
+                "MAPLE normalised RF distance (%)": m["rf_pct"],
             }
             for p, c, m in zip(rows[0::3], rows[1::3], rows[2::3])
         ]
@@ -818,13 +824,18 @@ def table_baseline_10k(results: Path) -> Outputs:
             "Method": rows["method"],
             "Time (s)": rows["time_s_mean"],
             "Time SD": rows["time_s_sd"],
-            "RF (%)": rows["rf_pct_mean"],
-            "RF SD": rows["rf_pct_sd"],
+            "Normalised RF distance (%)": rows["rf_pct_mean"],
+            "Normalised RF distance SD": rows["rf_pct_sd"],
             "CPU threads": rows["cpu_threads"],
             "GPUs": rows["gpu_count"],
         }
     )
-    decimals = {"Time (s)": 3, "Time SD": 3, "RF (%)": 2, "RF SD": 2}
+    decimals = {
+        "Time (s)": 3,
+        "Time SD": 3,
+        "Normalised RF distance (%)": 2,
+        "Normalised RF distance SD": 2,
+    }
     return {"tableS8_baseline_10k.md": rounded(table, decimals)}
 
 
@@ -1094,15 +1105,15 @@ def table_seqlen(results: Path) -> Outputs:
         rows.append(
             {
                 "Sites": label,
-                "RF (%), 10,000 sequences": every("mean")(small),
+                "Normalised RF distance (%), 10,000 sequences": every("mean")(small),
                 "Length minus true (ppm)": every("mean")(ppm),
                 "Shorter than truth": f"{(ppm < 0).sum()}/{len(ppm)}",
-                "RF (%), 100,000 sequences": every("mean")(big),
+                "Normalised RF distance (%), 100,000 sequences": every("mean")(big),
                 "Runs, 100,000 sequences": len(big),
             }
         )
-    decimals = {"RF (%), 10,000 sequences": 2, "Length minus true (ppm)": 0}
-    decimals["RF (%), 100,000 sequences"] = 2
+    decimals = {"Normalised RF distance (%), 10,000 sequences": 2, "Length minus true (ppm)": 0}
+    decimals["Normalised RF distance (%), 100,000 sequences"] = 2
     return {"tableS9_seqlen.md": rounded(pd.DataFrame(rows), decimals)}
 
 
@@ -1142,9 +1153,23 @@ def table_representatives(results: Path) -> Outputs:
     table.loc[table["cap"] == 64, ["delta", "delta_sd", "rf_vs", "rf_vs_sd"]] = (
         pd.NA
     )  # the reference
-    names = {"dataset": "Dataset", "n": "N", "cap": "P", "rf": "RF to truth (%)", "rf_sd": "RF SD"}
-    names |= {"delta": "ΔL vs P = 64", "delta_sd": "ΔL SD", "rf_vs": "RF vs P = 64 (%)"}
-    names |= {"rf_vs_sd": "RF vs P = 64 SD", "time": "Time (s)", "time_sd": "Time SD"}
+    names = {
+        "dataset": "Dataset",
+        "n": "N",
+        "cap": "P",
+        "rf": "Normalised RF distance to truth (%)",
+        "rf_sd": "Normalised RF distance SD",
+    }
+    names |= {
+        "delta": "ΔL vs P = 64",
+        "delta_sd": "ΔL SD",
+        "rf_vs": "Normalised RF distance vs P = 64 (%)",
+    }
+    names |= {
+        "rf_vs_sd": "Normalised RF distance vs P = 64 SD",
+        "time": "Time (s)",
+        "time_sd": "Time SD",
+    }
     table = table.rename(columns=names)[list(names.values())]
     decimals = dict.fromkeys(list(names.values())[3:9], 3) | {"Time (s)": 1, "Time SD": 1}
     return {"tableS1_representative_sensitivity.md": rounded(table, decimals)}
@@ -1199,10 +1224,10 @@ def table_fastme(results: Path) -> Outputs:
             "Length diff. (ppm)": ("length", every("mean")),
             "Length SD": ("length", every("std")),
             "Ours ≤ FastME (%)": ("shorter", every("mean")),
-            "RF FastME (%)": ("rf_fastme", every("mean")),
-            "RF FastME SD": ("rf_fastme", every("std")),
-            "RF ours (%)": ("rf_ours", every("mean")),
-            "RF ours SD": ("rf_ours", every("std")),
+            "Normalised RF distance, FastME (%)": ("rf_fastme", every("mean")),
+            "Normalised RF distance, FastME SD": ("rf_fastme", every("std")),
+            "Normalised RF distance, ours (%)": ("rf_ours", every("mean")),
+            "Normalised RF distance, ours SD": ("rf_ours", every("std")),
             "SPR gain (ppm)": ("spr", every("mean")),
             "SPR gain SD": ("spr", every("std")),
             "Time FastME (s)": ("time_fastme", every("mean")),
