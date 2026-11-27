@@ -63,27 +63,27 @@ def main() -> None:
             [m1],
             [y],
             xerr=[[m1 - lo1], [hi1 - m1]],
-            fmt=s["marker"],
+            fmt="o",  # the rows name the methods: no shapes needed
             ms=size,
             mfc="white",
             mec=s["color"],
             mew=1.3,
             ecolor=s["color"],
             elinewidth=0.9,
-            capsize=1.8,
+            capsize=0,  # caps stuck out of the markers as second marks
             zorder=4,
         )
         ax.errorbar(
             [m2],
             [y],
             xerr=[[m2 - lo2], [hi2 - m2]],
-            fmt=s["marker"],
+            fmt="o",
             ms=size,
             mfc=s["color"],
             mec=s["color"],
             ecolor=s["color"],
             elinewidth=0.9,
-            capsize=1.8,
+            capsize=0,
             zorder=5,
         )
     ax.set_yticks(range(len(rows)))
