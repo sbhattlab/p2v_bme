@@ -110,7 +110,7 @@ PLOTTED = [
     "VFT-ML",
     "DIPPER",
     "P2V",
-]  # drawing order; the legend lists them the other way round, VecME first
+]  # drawing order; Figs S1-S3's legend lists them the other way round, VecME first
 FLOORS = {
     "time": 1e-2,
     "rf": 0.01,
@@ -313,7 +313,8 @@ def method_legend_inside(ax: plt.Axes, stats: dict) -> None:
     """Adds the methods drawn as one column in the lower right of a panel (Figs 2a, 2c),
     below the lines, where the log axes leave room: (axes, stats) -> None."""
     present = [k for k in PLOTTED if any(key == k for _, key in stats)]
-    handles = [Line2D([], [], label=SPEC[k]["label"], **method_style(k)) for k in reversed(present)]
+    # in drawing order, VecME at the bottom, as the rows of Fig. 2d
+    handles = [Line2D([], [], label=SPEC[k]["label"], **method_style(k)) for k in present]
     ax.legend(
         handles=handles,
         loc="lower right",

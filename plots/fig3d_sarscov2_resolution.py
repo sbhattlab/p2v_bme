@@ -20,19 +20,23 @@ Outputs: img/fig3/fig3d_sarscov2_resolution.{pdf,svg,png}
 import matplotlib.pyplot as plt
 import numpy as np
 
-from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
+from matplotlib.ticker import FixedLocator, FuncFormatter, MultipleLocator, NullFormatter
 
-from plots._config import FIG3_HEIGHT, STYLE, VARIANT_GROUPS
+from plots._config import STYLE, VARIANT_GROUPS
 from plots.utils import parser, read_tsv, save
 
-FIGSIZE = (180 / 25.4, FIG3_HEIGHT)  # the full page width, below Figs 3a-c
+# The panel from the bottom, in mm: margin, resolution axes, gap, genomes-per-month axes, margin;
+# the resolution axes are the taller, room for their y label on two lines
+BOTTOM, CLADES_HEIGHT, GAP, COUNTS_HEIGHT, TOP = 14.8, 39.0, 1.5, 26.6, 3.0
+HEIGHT = BOTTOM + CLADES_HEIGHT + GAP + COUNTS_HEIGHT + TOP
+FIGSIZE = (180 / 25.4, HEIGHT / 25.4)  # the full page width, below Figs 3a-c
 LEFT, RIGHT = 0.16, 0.99  # of both axes
-COUNTS_AXES = (0.60, 0.36)  # bottom and height of the genomes-per-month axes, in panel heights
-CLADES_AXES = (0.20, 0.38)  # bottom and height of the resolution axes
+COUNTS_AXES = ((BOTTOM + CLADES_HEIGHT + GAP) / HEIGHT, COUNTS_HEIGHT / HEIGHT)  # bottom, height
+CLADES_AXES = (BOTTOM / HEIGHT, CLADES_HEIGHT / HEIGHT)
 YLABEL_X = -0.10  # both y labels at this distance from the axes, in axes widths, so that they align
 THRESHOLD = 0.70  # transfer support that a branch needs
 QUARTER = {"01": "Jan", "04": "Apr", "07": "Jul", "10": "Oct"}
-THOUSAND = 1000
+COUNT_STEP = 100_000  # genomes per month between ticks
 LABEL_SHARE = 0.5  # a variant is named on the areas where it holds more than this share of a month
 CLADE_LIM = (1, 2e5)  # genomes in the smallest supported clade
 NAME_FONTSIZE = 8  # the variant names on the areas
@@ -63,10 +67,11 @@ def main() -> None:
     counts = fig.add_axes((LEFT, COUNTS_AXES[0], RIGHT - LEFT, COUNTS_AXES[1]))
     ax = fig.add_axes((LEFT, CLADES_AXES[0], RIGHT - LEFT, CLADES_AXES[1]), sharex=counts)
     x = np.arange(len(rows))
+    with_commas = FuncFormatter(lambda v, _pos: f"{int(v):,}")
 
     # genomes per month by variant, stacked; each variant named at its peak month
     shares = np.array([column(f"share_{key}") for key, _name, _colour in VARIANT_GROUPS])
-    per_month = shares * column("genomes") / THOUSAND
+    per_month = shares * column("genomes")
     counts.stackplot(x, per_month, colors=[c for _, _, c in VARIANT_GROUPS], linewidth=0)
     below = np.vstack([np.zeros(len(rows)), np.cumsum(per_month, axis=0)[:-1]])
     for (_key, name, _colour), share, count, base in zip(VARIANT_GROUPS, shares, per_month, below):
@@ -83,7 +88,9 @@ def main() -> None:
                 fontsize=NAME_FONTSIZE,
             )
     counts.set_ylim(0, None)
-    counts.set_ylabel("Genomes per\nmonth (thousands)")
+    counts.yaxis.set_major_locator(MultipleLocator(COUNT_STEP))
+    counts.yaxis.set_major_formatter(with_commas)
+    counts.set_ylabel("Genomes sampled\nper month")
     counts.tick_params(axis="x", labelbottom=False)
     counts.grid(axis="y", color=GRID_COLOUR, linewidth=GRID_WIDTH)
     counts.set_axisbelow(True)
@@ -107,9 +114,9 @@ def main() -> None:
     ax.set_yscale("log")
     ax.set_ylim(*CLADE_LIM)
     ax.yaxis.set_major_locator(FixedLocator([10, 1e3, 1e5]))
-    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _pos: f"{int(v):,}"))
+    ax.yaxis.set_major_formatter(with_commas)
     ax.yaxis.set_minor_formatter(NullFormatter())
-    ax.set_ylabel("Smallest supported\nclade (genomes)")
+    ax.set_ylabel("Genomes in the smallest\nsupported clade")
     ticks = [i for i, m in enumerate(months) if m[5:7] in QUARTER]
     ax.set_xticks(ticks)
     ax.set_xticklabels(

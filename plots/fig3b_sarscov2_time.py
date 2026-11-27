@@ -17,8 +17,8 @@ import numpy as np
 from plots._config import FIG3_AXES_Y, FIG3_HEIGHT, SPEC, STYLE
 from plots.utils import data_label_above, parser, read_tsv, save
 
-FIGSIZE = (56 / 25.4, FIG3_HEIGHT)  # in the row of Figs 3a-c across the 180 mm page
-LEFT, RIGHT = 0.24, 0.98
+FIGSIZE = (50 / 25.4, FIG3_HEIGHT)  # in the row of Figs 3a-c (70 + 50 + 60 mm) across the page
+LEFT, RIGHT = 0.29, 0.945  # room for the rotated names under the first bars and the last time
 PROGRAMS = {"VecME": "P2V", "CMAPLE": "CMAPLE", "MAPLE": "MAPLE"}  # in order; -> key in SPEC
 MINUTE, HOUR, DAY = 60, 3600, 86400
 HEADROOM = 4  # the axis ends 4 times above the slowest run, room for its label

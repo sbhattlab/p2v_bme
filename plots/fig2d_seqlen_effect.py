@@ -39,8 +39,8 @@ def main() -> None:
             if (r["dataset"], r["method"], int(r["n"])) == (dataset, key, N)
         ]
 
-    rows = []
-    for key, *_ in METHODS:
+    rows = []  # bottom to top, VecME at the bottom: top to bottom as Fig. 2a's legend
+    for key, *_ in reversed(METHODS):
         a, b = values(SHORT, key), values(LONG, key)
         if a and b:
             rows.append(
@@ -49,7 +49,6 @@ def main() -> None:
         else:
             have = [tag for tag, runs in ((SHORT, a), (LONG, b)) if runs]
             raise SystemExit(f"{key} at N = {N}: results for {have}, not for {SHORT} and {LONG}")
-    rows.sort(key=lambda r: -r[2][0])  # worst at the bottom of the reading order -> best on top
     if (top := max(max(r[1][2], r[2][2]) for r in rows)) > XLIM[1]:
         raise SystemExit(f"RF distance up to {top:.1f} %: beyond the axis ({XLIM[1]} %)")
 
@@ -64,27 +63,27 @@ def main() -> None:
             [m1],
             [y],
             xerr=[[m1 - lo1], [hi1 - m1]],
-            fmt=s["marker"],
+            fmt="o",  # the rows name the methods: no shapes needed
             ms=size,
             mfc="white",
             mec=s["color"],
             mew=1.3,
             ecolor=s["color"],
             elinewidth=0.9,
-            capsize=1.8,
+            capsize=0,  # caps stuck out of the markers as second marks
             zorder=4,
         )
         ax.errorbar(
             [m2],
             [y],
             xerr=[[m2 - lo2], [hi2 - m2]],
-            fmt=s["marker"],
+            fmt="o",
             ms=size,
             mfc=s["color"],
             mec=s["color"],
             ecolor=s["color"],
             elinewidth=0.9,
-            capsize=1.8,
+            capsize=0,
             zorder=5,
         )
     ax.set_yticks(range(len(rows)))
