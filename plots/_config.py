@@ -80,7 +80,7 @@ SCALING_SERIES: Final = [
 ]
 
 # Fig. 3: a, b and c in one row of panels 74 mm high whose main axes share their bottom and top, as
-# fractions of the panel, so that they line up side by side; d below them, as high, at full width
+# fractions of the panel, so that they line up side by side; d below them at full width
 FIG3_HEIGHT: Final = 74 / 25.4
 FIG3_AXES_Y: Final = (0.28, 0.88)  # bottom and top of the main axes of Figs 3a-c
 # Figs 3c,d: the SARS-CoV-2 variant groups of the Viridian records (key in the data, name, colour);
